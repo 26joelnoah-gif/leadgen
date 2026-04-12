@@ -3,22 +3,24 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { DEMO_LEADS } from '../lib/demoData'
 
+export function useLeads() {
+  const { user, profile, isDemoMode } = useAuth()
+  const [leads, setLeads] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
   function calculateLeadScore(lead) {
     let score = 0
-    // Source weights
     if (lead.lead_source === 'referral') score += 15
     else if (lead.lead_source === 'linkedin') score += 10
     else if (lead.lead_source === 'cold') score += 5
 
-    // Decision maker
     if (lead.decision_maker) score += 20
 
-    // Company size
     if (lead.company_size === '51+') score += 20
     else if (lead.company_size === '11-50') score += 10
     else if (lead.company_size === '1-10') score += 5
 
-    // Contact attempts (+2 per attempt as per feedback)
     score += (lead.contact_attempts || 0) * 2
 
     return score
@@ -53,7 +55,7 @@ import { DEMO_LEADS } from '../lib/demoData'
       query = query.order('created_at', { ascending: false })
       const { data, error } = await query
       if (error) throw error
-      
+
       const scoredLeads = (data || []).map(l => ({
         ...l,
         lead_score: calculateLeadScore(l)
@@ -69,12 +71,11 @@ import { DEMO_LEADS } from '../lib/demoData'
   async function updateLeadStatus(leadId, status) {
     const currentLead = leads.find(l => l.id === leadId)
     let updates = { status, updated_at: new Date().toISOString() }
-    
-    // Cadence logic for specific statuses
+
     if (status === 'later_bellen' || status === 'geen_gehoor') {
-      const nextAttempt = (currentLead.contact_attempts || 0) + 1
+      const nextAttempt = (currentLead?.contact_attempts || 0) + 1
       updates.contact_attempts = nextAttempt
-      
+
       if (nextAttempt >= 3) {
         updates.status = 'cold'
         updates.next_contact_date = null
@@ -100,7 +101,7 @@ import { DEMO_LEADS } from '../lib/demoData'
 
     if (!error) {
       setLeads(leads.map(l => l.id === leadId ? { ...l, ...updates } : l))
-      await logActivity(leadId, 'status_change', `Status gewijzigd naar: ${updates.status}${updates.contact_attempts ? ` (Poging ${updates.contact_attempts})` : ''}`)
+      await logActivity(leadId, 'status_change', `Status gewijzigd naar: ${updates.status}`)
     }
     return error
   }
@@ -123,7 +124,7 @@ import { DEMO_LEADS } from '../lib/demoData'
   }
 
   async function logActivity(leadId, action, notes) {
-    if (isDemoMode) return
+    if (isDemoMode || !user?.id) return
 
     await supabase.from('activities').insert({
       lead_id: leadId,
