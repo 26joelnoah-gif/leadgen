@@ -38,11 +38,13 @@ export default function StatsChart({ type = 'bar', data = [], dataKey = 'value',
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
             <XAxis dataKey={nameKey} axisLine={false} tickLine={false} fontSize={12} tick={{ fill: 'var(--text-muted)' }} />
             <YAxis axisLine={false} tickLine={false} fontSize={12} tick={{ fill: 'var(--text-muted)' }} />
-            <Tooltip 
+            <Tooltip
               contentStyle={{ background: 'var(--bg-white)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }}
             />
             <Legend />
-            <Line type="monotone" dataKey={dataKey} stroke="var(--primary)" strokeWidth={3} dot={{ fill: 'var(--primary)', r: 4 }} activeDot={{ r: 6 }} />
+            <Line type="monotone" dataKey="calls" stroke="var(--primary)" strokeWidth={3} dot={{ fill: 'var(--primary)', r: 4 }} activeDot={{ r: 6 }} name="Bellen" />
+            <Line type="monotone" dataKey="afspraken" stroke="var(--secondary)" strokeWidth={3} dot={{ fill: 'var(--secondary)', r: 4 }} activeDot={{ r: 6 }} name="Afspraken" strokeDasharray="5 5" />
+            <Line type="monotone" dataKey="deals" stroke="var(--success)" strokeWidth={3} dot={{ fill: 'var(--success)', r: 4 }} activeDot={{ r: 6 }} name="Deals" />
           </LineChart>
         );
       default:
@@ -51,9 +53,10 @@ export default function StatsChart({ type = 'bar', data = [], dataKey = 'value',
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--border)" />
             <XAxis dataKey={nameKey} axisLine={false} tickLine={false} fontSize={12} tick={{ fill: 'var(--text-muted)' }} />
             <YAxis axisLine={false} tickLine={false} fontSize={12} tick={{ fill: 'var(--text-muted)' }} />
-            <Tooltip 
+            <Tooltip
               cursor={{ fill: 'rgba(15, 76, 54, 0.05)' }}
               contentStyle={{ background: 'var(--bg-white)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }}
+              formatter={(value, name) => [value, title.toLowerCase().includes('status') ? 'Afspraken' : 'Leads']}
             />
             <Bar dataKey={dataKey} radius={[4, 4, 0, 0]}>
               {data.map((entry, index) => (

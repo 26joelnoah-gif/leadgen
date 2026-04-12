@@ -98,11 +98,30 @@ export const DEMO_LEADS = [
     phone: '06-89012345',
     email: 'voeding@deeik.nl',
     status: 'geen_gehoor',
+    lead_source: 'referral',
+    decision_maker: true,
+    contact_attempts: 2,
+    company_size: '51+',
+    next_contact_date: '2026-04-14T09:00:00Z',
     notes: '3x gebeld, geen gehoor',
     assigned_to: '2',
     assigned_to_profile: { full_name: 'Maria Admin' },
     created_by: '2',
     created_at: '2026-04-10T11:30:00Z',
+    updated_at: '2026-04-12T10:00:00Z'
+  },
+  {
+    id: '9',
+    name: 'Snackbar De Hap',
+    phone: '06-90123456',
+    status: 'cold',
+    lead_source: 'cold',
+    decision_maker: false,
+    contact_attempts: 3,
+    company_size: '1-10',
+    notes: '3 pogingen gedaan, geen interesse of gehoor',
+    assigned_to: '1',
+    created_at: '2026-04-01T10:00:00Z',
     updated_at: '2026-04-12T10:00:00Z'
   }
 ]

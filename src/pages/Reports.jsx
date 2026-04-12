@@ -11,9 +11,10 @@ import StatsChart from '../components/StatsChart'
 import ActivityFeed from '../components/ActivityFeed'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
+import Logo from '../components/Logo'
 
 export default function Reports() {
-  const { user, profile, signOut, isDemoMode } = useAuth()
+  const { user, profile, signOut, isDemoMode, sessionCallCount } = useAuth()
   const [stats, setStats] = useState({ total: 0, byStatus: [], byUser: [], timeline: [], appointments: 0, deals: 0 })
   const [recentActivities, setRecentActivities] = useState([])
   const [loading, setLoading] = useState(true)
@@ -64,13 +65,13 @@ export default function Reports() {
 
       // Generate a mock timeline for visual appeal
       const timelineData = [
-        { name: 'Ma', value: isDemoMode ? 12 : Math.floor(Math.random() * 20) + 5 },
-        { name: 'Di', value: isDemoMode ? 18 : Math.floor(Math.random() * 20) + 5 },
-        { name: 'Wo', value: isDemoMode ? 15 : Math.floor(Math.random() * 20) + 5 },
-        { name: 'Do', value: isDemoMode ? 25 : Math.floor(Math.random() * 20) + 5 },
-        { name: 'Vr', value: isDemoMode ? 20 : Math.floor(Math.random() * 20) + 5 },
-        { name: 'Za', value: isDemoMode ? 8 : Math.floor(Math.random() * 10) },
-        { name: 'Zo', value: isDemoMode ? 5 : Math.floor(Math.random() * 5) },
+        { name: 'Ma', calls: 32, afspraken: 8, deals: 2 },
+        { name: 'Di', calls: 45, afspraken: 12, deals: 4 },
+        { name: 'Wo', calls: 38, afspraken: 10, deals: 3 },
+        { name: 'Do', calls: 52, afspraken: 15, deals: 6 },
+        { name: 'Vr', calls: 48, afspraken: 14, deals: 5 },
+        { name: 'Za', calls: 15, afspraken: 4, deals: 1 },
+        { name: 'Zo', calls: 10, afspraken: 2, deals: 0 },
       ]
 
       setStats({
@@ -109,18 +110,20 @@ export default function Reports() {
       transition={{ duration: 0.5 }}
       className="reports-page"
     >
-      <header className="header">
+      <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)' }}>
         <div className="container header-content">
-          <div className="logo">
-            <Activity className="text-secondary" />
-            LEADGEN
-          </div>
-          <nav className="nav">
-            <Link to="/">Mijn Leads</Link>
+          <Logo size="medium" />
+          <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
+            <Link to="/">Dashboard</Link>
+            <Link to="/admin/telemetry">Telemetrie</Link>
             {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
             {profile?.role === 'admin' && <Link to="/admin/reports" className="active">Rapportage</Link>}
           </nav>
           <div className="header-actions">
+            <div className="flex items-center gap-2 mr-3" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '20px' }}>
+              <Zap size={14} className="text-secondary" />
+              <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span></span>
+            </div>
             <div className="flex items-center gap-2">
               <span style={{ fontSize: '0.9rem' }}>{profile?.full_name || user?.email}</span>
             </div>

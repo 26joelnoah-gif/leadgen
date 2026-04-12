@@ -23,15 +23,31 @@ CREATE TABLE IF NOT EXISTS public.leads (
     status TEXT NOT NULL DEFAULT 'new' CHECK (status IN (
         'new', 'later_bellen', 'mailen', 'voicemail',
         'terugbelafspraak', 'geen_gehoor', 'verkeerd_nummer',
-        'geen_interesse', 'afspraak_gemaakt', 'deal'
+        'geen_interesse', 'afspraak_gemaakt', 'deal', 'cold'
     )),
+    contact_attempts INT DEFAULT 0,
+    next_contact_date TIMESTAMPTZ,
+    lead_source TEXT, -- 'linkedin', 'referral', 'cold'
+    decision_maker BOOLEAN DEFAULT FALSE,
+    company_size TEXT, -- '1-10', '11-50', '51+'
+    lead_score INT DEFAULT 0,
     assigned_to UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- 3. Create activities table
+-- 3. Create messages table for real-time chat
+CREATE TABLE IF NOT EXISTS public.messages (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    text TEXT NOT NULL,
+    user_name TEXT NOT NULL,
+    is_admin BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 4. Create activities table
 CREATE TABLE IF NOT EXISTS public.activities (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     lead_id UUID REFERENCES public.leads(id) ON DELETE CASCADE NOT NULL,
@@ -48,6 +64,7 @@ CREATE TABLE IF NOT EXISTS public.activities (
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: everyone can read, only admins can update
 CREATE POLICY "Profiles are viewable by authenticated users" ON public.profiles

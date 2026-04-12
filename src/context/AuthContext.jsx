@@ -15,6 +15,7 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
   const [isDemoMode, setIsDemoMode] = useState(false)
   const [callEnabled, setCallEnabled] = useState(false)
+  const [sessionCallCount, setSessionCallCount] = useState(0)
 
   // Check if Supabase is configured, otherwise use demo mode
   useEffect(() => {
@@ -86,8 +87,24 @@ export function AuthProvider({ children }) {
     setCallEnabled(prev => !prev)
   }
 
+  async function logCall(leadId, leadName) {
+    setSessionCallCount(prev => prev + 1)
+    
+    if (!isDemoMode && user) {
+      await supabase.from('activities').insert({
+        user_id: user.id,
+        lead_id: leadId,
+        type: 'call',
+        description: `Gebeld naar ${leadName}`
+      })
+    }
+  }
+
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signIn, signOut, isDemoMode, callEnabled, toggleCallEnabled }}>
+    <AuthContext.Provider value={{ 
+      user, profile, loading, signIn, signOut, isDemoMode, 
+      callEnabled, toggleCallEnabled, sessionCallCount, logCall 
+    }}>
       {children}
     </AuthContext.Provider>
   )

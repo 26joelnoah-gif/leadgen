@@ -1,16 +1,64 @@
-import { Phone, Globe, MapPin, Calendar, ExternalLink } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Phone, Globe, MapPin, Calendar, ExternalLink, Zap, Flame } from 'lucide-react';
 import { getStatusDetails } from '../utils/statusUtils';
 import { formatDate } from '../utils/dateUtils';
 import StatusSelector from './StatusSelector';
+import { useAuth } from '../context/AuthContext';
 
 export default function LeadCard({ lead, onStatusChange, loading = false, callEnabled = true }) {
+  const { logCall } = useAuth();
   const statusDetails = getStatusDetails(lead.status);
 
+  // Lead scoring based on status
+  const isHot = lead.status === 'new' || lead.status === 'terugbelafspraak';
+  const isWarm = lead.status === 'afspraak_gemaakt' || lead.status === 'later_bellen';
+
   return (
-    <div className="card mb-2 glow-hover">
+    <div className="card mb-2 glow-hover" style={{ position: 'relative' }}>
+      {isHot && (
+        <div style={{
+          position: 'absolute',
+          top: -8,
+          right: 16,
+          background: 'linear-gradient(135deg, #EF4444 0%, #F97316 100%)',
+          color: 'white',
+          padding: '4px 12px',
+          borderRadius: 'var(--radius-full)',
+          fontSize: '0.7rem',
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4
+        }}>
+          <Flame size={12} /> HOT
+        </div>
+      )}
+      {isWarm && !isHot && (
+        <div style={{
+          position: 'absolute',
+          top: -8,
+          right: 16,
+          background: 'linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%)',
+          color: 'white',
+          padding: '4px 12px',
+          borderRadius: 'var(--radius-full)',
+          fontSize: '0.7rem',
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4
+        }}>
+          <Zap size={12} /> WARM
+        </div>
+      )}
       <div className="flex justify-between items-center mb-2">
-        <h3 className="lead-name" style={{ fontSize: '1.2rem', color: 'var(--primary)' }}>
+        <h3 className="lead-name" style={{ fontSize: '1.2rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           {lead.name}
+          {lead.lead_score > 0 && (
+            <span style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '3px' }}>
+              <Zap size={10} fill="currentColor" /> {lead.lead_score}
+            </span>
+          )}
         </h3>
         <div className="flex items-center gap-2">
           <StatusSelector
@@ -19,14 +67,30 @@ export default function LeadCard({ lead, onStatusChange, loading = false, callEn
             loading={loading}
           />
           {callEnabled && (
-            <a
+            <motion.a
+              whileHover={{ scale: 1.1, boxShadow: '0 0 15px rgba(16, 185, 129, 0.4)' }}
+              whileTap={{ scale: 0.9 }}
               href={`tel:${lead.phone}`}
+              onClick={() => logCall(lead.id, lead.name)}
               className="btn btn-success btn-sm"
-              style={{ textDecoration: 'none' }}
+              style={{ 
+                textDecoration: 'none', 
+                borderRadius: '50%', 
+                width: '32px', 
+                height: '32px', 
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'var(--success)',
+                color: 'white',
+                border: 'none',
+                boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)'
+              }}
               title="Bel deze lead"
             >
               <Phone size={14} />
-            </a>
+            </motion.a>
           )}
         </div>
       </div>

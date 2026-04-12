@@ -2,25 +2,55 @@ import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { LayoutDashboard, RefreshCw, Search, Filter, Phone, PhoneOff } from 'lucide-react'
+import { RefreshCw, Search, Filter, Phone, PhoneOff, Activity, Zap, Plus, X } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
 import { STATUS_MAP } from '../utils/statusUtils'
 import LeadCard from '../components/LeadCard'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
+import Logo from '../components/Logo'
+import TeamLeaderboard from '../components/TeamLeaderboard'
+import MobileNav from '../components/MobileNav'
+import Chat from '../components/Chat'
 
 export default function Dashboard() {
-  const { user, profile, signOut, callEnabled, toggleCallEnabled, isDemoMode } = useAuth()
-  const { leads, loading, refreshLeads, updateLeadStatus } = useLeads()
+  const { user, profile, signOut, callEnabled, toggleCallEnabled, isDemoMode, sessionCallCount } = useAuth()
+  const { leads, loading, refreshLeads, updateLeadStatus, createLead } = useLeads()
   const [filter, setFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [showNewLeadModal, setShowNewLeadModal] = useState(false)
+  const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', notes: '' })
+  const [creating, setCreating] = useState(false)
 
   const filteredLeads = leads.filter(lead => {
-    const matchesFilter = filter === 'all' || lead.status === filter
-    const matchesSearch = lead.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    let matchesFilter = true
+    if (filter === 'all') matchesFilter = true
+    else if (filter === 'hot') matchesFilter = ['new', 'terugbelafspraak', 'later_bellen'].includes(lead.status)
+    else if (filter === 'new') matchesFilter = lead.status === 'new'
+    else matchesFilter = lead.status === filter
+
+    const matchesSearch = lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (lead.phone && lead.phone.includes(searchTerm))
     return matchesFilter && matchesSearch
+  }).sort((a, b) => {
+    // Hot leads first: new, callback, appointment
+    const priority = { new: 0, terugbelafspraak: 1, afspraak_gemaakt: 2, later_bellen: 3, mailbox: 4, geen_interesse: 5, deal: 6, verkeerd_nummer: 7 }
+    const aPriority = priority[a.status] ?? 9
+    const bPriority = priority[b.status] ?? 9
+    if (aPriority !== bPriority) return aPriority - bPriority
+    // Then by date (newest first)
+    return new Date(b.created_at) - new Date(a.created_at)
   })
+
+  async function handleCreateLead(e) {
+    e.preventDefault()
+    if (!newLead.name || !newLead.phone) return
+    setCreating(true)
+    await createLead(newLead)
+    setNewLead({ name: '', phone: '', email: '', notes: '' })
+    setShowNewLeadModal(false)
+    setCreating(false)
+  }
 
   return (
     <motion.div 
@@ -28,18 +58,23 @@ export default function Dashboard() {
       animate={{ opacity: 1 }} 
       className="dashboard-page"
     >
-      <header className="header">
+      <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)' }}>
         <div className="container header-content">
-          <div className="logo">
-            <LayoutDashboard className="text-secondary" />
-            LEADGEN
-          </div>
-          <nav className="nav">
-            <Link to="/" className="active">Mijn Leads</Link>
+          <Logo size="medium" />
+          <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
+            <Link to="/" className="active">Dashboard</Link>
+            <Link to="/focus">Focus Mode</Link>
+            <Link to="/earnings">Verdiensten</Link>
+            <Link to="/admin/telemetry">Telemetrie</Link>
             {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
             {profile?.role === 'admin' && <Link to="/admin/reports">Rapportage</Link>}
           </nav>
+          <MobileNav profile={profile} />
           <div className="header-actions">
+            <div className="flex items-center gap-2 mr-3" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <Zap size={14} className="text-secondary" />
+              <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span></span>
+            </div>
             <div className="user-profile flex items-center gap-2">
               <div className="avatar" style={{ width: '32px', height: '32px', background: 'var(--secondary)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', color: 'var(--primary-dark)', fontSize: '0.8rem' }}>
                 {profile?.full_name?.charAt(0) || user?.email?.charAt(0).toUpperCase()}
@@ -49,11 +84,11 @@ export default function Dashboard() {
             <button
               onClick={toggleCallEnabled}
               className={`btn btn-sm ${callEnabled ? 'btn-secondary' : 'btn-outline'}`}
-              style={{ gap: '6px' }}
+              style={{ gap: '6px', minWidth: '80px' }}
               title={callEnabled ? 'Bellen ingeschakeld' : 'Bellen uitgeschakeld'}
             >
               {callEnabled ? <Phone size={14} /> : <PhoneOff size={14} />}
-              <span className="ml-1">{callEnabled ? 'Aan' : 'Uit'}</span>
+              <span>{callEnabled ? 'Aan' : 'Uit'}</span>
             </button>
             <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
           </div>
@@ -76,6 +111,9 @@ export default function Dashboard() {
                 DEMO DATA
               </span>
             )}
+            <button className="btn btn-secondary btn-sm" onClick={() => setShowNewLeadModal(true)}>
+              <Plus size={16} /> Nieuwe Lead
+            </button>
             <button className="btn btn-outline btn-sm" onClick={refreshLeads}>
               <RefreshCw size={16} /> Vernieuwen
             </button>
@@ -97,12 +135,14 @@ export default function Dashboard() {
           
           <div className="flex items-center gap-2">
             <Filter size={18} className="text-muted" />
-            <select 
-              value={filter} 
+            <select
+              value={filter}
               onChange={(e) => setFilter(e.target.value)}
               style={{ padding: '10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
             >
-              <option value="all">Alle statussen</option>
+              <option value="all">Alle leads</option>
+              <option value="hot">🔥 Hot Leads</option>
+              <option value="new">Nieuwe leads</option>
               {Object.entries(STATUS_MAP).map(([key, details]) => (
                 <option key={key} value={key}>{details.label}</option>
               ))}
@@ -115,31 +155,113 @@ export default function Dashboard() {
             <LoadingSpinner size="large" />
           </div>
         ) : (
-          <div className="leads-list">
-            <AnimatePresence>
-              {filteredLeads.length === 0 ? (
-                <EmptyState key="empty" title="Geen leads gevonden" />
-              ) : (
-                filteredLeads.map((lead, i) => (
-                  <motion.div
-                    key={lead.id}
-                    initial={{ scale: 0.95, opacity: 0 }}
-                    animate={{ scale: 1, opacity: 1 }}
-                    exit={{ scale: 0.95, opacity: 0 }}
-                    transition={{ delay: i * 0.05 }}
-                  >
-                    <LeadCard
-                      lead={lead}
-                      onStatusChange={updateLeadStatus}
-                      callEnabled={callEnabled}
-                    />
-                  </motion.div>
-                ))
-              )}
-            </AnimatePresence>
+          <div className="dashboard-content" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '24px', alignItems: 'start' }}>
+            <div className="leads-list">
+              <AnimatePresence>
+                {filteredLeads.length === 0 ? (
+                  <EmptyState key="empty" title="Geen leads gevonden" />
+                ) : (
+                  filteredLeads.map((lead, i) => (
+                    <motion.div
+                      key={lead.id}
+                      initial={{ scale: 0.95, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      exit={{ scale: 0.95, opacity: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                    >
+                      <LeadCard
+                        lead={lead}
+                        onStatusChange={updateLeadStatus}
+                        callEnabled={callEnabled}
+                      />
+                    </motion.div>
+                  ))
+                )}
+              </AnimatePresence>
+            </div>
+            <div className="dashboard-sidebar">
+              <TeamLeaderboard />
+            </div>
           </div>
         )}
       </main>
+
+      <AnimatePresence>
+        {showNewLeadModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="modal-overlay"
+            onClick={() => setShowNewLeadModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="modal"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="modal-header">
+                <h2>Nieuwe Lead Toevoegen</h2>
+                <button className="modal-close" onClick={() => setShowNewLeadModal(false)}>
+                  <X size={18} />
+                </button>
+              </div>
+              <form onSubmit={handleCreateLead}>
+                <div className="form-group">
+                  <label>Naam *</label>
+                  <input
+                    type="text"
+                    value={newLead.name}
+                    onChange={e => setNewLead({ ...newLead, name: e.target.value })}
+                    placeholder="Volledige naam"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Telefoonnummer *</label>
+                  <input
+                    type="tel"
+                    value={newLead.phone}
+                    onChange={e => setNewLead({ ...newLead, phone: e.target.value })}
+                    placeholder="06-12345678"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Email (optioneel)</label>
+                  <input
+                    type="email"
+                    value={newLead.email}
+                    onChange={e => setNewLead({ ...newLead, email: e.target.value })}
+                    placeholder="email@voorbeeld.nl"
+                  />
+                </div>
+                <div className="form-group">
+                  <label>Notities</label>
+                  <textarea
+                    value={newLead.notes}
+                    onChange={e => setNewLead({ ...newLead, notes: e.target.value })}
+                    placeholder="Extra informatie over deze lead..."
+                    rows={3}
+                  />
+                </div>
+                <div className="flex gap-2" style={{ marginTop: '24px' }}>
+                  <button type="button" className="btn btn-outline" onClick={() => setShowNewLeadModal(false)} style={{ flex: 1 }}>
+                    Annuleren
+                  </button>
+                  <button type="submit" className="btn btn-secondary" disabled={creating} style={{ flex: 1 }}>
+                    {creating ? 'Toevoegen...' : 'Lead Toevoegen'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <Chat />
     </motion.div>
   )
 }
