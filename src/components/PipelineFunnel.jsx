@@ -39,7 +39,7 @@ export default function PipelineFunnel({ leads = [] }) {
           return (
             <div key={step.key} className="funnel-step flex-1 flex flex-column items-center relative h-full justify-end">
               {conversion !== null && (
-                <div className="conversion-rate" style={{ position: 'absolute', left: '-15%', top: '50%', transform: 'translateY(-50%)', background: 'var(--bg-light)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, z-index: 2, border: '1px solid var(--border)' }}>
+                <div className="conversion-rate" style={{ position: 'absolute', left: '-15%', top: '50%', transform: 'translateY(-50%)', background: 'var(--bg-light)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, zIndex: 2, border: '1px solid var(--border)' }}>
                   {conversion}%
                 </div>
               )}
