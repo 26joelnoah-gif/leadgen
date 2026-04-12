@@ -48,10 +48,10 @@ export default function Login() {
         <div style={{ position: 'absolute', top: '-100px', right: '-100px', width: '200px', height: '200px', background: 'var(--secondary)', filter: 'blur(80px)', opacity: 0.1, pointerEvents: 'none' }} />
         
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <h1 style={{ fontSize: '2.5rem', fontWeight: 900, background: 'linear-gradient(135deg, var(--secondary) 0%, #FFF 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '8px' }}>
+          <h1 style={{ fontSize: '3rem', fontWeight: 900, background: 'linear-gradient(135deg, var(--secondary) 0%, #FFF 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '8px', letterSpacing: '-0.05em' }}>
             LEADGEN
           </h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>Premium Lead Management</p>
+          <p style={{ color: 'var(--secondary)', fontSize: '1.2rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '4px' }}>SMILE & DIAL</p>
         </div>
 
         {isDemoMode && (

@@ -3,11 +3,12 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Users, Settings, UserPlus, Phone, PhoneOff, Mail, UserCheck, Shield, Activity, Download, Play, Zap, Upload, X, CheckCircle, AlertTriangle, Bell, Megaphone } from 'lucide-react'
+import { Plus, Users, Settings, UserPlus, Phone, PhoneOff, Mail, UserCheck, Shield, Activity, Download, Play, Zap, Upload, X, CheckCircle, AlertTriangle, Bell, Megaphone, Target, DollarSign, Calendar } from 'lucide-react'
 import { STATUS_MAP } from '../utils/statusUtils'
 import { exportToCSV } from '../utils/exportUtils'
 import { parseCSV, validateLeads } from '../utils/importUtils'
 import { CAMPAIGN_TYPES } from '../utils/campaignUtils'
+import { getSettings, saveSettings } from '../utils/settingsUtils'
 import LoadingSpinner from '../components/LoadingSpinner'
 import StatusSelector from '../components/StatusSelector'
 import Logo from '../components/Logo'
@@ -22,7 +23,16 @@ export default function Admin() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddLead, setShowAddLead] = useState(false)
-  const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', notes: '', assigned_to: '' })
+  const [newLead, setNewLead] = useState({ 
+    name: '', 
+    phone: '', 
+    email: '', 
+    notes: '', 
+    assigned_to: '',
+    lead_source: 'cold',
+    company_size: '1-10',
+    decision_maker: false
+  })
   const [showImport, setShowImport] = useState(false)
   const [importData, setImportData] = useState(null)
   const [importErrors, setImportErrors] = useState([])
@@ -30,6 +40,9 @@ export default function Admin() {
   const [showBriefing, setShowBriefing] = useState(false)
   const [campaigns, setCampaigns] = useState([])
   const [briefings, setBriefings] = useState([])
+  const [editingUser, setEditingUser] = useState(null)
+  const [showSettings, setShowSettings] = useState(false)
+  const [systemSettings, setSystemSettings] = useState(getSettings)
 
   useEffect(() => {
     fetchData()
@@ -167,6 +180,23 @@ export default function Admin() {
     setLeads(leads.map(l => l.id === leadId ? { ...l, status } : l))
   }
 
+  async function updateUserSettings(userId, settings) {
+    if (isDemoMode) {
+      setUsers(users.map(u => u.id === userId ? { ...u, ...settings } : u))
+      return
+    }
+    const { error } = await supabase.from('profiles').update(settings).eq('id', userId)
+    if (!error) {
+       setUsers(users.map(u => u.id === userId ? { ...u, ...settings } : u))
+    }
+  }
+
+  function handleSaveSystemSettings(newSettings) {
+    saveSettings(newSettings)
+    setSystemSettings(newSettings)
+    setShowSettings(false)
+  }
+
   return (
     <motion.div 
       initial={{ opacity: 0 }} 
@@ -187,7 +217,9 @@ export default function Admin() {
               <Zap size={14} className="text-secondary" />
               <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span></span>
             </div>
-            <span>{profile?.full_name || user?.email}</span>
+            <button onClick={() => setShowSettings(true)} className="btn btn-sm btn-outline" title="Systeem instellingen">
+              <Settings size={16} />
+            </button>
             <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
           </div>
         </div>
@@ -238,20 +270,8 @@ export default function Admin() {
 
         <AnimatePresence>
           {showAddLead && (
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="modal-overlay" 
-              onClick={() => setShowAddLead(false)}
-            >
-              <motion.div 
-                initial={{ scale: 0.9, y: 20 }}
-                animate={{ scale: 1, y: 0 }}
-                exit={{ scale: 0.9, y: 20 }}
-                className="modal glass-panel" 
-                onClick={e => e.stopPropagation()}
-              >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="modal-overlay" onClick={() => setShowAddLead(false)}>
+              <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="modal glass-panel" onClick={e => e.stopPropagation()}>
                 <div className="modal-header">
                   <h2>Nieuwe Lead Toevoegen</h2>
                   <button className="modal-close" onClick={() => setShowAddLead(false)}>×</button>
@@ -295,12 +315,7 @@ export default function Admin() {
                     <label style={{ margin: 0, cursor: 'pointer' }} className="flex items-center gap-2">
                        <Shield size={14} /> Beslisser? 
                     </label>
-                    <input 
-                      type="checkbox" 
-                      checked={newLead.decision_maker} 
-                      onChange={e => setNewLead({...newLead, decision_maker: e.target.checked})} 
-                      style={{ width: '20px', height: '20px', cursor: 'pointer' }}
-                    />
+                    <input type="checkbox" checked={newLead.decision_maker} onChange={e => setNewLead({...newLead, decision_maker: e.target.checked})} style={{ width: '20px', height: '20px', cursor: 'pointer' }} />
                   </div>
                   <div className="form-group">
                     <label><UserCheck size={14} /> Toewijzen</label>
@@ -316,93 +331,7 @@ export default function Admin() {
           )}
         </AnimatePresence>
 
-        <AnimatePresence>
-          {showImport && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="modal-overlay"
-              onClick={() => setShowImport(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="modal"
-                onClick={e => e.stopPropagation()}
-                style={{ maxWidth: '600px' }}
-              >
-                <div className="modal-header">
-                  <h2><Upload size={18} /> Import Leads</h2>
-                  <button className="modal-close" onClick={() => setShowImport(false)}><X size={18} /></button>
-                </div>
-
-                {importErrors.length > 0 && (
-                  <div style={{ background: '#FEF3C7', border: '1px solid #F59E0B', borderRadius: '8px', padding: '12px', marginBottom: '16px' }}>
-                    <p style={{ fontWeight: 600, color: '#92400E', marginBottom: '8px' }}>Waarschuwingen:</p>
-                    {importErrors.slice(0, 5).map((err, i) => (
-                      <p key={i} style={{ fontSize: '0.85rem', color: '#92400E', margin: '4px 0' }}>{err}</p>
-                    ))}
-                    {importErrors.length > 5 && <p style={{ fontSize: '0.85rem', color: '#92400E' }}>...en {importErrors.length - 5} meer</p>}
-                  </div>
-                )}
-
-                {importData && importData.length > 0 ? (
-                  <>
-                    <p style={{ marginBottom: '16px' }}>
-                      <CheckCircle size={16} style={{ color: 'var(--success)', verticalAlign: 'middle' }} />
-                      {' '}{importData.length} leads gevonden om te importeren
-                    </p>
-                    <div style={{ maxHeight: '200px', overflow: 'auto', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '16px' }}>
-                      <table className="table" style={{ fontSize: '0.85rem' }}>
-                        <thead><tr><th>Naam</th><th>Telefoon</th><th>Email</th></tr></thead>
-                        <tbody>
-                          {importData.slice(0, 10).map((lead, i) => (
-                            <tr key={i}>
-                              <td>{lead.name}</td>
-                              <td>{lead.phone}</td>
-                              <td>{lead.email || '-'}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      {importData.length > 10 && <p style={{ padding: '8px', textAlign: 'center', color: 'var(--text-muted)' }}>...en {importData.length - 10} meer</p>}
-                    </div>
-                    <div className="flex gap-2">
-                      <button className="btn btn-outline" onClick={() => setShowImport(false)} style={{ flex: 1 }}>Annuleren</button>
-                      <button className="btn btn-secondary" onClick={confirmImport} style={{ flex: 1 }}>Importeren ({importData.length})</button>
-                    </div>
-                  </>
-                ) : (
-                  <div style={{ textAlign: 'center', padding: '32px' }}>
-                    <AlertTriangle size={48} style={{ color: 'var(--warning)', marginBottom: '16px' }} />
-                    <p>Geen geldige leads gevonden in het CSV bestand.</p>
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '8px' }}>
-                      Zorg dat de kolommen "name" en "phone" aanwezig zijn.
-                    </p>
-                    <button className="btn btn-outline mt-3" onClick={() => setShowImport(false)}>Sluiten</button>
-                  </div>
-                )}
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <CampaignModal
-          isOpen={showCampaign}
-          onClose={() => setShowCampaign(false)}
-          onStartCampaign={handleStartCampaign}
-        />
-
-        <BriefingModal
-          isOpen={showBriefing}
-          onClose={() => setShowBriefing(false)}
-          onSend={handleSendBriefing}
-          userName={profile?.full_name || user?.email}
-        />
-
-        <PipelineFunnel leads={leads} />
+        <PipelineFunnel leads={leads} isDemoMode={isDemoMode} />
 
         <div className="grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', marginBottom: '32px' }}>
           <motion.div initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="card glow-hover">
@@ -416,7 +345,14 @@ export default function Admin() {
                   <tr key={u.id}>
                     <td><strong>{u.full_name}</strong><br/><small className="text-muted">{u.email}</small></td>
                     <td><span className={`status status-${u.role === 'admin' ? 'afspraak_gemaakt' : 'new'}`}>{u.role}</span></td>
-                    <td className="text-secondary" style={{ fontWeight: 700 }}>{leads.filter(l => l.assigned_to === u.id).length}</td>
+                    <td>
+                      <div className="flex items-center justify-between">
+                         <span className="text-secondary" style={{ fontWeight: 700 }}>{leads.filter(l => l.assigned_to === u.id).length}</span>
+                         <button onClick={() => setEditingUser(u)} className="btn btn-sm btn-ghost" title="Instellingen">
+                            <Settings size={14} />
+                         </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -432,35 +368,111 @@ export default function Admin() {
           </motion.div>
         </div>
 
+        <AnimatePresence>
+          {editingUser && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="modal-overlay" onClick={() => setEditingUser(null)}>
+              <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="modal glass-panel" onClick={e => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h2><Settings size={18} /> Instellingen: {editingUser.full_name}</h2>
+                  <button className="modal-close" onClick={() => setEditingUser(null)}><X size={18} /></button>
+                </div>
+                <div className="flex flex-column gap-3 mt-3">
+                   <div className="flex justify-between items-center p-3 glass-panel">
+                      <div>
+                        <strong>Toon afspraken in verdiensten</strong>
+                        <p className="text-muted" style={{ fontSize: '0.8rem' }}>Mag deze medewerker zijn afspraken zien?</p>
+                      </div>
+                      <input type="checkbox" checked={editingUser.show_appointments_in_earnings} onChange={(e) => {
+                        const newUser = {...editingUser, show_appointments_in_earnings: e.target.checked};
+                        setEditingUser(newUser);
+                        updateUserSettings(newUser.id, { show_appointments_in_earnings: e.target.checked });
+                      }} style={{ width: '20px', height: '20px' }} />
+                   </div>
+                   <div className="flex justify-between items-center p-3 glass-panel">
+                      <div>
+                        <strong>Toon deals in verdiensten</strong>
+                        <p className="text-muted" style={{ fontSize: '0.8rem' }}>Mag deze medewerker zijn deals zien?</p>
+                      </div>
+                      <input type="checkbox" checked={editingUser.show_deals_in_earnings} onChange={(e) => {
+                        const newUser = {...editingUser, show_deals_in_earnings: e.target.checked};
+                        setEditingUser(newUser);
+                        updateUserSettings(newUser.id, { show_deals_in_earnings: e.target.checked });
+                      }} style={{ width: '20px', height: '20px' }} />
+                   </div>
+                </div>
+                <button className="btn btn-primary btn-block mt-4" onClick={() => setEditingUser(null)}>Opslaan</button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <AnimatePresence>
+          {showSettings && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="modal-overlay" onClick={() => setShowSettings(false)}>
+              <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="modal glass-panel" onClick={e => e.stopPropagation()}>
+                <div className="modal-header">
+                  <h2><Settings size={18} /> Systeem Instellingen</h2>
+                  <button className="modal-close" onClick={() => setShowSettings(false)}><X size={18} /></button>
+                </div>
+                <div className="flex flex-column gap-4 mt-4">
+                  <div className="form-group">
+                    <label><Target size={14} /> Maandelijkse Deal Target</label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={systemSettings.monthlyTarget}
+                      onChange={e => setSystemSettings({ ...systemSettings, monthlyTarget: parseInt(e.target.value) || 1 })}
+                      style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
+                    />
+                    <small className="text-muted">Aantal deals dat medewerkers per maand moeten behalen</small>
+                  </div>
+                  <div className="grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div className="form-group">
+                      <label><DollarSign size={14} /> Deal Waarde (&euro;)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={systemSettings.dealValue}
+                        onChange={e => setSystemSettings({ ...systemSettings, dealValue: parseInt(e.target.value) || 0 })}
+                        style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label><Calendar size={14} /> Afspraak Waarde (&euro;)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={systemSettings.appointmentValue}
+                        onChange={e => setSystemSettings({ ...systemSettings, appointmentValue: parseInt(e.target.value) || 0 })}
+                        style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <button className="btn btn-outline" onClick={() => setShowSettings(false)} style={{ flex: 1 }}>Annuleren</button>
+                  <button className="btn btn-primary" onClick={() => handleSaveSystemSettings(systemSettings)} style={{ flex: 1, background: 'var(--secondary)', color: 'var(--primary-dark)' }}>Opslaan</button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {(campaigns.length > 0 || briefings.length > 0) && (
           <div className="grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px', marginBottom: '32px' }}>
             {campaigns.length > 0 && (
               <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="card">
-                <div className="card-header">
-                  <span className="card-title"><Megaphone size={18} /> Campagnes</span>
-                </div>
+                <div className="card-header"><span className="card-title"><Megaphone size={18} /> Campagnes</span></div>
                 <div className="flex flex-column gap-2">
-                  {campaigns.map(c => (
-                    <CampaignCard
-                      key={c.id}
-                      campaign={c}
-                      onPause={handlePauseCampaign}
-                      onResume={handleResumeCampaign}
-                      onDelete={handleDeleteCampaign}
-                    />
-                  ))}
+                  {campaigns.map(c => <CampaignCard key={c.id} campaign={c} onPause={handlePauseCampaign} onResume={handleResumeCampaign} onDelete={handleDeleteCampaign} />)}
                 </div>
               </motion.div>
             )}
             {briefings.length > 0 && (
               <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="card">
-                <div className="card-header">
-                  <span className="card-title"><Bell size={18} /> Briefings</span>
-                </div>
+                <div className="card-header"><span className="card-title"><Bell size={18} /> Briefings</span></div>
                 <div className="flex flex-column gap-2">
-                  {briefings.map(b => (
-                    <BriefingCard key={b.id} briefing={b} />
-                  ))}
+                  {briefings.map(b => <BriefingCard key={b.id} briefing={b} />)}
                 </div>
               </motion.div>
             )}
@@ -468,9 +480,7 @@ export default function Admin() {
         )}
 
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="card">
-          <div className="card-header">
-            <span className="card-title"><Activity size={18} /> Alle Leads</span>
-          </div>
+          <div className="card-header"><span className="card-title"><Activity size={18} /> Alle Leads</span></div>
           {loading ? <LoadingSpinner /> : (
             <div className="table-container">
               <table className="table">
@@ -479,19 +489,10 @@ export default function Admin() {
                   {leads.map(lead => (
                     <tr key={lead.id}>
                       <td><strong>{lead.name}</strong></td>
-                      <td>
-                        <div className="flex items-center gap-1">
-                          {callEnabled && <Phone size={14} className="text-success" />}
-                          {lead.phone}
-                        </div>
-                      </td>
+                      <td><div className="flex items-center gap-1">{callEnabled && <Phone size={14} className="text-success" />}{lead.phone}</div></td>
                       <td><StatusSelector currentStatus={lead.status} onStatusChange={(s) => updateStatus(lead.id, s)} /></td>
                       <td>
-                        <select 
-                          value={lead.assigned_to || ''} 
-                          onChange={(e) => assignLead(lead.id, e.target.value)}
-                          style={{ padding: '6px', borderRadius: '4px', border: '1px solid var(--border)' }}
-                        >
+                        <select value={lead.assigned_to || ''} onChange={(e) => assignLead(lead.id, e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid var(--border)' }}>
                           <option value="">Niemand</option>
                           {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
                         </select>

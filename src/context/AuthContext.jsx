@@ -5,8 +5,8 @@ const AuthContext = createContext({})
 
 // Demo users for mock mode
 const DEMO_USERS = {
-  'employee@demo.nl': { id: '1', email: 'employee@demo.nl', full_name: 'Jan de Vries', role: 'employee' },
-  'admin@demo.nl': { id: '2', email: 'admin@demo.nl', full_name: 'Maria Admin', role: 'admin' }
+  'employee@demo.nl': { id: '1', email: 'employee@demo.nl', full_name: 'Jan de Vries', role: 'employee', show_appointments_in_earnings: true, show_deals_in_earnings: true },
+  'admin@demo.nl': { id: '2', email: 'admin@demo.nl', full_name: 'Maria Admin', role: 'admin', show_appointments_in_earnings: true, show_deals_in_earnings: true }
 }
 
 export function AuthProvider({ children }) {
@@ -94,8 +94,8 @@ export function AuthProvider({ children }) {
       await supabase.from('activities').insert({
         user_id: user.id,
         lead_id: leadId,
-        type: 'call',
-        description: `Gebeld naar ${leadName}`
+        action: 'call',
+        notes: `Gebeld naar ${leadName}`
       })
     }
   }

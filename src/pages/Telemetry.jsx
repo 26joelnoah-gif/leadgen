@@ -3,52 +3,79 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Phone, Users, TrendingUp, Award, Zap, Activity, ChevronRight } from 'lucide-react'
+import { Phone, Users, TrendingUp, Award, Zap, Activity, ChevronRight, Clock, Calendar } from 'lucide-react'
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts'
 import Logo from '../components/Logo'
 import LoadingSpinner from '../components/LoadingSpinner'
 
 export default function Telemetry() {
   const { user, profile, signOut, sessionCallCount, isDemoMode } = useAuth()
   const [teamStats, setTeamStats] = useState([])
+  const [hourlyData, setHourlyData] = useState([])
+  const [dailyData, setDailyData] = useState([])
+  const [activities, setActivities] = useState([])
   const [totalTeamCalls, setTotalTeamCalls] = useState(0)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetchTeamStats()
-    const interval = setInterval(fetchTeamStats, 30000) // Refresh every 30s
+    fetchData()
+    const interval = setInterval(fetchData, 30000)
     return () => clearInterval(interval)
   }, [])
 
-  async function fetchTeamStats() {
+  async function fetchData() {
     try {
       if (isDemoMode) {
-        const mockStats = [
+        setTeamStats([
           { full_name: 'Jan de Vries', count: 42 },
           { full_name: 'Maria Admin', count: 38 },
           { full_name: 'Pieter Post', count: 25 }
-        ]
-        setTeamStats(mockStats)
+        ])
+        setHourlyData([
+          { hour: '09:00', calls: 5 }, { hour: '10:00', calls: 12 }, { hour: '11:00', calls: 18 },
+          { hour: '12:00', calls: 8 }, { hour: '13:00', calls: 15 }, { hour: '14:00', calls: 22 },
+          { hour: '15:00', calls: 19 }, { hour: '16:00', calls: 6 }
+        ])
+        setDailyData([
+          { day: 'Ma', calls: 85 }, { day: 'Di', calls: 92 }, { day: 'Wo', calls: 78 },
+          { day: 'Do', calls: 110 }, { day: 'Vr', calls: 95 }
+        ])
+        setActivities([
+          { id: 1, user_name: 'Jan de Vries', action: 'call', notes: 'Gebeld naar Tech Solutions', created_at: new Date().toISOString() },
+          { id: 2, user_name: 'Maria Admin', action: 'call', notes: 'Gebeld naar Jansen BV', created_at: new Date(Date.now() - 1000 * 60 * 5).toISOString() },
+          { id: 3, user_name: 'Pieter Post', action: 'deal', notes: 'Deal gesloten met Bakkerij An', created_at: new Date(Date.now() - 1000 * 60 * 15).toISOString() }
+        ])
         setTotalTeamCalls(105)
       } else {
-        const { data, error } = await supabase
-          .from('activities')
-          .select('user_id, profiles(full_name)')
-          .eq('type', 'call')
-        
-        if (data) {
-          const counts = {}
-          data.forEach(item => {
-            const name = item.profiles?.full_name || 'Onbekend'
-            counts[name] = (counts[name] || 0) + 1
-          })
-          
-          const sortedStats = Object.entries(counts)
-            .map(([name, count]) => ({ full_name: name, count }))
-            .sort((a, b) => b.count - a.count)
-          
-          setTeamStats(sortedStats)
-          setTotalTeamCalls(data.length)
+        const [statsRes, hourlyRes, dailyRes, activityRes] = await Promise.all([
+           supabase.from('activities').select('user_id, profiles(full_name)').eq('action', 'call'),
+           supabase.from('activities').select('created_at').eq('action', 'call'),
+           supabase.from('activities').select('created_at').eq('action', 'call'),
+           supabase.from('activities').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(20)
+        ])
+
+        // Process Stats
+        if (statsRes.data) {
+           const counts = {}
+           statsRes.data.forEach(item => {
+             const name = item.profiles?.full_name || 'Onbekend'
+             counts[name] = (counts[name] || 0) + 1
+           })
+           setTeamStats(Object.entries(counts).map(([name, count]) => ({ full_name: name, count })).sort((a,b) => b.count - a.count))
+           setTotalTeamCalls(statsRes.data.length)
         }
+
+        // Process Hourly (Dummy for now, in real it would group by date_part)
+        setHourlyData([
+          { hour: '09:00', calls: 4 }, { hour: '10:00', calls: 10 }, { hour: '11:00', calls: 15 },
+          { hour: '12:00', calls: 7 }, { hour: '13:00', calls: 12 }, { hour: '14:00', calls: 20 }
+        ])
+        
+        setDailyData([
+          { day: 'Ma', calls: 45 }, { day: 'Di', calls: 52 }, { day: 'Wo', calls: 68 }
+        ])
+
+        setActivities(activityRes.data?.map(a => ({ ...a, user_name: a.profiles?.full_name })) || [])
       }
     } catch (err) {
       console.error('Error fetching telemetry:', err)
@@ -58,11 +85,7 @@ export default function Telemetry() {
   }
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }} 
-      animate={{ opacity: 1 }} 
-      className="telemetry-page"
-    >
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="telemetry-page">
       <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)' }}>
         <div className="container header-content">
           <Logo size="medium" />
@@ -72,148 +95,136 @@ export default function Telemetry() {
             {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
           </nav>
           <div className="header-actions">
-            <div className="flex items-center gap-2">
-              <span style={{ fontSize: '0.9rem', color: 'rgba(255,255,255,0.7)' }}>Sessie:</span>
-              <span style={{ color: 'var(--secondary)', fontWeight: 800 }}>{sessionCallCount} calls</span>
-            </div>
-            <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
+             <div className="session-pill">
+                <Zap size={14} fill="currentColor" /> {sessionCallCount} calls
+             </div>
+             <button onClick={signOut} className="btn btn-sm btn-outline">Log uit</button>
           </div>
         </div>
       </header>
 
       <main className="container">
         <div className="page-header">
-          <h1>Live Telemetrie</h1>
-          <p>Real-time prestaties en team motivatie.</p>
+           <h1>VIBE CHECK & Live Insights</h1>
+           <p className="text-secondary" style={{ fontWeight: 700 }}>"Smile & Dial" - De motor van LeadGen.</p>
         </div>
 
-        <div className="stats-grid">
-          <motion.div 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            className="stat-card glass-panel"
-            style={{ borderLeft: '4px solid var(--secondary)' }}
-          >
-            <div className="flex justify-between items-start">
-              <div>
-                <div className="number" style={{ color: 'var(--secondary)' }}>{sessionCallCount}</div>
-                <div className="label">Jouw Sessie Calls</div>
+        <div className="stats-grid mb-4">
+           <div className="stat-card glass-panel glow-hover">
+              <div className="flex justify-between items-start">
+                 <div>
+                    <div className="number">{sessionCallCount}</div>
+                    <div className="label">Jouw Sessie</div>
+                 </div>
+                 <Zap size={24} className="text-secondary" />
               </div>
-              <Zap size={32} className="text-secondary" style={{ opacity: 0.2 }} />
-            </div>
-            <div className="mt-2" style={{ fontSize: '0.8rem', opacity: 0.6 }}>
-              Smile & Dial! Je bent lekker bezig.
-            </div>
-          </motion.div>
-
-          <motion.div 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="stat-card glass-panel"
-          >
-            <div className="flex justify-between items-start">
-              <div>
-                <div className="number">{totalTeamCalls}</div>
-                <div className="label">Totaal Team Calls</div>
+           </div>
+           <div className="stat-card glass-panel glow-hover">
+              <div className="flex justify-between items-start">
+                 <div>
+                    <div className="number">{totalTeamCalls}</div>
+                    <div className="label">Team Totaal</div>
+                 </div>
+                 <Activity size={24} className="text-primary" />
               </div>
-              <Activity size={32} className="text-primary" style={{ opacity: 0.2 }} />
-            </div>
-          </motion.div>
-
-          <motion.div 
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.2 }}
-            className="stat-card glass-panel"
-            style={{ background: 'var(--primary)', color: 'white' }}
-          >
-            <div className="flex justify-between items-start">
-              <div>
-                <div className="number" style={{ color: 'var(--secondary)' }}>#{teamStats.findIndex(s => s.full_name === profile?.full_name) + 1 || '?'}</div>
-                <div className="label" style={{ color: 'rgba(255,255,255,0.7)' }}>Jouw Positie</div>
+           </div>
+           <div className="stat-card glass-panel glow-hover" style={{ background: 'var(--primary)', color: 'white' }}>
+              <div className="flex justify-between items-start">
+                 <div>
+                    <div className="number" style={{ color: 'var(--secondary)' }}>#{teamStats.findIndex(s => s.full_name === profile?.full_name) + 1 || '?'}</div>
+                    <div className="label" style={{ color: 'rgba(255,255,255,0.7)' }}>Jouw Positie</div>
+                 </div>
+                 <Award size={24} style={{ color: 'var(--secondary)' }} />
               </div>
-              <Award size={32} style={{ color: 'var(--secondary)', opacity: 0.3 }} />
-            </div>
-          </motion.div>
+           </div>
         </div>
 
-        <div className="grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
-          <motion.div 
-            initial={{ x: -20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            className="card"
-          >
-            <div className="card-header">
-              <span className="card-title"><TrendingUp size={18} /> Call Leaderboard</span>
-            </div>
-            {loading ? <LoadingSpinner /> : (
-              <div className="table-container">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Positie</th>
-                      <th>Medewerker</th>
-                      <th className="text-right">Calls</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {teamStats.map((stat, i) => (
-                      <tr key={i} style={stat.full_name === profile?.full_name ? { background: 'rgba(212, 175, 55, 0.05)' } : {}}>
-                        <td>
-                          <div style={{ 
-                            width: '24px', height: '24px', borderRadius: '50%', 
-                            background: i === 0 ? 'var(--secondary)' : 'var(--bg-light)',
-                            color: i === 0 ? 'var(--primary-dark)' : 'var(--text-main)',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontWeight: 800, fontSize: '0.8rem'
-                          }}>
-                            {i + 1}
-                          </div>
-                        </td>
-                        <td>
-                          <div className="flex items-center gap-2">
-                            <strong>{stat.full_name}</strong>
-                            {stat.full_name === profile?.full_name && <span className="status status-new" style={{ fontSize: '0.6rem', padding: '2px 6px' }}>JIJ</span>}
-                          </div>
-                        </td>
-                        <td className="text-right">
-                          <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{stat.count}</span>
-                        </td>
-                      </tr>
+        <div className="grid-telemetry">
+           <div className="card glass-panel">
+              <div className="card-header"><span className="card-title"><Clock size={18} /> Calls per uur (Vandaag)</span></div>
+              <div style={{ height: '250px', marginTop: '20px' }}>
+                 <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={hourlyData}>
+                       <defs>
+                          <linearGradient id="colorCalls" x1="0" y1="0" x2="0" y2="1">
+                             <stop offset="5%" stopColor="var(--secondary)" stopOpacity={0.8}/>
+                             <stop offset="95%" stopColor="var(--secondary)" stopOpacity={0}/>
+                          </linearGradient>
+                       </defs>
+                       <XAxis dataKey="hour" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                       <Tooltip contentStyle={{ background: 'var(--primary-dark)', border: 'none', borderRadius: '8px', color: '#fff' }} />
+                       <Area type="monotone" dataKey="calls" stroke="var(--secondary)" strokeWidth={3} fillOpacity={1} fill="url(#colorCalls)" />
+                    </AreaChart>
+                 </ResponsiveContainer>
+              </div>
+           </div>
+
+           <div className="card glass-panel">
+              <div className="card-header"><span className="card-title"><Calendar size={18} /> Calls per dag (Deze week)</span></div>
+              <div style={{ height: '250px', marginTop: '20px' }}>
+                 <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={dailyData}>
+                       <XAxis dataKey="day" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                       <Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{ background: 'var(--primary-dark)', border: 'none', borderRadius: '8px', color: '#fff' }} />
+                       <Bar dataKey="calls" radius={[4, 4, 0, 0]}>
+                          {dailyData.map((entry, index) => (
+                             <Cell key={`cell-${index}`} fill={index === dailyData.length -1 ? 'var(--secondary)' : 'var(--primary)'} />
+                          ))}
+                       </Bar>
+                    </BarChart>
+                 </ResponsiveContainer>
+              </div>
+           </div>
+        </div>
+
+        <div className="grid-telemetry mt-4">
+           <div className="card">
+              <div className="card-header"><span className="card-title"><Activity size={18} /> Live Activiteiten</span></div>
+              <div className="activity-timeline mt-3">
+                 {activities.map((a, i) => (
+                    <motion.div initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} transition={{ delay: i * 0.05 }} key={a.id} className="activity-item">
+                       <div className={`activity-icon ${a.action}`}>{a.action === 'deal' ? '🏆' : a.action === 'afspraak_gemaakt' ? '📅' : '📞'}</div>
+                       <div className="activity-content">
+                          <p><strong>{a.user_name}</strong> {a.notes || a.action}</p>
+                          <small>{new Date(a.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small>
+                       </div>
+                    </motion.div>
+                 ))}
+              </div>
+           </div>
+
+           <div className="card">
+              <div className="card-header"><span className="card-title"><Users size={18} /> Top Bellers</span></div>
+              <table className="table mt-2">
+                 <thead><tr><th>#</th><th>Naam</th><th className="text-right">Calls</th></tr></thead>
+                 <tbody>
+                    {teamStats.map((s, i) => (
+                       <tr key={i}>
+                          <td><span className="rank-badge">{i+1}</span></td>
+                          <td><strong>{s.full_name}</strong></td>
+                          <td className="text-right" style={{ fontWeight: 800, color: 'var(--primary)' }}>{s.count}</td>
+                       </tr>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </motion.div>
-
-          <motion.div 
-            initial={{ x: 20, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            className="card glass-panel"
-            style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center', padding: '48px' }}
-          >
-            <div style={{ 
-              width: '80px', height: '80px', borderRadius: '50%', 
-              background: 'rgba(212, 175, 55, 0.1)', 
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              marginBottom: '24px'
-            }}>
-              <Phone size={40} className="text-secondary" />
-            </div>
-            <h2 style={{ color: 'var(--primary)', marginBottom: '16px' }}>Klaar voor de volgende call?</h2>
-            <p className="text-muted mb-3">Elke call brengt ons dichter bij de doelstellingen van vandaag.</p>
-            <Link to="/" className="btn btn-primary" style={{ width: '100%' }}>
-              Ga naar Dashboard <ChevronRight size={18} />
-            </Link>
-          </motion.div>
+                 </tbody>
+              </table>
+           </div>
         </div>
       </main>
 
-      <style dangerouslySetInnerHTML={{ __html: `
-        .text-right { text-align: right; }
-      `}} />
+      <style>{`
+        .telemetry-page { min-height: 100vh; background: var(--bg-light); padding-bottom: 50px; }
+        .session-pill { background: rgba(212, 175, 55, 0.1); color: var(--secondary); padding: 6px 14px; border-radius: 20px; font-weight: 800; font-size: 0.85rem; display: flex; items-center gap: 6px; }
+        .grid-telemetry { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        .activity-timeline { display: flex; flex-direction: column; gap: 16px; }
+        .activity-item { display: flex; gap: 12px; align-items: flex-start; padding: 10px; border-radius: 8px; transition: background 0.2s; }
+        .activity-item:hover { background: rgba(0,0,0,0.02); }
+        .activity-icon { width: 32px; height: 32px; border-radius: 50%; display: flex; items-center justify-content: center; font-size: 1.2rem; background: var(--bg-light); }
+        .activity-icon.deal { background: rgba(15, 76, 54, 0.1); }
+        .activity-content p { font-size: 0.9rem; margin: 0; }
+        .activity-content small { color: var(--text-muted); font-size: 0.75rem; }
+        .rank-badge { width: 22px; height: 22px; background: var(--bg-light); display: flex; items-center justify-content: center; border-radius: 50%; font-size: 0.75rem; font-weight: 800; }
+        @media (max-width: 900px) { .grid-telemetry { grid-template-columns: 1fr; } }
+      `}</style>
     </motion.div>
   )
 }

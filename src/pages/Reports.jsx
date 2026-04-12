@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { BarChart as BarChartIcon, Users, PhoneCall, CheckCircle, TrendingUp, Download, Activity, PieChart as PieChartIcon } from 'lucide-react'
+import { BarChart as BarChartIcon, Users, PhoneCall, CheckCircle, TrendingUp, Download, Activity, PieChart as PieChartIcon, Zap } from 'lucide-react'
 import { STATUS_MAP } from '../utils/statusUtils'
 import { exportToCSV } from '../utils/exportUtils'
 import { DEMO_LEADS, DEMO_ACTIVITIES } from '../lib/demoData'
@@ -120,13 +120,12 @@ export default function Reports() {
             {profile?.role === 'admin' && <Link to="/admin/reports" className="active">Rapportage</Link>}
           </nav>
           <div className="header-actions">
-            <div className="flex items-center gap-2 mr-3" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '20px' }}>
-              <Zap size={14} className="text-secondary" />
-              <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span></span>
+            <div className="flex items-center gap-2" style={{ background: 'rgba(232, 185, 35, 0.15)', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--secondary)', marginRight: '16px' }}>
+              <Zap size={18} style={{ color: 'var(--secondary)' }} />
+              <span style={{ fontSize: '1rem', fontWeight: 800, color: 'white' }}>{sessionCallCount}</span>
+              <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>calls</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span style={{ fontSize: '0.9rem' }}>{profile?.full_name || user?.email}</span>
-            </div>
+            <span style={{ fontSize: '0.9rem', marginRight: '12px' }}>{profile?.full_name || user?.email}</span>
             <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
           </div>
         </div>

@@ -50,7 +50,7 @@ export default function CampaignModal({ isOpen, onClose, onStartCampaign }) {
 
         <div className="form-group">
           <label>Campagne Type</label>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
             {Object.values(CAMPAIGN_TYPES).map(type => (
               <button
                 key={type.id}

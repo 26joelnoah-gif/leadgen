@@ -1,30 +1,42 @@
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Phone, PhoneOff, ArrowRight, Clock, MessageSquare, User, CheckCircle, AlertCircle, Zap, ArrowLeft, Timer, X } from 'lucide-react'
+import { Phone, PhoneOff, ArrowRight, Clock, MessageSquare, User, CheckCircle, AlertCircle, Zap, ArrowLeft, Timer, X, Play, Copy } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
 import { STATUS_MAP } from '../utils/statusUtils'
-import { formatDateTime } from '../utils/dateUtils'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
+import Logo from '../components/Logo'
 import MobileNav from '../components/MobileNav'
 
 export default function FocusMode() {
   const { user, profile, signOut, callEnabled, toggleCallEnabled, sessionCallCount, logCall } = useAuth()
-  const { leads, loading, updateLeadStatus, logActivity, callLead, fetchLeads } = useLeads()
+  const { leads, loading, updateLeadStatus, logActivity, callLead } = useLeads()
+  const navigate = useNavigate()
+  
   const [currentIndex, setCurrentIndex] = useState(0)
   const [notes, setNotes] = useState('')
+  const [sessionStarted, setSessionStarted] = useState(false)
   const [isCallActive, setIsCallActive] = useState(false)
-  const [callStartTime, setCallStartTime] = useState(null)
   const [callDuration, setCallDuration] = useState(0)
   const [showSnooze, setShowSnooze] = useState(false)
   const [snoozeDate, setSnoozeDate] = useState('')
   const [snoozeTime, setSnoozeTime] = useState('')
   const [showReasonLost, setShowReasonLost] = useState(false)
+  const [copied, setCopied] = useState(false)
   const timerRef = useRef(null)
 
-  // Filter leads die gebeld moeten worden (niet afgerond) en sorteer op score
+  // Redirect admin to dashboard - Focus Mode is for employees only
+  useEffect(() => {
+    if (profile?.role === 'admin') navigate('/')
+  }, [profile, navigate])
+
+  // Redirect admin if they shouldn't be here (optional, but keep for now)
+  // useEffect(() => {
+  //   if (profile?.role === 'admin') navigate('/admin')
+  // }, [profile])
+
   const activeLeads = leads
     .filter(l => !['deal', 'geen_interesse', 'verkeerd_nummer', 'cold'].includes(l.status))
     .sort((a, b) => (b.lead_score || 0) - (a.lead_score || 0))
@@ -34,15 +46,20 @@ export default function FocusMode() {
   async function handleCall() {
     if (!currentLead) return
     setIsCallActive(true)
-    setCallStartTime(Date.now())
     setCallDuration(0)
     await callLead(currentLead.id)
     await logCall(currentLead.id, currentLead.name)
-    // Start timer
     timerRef.current = setInterval(() => {
       setCallDuration(prev => prev + 1)
     }, 1000)
     window.location.href = `tel:${currentLead.phone}`
+  }
+
+  function copyPhoneNumber() {
+    if (!currentLead) return
+    navigator.clipboard.writeText(currentLead.phone)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
   }
 
   function formatDuration(seconds) {
@@ -54,9 +71,6 @@ export default function FocusMode() {
   async function handleStatusChange(newStatus) {
     if (!currentLead) return
     await updateLeadStatus(currentLead.id, newStatus)
-    if (notes) {
-      await logActivity(currentLead.id, 'note', notes)
-    }
   }
 
   async function handleDoor() {
@@ -66,14 +80,13 @@ export default function FocusMode() {
     }
     setNotes('')
     setIsCallActive(false)
-    setCallStartTime(null)
     setCallDuration(0)
     if (timerRef.current) clearInterval(timerRef.current)
-    // Volgende lead
+    
     if (currentIndex < activeLeads.length - 1) {
       setCurrentIndex(prev => prev + 1)
     } else {
-      // Terug naar begin of refresh
+      setSessionStarted(false) // Finish session
       setCurrentIndex(0)
     }
   }
@@ -97,36 +110,41 @@ export default function FocusMode() {
     handleDoor()
   }
 
-  function getDefaultSnoozeDate() {
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    return tomorrow.toISOString().split('T')[0]
-  }
-
   if (loading) return <LoadingSpinner size="large" />
 
-  if (!currentLead) {
+  // Splash screen
+  if (!sessionStarted && activeLeads.length > 0) {
     return (
+      <div className="focus-mode-page splash flex items-center justify-center">
+        <motion.div 
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="card glass-panel text-center"
+          style={{ maxWidth: '450px', padding: '60px 40px' }}
+        >
+          <Logo size="large" />
+          <h1 className="mt-4 mb-2">Ready to Dial?</h1>
+          <p className="text-muted mb-4">Er staan <strong>{activeLeads.length}</strong> leads op je te wachten. Zet je headset op en Smile & Dial!</p>
+          <button 
+            onClick={() => setSessionStarted(true)}
+            className="btn btn-primary btn-block btn-lg glow-hover"
+            style={{ fontSize: '1.4rem', padding: '24px', borderRadius: '16px' }}
+          >
+            <Play size={24} fill="currentColor" /> START SESSIE
+          </button>
+          <Link to="/" className="btn btn-link mt-3">Terug naar Dashboard</Link>
+        </motion.div>
+      </div>
+    )
+  }
+
+  if (activeLeads.length === 0) {
+     return (
       <div className="focus-mode-page">
-        <header className="header">
-          <div className="container header-content">
-            <div className="logo">📞 LEADGEN</div>
-            <nav className="nav">
-              <Link to="/">Overzicht</Link>
-              <Link to="/focus">Focus Mode</Link>
-              {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
-            </nav>
-            <div className="header-actions">
-              <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
-            </div>
-          </div>
-        </header>
+        <header className="header"><div className="container header-content"><Logo /></div></header>
         <main className="container">
-          <EmptyState
-            icon="check-circle"
-            title="Alles gebeld!"
-            message="Je hebt alle actieve leads gebeld. Kom later terug of check de TBA's voor geplande callbacks."
-          />
+          <EmptyState icon="check-circle" title="Lijst is leeg!" message="Alle leads zijn gebeld. Lekker gewerkt!" />
+          <center><Link to="/" className="btn btn-outline mt-3">Terug naar Dashboard</Link></center>
         </main>
       </div>
     )
@@ -136,21 +154,14 @@ export default function FocusMode() {
     <div className="focus-mode-page">
       <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)' }}>
         <div className="container header-content">
-          <div className="logo">📞 LEADGEN</div>
-          <nav className="nav">
-            <Link to="/">Overzicht</Link>
-            <Link to="/focus" className="active">Focus Mode</Link>
-            <Link to="/tba">TBA's</Link>
-            {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
-          </nav>
-          <MobileNav profile={profile} />
+          <Logo size="medium" />
           <div className="header-actions">
-            <div className="flex items-center gap-2 mr-3" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <Zap size={14} style={{ color: 'var(--secondary)' }} />
-              <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span></span>
+            <div className="flex items-center gap-2 mr-3" style={{ background: 'rgba(232, 185, 35, 0.2)', padding: '12px 20px', borderRadius: '24px', border: '2px solid var(--secondary)' }}>
+              <Zap size={22} style={{ color: 'var(--secondary)' }} />
+              <span style={{ fontSize: '1.4rem', fontWeight: 900, color: 'white' }}>{sessionCallCount}</span>
+              <span style={{ fontSize: '0.85rem', opacity: 0.7 }}>calls</span>
             </div>
-            <span style={{ fontSize: '0.85rem', marginRight: '12px' }}>{activeLeads.length} te bellen</span>
-            <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
+            <button onClick={() => setSessionStarted(false)} className="btn btn-sm btn-outline">Stop</button>
           </div>
         </div>
       </header>
@@ -161,361 +172,146 @@ export default function FocusMode() {
         </div>
 
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          key={currentLead.id}
+          initial={{ opacity: 0, x: 50 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -50 }}
           className="focus-lead-card"
         >
           <div className="focus-lead-header">
-            <div className="flex items-center gap-3">
-              <div className="focus-progress">
-                {currentIndex + 1} / {activeLeads.length}
-              </div>
-              <div style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Zap size={12} fill="currentColor" />
-                Score: {currentLead.lead_score || 0}
-              </div>
-              {currentLead.contact_attempts > 0 && (
-                <div style={{ background: 'rgba(15, 76, 54, 0.1)', color: 'var(--primary)', padding: '4px 10px', borderRadius: '12px', fontSize: '0.75rem', fontWeight: 600 }}>
-                  Poging {currentLead.contact_attempts}
-                </div>
-              )}
+            <div className="focus-progress">{currentIndex + 1} / {activeLeads.length}</div>
+            <div className="flex items-center gap-2">
+               <div className="score-badge">
+                  <Zap size={12} fill="currentColor" /> Score: {currentLead.lead_score || 0}
+               </div>
+               {currentLead.contact_attempts > 0 && <span className="attempt-badge">Poging {currentLead.contact_attempts}</span>}
             </div>
-            <StatusSelector
-              currentStatus={currentLead.status}
-              onStatusChange={handleStatusChange}
-            />
           </div>
 
           <div className="focus-lead-info">
-            <h1>{currentLead.name}</h1>
-            <a href={`tel:${currentLead.phone}`} className="focus-phone">
-              <Phone size={24} />
-              {currentLead.phone}
-            </a>
-            {currentLead.email && (
-              <div className="focus-email">{currentLead.email}</div>
-            )}
+            <h1 style={{ fontSize: '2.4rem', letterSpacing: '-0.02em' }}>{currentLead.name}</h1>
+            <div className="flex justify-center gap-4 mt-2">
+                <span className="text-muted">{currentLead.lead_source}</span>
+                {currentLead.company_size && <span className="text-muted">• {currentLead.company_size} medewerkers</span>}
+            </div>
           </div>
 
-          <div className="focus-notes-section">
-            <label>
-              <MessageSquare size={16} />
-              Notities / Resultaat gesprek
-            </label>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Type hier wat besproken is..."
-              rows={4}
-            />
+          <div className="flex items-center justify-center gap-3 my-4">
+            <button
+              onClick={handleCall}
+              className={`btn ${callEnabled ? 'btn-success' : 'btn-outline'} btn-lg glow-hover`}
+              style={{ padding: '24px 60px', borderRadius: '40px', fontSize: '1.5rem', gap: '16px' }}
+              disabled={!callEnabled}
+            >
+              <Phone size={28} /> {currentLead.phone}
+            </button>
+            <button
+              onClick={copyPhoneNumber}
+              className="btn btn-lg"
+              style={{
+                padding: '24px 30px',
+                borderRadius: '40px',
+                gap: '8px',
+                background: copied ? 'var(--success)' : 'var(--bg-light)',
+                border: `2px solid ${copied ? 'var(--success)' : 'var(--border)'}`,
+                color: copied ? 'white' : 'var(--text-main)'
+              }}
+              title="Kopieer nummer"
+            >
+              {copied ? <CheckCircle size={24} /> : <Copy size={24} />}
+              <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>{copied ? 'GEKOPIEERD' : 'KOPIEER'}</span>
+            </button>
           </div>
 
           {isCallActive && (
             <div className="focus-call-timer">
               <Timer size={18} />
-              <span>{formatDuration(callDuration)}</span>
+              <span>Gesprek bezig: {formatDuration(callDuration)}</span>
             </div>
           )}
 
           <div className="focus-notes-section">
-            <label>
-              <MessageSquare size={16} />
-              Notities / Resultaat gesprek
-            </label>
+            <label><MessageSquare size={16} /> Resultaat & Notities</label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Type hier wat besproken is..."
+              placeholder="Wat is er besproken?"
               rows={3}
             />
           </div>
 
-          <div className="focus-actions">
-            <button
-              onClick={() => setShowReasonLost(true)}
-              className="btn btn-outline"
-              style={{ flex: 1, color: 'var(--danger)', borderColor: 'var(--danger)' }}
-            >
-              <X size={18} />
-              Geen Interesse
-            </button>
+          <div className="status-grid-options">
+             <button onClick={() => handleStatusChange('voicemail')} className={`btn btn-sm ${currentLead.status === 'voicemail' ? 'btn-secondary' : 'btn-outline'}`}>Voicemail</button>
+             <button onClick={() => handleStatusChange('geen_gehoor')} className={`btn btn-sm ${currentLead.status === 'geen_gehoor' ? 'btn-secondary' : 'btn-outline'}`}>Geen Gehoor</button>
+             <button onClick={() => setShowSnooze(true)} className={`btn btn-sm ${currentLead.status === 'terugbelafspraak' ? 'btn-secondary' : 'btn-outline'}`}>Snooze / TBA</button>
+             <button onClick={() => handleStatusChange('afspraak_gemaakt')} className={`btn btn-sm ${currentLead.status === 'afspraak_gemaakt' ? 'btn-success' : 'btn-outline'}`}>Afspraak!</button>
+          </div>
 
-            <button
-              onClick={() => setShowSnooze(true)}
-              className="btn btn-secondary"
-              style={{ flex: 1 }}
-            >
-              <Clock size={18} />
-              Snooze
+          <div className="focus-actions mt-4">
+            <button onClick={() => setShowReasonLost(true)} className="btn btn-outline text-danger" style={{ flex: 1 }}>
+              <X size={18} /> AFBOEKEN
             </button>
-
-            <button
-              onClick={handleCall}
-              className="btn btn-success"
-              disabled={!callEnabled}
-              style={{ flex: 2, fontSize: '1.1rem', padding: '18px' }}
-            >
-              <Phone size={22} />
-              {callEnabled ? 'BEL' : 'UIT'}
-            </button>
-
-            <button
-              onClick={handleDoor}
-              className="btn btn-primary"
-              style={{ flex: 1 }}
-            >
-              DOOR
-              <ArrowRight size={18} />
+            <button onClick={handleDoor} className="btn btn-primary" style={{ flex: 2, fontSize: '1.2rem' }}>
+              VOLGENDE LEAD <ArrowRight size={20} />
             </button>
           </div>
 
           {currentLead.notes && (
             <div className="focus-prev-notes">
-              <strong>Vorige notities:</strong> {currentLead.notes}
+              <strong>Info:</strong> {currentLead.notes}
             </div>
           )}
         </motion.div>
-
-        {/* Snooze Modal */}
-        <AnimatePresence>
-          {showSnooze && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="modal-overlay"
-              onClick={() => setShowSnooze(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="modal"
-                onClick={e => e.stopPropagation()}
-              >
-                <div className="modal-header">
-                  <h2><Clock size={18} /> Snooze Lead</h2>
-                  <button className="modal-close" onClick={() => setShowSnooze(false)}><X size={18} /></button>
-                </div>
-                <p style={{ marginBottom: '20px', color: 'var(--text-muted)' }}>
-                  Kies wanneer je deze lead weer wilt bellen
-                </p>
-                <div className="form-group">
-                  <label>Datum</label>
-                  <input
-                    type="date"
-                    value={snoozeDate || getDefaultSnoozeDate()}
-                    onChange={e => setSnoozeDate(e.target.value)}
-                    className="form-control"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Tijd</label>
-                  <input
-                    type="time"
-                    value={snoozeTime}
-                    onChange={e => setSnoozeTime(e.target.value)}
-                    className="form-control"
-                  />
-                </div>
-                <div className="flex gap-2" style={{ marginTop: '24px' }}>
-                  <button className="btn btn-outline" onClick={() => setShowSnooze(false)} style={{ flex: 1 }}>
-                    Annuleren
-                  </button>
-                  <button className="btn btn-secondary" onClick={handleSnooze} disabled={!snoozeDate || !snoozeTime} style={{ flex: 1 }}>
-                    <Clock size={16} /> Snooze
-                  </button>
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Reason Lost Modal */}
-        <AnimatePresence>
-          {showReasonLost && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="modal-overlay"
-              onClick={() => setShowReasonLost(false)}
-            >
-              <motion.div
-                initial={{ scale: 0.9, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                exit={{ scale: 0.9, opacity: 0 }}
-                className="modal"
-                onClick={e => e.stopPropagation()}
-              >
-                <div className="modal-header">
-                  <h2><X size={18} /> Reden Geen Interesse</h2>
-                  <button className="modal-close" onClick={() => setShowReasonLost(false)}><X size={18} /></button>
-                </div>
-                <p style={{ marginBottom: '20px', color: 'var(--text-muted)' }}>
-                  Waarom heeft deze persoon geen interesse?
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {[
-                    { id: 'te_duur', label: 'Te duur', emoji: '💰' },
-                    { id: 'geen_behoefte', label: 'Geen behoefte', emoji: '❌' },
-                    { id: 'slechte_timing', label: 'Slechte timing', emoji: '⏰' },
-                    { id: 'concurrent', label: 'Gaan met concurrent', emoji: '🏃' },
-                    { id: 'niet_beslisser', label: 'Niet de beslisser', emoji: '👤' },
-                    { id: 'anders', label: 'Anders', emoji: '📝' }
-                  ].map(reason => (
-                    <button
-                      key={reason.id}
-                      onClick={() => handleReasonLost(reason.label)}
-                      className="btn btn-outline"
-                      style={{ justifyContent: 'flex-start', padding: '16px' }}
-                    >
-                      <span style={{ marginRight: '12px' }}>{reason.emoji}</span>
-                      {reason.label}
-                    </button>
-                  ))}
-                </div>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <div className="focus-tba-section">
-          <Link to="/tba" className="btn btn-outline">
-            <AlertCircle size={16} />
-            Bekijk TBA's ({leads.filter(l => l.status === 'terugbelafspraak').length})
-          </Link>
-        </div>
       </main>
 
+      <AnimatePresence>
+        {showSnooze && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="modal-overlay" onClick={() => setShowSnooze(false)}>
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="modal glass-panel" onClick={e => e.stopPropagation()}>
+              <h2><Clock size={18} /> Terugbelafspraak plannen</h2>
+              <div className="form-group mt-3">
+                 <label>Datum</label>
+                 <input type="date" value={snoozeDate} onChange={e => setSnoozeDate(e.target.value)} className="form-control" />
+              </div>
+              <div className="form-group">
+                 <label>Tijd</label>
+                 <input type="time" value={snoozeTime} onChange={e => setSnoozeTime(e.target.value)} className="form-control" />
+              </div>
+              <button className="btn btn-secondary btn-block mt-3" onClick={handleSnooze}>Bevestigen</button>
+            </motion.div>
+          </motion.div>
+        )}
+        
+        {showReasonLost && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="modal-overlay" onClick={() => setShowReasonLost(false)}>
+            <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="modal glass-panel" onClick={e => e.stopPropagation()}>
+              <h2>Waarom geen interesse?</h2>
+              <div className="reason-grid mt-3">
+                 {['Te duur', 'Geen behoefte', 'Slechte timing', 'Concurrent', 'Niet beslisser', 'Anders'].map(reason => (
+                   <button key={reason} onClick={() => handleReasonLost(reason)} className="btn btn-outline btn-block mb-2">{reason}</button>
+                 ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <style>{`
-        .focus-mode-page { min-height: 100vh; background: var(--bg-light); }
-        .focus-progress-bar {
-          height: 4px;
-          background: rgba(15, 76, 54, 0.1);
-          margin: 0 auto;
-          max-width: 600px;
-          border-radius: 0 0 4px 4px;
-          overflow: hidden;
-        }
-        .focus-progress-fill {
-          height: 100%;
-          background: linear-gradient(90deg, var(--primary) 0%, var(--secondary) 100%);
-          transition: width 0.3s ease;
-        }
-        .focus-call-timer {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          padding: 12px 24px;
-          background: rgba(16, 185, 129, 0.1);
-          border: 2px solid var(--success);
-          border-radius: var(--radius-lg);
-          margin-bottom: 20px;
-          color: var(--success);
-          font-weight: 700;
-          font-size: 1.1rem;
-        }
-        .focus-lead-card {
-          background: white;
-          border-radius: var(--radius-lg);
-          padding: 32px;
-          margin: 24px auto;
-          max-width: 600px;
-          box-shadow: var(--shadow-lg);
-        }
-        .focus-lead-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 24px;
-        }
-        .focus-progress {
-          background: var(--primary);
-          color: white;
-          padding: 6px 16px;
-          border-radius: 20px;
-          font-size: 0.85rem;
-          font-weight: 600;
-        }
-        .focus-lead-info { text-align: center; margin-bottom: 32px; }
-        .focus-lead-info h1 { font-size: 1.8rem; color: var(--primary); margin-bottom: 12px; }
-        .focus-phone {
-          display: inline-flex;
-          align-items: center;
-          gap: 12px;
-          font-size: 1.5rem;
-          color: var(--primary);
-          font-weight: 700;
-          text-decoration: none;
-          padding: 16px 32px;
-          background: var(--bg-light);
-          border-radius: var(--radius-md);
-          margin-bottom: 8px;
-          transition: all 0.2s;
-        }
-        .focus-phone:hover { background: var(--secondary); color: var(--primary-dark); }
-        .focus-email { color: var(--text-muted); font-size: 0.95rem; }
-        .focus-notes-section { margin-bottom: 24px; }
-        .focus-notes-section label {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-weight: 600;
-          margin-bottom: 8px;
-          color: var(--text-main);
-        }
-        .focus-notes-section textarea {
-          width: 100%;
-          padding: 16px;
-          border: 2px solid var(--border);
-          border-radius: var(--radius-md);
-          font-size: 1rem;
-          resize: none;
-          font-family: inherit;
-        }
-        .focus-notes-section textarea:focus {
-          outline: none;
-          border-color: var(--primary);
-        }
-        .focus-actions { display: flex; gap: 12px; }
-        .btn-lg { padding: 18px 32px; font-size: 1.1rem; }
-        .focus-prev-notes {
-          margin-top: 20px;
-          padding: 16px;
-          background: var(--bg-light);
-          border-radius: var(--radius-md);
-          font-size: 0.9rem;
-          color: var(--text-muted);
-          border-left: 4px solid var(--secondary);
-        }
-        .focus-tba-section { text-align: center; margin-top: 24px; }
+        .focus-mode-page { min-height: 100vh; background: var(--bg-light); padding-bottom: 40px; }
+        .focus-mode-page.splash { background: radial-gradient(circle at top right, var(--primary-dark), #000); }
+        .focus-lead-card { background: white; border-radius: 24px; padding: 40px; margin: 30px auto; max-width: 650px; box-shadow: var(--shadow-xl); border: 1px solid var(--border); }
+        .focus-progress-bar { height: 6px; background: rgba(0,0,0,0.05); margin-bottom: 20px; border-radius: 3px; overflow: hidden; }
+        .focus-progress-fill { height: 100%; background: var(--secondary); transition: width 0.5s ease; }
+        .score-badge { background: var(--secondary); color: var(--primary-dark); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 800; display: flex; items-center gap: 4px; }
+        .attempt-badge { background: rgba(15, 76, 54, 0.1); color: var(--primary); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+        .focus-lead-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
+        .focus-progress { font-weight: 700; color: var(--text-muted); }
+        .focus-call-timer { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--success); font-weight: 700; margin-bottom: 20px; }
+        .status-grid-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 20px; }
+        .focus-prev-notes { margin-top: 20px; padding: 15px; background: #f8f9fa; border-left: 4px solid var(--secondary); border-radius: 8px; font-size: 0.9rem; }
+        .focus-notes-section label { display: flex; items-center gap: 8px; font-weight: 700; margin-bottom: 8px; }
+        .focus-notes-section textarea { width: 100%; border: 2px solid var(--border); border-radius: 12px; padding: 12px; font-family: inherit; }
       `}</style>
     </div>
-  )
-}
-
-function StatusSelector({ currentStatus, onStatusChange }) {
-  return (
-    <select
-      value={currentStatus}
-      onChange={(e) => onStatusChange(e.target.value)}
-      className="status-select"
-      style={{
-        background: STATUS_MAP[currentStatus]?.bg || '#fff',
-        color: STATUS_MAP[currentStatus]?.color || '#000',
-        fontWeight: 700,
-        padding: '10px 16px',
-        borderRadius: '8px',
-        border: 'none',
-        fontSize: '0.85rem',
-        cursor: 'pointer'
-      }}
-    >
-      {Object.entries(STATUS_MAP).map(([key, details]) => (
-        <option key={key} value={key}>{details.label}</option>
-      ))}
-    </select>
   )
 }

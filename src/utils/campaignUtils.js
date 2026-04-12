@@ -6,26 +6,19 @@ export const CAMPAIGN_TYPES = {
     color: '#0A66C2',
     description: 'LinkedIn berichten en connecties'
   },
-  phone: {
-    id: 'phone',
-    name: 'Telefoon',
+  cold_call: {
+    id: 'cold_call',
+    name: 'Koude Belletjes',
     icon: '📞',
     color: '#10B981',
-    description: 'Koude belletjes'
+    description: 'Koude belletjes outbound'
   },
-  email: {
-    id: 'email',
-    name: 'Email',
-    icon: '✉️',
-    color: '#3B82F6',
-    description: 'Email campagn es'
-  },
-  sms: {
-    id: 'sms',
-    name: 'SMS',
-    icon: '💬',
-    color: '#8B5CF6',
-    description: 'SMS blast'
+  data_enrichment: {
+    id: 'data_enrichment',
+    name: 'Data Verrijken',
+    icon: '📊',
+    color: '#F59E0B',
+    description: 'Data verrijken en updaten'
   }
 }
 

@@ -87,9 +87,10 @@ export default function Dashboard() {
           </nav>
           <MobileNav profile={profile} />
           <div className="header-actions">
-            <div className="flex items-center gap-2 mr-3" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <Zap size={14} className="text-secondary" />
-              <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span></span>
+            <div className="flex items-center gap-2" style={{ background: 'rgba(232, 185, 35, 0.15)', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--secondary)', marginRight: '16px' }}>
+              <Zap size={18} style={{ color: 'var(--secondary)' }} />
+              <span style={{ fontSize: '1rem', fontWeight: 800, color: 'white' }}>{sessionCallCount}</span>
+              <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>calls</span>
             </div>
             <div className="user-profile flex items-center gap-2">
               <div className="avatar" style={{ width: '32px', height: '32px', background: 'var(--secondary)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', color: 'var(--primary-dark)', fontSize: '0.8rem' }}>

@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     email TEXT NOT NULL,
     full_name TEXT NOT NULL,
     role TEXT NOT NULL DEFAULT 'employee' CHECK (role IN ('employee', 'admin')),
+    show_appointments_in_earnings BOOLEAN DEFAULT TRUE,
+    show_deals_in_earnings BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
