@@ -144,8 +144,12 @@ import { DEMO_LEADS } from '../lib/demoData'
       email: leadData.email || null,
       notes: leadData.notes || '',
       status: 'new',
-      assigned_to: user?.id,
-      created_by: user?.id
+      assigned_to: leadData.assigned_to || user?.id,
+      created_by: user?.id,
+      lead_source: leadData.lead_source || 'cold',
+      decision_maker: leadData.decision_maker || false,
+      company_size: leadData.company_size || '1-10',
+      contact_attempts: 0
     }
 
     if (isDemoMode) {
@@ -155,6 +159,7 @@ import { DEMO_LEADS } from '../lib/demoData'
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }
+      demoLead.lead_score = calculateLeadScore(demoLead)
       setLeads([demoLead, ...leads])
       return demoLead
     }

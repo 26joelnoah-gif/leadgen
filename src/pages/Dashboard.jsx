@@ -19,7 +19,15 @@ export default function Dashboard() {
   const [filter, setFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [showNewLeadModal, setShowNewLeadModal] = useState(false)
-  const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', notes: '' })
+  const [newLead, setNewLead] = useState({ 
+    name: '', 
+    phone: '', 
+    email: '', 
+    notes: '',
+    lead_source: 'cold',
+    company_size: '1-10',
+    decision_maker: false
+  })
   const [creating, setCreating] = useState(false)
 
   const filteredLeads = leads.filter(lead => {
@@ -47,7 +55,15 @@ export default function Dashboard() {
     if (!newLead.name || !newLead.phone) return
     setCreating(true)
     await createLead(newLead)
-    setNewLead({ name: '', phone: '', email: '', notes: '' })
+    setNewLead({ 
+      name: '', 
+      phone: '', 
+      email: '', 
+      notes: '',
+      lead_source: 'cold',
+      company_size: '1-10',
+      decision_maker: false
+    })
     setShowNewLeadModal(false)
     setCreating(false)
   }
@@ -244,7 +260,36 @@ export default function Dashboard() {
                     value={newLead.notes}
                     onChange={e => setNewLead({ ...newLead, notes: e.target.value })}
                     placeholder="Extra informatie over deze lead..."
-                    rows={3}
+                    rows={2}
+                  />
+                </div>
+                <div className="grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label>Bron</label>
+                    <select value={newLead.lead_source} onChange={e => setNewLead({...newLead, lead_source: e.target.value})}>
+                      <option value="cold">Cold Call</option>
+                      <option value="linkedin">LinkedIn</option>
+                      <option value="referral">Referral</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Grootte</label>
+                    <select value={newLead.company_size} onChange={e => setNewLead({...newLead, company_size: e.target.value})}>
+                      <option value="1-10">1-10 medewerkers</option>
+                      <option value="11-50">11-50 medewerkers</option>
+                      <option value="51+">51+ medewerkers</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="form-group flex justify-between items-center mb-3" style={{ background: 'rgba(15, 76, 54, 0.05)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                  <label style={{ margin: 0, cursor: 'pointer' }} className="flex items-center gap-2">
+                     <Zap size={14} fill="currentColor" className="text-secondary" /> Beslisser? 
+                  </label>
+                  <input 
+                    type="checkbox" 
+                    checked={newLead.decision_maker} 
+                    onChange={e => setNewLead({...newLead, decision_maker: e.target.checked})} 
+                    style={{ width: '20px', height: '20px', cursor: 'pointer' }}
                   />
                 </div>
                 <div className="flex gap-2" style={{ marginTop: '24px' }}>
