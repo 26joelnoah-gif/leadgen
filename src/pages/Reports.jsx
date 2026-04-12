@@ -219,6 +219,6 @@ export default function Reports() {
           </motion.div>
         </div>
       </main>
-    </div>
+    </motion.div>
   )
 }
