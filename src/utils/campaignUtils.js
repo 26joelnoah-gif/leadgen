@@ -11,7 +11,8 @@ export const CAMPAIGN_TYPES = {
     name: 'Koude Belletjes',
     icon: '📞',
     color: '#10B981',
-    description: 'Koude belletjes outbound'
+    description: 'Koude belletjes outbound',
+    hasBudget: true
   },
   data_enrichment: {
     id: 'data_enrichment',

@@ -87,7 +87,12 @@ export default function CampaignModal({ isOpen, onClose, onStartCampaign }) {
           </button>
         </div>
 
-        <div style={{ marginTop: '16px', padding: '12px', background: 'var(--bg-light)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+        {selectedType && CAMPAIGN_TYPES[selectedType]?.hasBudget && (
+          <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--text-main)', border: '1px solid var(--warning)' }}>
+            <strong>Budget:</strong> Bij dit campagnetype kan budget worden gebruikt.
+          </div>
+        )}
+        <div style={{ marginTop: '12px', padding: '12px', background: 'var(--bg-light)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
           <strong>Let op:</strong> Campagnes worden gekoppeld aan Apify voor geautomatiseerde lead extractie.
         </div>
       </motion.div>

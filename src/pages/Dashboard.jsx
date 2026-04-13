@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -19,16 +20,26 @@ export default function Dashboard() {
   const [filter, setFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [showNewLeadModal, setShowNewLeadModal] = useState(false)
-  const [newLead, setNewLead] = useState({ 
-    name: '', 
-    phone: '', 
-    email: '', 
+  const [newLead, setNewLead] = useState({
+    name: '',
+    phone: '',
+    email: '',
     notes: '',
     lead_source: 'cold',
     company_size: '1-10',
-    decision_maker: false
+    decision_maker: false,
+    assigned_to: ''
   })
   const [creating, setCreating] = useState(false)
+  const [users, setUsers] = useState([])
+
+  useEffect(() => {
+    async function fetchUsers() {
+      const { data } = await supabase.from('profiles').select('*').order('full_name')
+      if (data) setUsers(data)
+    }
+    fetchUsers()
+  }, [])
 
   const filteredLeads = leads.filter(lead => {
     let matchesFilter = true
@@ -55,14 +66,15 @@ export default function Dashboard() {
     if (!newLead.name || !newLead.phone) return
     setCreating(true)
     await createLead(newLead)
-    setNewLead({ 
-      name: '', 
-      phone: '', 
-      email: '', 
+    setNewLead({
+      name: '',
+      phone: '',
+      email: '',
       notes: '',
       lead_source: 'cold',
       company_size: '1-10',
-      decision_maker: false
+      decision_maker: false,
+      assigned_to: ''
     })
     setShowNewLeadModal(false)
     setCreating(false)
@@ -267,6 +279,7 @@ export default function Dashboard() {
                     onChange={e => setNewLead({ ...newLead, name: e.target.value })}
                     placeholder="Volledige naam"
                     required
+                    style={{ padding: '14px 16px', fontSize: '1rem' }}
                   />
                 </div>
                 <div className="form-group">
@@ -277,6 +290,7 @@ export default function Dashboard() {
                     onChange={e => setNewLead({ ...newLead, phone: e.target.value })}
                     placeholder="06-12345678"
                     required
+                    style={{ padding: '14px 16px', fontSize: '1rem' }}
                   />
                 </div>
                 <div className="form-group">
@@ -286,6 +300,7 @@ export default function Dashboard() {
                     value={newLead.email}
                     onChange={e => setNewLead({ ...newLead, email: e.target.value })}
                     placeholder="email@voorbeeld.nl"
+                    style={{ padding: '14px 16px', fontSize: '1rem' }}
                   />
                 </div>
                 <div className="form-group">
@@ -294,13 +309,14 @@ export default function Dashboard() {
                     value={newLead.notes}
                     onChange={e => setNewLead({ ...newLead, notes: e.target.value })}
                     placeholder="Extra informatie over deze lead..."
-                    rows={2}
+                    rows={4}
+                    style={{ padding: '14px 16px', fontSize: '1rem', resize: 'vertical' }}
                   />
                 </div>
                 <div className="grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="form-group">
                     <label>Bron</label>
-                    <select value={newLead.lead_source} onChange={e => setNewLead({...newLead, lead_source: e.target.value})}>
+                    <select value={newLead.lead_source} onChange={e => setNewLead({...newLead, lead_source: e.target.value})} style={{ padding: '14px 16px', fontSize: '1rem' }}>
                       <option value="cold">Cold Call</option>
                       <option value="linkedin">LinkedIn</option>
                       <option value="referral">Referral</option>
@@ -308,29 +324,36 @@ export default function Dashboard() {
                   </div>
                   <div className="form-group">
                     <label>Grootte</label>
-                    <select value={newLead.company_size} onChange={e => setNewLead({...newLead, company_size: e.target.value})}>
+                    <select value={newLead.company_size} onChange={e => setNewLead({...newLead, company_size: e.target.value})} style={{ padding: '14px 16px', fontSize: '1rem' }}>
                       <option value="1-10">1-10 medewerkers</option>
                       <option value="11-50">11-50 medewerkers</option>
                       <option value="51+">51+ medewerkers</option>
                     </select>
                   </div>
                 </div>
-                <div className="form-group flex justify-between items-center mb-3" style={{ background: 'rgba(15, 76, 54, 0.05)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                <div className="form-group">
+                  <label>Toewijzen aan</label>
+                  <select value={newLead.assigned_to} onChange={e => setNewLead({...newLead, assigned_to: e.target.value})} style={{ padding: '14px 16px', fontSize: '1rem' }}>
+                    <option value="">Niet toegewezen</option>
+                    {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                  </select>
+                </div>
+                <div className="form-group flex justify-between items-center mb-3" style={{ background: 'rgba(15, 76, 54, 0.05)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border)' }}>
                   <label style={{ margin: 0, cursor: 'pointer' }} className="flex items-center gap-2">
-                     <Zap size={14} fill="currentColor" className="text-secondary" /> Beslisser? 
+                     <Zap size={14} fill="currentColor" className="text-secondary" /> Beslisser?
                   </label>
-                  <input 
-                    type="checkbox" 
-                    checked={newLead.decision_maker} 
-                    onChange={e => setNewLead({...newLead, decision_maker: e.target.checked})} 
-                    style={{ width: '20px', height: '20px', cursor: 'pointer' }}
+                  <input
+                    type="checkbox"
+                    checked={newLead.decision_maker}
+                    onChange={e => setNewLead({...newLead, decision_maker: e.target.checked})}
+                    style={{ width: '22px', height: '22px', cursor: 'pointer' }}
                   />
                 </div>
                 <div className="flex gap-2" style={{ marginTop: '24px' }}>
-                  <button type="button" className="btn btn-outline" onClick={() => setShowNewLeadModal(false)} style={{ flex: 1 }}>
+                  <button type="button" className="btn btn-outline" onClick={() => setShowNewLeadModal(false)} style={{ flex: 1, padding: '14px' }}>
                     Annuleren
                   </button>
-                  <button type="submit" className="btn btn-secondary" disabled={creating} style={{ flex: 1 }}>
+                  <button type="submit" className="btn btn-secondary" disabled={creating} style={{ flex: 1, padding: '14px' }}>
                     {creating ? 'Toevoegen...' : 'Lead Toevoegen'}
                   </button>
                 </div>

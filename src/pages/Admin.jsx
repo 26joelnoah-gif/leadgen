@@ -166,20 +166,34 @@ export default function Admin() {
       return
     }
 
-    // In production: Create auth user and profile
-    const { data, error } = await supabase.auth.admin.createUser({
+    // First create auth user
+    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email: employee.email,
       password: employee.password,
       email_confirm: true,
       user_metadata: { full_name: employee.name, role: employee.role }
     })
 
-    if (error) {
-      alert(`Fout bij aanmaken: ${error.message}`)
-    } else {
-      alert(`Medewerker ${employee.name} is toegevoegd!`)
-      fetchData()
+    if (authError) {
+      if (authError.message.includes('not allowed') || authError.message.includes('unauthorized')) {
+        alert('Je hebt geen rechten om medewerkers aan te maken. Dit vereist admin-toegang in Supabase.')
+      } else {
+        alert(`Fout bij aanmaken: ${authError.message}`)
+      }
+      return
     }
+
+    // Then update the profile with additional fields
+    if (authData?.user) {
+      await supabase.from('profiles').update({
+        role: employee.role,
+        show_appointments_in_earnings: true,
+        show_deals_in_earnings: true
+      }).eq('id', authData.user.id)
+    }
+
+    alert(`Medewerker ${employee.name} is toegevoegd!`)
+    fetchData()
   }
 
   async function addLead(e) {
