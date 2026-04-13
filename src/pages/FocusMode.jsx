@@ -32,6 +32,23 @@ export default function FocusMode() {
     if (profile?.role === 'admin') navigate('/')
   }, [profile, navigate])
 
+  // Keyboard shortcut: Space = next lead, Enter = call
+  useEffect(() => {
+    function handleKeyDown(e) {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return
+      if (e.code === 'Space' && sessionStarted) {
+        e.preventDefault()
+        handleDoor()
+      }
+      if (e.code === 'Enter' && sessionStarted) {
+        e.preventDefault()
+        handleCall()
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [sessionStarted, currentLead])
+
   // Redirect admin if they shouldn't be here (optional, but keep for now)
   // useEffect(() => {
   //   if (profile?.role === 'admin') navigate('/admin')
@@ -248,13 +265,16 @@ export default function FocusMode() {
           </div>
 
           <div className="focus-actions mt-4">
-            <button onClick={() => setShowReasonLost(true)} className="btn btn-outline text-danger" style={{ flex: 1 }}>
-              <X size={18} /> AFBOEKEN
+            <button onClick={() => setShowReasonLost(true)} className="btn btn-outline text-danger" style={{ flex: 1, padding: '18px', fontSize: '1rem' }}>
+              <X size={20} /> AFBOEKEN
             </button>
-            <button onClick={handleDoor} className="btn btn-primary" style={{ flex: 2, fontSize: '1.2rem' }}>
-              VOLGENDE LEAD <ArrowRight size={20} />
+            <button onClick={handleDoor} className="btn btn-primary glow-hover" style={{ flex: 3, padding: '24px 40px', fontSize: '1.5rem', fontWeight: 800, borderRadius: '16px' }}>
+              VOLGENDE LEAD <ArrowRight size={28} />
             </button>
           </div>
+          <p style={{ textAlign: 'center', marginTop: '12px', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+            Druk op <kbd style={{ background: 'var(--bg-light)', padding: '2px 8px', borderRadius: '4px', border: '1px solid var(--border)' }}>SPATIE</kbd> voor volgende lead
+          </p>
 
           {currentLead.notes && (
             <div className="focus-prev-notes">

@@ -401,6 +401,7 @@ export default function Admin() {
           onClose={() => setShowBriefing(false)}
           onSend={handleSendBriefing}
           userName={profile?.full_name || user?.email}
+          users={users}
         />
 
         <EmployeeModal

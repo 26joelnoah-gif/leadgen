@@ -167,6 +167,39 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Quick Stats */}
+        <div className="stats-grid mb-4" style={{ marginTop: '24px' }}>
+          {[
+            { label: 'Nieuwe Leads', val: leads.filter(l => l.status === 'new').length, icon: '📬', color: '#3B82F6' },
+            { label: 'Hot Leads', val: leads.filter(l => ['new', 'terugbelafspraak', 'later_bellen'].includes(l.status)).length, icon: '🔥', color: '#EF4444', pulse: true },
+            { label: 'Afspraken', val: leads.filter(l => l.status === 'afspraak_gemaakt').length, icon: '📅', color: '#10B981' },
+            { label: 'Deals', val: leads.filter(l => l.status === 'deal').length, icon: '🏆', color: '#D4AF37' }
+          ].map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: i * 0.1 }}
+              className="stat-card glass-panel glow-hover"
+              style={{ padding: '20px', borderLeft: `4px solid ${stat.color}` }}
+            >
+              <div className="flex justify-between items-center">
+                <div>
+                  <motion.div
+                    animate={stat.pulse ? { scale: [1, 1.1, 1] } : {}}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                    style={{ fontSize: '2rem', marginBottom: '4px' }}
+                  >
+                    {stat.icon}
+                  </motion.div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: stat.color }}>{stat.val}</div>
+                  <div className="label">{stat.label}</div>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
         {loading ? (
           <div style={{ padding: '100px 0' }}>
             <LoadingSpinner size="large" />

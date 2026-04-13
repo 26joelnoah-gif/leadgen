@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Phone, Globe, MapPin, Calendar, ExternalLink, Zap, Flame } from 'lucide-react';
+import { Phone, Globe, MapPin, Calendar, ExternalLink, Zap, Flame, Clock, PhoneCall } from 'lucide-react';
 import { getStatusDetails } from '../utils/statusUtils';
 import { formatDate } from '../utils/dateUtils';
 import StatusSelector from './StatusSelector';
@@ -12,6 +12,9 @@ export default function LeadCard({ lead, onStatusChange, loading = false, callEn
   // Lead scoring based on status
   const isHot = lead.status === 'new' || lead.status === 'terugbelafspraak';
   const isWarm = lead.status === 'afspraak_gemaakt' || lead.status === 'later_bellen';
+
+  const contactAttempts = lead.contact_attempts || 0;
+  const lastCalled = lead.last_called_at ? formatDate(lead.last_called_at) : null;
 
   return (
     <div className="card mb-2 glow-hover" style={{ position: 'relative' }}>
@@ -73,11 +76,11 @@ export default function LeadCard({ lead, onStatusChange, loading = false, callEn
               href={`tel:${lead.phone}`}
               onClick={() => logCall(lead.id, lead.name)}
               className="btn btn-success btn-sm"
-              style={{ 
-                textDecoration: 'none', 
-                borderRadius: '50%', 
-                width: '32px', 
-                height: '32px', 
+              style={{
+                textDecoration: 'none',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
                 padding: 0,
                 display: 'flex',
                 alignItems: 'center',
@@ -118,6 +121,23 @@ export default function LeadCard({ lead, onStatusChange, loading = false, callEn
           <Calendar size={16} />
           <span style={{ fontSize: '0.85rem' }}>Toegevoegd: {formatDate(lead.created_at)}</span>
         </div>
+      </div>
+
+      {/* Contact attempts and last called */}
+      <div style={{ display: 'flex', gap: '16px', marginBottom: '12px', padding: '10px', background: contactAttempts > 0 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(59, 130, 246, 0.1)', borderRadius: '8px' }}>
+        <div className="flex items-center gap-2" style={{ fontSize: '0.85rem' }}>
+          <PhoneCall size={14} style={{ color: contactAttempts > 2 ? '#EF4444' : '#6B7280' }} />
+          <span className="text-muted">Gebeld:</span>
+          <span style={{ fontWeight: 700 }}>{contactAttempts}x</span>
+          {contactAttempts >= 3 && <span style={{ fontSize: '0.7rem', color: '#EF4444', fontWeight: 600 }}>(koud)</span>}
+        </div>
+        {lastCalled && (
+          <div className="flex items-center gap-2" style={{ fontSize: '0.85rem' }}>
+            <Clock size={14} className="text-muted" />
+            <span className="text-muted">Laatst:</span>
+            <span style={{ fontWeight: 600 }}>{lastCalled}</span>
+          </div>
+        )}
       </div>
 
       {lead.notes && (

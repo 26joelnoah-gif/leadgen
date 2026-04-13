@@ -1,18 +1,35 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { X, Send, Bell } from 'lucide-react'
+import { X, Send, Bell, Users } from 'lucide-react'
 
-export default function BriefingModal({ isOpen, onClose, onSend, userName }) {
+export default function BriefingModal({ isOpen, onClose, onSend, userName, users = [] }) {
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
   const [priority, setPriority] = useState('normal')
+  const [selectedUsers, setSelectedUsers] = useState([])
+  const [sendToAll, setSendToAll] = useState(true)
+
+  function toggleUser(userId) {
+    setSelectedUsers(prev =>
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+    )
+  }
 
   function handleSend() {
     if (!title || !message) return
-    onSend({ title, message, priority, sentBy: userName })
+    onSend({
+      title,
+      message,
+      priority,
+      sentBy: userName,
+      sendToAll,
+      recipients: sendToAll ? [] : selectedUsers
+    })
     setTitle('')
     setMessage('')
     setPriority('normal')
+    setSelectedUsers([])
+    setSendToAll(true)
     onClose()
   }
 
@@ -32,6 +49,7 @@ export default function BriefingModal({ isOpen, onClose, onSend, userName }) {
         exit={{ scale: 0.9, opacity: 0 }}
         className="modal"
         onClick={e => e.stopPropagation()}
+        style={{ maxWidth: '500px' }}
       >
         <div className="modal-header">
           <h2><Bell size={18} /> Briefing Versturen</h2>
@@ -54,7 +72,7 @@ export default function BriefingModal({ isOpen, onClose, onSend, userName }) {
             value={message}
             onChange={e => setMessage(e.target.value)}
             placeholder="Typ je briefing hier..."
-            rows={5}
+            rows={4}
             style={{ resize: 'none' }}
           />
         </div>
@@ -75,6 +93,46 @@ export default function BriefingModal({ isOpen, onClose, onSend, userName }) {
           </div>
         </div>
 
+        {users.length > 0 && (
+          <div className="form-group">
+            <label className="flex items-center gap-2">
+              <Users size={14} /> Ontvangers
+            </label>
+            <div style={{ marginBottom: '12px' }}>
+              <label className="flex items-center gap-2" style={{ cursor: 'pointer', marginBottom: '8px' }}>
+                <input
+                  type="checkbox"
+                  checked={sendToAll}
+                  onChange={() => setSendToAll(true)}
+                />
+                <span>Alle medewerkers ({users.length})</span>
+              </label>
+              <label className="flex items-center gap-2" style={{ cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={!sendToAll}
+                  onChange={() => setSendToAll(false)}
+                />
+                <span>Selecteer medewerkers</span>
+              </label>
+            </div>
+            {!sendToAll && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {users.map(u => (
+                  <button
+                    key={u.id}
+                    onClick={() => toggleUser(u.id)}
+                    className={`btn btn-sm ${selectedUsers.includes(u.id) ? 'btn-primary' : 'btn-outline'}`}
+                    style={{ fontSize: '0.8rem' }}
+                  >
+                    {u.full_name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex gap-2" style={{ marginTop: '24px' }}>
           <button className="btn btn-outline" onClick={onClose} style={{ flex: 1 }}>
             Annuleren
@@ -82,7 +140,7 @@ export default function BriefingModal({ isOpen, onClose, onSend, userName }) {
           <button
             className="btn btn-secondary"
             onClick={handleSend}
-            disabled={!title || !message}
+            disabled={!title || !message || (!sendToAll && selectedUsers.length === 0)}
             style={{ flex: 1 }}
           >
             <Send size={16} /> Versturen
@@ -115,6 +173,7 @@ export function BriefingCard({ briefing }) {
       <p style={{ fontSize: '0.9rem', marginBottom: '8px' }}>{briefing.message}</p>
       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
         Van: {briefing.sentBy}
+        {!briefing.sendToAll && briefing.recipients?.length > 0 && ` • ${briefing.recipients.length} ontvangers`}
       </div>
     </div>
   )

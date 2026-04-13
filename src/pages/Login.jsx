@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { AlertCircle, Info, Lock, Mail, ChevronRight } from 'lucide-react'
+import { AlertCircle, Info, Lock, Mail, ChevronRight, Eye, EyeOff } from 'lucide-react'
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const { signIn, isDemoMode } = useAuth()
@@ -114,15 +115,34 @@ export default function Login() {
             <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', fontSize: '0.9rem', fontWeight: 600 }}>
               <Lock size={16} className="text-muted" /> Wachtwoord
             </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="••••••••"
-              className="form-control"
-              style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.05)' }}
-            />
+            <div style={{ position: 'relative' }}>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                className="form-control"
+                style={{ width: '100%', padding: '12px 16px', paddingRight: '48px', background: 'rgba(255,255,255,0.05)' }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'var(--text-muted)',
+                  padding: '4px'
+                }}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            </div>
           </div>
           <button type="submit" className="btn btn-primary btn-block glow-hover" disabled={loading} style={{ width: '100%', height: '50px', fontSize: '1rem' }}>
             {loading ? 'Bezig met inloggen...' : 'Inloggen'}
