@@ -8,7 +8,7 @@ export default function MobileNav({ profile }) {
 
   const links = [
     { to: '/', label: 'Dashboard' },
-    { to: '/focus', label: 'Focus Mode' },
+    ...(profile?.role !== 'admin' ? [{ to: '/focus', label: 'Focus Mode' }] : []),
     { to: '/tba', label: 'TBA\'s' },
     { to: '/earnings', label: 'Verdiensten' },
     ...(profile?.role === 'admin' ? [

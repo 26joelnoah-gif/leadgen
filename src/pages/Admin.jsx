@@ -16,6 +16,7 @@ import MobileNav from '../components/MobileNav'
 import CampaignModal, { CampaignCard } from '../components/CampaignModal'
 import BriefingModal, { BriefingCard } from '../components/BriefingModal'
 import PipelineFunnel from '../components/PipelineFunnel'
+import EmployeeModal from '../components/EmployeeModal'
 
 export default function Admin() {
   const { user, profile, signOut, callEnabled, toggleCallEnabled, isDemoMode, sessionCallCount } = useAuth()
@@ -42,6 +43,8 @@ export default function Admin() {
   const [briefings, setBriefings] = useState([])
   const [editingUser, setEditingUser] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [showEmployee, setShowEmployee] = useState(false)
+  const [selectedLeads, setSelectedLeads] = useState([])
   const [systemSettings, setSystemSettings] = useState(getSettings)
 
   useEffect(() => {
@@ -147,6 +150,38 @@ export default function Admin() {
     alert('Briefing verstuurd naar alle medewerkers!')
   }
 
+  async function handleAddEmployee(employee) {
+    if (isDemoMode) {
+      // In demo mode, add to local users state
+      const newUser = {
+        id: Date.now().toString(),
+        email: employee.email,
+        full_name: employee.name,
+        role: employee.role,
+        show_appointments_in_earnings: true,
+        show_deals_in_earnings: true
+      }
+      setUsers([newUser, ...users])
+      alert(`Medewerker ${employee.name} is toegevoegd!`)
+      return
+    }
+
+    // In production: Create auth user and profile
+    const { data, error } = await supabase.auth.admin.createUser({
+      email: employee.email,
+      password: employee.password,
+      email_confirm: true,
+      user_metadata: { full_name: employee.name, role: employee.role }
+    })
+
+    if (error) {
+      alert(`Fout bij aanmaken: ${error.message}`)
+    } else {
+      alert(`Medewerker ${employee.name} is toegevoegd!`)
+      fetchData()
+    }
+  }
+
   async function addLead(e) {
     e.preventDefault()
     const { error } = await supabase.from('leads').insert({
@@ -173,6 +208,30 @@ export default function Admin() {
   async function assignLead(leadId, userId) {
     await supabase.from('leads').update({ assigned_to: userId || null }).eq('id', leadId)
     setLeads(leads.map(l => l.id === leadId ? { ...l, assigned_to: userId } : l))
+  }
+
+  async function bulkAssignLeads(userId) {
+    if (selectedLeads.length === 0) return
+    for (const leadId of selectedLeads) {
+      await supabase.from('leads').update({ assigned_to: userId }).eq('id', leadId)
+    }
+    setLeads(leads.map(l => selectedLeads.includes(l.id) ? { ...l, assigned_to: userId } : l))
+    setSelectedLeads([])
+    alert(`${selectedLeads.length} leads toegewezen!`)
+  }
+
+  function toggleLeadSelection(leadId) {
+    setSelectedLeads(prev =>
+      prev.includes(leadId) ? prev.filter(id => id !== leadId) : [...prev, leadId]
+    )
+  }
+
+  function selectAllLeads() {
+    if (selectedLeads.length === leads.length) {
+      setSelectedLeads([])
+    } else {
+      setSelectedLeads(leads.map(l => l.id))
+    }
   }
 
   async function updateStatus(leadId, status) {
@@ -331,12 +390,34 @@ export default function Admin() {
           )}
         </AnimatePresence>
 
+        <CampaignModal
+          isOpen={showCampaign}
+          onClose={() => setShowCampaign(false)}
+          onStartCampaign={handleStartCampaign}
+        />
+
+        <BriefingModal
+          isOpen={showBriefing}
+          onClose={() => setShowBriefing(false)}
+          onSend={handleSendBriefing}
+          userName={profile?.full_name || user?.email}
+        />
+
+        <EmployeeModal
+          isOpen={showEmployee}
+          onClose={() => setShowEmployee(false)}
+          onAdd={handleAddEmployee}
+        />
+
         <PipelineFunnel leads={leads} isDemoMode={isDemoMode} />
 
         <div className="grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '24px', marginBottom: '32px' }}>
           <motion.div initial={{ x: -20, opacity: 0 }} animate={{ x: 0, opacity: 1 }} className="card glow-hover">
             <div className="card-header">
               <span className="card-title"><UserPlus size={18} /> Medewerkers</span>
+              <button onClick={() => setShowEmployee(true)} className="btn btn-sm btn-primary">
+                <UserPlus size={14} /> Toevoegen
+              </button>
             </div>
             <table className="table">
               <thead><tr><th>Naam</th><th>Status</th><th>Leads</th></tr></thead>
@@ -480,14 +561,31 @@ export default function Admin() {
         )}
 
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2 }} className="card">
-          <div className="card-header"><span className="card-title"><Activity size={18} /> Alle Leads</span></div>
+          <div className="card-header">
+            <span className="card-title"><Activity size={18} /> Alle Leads ({leads.length})</span>
+            {selectedLeads.length > 0 && (
+              <div className="flex items-center gap-2">
+                <span style={{ fontSize: '0.85rem', fontWeight: 600 }}>{selectedLeads.length} geselecteerd</span>
+                <select
+                  onChange={(e) => bulkAssignLeads(e.target.value)}
+                  defaultValue=""
+                  style={{ padding: '6px', borderRadius: '4px', border: '1px solid var(--border)' }}
+                >
+                  <option value="">Toewijzen aan...</option>
+                  {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                </select>
+                <button onClick={() => setSelectedLeads([])} className="btn btn-sm btn-outline">Wissen</button>
+              </div>
+            )}
+          </div>
           {loading ? <LoadingSpinner /> : (
             <div className="table-container">
               <table className="table">
-                <thead><tr><th>Details</th><th>Contact</th><th>Status</th><th>Toegewezen aan</th></tr></thead>
+                <thead><tr><th style={{ width: '40px' }}><input type="checkbox" checked={selectedLeads.length === leads.length && leads.length > 0} onChange={selectAllLeads} /></th><th>Details</th><th>Contact</th><th>Status</th><th>Toegewezen aan</th></tr></thead>
                 <tbody>
                   {leads.map(lead => (
-                    <tr key={lead.id}>
+                    <tr key={lead.id} style={{ background: selectedLeads.includes(lead.id) ? 'rgba(212, 175, 55, 0.1)' : 'transparent' }}>
+                      <td><input type="checkbox" checked={selectedLeads.includes(lead.id)} onChange={() => toggleLeadSelection(lead.id)} /></td>
                       <td><strong>{lead.name}</strong></td>
                       <td><div className="flex items-center gap-1">{callEnabled && <Phone size={14} className="text-success" />}{lead.phone}</div></td>
                       <td><StatusSelector currentStatus={lead.status} onStatusChange={(s) => updateStatus(lead.id, s)} /></td>

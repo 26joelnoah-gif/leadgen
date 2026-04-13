@@ -46,6 +46,15 @@ CREATE TABLE IF NOT EXISTS public.messages (
     text TEXT NOT NULL,
     user_name TEXT NOT NULL,
     is_admin BOOLEAN DEFAULT FALSE,
+    channel_id UUID REFERENCES public.chat_channels(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 3b. Create chat channels table
+CREATE TABLE IF NOT EXISTS public.chat_channels (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    name TEXT NOT NULL,
+    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -66,8 +75,6 @@ CREATE TABLE IF NOT EXISTS public.activities (
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
-
 -- Profiles: everyone can read, only admins can update
 CREATE POLICY "Profiles are viewable by authenticated users" ON public.profiles
     FOR SELECT USING (auth.role() = 'authenticated');
@@ -103,6 +110,29 @@ CREATE POLICY "Users can view own activities" ON public.activities
 
 CREATE POLICY "Users can insert activities" ON public.activities
     FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+-- Messages: all authenticated users can view and post
+ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Messages are viewable by authenticated users" ON public.messages
+    FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Users can insert messages" ON public.messages
+    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+-- Chat channels: all authenticated users can view, only admins can create
+ALTER TABLE public.chat_channels ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Chat channels are viewable by authenticated users" ON public.chat_channels
+    FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can create chat channels" ON public.chat_channels
+    FOR INSERT WITH CHECK (
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    );
+
+CREATE POLICY "Admins can delete chat channels" ON public.chat_channels
+    FOR DELETE USING (
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    );
 
 -- =====================================================
 -- Functions

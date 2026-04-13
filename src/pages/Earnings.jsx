@@ -39,7 +39,7 @@ export default function Earnings() {
           <Logo size="medium" />
           <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
             <Link to="/">Dashboard</Link>
-            <Link to="/focus">Focus Mode</Link>
+            {profile?.role !== 'admin' && <Link to="/focus">Focus Mode</Link>}
             <Link to="/tba">TBA's</Link>
             <Link to="/earnings" className="active">Verdiensten</Link>
             {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}

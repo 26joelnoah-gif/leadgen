@@ -79,7 +79,7 @@ export default function Dashboard() {
           <Logo size="medium" />
           <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
             <Link to="/" className="active">Dashboard</Link>
-            <Link to="/focus">Focus Mode</Link>
+            {profile?.role !== 'admin' && <Link to="/focus">Focus Mode</Link>}
             <Link to="/earnings">Verdiensten</Link>
             <Link to="/admin/telemetry">Telemetrie</Link>
             {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
