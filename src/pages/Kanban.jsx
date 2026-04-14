@@ -110,6 +110,7 @@ export default function Kanban() {
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
     </div>
   )
 }

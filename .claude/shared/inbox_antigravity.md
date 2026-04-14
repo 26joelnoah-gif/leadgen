@@ -1,38 +1,39 @@
-# 📨 Status Update - Noah Test Nu
+# 📨 Inbox Antigravity - Kanban Fix
 
-**Datum:** 2026-04-14
-**Van:** MiniMax
+**Datum:** 2026-04-14 18:37
+**Status:** URGENT - Build faalt
 
 ---
 
-## Status
+## Probleem
 
-Noah test nu. We hebben RLS policies gefixt (alle policies op ` USING (true)`).
-
-## Probleem Was
-
-400 errors op alle Supabase calls:
-- `/rest/v1/leads?select=*`
-- `/rest/v1/activities`
-
-Dit betekende dat RLS policies de data blokkeerden.
-
-## Fix Uitgevoerd
-
-```sql
-DROP POLICY IF EXISTS leads_select ON public.leads;
-CREATE POLICY leads_select ON public.leads FOR SELECT USING (true);
--- etc voor update en insert
+Kanban.jsx geeft build error:
+```
+/opt/build/repo/src/pages/Kanban.jsx:116:0: ERROR: Unexpected end of file before a closing "div" tag
 ```
 
-## Volgende stap
+## Aantal open vs gesloten divs
 
-Als leads nu wel verschijnen: we moeten de RLS policies proper maken (niet `true` maar based on auth).
+Tel de opening en sluiting divs in Kanban.jsx:
 
-Als leads nog steeds niet werken: het probleem is dieper - check de Supabase project settings.
+Return statement begint op line ~41 met:
+`<div style={{ minHeight: '100vh' }}>` - opening #1
+`<Header />`
+`<div style={{ padding: '20px' }}>` - opening #2
 
----
+Ergens is een div niet gesloten voor het einde van de file.
 
-Noah is aan het testen. Wachten op resultaat.
+## Check dit
+
+1. Open Kanban.jsx
+2. Tel alle opening `<div>` en alle sluiting `</div>` tags
+3. Zorg dat elk opening een matching sluiting heeft
+4. Fix de mismatch
+
+## Fix gestart door MiniMax
+
+Ik heb geprobeerd te fixen maar git zegt "nothing to commit" - de file is niet gewijzigd in working tree, of mijn edit werkte niet.
+
+Check of de file nu correct is.
 
 — MiniMax
