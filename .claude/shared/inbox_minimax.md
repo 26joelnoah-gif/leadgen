@@ -1,33 +1,57 @@
-# 📨 Inbox Minimax - QA Report & Fixes by Antigravity
+# 📨 Inbox Minimax - UI Redesign Briefing (Focus Mode)
 
 **Datum:** 2026-04-14
-**Van:** Antigravity (QA System)
-**Status:** BUGS OPGELOST
+**Van:** Noah (via Antigravity)
+**Aan:** MiniMax
+**Status:** **DESIGN UPDATE VEREIST**
 
 ---
 
 Hoi MiniMax,
 
-Noah vroeg mij om jou te helpen en je bevindingen uit `inbox_gemini.md` door te lichten en non-stop bugs te blijven zoeken. Hier is het snoeiharde oordeel en acties:
+Noah heeft zojuist een referentie-afbeelding gedeeld van hoe de **Beller-weergave (Focus Mode / Lead Weergave)** er exact uit moet komen te zien voor de medewerkers. Je missie is om de huidige werknemers-weergave van een lead (`LeadCard.jsx` of de Focus Mode in `Dashboard.jsx`) volledig te verbouwen naar dit nieuwe design.
 
-### 1. 🚨 Beveiligingslek in Payouts en Rapportage
-De navigatiebalken in `Payouts.jsx` en `Reports.jsx` toonden de Admin links ongehinderd open voor Medewerkers! Ik heb deze veilig afgesloten via code. 
+Hier is de snoeiharde briefing van het nieuwe design dat je moet bouwen:
 
-### 2. 🔥 De "START MET BELLEN" knop mysterie (De beruchte 400 ERROR)
-De frontend stikte elke sessie zodra hij het dashboard inlaadde of een lead lijst aansprak. Waarom? Omdat **Noah het SQL migration v2 script NOOIT op de live Supabase geknald heeft.** Hierdoor crasht de database op kolommen als `lead_list_id` en `assigned_to` op de lijsten! 
-**Actie:** Zeg Noah direct dat hij de content van `.claude/shared/migration_v2.sql` in zijn web-browser in de Supabase SQL Editor gooit!
+### Algemene Layout & Structuur
+Het design wijkt af van onze huidige "simpele" cards en gaat naar een zéér gestructureerde CRM-layout met blokken. Het gebruikt een systeem van uitklapbare secties (of in ieder geval visueel gescheiden balken die starten met een `>`).
 
-### 3. 🚨 Fatal Logic Bug: "Aanmaken nieuwe medewerker"
-Zodra de Admin in `Admin.jsx` een werknemer toevoegde via de Supabase Signup, werd de Admin zelf *direct per ongeluk uitgelogd en ingelogd als de nieuwe medewerker*. 
-**Status:** Bekende Supabase Client limitatie zonder backend. Dit is momenteel "Works as intended", maar geef Noah door dat hij dit óf negeert (hij moet dan opnieuw inloggen), óf we moeten auth edges bouwen.
+#### 1. Top Header (Meteen onder de navigatie)
+- **Groot en vet:** [Bedrijfsnaam] (bijv. "Bedrijf Marleen en Jasper")
+- **Daaronder:** "Tel: [Telefoonnummer]"
+- **Rechts:** Een pill/badge met tag informatie (bijv. "> Klant Auto verhuur").
 
-### 4. 🗃️ CSV Export fout in Admin.jsx 
-Zodra de Admin Leads exporteerde, was de `Toegewezen` kolom altijd `Niemand` omdat de frontend niet goed verbond met de profielen.
-**Actie:** Live gepatched en door mij op main gegooid!
+#### 2. Sectie: > Bedrijfsgegevens
+Dit is het belangrijkste blok. Het bevat een **3-kolommen grid** met drie losse "Cards". 
+*Elke card heeft een dikke donkerblauwe/paarse top-headerbalk met witte tekst.*
+- **Kolom 1: "Adres"**
+  - Inputs: Naam, Straat, Huisnummer (naast elkaar), Postcode, Plaats (naast elkaar).
+- **Kolom 2: "Contactpersoon"**
+  - Inputs: Contact personen, Geslacht (dropdown), Functie.
+- **Kolom 3: "Contact"**
+  - Inputs: Email, Telefoonnummer, Website.
 
-### 5. 🛠️ Lead_list logic gefixxed
-Ik zag dat `getLeadsInList` via de nieuwe `leads.lead_list_id` zocht, maar dat `addLeadsToList` NOG STEEDS op de oude afgeschreven methode leunde (de `lead_list_items` tabel). Hierdoor kon Admin nooit daadwerkelijk een lead toewijzen aan een lijst vanuit de modal!
-**Actie:** Code herschreven, hij gebruikt nu feilloos `leads.update({lead_list_id})`. Ik push dit zo!
+#### 3. Sectie: Extra velden
+Een brede sectie (over de hele breedte), eveneens met een paars/blauwe titelbalk "Extra velden".
+- Bevat verticale blokken met inputs voor specifieke lead data zoals: Datum, Doel, etc. (Dit kunnen we mappen op onze bestaande of nieuwe "notes" / custom fields).
+- **Korte knop eronder:** "Bedrijf bewerken" (paarse/blauwe knop).
 
-Zodra Noah de migration draait en mijn fixes door Netlify rollen, staat deze raket klaar voor lancering!
-— Antigravity
+#### 4. Sectie: > Uploads
+Een brede sectie met een tabel-interface.
+- **Tabel Headers:** BESTANDSNAAM, DATUM UPLOAD, ACTIES
+- Een "Bestand kiezen" input met een "Upload" knop ernaast.
+
+#### 5. Sectie: > Belactiviteiten
+- Hier komt de huidige Activity Feed van de lead (de log van bel-acties en notities).
+
+### Styling & CSS Instructies voor MiniMax
+- Gebruik een lichtgrijze achtergrond voor de pagina.
+- De cards ("Adres", "Contactpersoon", "Contact", "Extra velden") hebben scherpe of licht afgeronde hoeken, een witte basis, en een solide, kleurrijke (paars/donkerblauw) header. 
+- Inputs hebben heldere outlines (borders) en labels staan duidelijk aan de top-left van elke input box (inset of floating style).
+- Het contrast moet hoog zijn zodat bellers razendsnel velden kunnen vinden en aflezen.
+
+**Jouw Actie:**
+Bouw dit nieuwe layout-grid. Je mag de bestaande velden in de database (`leads` tabel) re-mappen naar deze weergave. Als bepaalde velden (zoals straat, huisnummer, website, geslacht) nog niet bestaan in onze Supabase DB, voeg deze dan toe aan de Supabase schema's of sla ze voorlopig op in een JSONB `metadata` kolom op de lead.
+
+Succes met het verbouwen!
+— Namens Noah
