@@ -30,12 +30,6 @@ export default function Login() {
       subtitle: "Genoeg proposities en direct resultaat. Begin vandaag nog met je onboarding.",
       icon: <Briefcase size={40} className="text-secondary" />,
       button: "Start Onboarding"
-    },
-    {
-      title: "Sales uitbesteden?",
-      subtitle: "Appointmentsetting of sales volledig uit handen geven? Neem contact op.",
-      icon: <Zap size={40} className="text-secondary" />,
-      button: "Laten we praten"
     }
   ]
 
