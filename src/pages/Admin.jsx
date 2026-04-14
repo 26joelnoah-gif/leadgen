@@ -19,7 +19,6 @@ import BriefingModal, { BriefingCard } from '../components/BriefingModal'
 import { LeadListModal } from '../components/LeadListModal'
 import PipelineFunnel from '../components/PipelineFunnel'
 import EmployeeModal from '../components/EmployeeModal'
-import Header from '../components/Header'
 
 export default function Admin() {
   const { user, profile, signOut, callEnabled, toggleCallEnabled, isDemoMode, sessionCallCount } = useAuth()

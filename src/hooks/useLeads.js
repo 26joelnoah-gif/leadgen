@@ -161,13 +161,16 @@ export function useLeads() {
   }
 
   async function releaseLead(leadId) {
-    await supabase.from('leads').update({
+    const { error } = await supabase.from('leads').update({
       locked_by: null,
       locked_at: null,
       call_status: 'available'
     }).eq('id', leadId)
 
-    setLeads(leads.map(l => l.id === leadId ? { ...l, locked_by: null, locked_at: null, call_status: 'available' } : l))
+    if (!error) {
+      setLeads(leads.map(l => l.id === leadId ? { ...l, locked_by: null, locked_at: null, call_status: 'available' } : l))
+    }
+    return { error }
   }
 
   async function getNextLead() {
