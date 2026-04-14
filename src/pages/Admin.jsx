@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Plus, Users, Settings, UserPlus, Phone, PhoneOff, Mail, UserCheck, Shield, Activity, Download, Play, Zap, Upload, X, CheckCircle, AlertTriangle, Bell, Megaphone, Target, DollarSign, Calendar } from 'lucide-react'
+import { Plus, Users, Settings, UserPlus, Phone, PhoneOff, Mail, UserCheck, Shield, Activity, Download, Play, Zap, Upload, X, CheckCircle, AlertTriangle, Bell, Megaphone, Target, DollarSign, Calendar, List } from 'lucide-react'
 import { STATUS_MAP } from '../utils/statusUtils'
 import { exportToCSV } from '../utils/exportUtils'
 import { parseCSV, validateLeads } from '../utils/importUtils'
@@ -15,6 +15,7 @@ import Logo from '../components/Logo'
 import MobileNav from '../components/MobileNav'
 import CampaignModal, { CampaignCard } from '../components/CampaignModal'
 import BriefingModal, { BriefingCard } from '../components/BriefingModal'
+import LeadListModal from '../components/LeadListModal'
 import PipelineFunnel from '../components/PipelineFunnel'
 import EmployeeModal from '../components/EmployeeModal'
 
@@ -44,6 +45,7 @@ export default function Admin() {
   const [editingUser, setEditingUser] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showEmployee, setShowEmployee] = useState(false)
+  const [showLeadList, setShowLeadList] = useState(false)
   const [selectedLeads, setSelectedLeads] = useState([])
   const [systemSettings, setSystemSettings] = useState(getSettings)
 
@@ -55,7 +57,7 @@ export default function Admin() {
     setLoading(true)
     try {
       const [leadsRes, usersRes] = await Promise.all([
-        supabase.from('leads').select('*, assigned_to_profile:profiles!assigned_to(full_name), created_by_profile:profiles!created_by(full_name)').order('created_at', { ascending: false }),
+        supabase.from('leads').select('*').order('created_at', { ascending: false }),
         supabase.from('profiles').select('*').order('full_name')
       ])
       setLeads(leadsRes.data || [])
@@ -153,7 +155,6 @@ export default function Admin() {
 
   async function handleAddEmployee(employee) {
     if (isDemoMode) {
-      // In demo mode, add to local users state
       const newUser = {
         id: Date.now().toString(),
         email: employee.email,
@@ -166,25 +167,22 @@ export default function Admin() {
       return
     }
 
-    // First create auth user
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+    // Use signUp (works with anon key, no service_role needed)
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email: employee.email,
       password: employee.password,
-      email_confirm: true,
-      user_metadata: { full_name: employee.name, role: employee.role }
+      options: {
+        data: { full_name: employee.name, role: employee.role }
+      }
     })
 
     if (authError) {
-      if (authError.message.includes('not allowed') || authError.message.includes('unauthorized') || authError.message.includes('admin')) {
-        alert('Je hebt geen rechten om medewerkers aan te maken. Dit vereist admin-toegang in Supabase.')
-      } else {
-        alert(`Fout bij aanmaken: ${authError.message}`)
-      }
+      alert(`Fout bij aanmaken: ${authError.message}`)
       return
     }
 
-    // Then update the profile with additional fields (use upsert in case profile doesn't exist)
-    if (authData?.user) {
+    // Update the profile role (trigger creates the profile with role='employee' by default)
+    if (authData?.user?.id) {
       const { error: profileError } = await supabase.from('profiles').upsert({
         id: authData.user.id,
         email: employee.email,
@@ -193,37 +191,42 @@ export default function Admin() {
         show_appointments_in_earnings: true,
         show_deals_in_earnings: true
       })
-
       if (profileError) {
-        alert(`Let op: Auth gebruiker aangemaakt maar profiel kon niet worden opgeslagen. Fout: ${profileError.message}`)
-        fetchData() // Still refresh to show the partial state
-        return
+        console.error('Profile upsert failed:', profileError)
+        alert(`Gebruiker aangemaakt maar profiel kon niet worden bijgewerkt: ${profileError.message}`)
       }
     }
 
+    alert(`Medewerker ${employee.name} is toegevoegd!`)
     fetchData()
   }
 
   async function addLead(e) {
     e.preventDefault()
-    const { error } = await supabase.from('leads').insert({
-      ...newLead,
-      created_by: user.id,
-      status: 'new'
-    })
-    if (!error) {
+    try {
+      const leadData = {
+        ...newLead,
+        created_by: user.id,
+        status: 'new',
+        assigned_to: newLead.assigned_to || null
+      }
+      const { error } = await supabase.from('leads').insert(leadData)
+      if (error) throw error
       setShowAddLead(false)
-      setNewLead({ 
-        name: '', 
-        phone: '', 
-        email: '', 
-        notes: '', 
+      setNewLead({
+        name: '',
+        phone: '',
+        email: '',
+        notes: '',
         assigned_to: '',
         lead_source: 'cold',
         company_size: '1-10',
         decision_maker: false
       })
       fetchData()
+    } catch (err) {
+      console.error('addLead error:', err)
+      alert(`Fout bij aanmaken lead: ${err.message}`)
     }
   }
 
@@ -349,6 +352,9 @@ export default function Admin() {
             <button className="btn btn-primary" onClick={() => setShowAddLead(true)}>
               <Plus size={18} /> Nieuwe Lead
             </button>
+            <button className="btn btn-secondary" onClick={() => setShowLeadList(true)}>
+              <List size={18} /> Lead Lijsten
+            </button>
           </div>
         </motion.div>
 
@@ -433,6 +439,11 @@ export default function Admin() {
           isOpen={showEmployee}
           onClose={() => setShowEmployee(false)}
           onAdd={handleAddEmployee}
+        />
+
+        <LeadListModal
+          isOpen={showLeadList}
+          onClose={() => setShowLeadList(false)}
         />
 
         <PipelineFunnel leads={leads} isDemoMode={isDemoMode} />

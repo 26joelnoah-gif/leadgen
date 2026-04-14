@@ -186,7 +186,7 @@ export default function Reports() {
               <Zap size={14} style={{ color: 'var(--secondary)' }} />
               <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span></span>
             </div>
-            <span>{profile?.full_name || user?.email}</span>
+            <span>{profile?.full_name || user?.email?.split('@')[0] || 'Gebruiker'}</span>
             <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
           </div>
         </div>

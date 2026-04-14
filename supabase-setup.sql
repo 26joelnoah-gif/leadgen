@@ -68,6 +68,46 @@ CREATE TABLE IF NOT EXISTS public.activities (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- 4. Create lead_lists table
+CREATE TABLE IF NOT EXISTS public.lead_lists (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    name TEXT NOT NULL,
+    description TEXT,
+    created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- 5. Create lead_list_items table (many-to-many)
+CREATE TABLE IF NOT EXISTS public.lead_list_items (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    lead_list_id UUID REFERENCES public.lead_lists(id) ON DELETE CASCADE NOT NULL,
+    lead_id UUID REFERENCES public.leads(id) ON DELETE CASCADE NOT NULL,
+    added_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(lead_list_id, lead_id)
+);
+
+-- 6. Create payouts table
+CREATE TABLE IF NOT EXISTS public.payouts (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    deals_count INT DEFAULT 0,
+    appointments_count INT DEFAULT 0,
+    deal_payout DECIMAL(10,2) DEFAULT 0,
+    appointment_payout DECIMAL(10,2) DEFAULT 0,
+    is_billable BOOLEAN DEFAULT FALSE,
+    billable_approved_at TIMESTAMPTZ,
+    approved_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+    payout_status TEXT DEFAULT 'pending' CHECK (payout_status IN ('pending', 'approved', 'paid')),
+    payment_term_days INT DEFAULT 14,
+    paid_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- =====================================================
 -- Row Level Security (RLS)
 -- =====================================================
@@ -75,6 +115,9 @@ CREATE TABLE IF NOT EXISTS public.activities (
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.leads ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.activities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lead_lists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lead_list_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.payouts ENABLE ROW LEVEL SECURITY;
 -- Profiles: everyone can read, only admins can update
 CREATE POLICY "Profiles are viewable by authenticated users" ON public.profiles
     FOR SELECT USING (auth.role() = 'authenticated');
@@ -131,6 +174,49 @@ CREATE POLICY "Admins can create chat channels" ON public.chat_channels
 
 CREATE POLICY "Admins can delete chat channels" ON public.chat_channels
     FOR DELETE USING (
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    );
+
+-- Lead lists: admins can manage, employees can view
+CREATE POLICY "Lead lists viewable by authenticated users" ON public.lead_lists
+    FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Admins can insert lead lists" ON public.lead_lists
+    FOR INSERT WITH CHECK (
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    );
+
+CREATE POLICY "Admins can update lead lists" ON public.lead_lists
+    FOR UPDATE USING (
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    );
+
+CREATE POLICY "Admins can delete lead lists" ON public.lead_lists
+    FOR DELETE USING (
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    );
+
+-- Lead list items: viewable by all authenticated, manageable by admins
+CREATE POLICY "Lead list items viewable by authenticated users" ON public.lead_list_items
+    FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Users can insert lead list items" ON public.lead_list_items
+    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Users can delete own lead list items" ON public.lead_list_items
+    FOR DELETE USING (
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    );
+
+-- Payouts: employees see own, admins see all
+CREATE POLICY "Users can view own payouts" ON public.payouts
+    FOR SELECT USING (
+        user_id = auth.uid() OR
+        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+    );
+
+CREATE POLICY "Admins can manage payouts" ON public.payouts
+    FOR ALL USING (
         EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
     );
 

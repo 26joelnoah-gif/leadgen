@@ -65,19 +65,25 @@ export default function Dashboard() {
     e.preventDefault()
     if (!newLead.name || !newLead.phone) return
     setCreating(true)
-    await createLead(newLead)
-    setNewLead({
-      name: '',
-      phone: '',
-      email: '',
-      notes: '',
-      lead_source: 'cold',
-      company_size: '1-10',
-      decision_maker: false,
-      assigned_to: ''
-    })
-    setShowNewLeadModal(false)
-    setCreating(false)
+    try {
+      await createLead(newLead)
+      setNewLead({
+        name: '',
+        phone: '',
+        email: '',
+        notes: '',
+        lead_source: 'cold',
+        company_size: '1-10',
+        decision_maker: false,
+        assigned_to: ''
+      })
+      setShowNewLeadModal(false)
+    } catch (err) {
+      console.error('Failed to create lead:', err)
+      alert(`Fout bij aanmaken lead: ${err.message}`)
+    } finally {
+      setCreating(false)
+    }
   }
 
   return (
@@ -108,7 +114,7 @@ export default function Dashboard() {
               <div className="avatar" style={{ width: '32px', height: '32px', background: 'var(--secondary)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', color: 'var(--primary-dark)', fontSize: '0.8rem' }}>
                 {profile?.full_name?.charAt(0) || user?.email?.charAt(0).toUpperCase()}
               </div>
-              <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>{profile?.full_name || user?.email}</span>
+              <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>{profile?.full_name || user?.email?.split('@')[0] || 'Gebruiker'}</span>
             </div>
             <button
               onClick={toggleCallEnabled}

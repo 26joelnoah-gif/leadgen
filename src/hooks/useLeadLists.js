@@ -1,0 +1,133 @@
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
+
+export function useLeadLists() {
+  const { profile, isDemoMode } = useAuth()
+  const [leadLists, setLeadLists] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+
+  async function fetchLeadLists() {
+    setLoading(true)
+    setError(null)
+
+    if (isDemoMode) {
+      setLeadLists([])
+      setLoading(false)
+      return
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('lead_lists')
+        .select('*, created_by_profile:profiles!created_by(full_name)')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      setLeadLists(data || [])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function createLeadList(name, description = '') {
+    if (isDemoMode) {
+      const newList = {
+        id: `demo-${Date.now()}`,
+        name,
+        description,
+        created_at: new Date().toISOString()
+      }
+      setLeadLists([newList, ...leadLists])
+      return newList
+    }
+
+    const { data, error } = await supabase
+      .from('lead_lists')
+      .insert({ name, description })
+      .select()
+      .single()
+
+    if (!error && data) {
+      setLeadLists([data, ...leadLists])
+    }
+    return { data, error }
+  }
+
+  async function addLeadsToList(listId, leadIds) {
+    if (isDemoMode) return { error: null }
+
+    const items = leadIds.map(leadId => ({
+      lead_list_id: listId,
+      lead_id: leadId
+    }))
+
+    const { error } = await supabase
+      .from('lead_list_items')
+      .upsert(items, { ignoreDuplicates: true })
+
+    return { error }
+  }
+
+  async function removeLeadFromList(listId, leadId) {
+    if (isDemoMode) return { error: null }
+
+    const { error } = await supabase
+      .from('lead_list_items')
+      .delete()
+      .eq('lead_list_id', listId)
+      .eq('lead_id', leadId)
+
+    return { error }
+  }
+
+  async function getLeadsInList(listId) {
+    if (isDemoMode) return []
+
+    const { data, error } = await supabase
+      .from('lead_list_items')
+      .select('lead_id, leads(*, assigned_to_profile:profiles!assigned_to(full_name))')
+      .eq('lead_list_id', listId)
+
+    if (error) throw error
+    return (data || []).map(item => item.leads)
+  }
+
+  async function deleteLeadList(listId) {
+    if (isDemoMode) {
+      setLeadLists(leadLists.filter(l => l.id !== listId))
+      return { error: null }
+    }
+
+    const { error } = await supabase
+      .from('lead_lists')
+      .delete()
+      .eq('id', listId)
+
+    if (!error) {
+      setLeadLists(leadLists.filter(l => l.id !== listId))
+    }
+    return { error }
+  }
+
+  useEffect(() => {
+    if (profile?.role === 'admin') {
+      fetchLeadLists()
+    }
+  }, [profile?.role, isDemoMode])
+
+  return {
+    leadLists,
+    loading,
+    error,
+    fetchLeadLists,
+    createLeadList,
+    addLeadsToList,
+    removeLeadFromList,
+    getLeadsInList,
+    deleteLeadList
+  }
+}

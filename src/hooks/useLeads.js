@@ -46,7 +46,7 @@ export function useLeads() {
     try {
       let query = supabase
         .from('leads')
-        .select('*, assigned_to_profile:profiles!assigned_to(full_name), created_by_profile:profiles!created_by(full_name)')
+        .select('*')
 
       if (profile?.role !== 'admin') {
         query = query.eq('assigned_to', user?.id)
@@ -62,7 +62,10 @@ export function useLeads() {
       }))
       setLeads(scoredLeads)
     } catch (err) {
+      console.error('fetchLeads error:', err)
       setError(err.message)
+      // Fallback to empty on error
+      setLeads([])
     } finally {
       setLoading(false)
     }
@@ -165,17 +168,33 @@ export function useLeads() {
       return demoLead
     }
 
-    const { data, error } = await supabase
-      .from('leads')
-      .insert(newLead)
-      .select()
-      .single()
+    try {
+      const { data, error } = await supabase
+        .from('leads')
+        .insert(newLead)
+        .select()
 
-    if (!error && data) {
-      setLeads([data, ...leads])
-      await logActivity(data.id, 'lead_created', 'Lead aangemaakt')
+      if (error) {
+        console.error('createLead error:', error)
+        throw error
+      }
+
+      // Handle both array and single object response
+      const createdLead = Array.isArray(data) ? data[0] : data
+      if (createdLead) {
+        const leadWithScore = { ...createdLead, lead_score: calculateLeadScore(createdLead) }
+        setLeads(prev => [leadWithScore, ...prev])
+        await logActivity(createdLead.id, 'lead_created', 'Lead aangemaakt')
+        return createdLead
+      }
+      // If no data returned, refetch to get the created lead
+      console.log('createLead: no data returned, refetching...')
+      await fetchLeads()
+      return null
+    } catch (err) {
+      console.error('createLead failed:', err)
+      throw err
     }
-    return data
   }
 
   useEffect(() => {

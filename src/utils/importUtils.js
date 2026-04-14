@@ -36,7 +36,7 @@ export function validateLeads(leads) {
     if (lead.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(lead.email)) {
       errors.push(`Rij ${i + 2}: Ongeldig email`)
     }
-    if (valid.length === 0 && lead.name && lead.phone) valid.push(lead)
+    if (lead.name && lead.phone) valid.push(lead)
   })
 
   return { valid, errors }

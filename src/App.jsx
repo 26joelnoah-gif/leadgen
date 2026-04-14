@@ -82,6 +82,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route
+        path="/admin/telemetry"
+        element={
+          <ProtectedRoute requireAdmin>
+            <Telemetry />
+          </ProtectedRoute>
+        }
+      />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
