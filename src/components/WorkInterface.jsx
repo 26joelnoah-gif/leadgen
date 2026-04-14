@@ -6,6 +6,7 @@ import { useLeads } from '../hooks/useLeads'
 import { useLeadLists } from '../hooks/useLeadLists'
 import { supabase } from '../lib/supabase'
 import LoadingSpinner from './LoadingSpinner'
+import CopyButton from './CopyButton'
 
 export default function WorkInterface() {
   const { isWorking, toggleWorkingMode, workingListId, setWorkingListId, workingLead, profile, logCall, sessionCallCount } = useAuth()
@@ -208,7 +209,10 @@ export default function WorkInterface() {
         <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '20px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
              <h1 style={{ margin: '0 0 8px 0', fontSize: '1.4rem', color: 'white' }}>{currentLead.name}</h1>
-             <p style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--primary)' }}>Tel: {currentLead.phone}</p>
+             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+               <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary)' }}>Tel: {currentLead.phone}</p>
+               {currentLead.phone && <CopyButton text={currentLead.phone} label="Telefoonnummer Kopiëren" />}
+             </div>
           </div>
           <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '6px 12px', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-muted)' }}>
              &gt; Project {listName}
@@ -220,7 +224,7 @@ export default function WorkInterface() {
           {/* Sectie: Bedrijfsgegevens */}
           <div style={{ marginBottom: '24px' }}>
             <h3 style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', padding: '8px 12px', margin: '0 0 16px 0', borderRadius: '4px', fontSize: '1rem', border: '1px solid var(--border)' }}>&gt; Bedrijfsgegevens</h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)', gap: '20px' }}>
+            <div className="work-interface-grid" style={{ display: 'grid', gap: '20px' }}>
               
               {/* Adres Blok */}
               <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>

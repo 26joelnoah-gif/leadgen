@@ -3,6 +3,7 @@ import { Phone, Globe, MapPin, Calendar, ExternalLink, Zap, Flame, Clock, PhoneC
 import { getStatusDetails } from '../utils/statusUtils';
 import { formatDate } from '../utils/dateUtils';
 import StatusSelector from './StatusSelector';
+import CopyButton from './CopyButton';
 import { useAuth } from '../context/AuthContext';
 
 export default function LeadCard({ lead, onStatusChange, onClaim, loading = false, showLeadScore = false }) {
@@ -151,6 +152,7 @@ export default function LeadCard({ lead, onStatusChange, onClaim, loading = fals
         <div className="flex items-center gap-2 text-muted">
           <Phone size={16} />
           <span className="lead-phone">{lead.phone || 'Geen telefoon'}</span>
+          {lead.phone && <CopyButton text={lead.phone} label="Kopieer Telefoonnummer" />}
         </div>
         <div className="flex items-center gap-2 text-muted">
           <Globe size={16} />
