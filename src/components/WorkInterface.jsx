@@ -17,8 +17,15 @@ export default function WorkInterface() {
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [callbackDate, setCallbackDate] = useState('')
   const [loading, setLoading] = useState(false)
-
+  
   const currentLead = leads[currentIndex]
+  const [editableLead, setEditableLead] = useState({})
+
+  useEffect(() => {
+    if (currentLead) {
+      setEditableLead(currentLead)
+    }
+  }, [currentLead])
   const listName = leadLists.find(l => l.id === workingListId)?.name || 'Onbekende lijst'
 
   // Zorg dat medewerkers alleen hun eigen lijsten zien
@@ -102,6 +109,27 @@ export default function WorkInterface() {
     }
     setShowDatePicker(false)
     setCallbackDate('')
+    setLoading(false)
+  }
+
+  async function saveLeadEdits() {
+    if (!editableLead?.id) return
+    setLoading(true)
+    const { error } = await supabase.from('leads').update({
+      name: editableLead.name,
+      phone: editableLead.phone,
+      email: editableLead.email,
+      website: editableLead.website,
+      city: editableLead.city,
+      address: editableLead.address,
+      notes: editableLead.notes
+    }).eq('id', editableLead.id)
+    
+    if (!error) {
+      await logCall(editableLead.id, 'Bedrijfsgegevens bewerkt')
+      // Update local leads array
+      setLeads(leads.map(l => l.id === editableLead.id ? editableLead : l))
+    }
     setLoading(false)
   }
 
@@ -191,13 +219,13 @@ export default function WorkInterface() {
                 <div style={{ background: 'var(--primary)', color: 'white', padding: '10px 16px', fontWeight: 600 }}>Adres</div>
                 <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div className="crm-input-group">
-                    <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Naam</label>
-                    <input type="text" value={currentLead.name} readOnly style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                    <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Bedrijfsnaam</label>
+                    <input type="text" value={editableLead.name || ''} onChange={e => setEditableLead({...editableLead, name: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <div style={{ flex: 2 }}>
                        <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Straat</label>
-                       <input type="text" placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                       <input type="text" value={editableLead.address || ''} onChange={e => setEditableLead({...editableLead, address: e.target.value})} placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
                     </div>
                     <div style={{ flex: 1 }}>
                        <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Huisnummer</label>
@@ -211,7 +239,7 @@ export default function WorkInterface() {
                     </div>
                     <div style={{ flex: 2 }}>
                        <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Plaats</label>
-                       <input type="text" placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                       <input type="text" value={editableLead.city || ''} onChange={e => setEditableLead({...editableLead, city: e.target.value})} placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
                     </div>
                   </div>
                 </div>
@@ -244,15 +272,15 @@ export default function WorkInterface() {
                 <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div>
                     <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Email</label>
-                    <input type="text" value={currentLead.email || ''} placeholder="xx@hotmail.com" style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                    <input type="text" value={editableLead.email || ''} onChange={e => setEditableLead({...editableLead, email: e.target.value})} placeholder="xx@hotmail.com" style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
                   </div>
                   <div>
                     <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Telefoonnummer</label>
-                    <input type="text" value={currentLead.phone} readOnly style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                    <input type="text" value={editableLead.phone || ''} onChange={e => setEditableLead({...editableLead, phone: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
                   </div>
                   <div>
                     <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Website</label>
-                    <input type="text" placeholder="www..." style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                    <input type="text" value={editableLead.website || ''} onChange={e => setEditableLead({...editableLead, website: e.target.value})} placeholder="www..." style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
                   </div>
                 </div>
               </div>
@@ -265,14 +293,14 @@ export default function WorkInterface() {
             <div style={{ background: 'white', border: '1px solid var(--primary)', borderTop: 'none', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
                  <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Notities / Doel</label>
-                 <textarea value={currentLead.notes || ''} readOnly rows={3} style={{ width: '100%', padding: '12px', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
+                 <textarea value={editableLead.notes || ''} onChange={e => setEditableLead({...editableLead, notes: e.target.value})} rows={3} style={{ width: '100%', padding: '12px', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
               </div>
               <div>
                  <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Datum opname</label>
-                 <input type="text" value={new Date(currentLead.created_at).toLocaleDateString()} readOnly style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                 <input type="text" value={new Date(currentLead.created_at).toLocaleDateString()} readOnly style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px', background: '#f9fafb' }}/>
               </div>
-              <button style={{ alignSelf: 'flex-start', background: 'var(--primary)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', marginTop: '8px' }}>
-                Bedrijf bewerken
+              <button onClick={saveLeadEdits} style={{ alignSelf: 'flex-start', background: 'var(--primary)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', marginTop: '8px' }}>
+                Bedrijf bewerken opslaan
               </button>
             </div>
           </div>
@@ -306,7 +334,13 @@ export default function WorkInterface() {
               </div>
            ) : (
               <>
-                <div style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  <button onClick={() => handleAfboeken('deal')} style={{ background: 'var(--success)', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: 'white' }}>
+                     🏆 BRUTO Deal
+                  </button>
+                  <button onClick={() => handleAfboeken('afspraak_gemaakt')} style={{ background: 'var(--info)', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: 'white' }}>
+                     📅 BRUTO Afspraak
+                  </button>
                   <button onClick={() => handleAfboeken('later_bellen')} style={{ background: 'white', border: '1px solid #d1d5db', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#374151' }}>
                      <Clock size={16}/> Later bellen
                   </button>

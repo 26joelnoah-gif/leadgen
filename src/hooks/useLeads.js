@@ -277,6 +277,16 @@ export function useLeads() {
       await logActivity(leadId, 'note', notes || 'Verkeerde info')
       await moveToBatch('Verkeerde info')
     }
+    else if (dispositionType === 'deal') {
+      await updateLeadStatus(leadId, 'deal')
+      await logActivity(leadId, 'deal_won', notes || 'BRUTO Deal gescoord')
+      await moveToBatch('Deals')
+    }
+    else if (dispositionType === 'afspraak_gemaakt') {
+      await updateLeadStatus(leadId, 'afspraak_gemaakt')
+      await logActivity(leadId, 'appointment_set', notes || 'BRUTO Afspraak gemaakt')
+      await moveToBatch('Afspraken')
+    }
     else if (dispositionType === 'terugbelopdracht') {
       await supabase.from('leads').update({ 
         status: 'terugbelafspraak', 

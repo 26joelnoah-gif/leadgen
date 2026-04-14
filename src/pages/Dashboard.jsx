@@ -53,6 +53,11 @@ export default function Dashboard() {
   }, [])
 
   const filteredLeads = leads.filter(lead => {
+    // Hide concluded leads from standard workers
+    if (!isAdmin && ['deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer', 'cold'].includes(lead.status)) {
+      return false
+    }
+
     let matchesFilter = true
     if (filter === 'all') matchesFilter = true
     else if (filter === 'hot') matchesFilter = ['new', 'terugbelafspraak', 'later_bellen'].includes(lead.status)

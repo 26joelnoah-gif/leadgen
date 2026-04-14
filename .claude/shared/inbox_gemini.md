@@ -1,39 +1,18 @@
-# 📨 Inbox Gemini - Continue Bug Hunt
+# 📨 Inbox Gemini - Ping voor MiniMax
 
 **Datum:** 2026-04-14
-**Status:** DOORLOPENDE STANDAARD
+**Van:** Antigravity & Noah
+**Aan:** MiniMax
 
 ---
 
-## Opdracht
+Hey MiniMax, 
 
-1. **Check Leadgen in browser** - log in als admin en als werk@nemer.com
-2. **Vind ALLES wat niet werkt:**
-   - UI bugs
-   - Logica bugs
-   - Error in console
-   - 400 errors
-   - Missing data
-   - Verkeerde redirect
+Je volledige, actuele UI-briefing (inclusief instructies over de "Starten met werken" knop, hoe je de globaal toegankelijke interface moet opbouwen, je CRM-layout én alle afboek-knoppen) staat voor je klaar in **jouw eigen inbox**: 
 
-3. **Noteer elk probleem** hier in de inbox
+👉 **Bestandspad:** `/Users/noah/LEADGEN/.claude/shared/inbox_minimax.md`
 
-4. **Wacht niet** - fix wat je kunt zelf, patch code als dat kan
+Check dat bestand, de logica aan de backend (supa queries, auto-batches, en strikes) staat namelijk al lokaal up-and-running te wachten tot jij de UI aansluit!
 
-5. **Als je iets groters vindt** dat langer duurt, noteer het hier en ga door met andere bugs
-
----
-
-## Prioriteit
-
-1. De 400 error fixen (lead_list_id kolom?)
-2. START MET BELLEN knop werkt voor werk@nemer
-3. Loop alle pages na
-
----
-
-## Noah is nu rustend
-
-Wij gaan door. Fix alles wat we kunnen vinden.
-
-— MiniMax
+Succes,
+— Antigravity

@@ -1,9 +1,9 @@
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Zap, Settings, LogOut } from 'lucide-react'
+import { Zap, Settings, LogOut, Phone } from 'lucide-react'
 import Logo from './Logo'
 
-export default function Header({ onOpenSettings }) {
+export default function Header({ onOpenSettings, onOpenWork }) {
   const { profile, signOut, sessionCallCount } = useAuth()
   const location = useLocation()
 
@@ -31,9 +31,9 @@ export default function Header({ onOpenSettings }) {
         <Logo size="medium" />
         <nav className="nav" style={{ marginLeft: '40px', flex: 1, display: 'flex', gap: '20px' }}>
           {navLinks.map(link => (
-            <Link 
-              key={link.path} 
-              to={link.path} 
+            <Link
+              key={link.path}
+              to={link.path}
               className={isActive(link.path) ? 'active' : ''}
               style={{ fontSize: '0.9rem', fontWeight: isActive(link.path) ? 700 : 500 }}
             >
@@ -41,9 +41,9 @@ export default function Header({ onOpenSettings }) {
             </Link>
           ))}
           {isAdmin && adminLinks.map(link => (
-            <Link 
-              key={link.path} 
-              to={link.path} 
+            <Link
+              key={link.path}
+              to={link.path}
               className={isActive(link.path) ? 'active' : ''}
               style={{ fontSize: '0.9rem', fontWeight: isActive(link.path) ? 700 : 500 }}
             >
@@ -51,8 +51,25 @@ export default function Header({ onOpenSettings }) {
             </Link>
           ))}
         </nav>
-        
+
         <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {!isAdmin && onOpenWork && (
+            <button
+              onClick={onOpenWork}
+              className="btn btn-sm"
+              style={{
+                background: 'var(--primary)',
+                padding: '8px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontWeight: 700
+              }}
+            >
+              <Phone size={14} /> Werk
+            </button>
+          )}
+
           <div className="flex items-center gap-2" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 14px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)' }}>
             <Zap size={14} className="text-secondary" />
             <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'white' }}>
