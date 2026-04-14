@@ -372,6 +372,8 @@ export default function WorkInterface() {
                 </div>
              </div>
           </div>
+          </>
+          )}
 
         </main>
 
