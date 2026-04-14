@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase'
 import LoadingSpinner from './LoadingSpinner'
 
 export default function WorkInterface() {
-  const { isWorking, toggleWorkingMode, workingListId, setWorkingListId, profile, logCall, sessionCallCount } = useAuth()
+  const { isWorking, toggleWorkingMode, workingListId, setWorkingListId, workingLead, profile, logCall, sessionCallCount } = useAuth()
   const { leadLists } = useLeadLists()
   const { handleLeadDisposition } = useLeads()
   
@@ -26,7 +26,8 @@ export default function WorkInterface() {
       setEditableLead(currentLead)
     }
   }, [currentLead])
-  const listName = leadLists.find(l => l.id === workingListId)?.name || 'Onbekende lijst'
+
+  const listName = workingLead ? 'Individuele Opdracht' : (leadLists.find(l => l.id === workingListId)?.name || 'Onbekende lijst')
 
   // Zorg dat medewerkers alleen hun eigen lijsten zien
   const availableLists = profile?.role === 'admin' 
@@ -34,10 +35,15 @@ export default function WorkInterface() {
     : leadLists.filter(l => l.assigned_to === profile?.id || l.created_by === profile?.id)
 
   useEffect(() => {
-    if (workingListId && isWorking) {
-      loadLeadsForList(workingListId)
+    if (isWorking) {
+      if (workingLead) {
+        setLeads([workingLead])
+        setCurrentIndex(0)
+      } else if (workingListId) {
+        loadLeadsForList(workingListId)
+      }
     }
-  }, [workingListId, isWorking])
+  }, [workingListId, isWorking, workingLead])
 
   async function loadLeadsForList(listId) {
     setLoading(true)
@@ -67,6 +73,7 @@ export default function WorkInterface() {
 
   function closeAll() {
     setWorkingListId(null)
+    setWorkingLead(null)
     setLeads([])
     setCurrentIndex(0)
     setShowDatePicker(false)
@@ -136,7 +143,7 @@ export default function WorkInterface() {
   if (!isWorking) return null
 
   // STADIUM 1: PROJECT KIEZEN (Indien geen project gekozen)
-  if (!workingListId) {
+  if (!workingListId && !workingLead) {
     return (
       <AnimatePresence>
         <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
@@ -175,8 +182,9 @@ export default function WorkInterface() {
     return (
       <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--bg-dark)', zIndex: 10000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
         <h2 style={{ fontSize: '2rem', marginBottom: '16px' }}>Project Afgerond! 🎉</h2>
-        <p className="text-muted">Je hebt alle leads in dit project gebeld.</p>
-        <button onClick={() => setWorkingListId(null)} className="btn btn-secondary mt-4">Kies ander project</button>
+        <p className="text-muted">Je hebt alle acties voltooid.</p>
+        <button onClick={() => { setWorkingListId(null); setWorkingLead(null) }} className="btn btn-secondary mt-4">Kies ander project</button>
+        <button onClick={closeAll} className="btn btn-outline mt-2">Terug naar menu</button>
       </div>
     )
   }
@@ -185,7 +193,7 @@ export default function WorkInterface() {
   return (
     <AnimatePresence>
       <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: '#f3f4f6', zIndex: 9999, display: 'flex', flexDirection: 'column', color: '#1f2937', overflow: 'hidden' }}>
+          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--bg-dark)', zIndex: 9999, display: 'flex', flexDirection: 'column', color: 'var(--text-main)', overflow: 'hidden' }}>
         
         {/* Top Header */}
         <header style={{ background: 'var(--primary-dark)', color: 'white', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -197,12 +205,12 @@ export default function WorkInterface() {
         </header>
         
         {/* Sub Header */}
-        <div style={{ background: 'white', borderBottom: '1px solid #e5e7eb', padding: '20px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '20px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-             <h1 style={{ margin: '0 0 8px 0', fontSize: '1.4rem' }}>{currentLead.name}</h1>
+             <h1 style={{ margin: '0 0 8px 0', fontSize: '1.4rem', color: 'white' }}>{currentLead.name}</h1>
              <p style={{ margin: 0, fontSize: '1rem', fontWeight: 600, color: 'var(--primary)' }}>Tel: {currentLead.phone}</p>
           </div>
-          <div style={{ background: '#f3f4f6', border: '1px solid #e5e7eb', padding: '6px 12px', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-dark)' }}>
+          <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '6px 12px', borderRadius: '4px', fontSize: '0.9rem', fontWeight: 600, color: 'var(--text-muted)' }}>
              &gt; Project {listName}
           </div>
         </div>
@@ -211,76 +219,76 @@ export default function WorkInterface() {
           
           {/* Sectie: Bedrijfsgegevens */}
           <div style={{ marginBottom: '24px' }}>
-            <h3 style={{ background: '#e5e7eb', color: '#374151', padding: '8px 12px', margin: '0 0 16px 0', borderRadius: '4px', fontSize: '1rem' }}>&gt; Bedrijfsgegevens</h3>
+            <h3 style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', padding: '8px 12px', margin: '0 0 16px 0', borderRadius: '4px', fontSize: '1rem', border: '1px solid var(--border)' }}>&gt; Bedrijfsgegevens</h3>
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)', gap: '20px' }}>
               
               {/* Adres Blok */}
-              <div style={{ background: 'white', border: '1px solid var(--primary)', borderRadius: '8px', overflow: 'hidden' }}>
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
                 <div style={{ background: 'var(--primary)', color: 'white', padding: '10px 16px', fontWeight: 600 }}>Adres</div>
                 <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div className="crm-input-group">
-                    <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Bedrijfsnaam</label>
-                    <input type="text" value={editableLead.name || ''} onChange={e => setEditableLead({...editableLead, name: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Bedrijfsnaam</label>
+                    <input type="text" value={editableLead.name || ''} onChange={e => setEditableLead({...editableLead, name: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <div style={{ flex: 2 }}>
-                       <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Straat</label>
-                       <input type="text" value={editableLead.address || ''} onChange={e => setEditableLead({...editableLead, address: e.target.value})} placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                       <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Straat</label>
+                       <input type="text" value={editableLead.address || ''} onChange={e => setEditableLead({...editableLead, address: e.target.value})} placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
                     </div>
                     <div style={{ flex: 1 }}>
-                       <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Huisnummer</label>
-                       <input type="text" placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                       <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Huisnummer</label>
+                       <input type="text" placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <div style={{ flex: 1 }}>
-                       <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Postcode</label>
-                       <input type="text" placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                       <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Postcode</label>
+                       <input type="text" placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
                     </div>
                     <div style={{ flex: 2 }}>
-                       <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Plaats</label>
-                       <input type="text" value={editableLead.city || ''} onChange={e => setEditableLead({...editableLead, city: e.target.value})} placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                       <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Plaats</label>
+                       <input type="text" value={editableLead.city || ''} onChange={e => setEditableLead({...editableLead, city: e.target.value})} placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
                     </div>
                   </div>
                 </div>
               </div>
 
               {/* Contactpersoon Blok */}
-              <div style={{ background: 'white', border: '1px solid var(--primary)', borderRadius: '8px', overflow: 'hidden' }}>
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
                 <div style={{ background: 'var(--primary)', color: 'white', padding: '10px 16px', fontWeight: 600 }}>Contactpersoon</div>
                 <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div>
-                    <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Contact personen</label>
-                    <input type="text" placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Contact personen</label>
+                    <input type="text" placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
                   </div>
                   <div>
-                    <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Geslacht</label>
-                    <select style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px', background: 'white' }}>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Geslacht</label>
+                    <select style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}>
                       <option>Onbekend</option><option>M</option><option>V</option>
                     </select>
                   </div>
                   <div>
-                    <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Functie</label>
-                    <input type="text" placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Functie</label>
+                    <input type="text" placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
                   </div>
                 </div>
               </div>
 
               {/* Contact Blok */}
-              <div style={{ background: 'white', border: '1px solid var(--primary)', borderRadius: '8px', overflow: 'hidden' }}>
+              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
                 <div style={{ background: 'var(--primary)', color: 'white', padding: '10px 16px', fontWeight: 600 }}>Contact</div>
                 <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   <div>
-                    <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Email</label>
-                    <input type="text" value={editableLead.email || ''} onChange={e => setEditableLead({...editableLead, email: e.target.value})} placeholder="xx@hotmail.com" style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Email</label>
+                    <input type="text" value={editableLead.email || ''} onChange={e => setEditableLead({...editableLead, email: e.target.value})} placeholder="xx@hotmail.com" style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
                   </div>
                   <div>
-                    <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Telefoonnummer</label>
-                    <input type="text" value={editableLead.phone || ''} onChange={e => setEditableLead({...editableLead, phone: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Telefoonnummer</label>
+                    <input type="text" value={editableLead.phone || ''} onChange={e => setEditableLead({...editableLead, phone: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
                   </div>
                   <div>
-                    <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Website</label>
-                    <input type="text" value={editableLead.website || ''} onChange={e => setEditableLead({...editableLead, website: e.target.value})} placeholder="www..." style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }}/>
+                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Website</label>
+                    <input type="text" value={editableLead.website || ''} onChange={e => setEditableLead({...editableLead, website: e.target.value})} placeholder="www..." style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
                   </div>
                 </div>
               </div>
@@ -290,16 +298,16 @@ export default function WorkInterface() {
           {/* Sectie: Extra velden */}
           <div style={{ marginBottom: '24px' }}>
             <div style={{ background: 'var(--primary)', color: 'white', padding: '10px 16px', fontWeight: 600, borderTopLeftRadius: '8px', borderTopRightRadius: '8px' }}>Extra velden</div>
-            <div style={{ background: 'white', border: '1px solid var(--primary)', borderTop: 'none', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderTop: 'none', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div>
-                 <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Notities / Doel</label>
-                 <textarea value={editableLead.notes || ''} onChange={e => setEditableLead({...editableLead, notes: e.target.value})} rows={3} style={{ width: '100%', padding: '12px', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
+                 <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Notities / Doel</label>
+                 <textarea value={editableLead.notes || ''} onChange={e => setEditableLead({...editableLead, notes: e.target.value})} rows={3} style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }} />
               </div>
               <div>
-                 <label style={{ fontSize: '0.75rem', color: '#6b7280', display: 'block', marginBottom: '2px' }}>Datum opname</label>
-                 <input type="text" value={new Date(currentLead.created_at).toLocaleDateString()} readOnly style={{ width: '100%', padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px', background: '#f9fafb' }}/>
+                 <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Datum opname</label>
+                 <input type="text" value={new Date(currentLead.created_at).toLocaleDateString()} readOnly style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
               </div>
-              <button onClick={saveLeadEdits} style={{ alignSelf: 'flex-start', background: 'var(--primary)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', marginTop: '8px' }}>
+              <button onClick={saveLeadEdits} style={{ alignSelf: 'flex-start', background: 'var(--primary)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', marginTop: '8px', fontWeight: 600 }}>
                 Bedrijf bewerken opslaan
               </button>
             </div>
@@ -307,11 +315,11 @@ export default function WorkInterface() {
 
           {/* Sectie: Uploads */}
           <div style={{ marginBottom: '24px' }}>
-             <h3 style={{ background: '#e5e7eb', color: '#374151', padding: '8px 12px', margin: '0 0 16px 0', borderRadius: '4px', fontSize: '1rem' }}>&gt; Uploads</h3>
-             <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '20px' }}>
+             <h3 style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', padding: '8px 12px', margin: '0 0 16px 0', borderRadius: '4px', fontSize: '1rem', border: '1px solid var(--border)' }}>&gt; Uploads</h3>
+             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', padding: '20px' }}>
                 <table style={{ width: '100%', textAlign: 'left', marginBottom: '20px' }}>
-                   <thead><tr style={{ borderBottom: '2px solid #e5e7eb' }}><th style={{ paddingBottom: '8px', fontSize: '0.8rem', color: '#6b7280' }}>BESTANDSNAAM</th><th style={{ paddingBottom: '8px', fontSize: '0.8rem', color: '#6b7280' }}>DATUM UPLOAD</th><th style={{ paddingBottom: '8px', fontSize: '0.8rem', color: '#6b7280' }}>ACTIES</th></tr></thead>
-                   <tbody><tr><td colSpan={3} style={{ paddingTop: '16px', fontSize: '0.9rem', color: '#374151' }}>Er zijn nog geen uploads.</td></tr></tbody>
+                   <thead><tr style={{ borderBottom: '2px solid var(--border)' }}><th style={{ paddingBottom: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>BESTANDSNAAM</th><th style={{ paddingBottom: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>DATUM UPLOAD</th><th style={{ paddingBottom: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>ACTIES</th></tr></thead>
+                   <tbody><tr><td colSpan={3} style={{ paddingTop: '16px', fontSize: '0.9rem', color: 'var(--text-main)' }}>Er zijn nog geen uploads.</td></tr></tbody>
                 </table>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                    <input type="file" style={{ fontSize: '0.9rem' }} />
@@ -323,41 +331,41 @@ export default function WorkInterface() {
         </main>
 
         {/* Action Bar Bottom (Afboeken) */}
-        <div style={{ background: 'white', borderTop: '2px solid #e5e7eb', padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border)', padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
            
            {showDatePicker ? (
               <div style={{ display: 'flex', gap: '16px', alignItems: 'center', width: '100%' }}>
                 <strong style={{ color: 'var(--primary)' }}>TBA Inplannen:</strong>
-                <input type="datetime-local" value={callbackDate} onChange={e=>setCallbackDate(e.target.value)} style={{ padding: '8px', border: '1px solid #e5e7eb', borderRadius: '4px' }} />
+                <input type="datetime-local" value={callbackDate} onChange={e=>setCallbackDate(e.target.value)} style={{ padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }} />
                 <button onClick={handleCallbackScheduled} className="btn btn-secondary">Inplannen</button>
                 <button onClick={()=>setShowDatePicker(false)} className="btn btn-outline">Annuleer</button>
               </div>
            ) : (
               <>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  <button onClick={() => handleAfboeken('deal')} style={{ background: 'var(--success)', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: 'white' }}>
-                     🏆 BRUTO Deal
+                  <button onClick={() => handleAfboeken('deal')} style={{ background: 'var(--success)', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: 'white' }}>
+                     DEAL
                   </button>
-                  <button onClick={() => handleAfboeken('afspraak_gemaakt')} style={{ background: 'var(--info)', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: 'white' }}>
-                     📅 BRUTO Afspraak
+                  <button onClick={() => handleAfboeken('afspraak_gemaakt')} style={{ background: 'var(--info)', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: 'white' }}>
+                     AFSPRAAK
                   </button>
-                  <button onClick={() => handleAfboeken('later_bellen')} style={{ background: 'white', border: '1px solid #d1d5db', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#374151' }}>
+                  <button onClick={() => handleAfboeken('later_bellen')} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-main)' }}>
                      <Clock size={16}/> Later bellen
                   </button>
-                  <button onClick={() => handleAfboeken('geen_interesse')} style={{ background: '#fef2f2', border: '1px solid #fca5a5', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#ef4444' }}>
+                  <button onClick={() => handleAfboeken('geen_interesse')} style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--danger)' }}>
                      Geen interesse
                   </button>
-                  <button onClick={() => handleAfboeken('terugbelopdracht')} style={{ background: '#fef9c3', border: '1px solid #fde047', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#ca8a04' }}>
+                  <button onClick={() => handleAfboeken('terugbelopdracht')} style={{ background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--warning)' }}>
                      <CalendarIcon size={16}/> Terugbelopdracht
                   </button>
-                  <button onClick={() => handleAfboeken('niet_bereikbaar')} style={{ background: '#fffbeb', border: '1px solid #fcd34d', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#d97706' }}>
+                  <button onClick={() => handleAfboeken('niet_bereikbaar')} style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#f59e0b' }}>
                      Niet bereikbaar
                   </button>
-                  <button onClick={() => handleAfboeken('verkeerde_info')} style={{ background: '#f3e8ff', border: '1px solid #d8b4fe', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#9333ea' }}>
+                  <button onClick={() => handleAfboeken('verkeerde_info')} style={{ background: 'rgba(168, 85, 247, 0.1)', border: '1px solid rgba(168, 85, 247, 0.3)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#a855f7' }}>
                      Verkeerde info
                   </button>
                 </div>
-                <div style={{ fontSize: '0.8rem', color: '#6b7280', fontWeight: 600 }}>Leads: {currentIndex+1}/{leads.length}</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Leads: {currentIndex+1}/{leads.length}</div>
               </>
            )}
         </div>

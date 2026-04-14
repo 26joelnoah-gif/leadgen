@@ -52,10 +52,6 @@ export default function Earnings() {
               <span style={{ fontSize: '1rem', fontWeight: 800, color: 'white' }}>{sessionCallCount}</span>
               <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>calls</span>
             </div>
-            <button onClick={toggleCallEnabled} className={`btn btn-sm ${callEnabled ? 'btn-secondary' : 'btn-outline'}`}>
-              {callEnabled ? <Phone size={14} /> : <PhoneOff size={14} />}
-              <span>{callEnabled ? 'Aan' : 'Uit'}</span>
-            </button>
             <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
           </div>
         </div>

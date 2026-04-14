@@ -383,7 +383,7 @@ export default function Dashboard() {
               {leadLists.length > 0 && (
                 <div className="card" style={{ padding: '16px' }}>
                   <div className="flex justify-between items-center mb-3">
-                    <h3 className="card-title" style={{ fontSize: '1rem' }}><List size={16} /> Mijn Lead Lijsten</h3>
+                    <h3 className="card-title" style={{ fontSize: '1rem' }}><List size={16} /> LEADS</h3>
                     <span style={{ fontSize: '0.8rem', color: 'var(--secondary)', fontWeight: 600 }}>{leadLists.length}</span>
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>

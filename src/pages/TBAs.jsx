@@ -11,8 +11,8 @@ import Logo from '../components/Logo'
 import MobileNav from '../components/MobileNav'
 
 export default function TBAs() {
-  const { user, profile, signOut, callEnabled, toggleCallEnabled, sessionCallCount, logCall } = useAuth()
-  const { leads, loading, updateLeadStatus, logActivity } = useLeads()
+  const { user, profile, signOut, isWorking, toggleWorkingMode, sessionCallCount, logCall } = useAuth()
+  const { leads, loading, logActivity } = useLeads()
   const [filter, setFilter] = useState('upcoming')
   const [searchTerm, setSearchTerm] = useState('')
 
@@ -38,19 +38,8 @@ export default function TBAs() {
   }
 
   async function handleCall(lead) {
-    window.location.href = `tel:${lead.phone}`
-    await logActivity(lead.id, 'call', 'Gebeld op TBA-tijd')
-    await logCall(lead.id, lead.name)
-  }
-
-  async function handleComplete(leadId) {
-    const status = prompt('Wat is het resultaat?\n1: Afspraak gemaakt\n2: Deal\n3: Geen interesse\n4: Anders (terugbelafspraak)')
-    let newStatus = 'terugbelafspraak'
-    if (status === '1') newStatus = 'afspraak_gemaakt'
-    else if (status === '2') newStatus = 'deal'
-    else if (status === '3') newStatus = 'geen_interesse'
-
-    await updateLeadStatus(leadId, newStatus)
+    // Open the WorkInterface with this specific lead
+    toggleWorkingMode(lead)
   }
 
   if (loading) return <LoadingSpinner size="large" />
@@ -79,12 +68,12 @@ export default function TBAs() {
               <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span></span>
             </div>
             <button
-              onClick={toggleCallEnabled}
-              className={`btn btn-sm ${callEnabled ? 'btn-secondary' : 'btn-outline'}`}
+              onClick={() => toggleWorkingMode()}
+              className={`btn btn-sm ${isWorking ? 'btn-secondary' : 'btn-outline'}`}
               style={{ gap: '6px', minWidth: '80px' }}
             >
-              {callEnabled ? <Phone size={14} /> : <PhoneOff size={14} />}
-              <span>{callEnabled ? 'Aan' : 'Uit'}</span>
+              {isWorking ? <Phone size={14} /> : <PhoneOff size={14} />}
+              <span>{isWorking ? 'Aan' : 'Uit'}</span>
             </button>
             <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
           </div>
@@ -170,12 +159,8 @@ export default function TBAs() {
                     <button 
                       onClick={() => handleCall(lead)} 
                       className="btn btn-success"
-                      disabled={!callEnabled}
                     >
                       <Phone size={18} /> BEL NU
-                    </button>
-                    <button onClick={() => handleComplete(lead.id)} className="btn btn-outline btn-sm">
-                      <CheckCircle size={14} /> Voltooid
                     </button>
                   </div>
                 </motion.div>
