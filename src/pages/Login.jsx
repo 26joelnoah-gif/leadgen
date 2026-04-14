@@ -3,7 +3,6 @@ import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { AlertCircle, Info, Lock, Mail, ChevronRight, Eye, EyeOff } from 'lucide-react'
-import Logo from '../components/Logo'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -46,8 +45,14 @@ export default function Login() {
         className="login-card glass-panel"
         style={{ position: 'relative', overflow: 'hidden' }}
       >
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '40px' }}>
-          <Logo size="large" align="center" />
+        {/* Aesthetic background glow */}
+        <div style={{ position: 'absolute', top: '-100px', right: '-100px', width: '200px', height: '200px', background: 'var(--secondary)', filter: 'blur(80px)', opacity: 0.1, pointerEvents: 'none' }} />
+        
+        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
+          <h1 style={{ fontSize: '3rem', fontWeight: 900, background: 'linear-gradient(135deg, var(--secondary) 0%, #FFF 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '8px', letterSpacing: '-0.05em' }}>
+            LEADGEN
+          </h1>
+          <p style={{ color: 'var(--secondary)', fontSize: '1.2rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '4px' }}>SMILE & DIAL</p>
         </div>
 
         {isDemoMode && (
