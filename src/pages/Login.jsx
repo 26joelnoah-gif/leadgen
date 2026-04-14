@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { AlertCircle, Info, Lock, Mail, ChevronRight, Eye, EyeOff } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { AlertCircle, Info, Lock, Mail, ChevronRight, Eye, EyeOff, X, ArrowRight, Zap, Target, Briefcase } from 'lucide-react'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -10,8 +10,34 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  
+  // Promo Modal State
+  const [showPromo, setShowPromo] = useState(true)
+  const [promoStep, setPromoStep] = useState(0)
+  
   const { signIn, isDemoMode } = useAuth()
   const navigate = useNavigate()
+
+  const promos = [
+    {
+      title: "Join the Lead Generation.",
+      subtitle: "De nieuwe standaard in sales automation.",
+      icon: <Target size={40} className="text-secondary" />,
+      button: "Volgende"
+    },
+    {
+      title: "Remote werken met snelle betalingen?",
+      subtitle: "Genoeg proposities en direct resultaat. Begin vandaag nog met je onboarding.",
+      icon: <Briefcase size={40} className="text-secondary" />,
+      button: "Start Onboarding"
+    },
+    {
+      title: "Sales uitbesteden?",
+      subtitle: "Appointmentsetting of sales volledig uit handen geven? Neem contact op.",
+      icon: <Zap size={40} className="text-secondary" />,
+      button: "Laten we praten"
+    }
+  ]
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -36,8 +62,109 @@ export default function Login() {
     setPassword('demo123')
   }
 
+  const nextPromo = () => {
+    if (promoStep < promos.length - 1) {
+      setPromoStep(promoStep + 1)
+    } else {
+      setShowPromo(false)
+    }
+  }
+
   return (
     <div className="login-page">
+      {/* Promotional Global Popup */}
+      <AnimatePresence>
+        {showPromo && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="promo-overlay"
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(0,0,0,0.85)',
+              backdropFilter: 'blur(10px)',
+              zIndex: 1000,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px'
+            }}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              style={{
+                width: '100%',
+                maxWidth: '500px',
+                background: 'var(--bg-dark)',
+                border: '1px solid var(--secondary)',
+                borderRadius: '24px',
+                padding: '40px',
+                position: 'relative',
+                boxShadow: '0 0 50px rgba(212, 175, 55, 0.1)',
+                textAlign: 'center'
+              }}
+            >
+              <button 
+                onClick={() => setShowPromo(false)}
+                style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+              >
+                <X size={24} />
+              </button>
+
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={promoStep}
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'center' }}>
+                    {promos[promoStep].icon}
+                  </div>
+                  <h2 style={{ fontSize: '2rem', fontWeight: 900, marginBottom: '16px', color: 'white', lineHeight: 1.2 }}>
+                    {promos[promoStep].title}
+                  </h2>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', marginBottom: '32px', lineHeight: 1.6 }}>
+                    {promos[promoStep].subtitle}
+                  </p>
+                </motion.div>
+              </AnimatePresence>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginBottom: '32px' }}>
+                {promos.map((_, i) => (
+                  <div 
+                    key={i} 
+                    style={{ 
+                      width: '12px', 
+                      height: '4px', 
+                      borderRadius: '2px', 
+                      background: i === promoStep ? 'var(--secondary)' : 'rgba(255,255,255,0.1)',
+                      transition: 'all 0.3s'
+                    }} 
+                  />
+                ))}
+              </div>
+
+              <button 
+                onClick={nextPromo}
+                className="btn btn-primary glow-hover"
+                style={{ width: '100%', py: '15px', fontSize: '1.1rem', fontWeight: 700, borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              >
+                {promos[promoStep].button} <ArrowRight size={20} />
+              </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
