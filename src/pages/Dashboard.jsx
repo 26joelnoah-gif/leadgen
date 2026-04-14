@@ -42,8 +42,6 @@ export default function Dashboard() {
   const [callingLeads, setCallingLeads] = useState([])
   const [currentLeadIndex, setCurrentLeadIndex] = useState(0)
 
-  const [currentLeadIndex, setCurrentLeadIndex] = useState(0)
-
   const isAdmin = profile?.role === 'admin'
 
   useEffect(() => {
