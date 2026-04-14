@@ -165,9 +165,9 @@ export function LeadListModal({ isOpen, onClose }) {
                             <strong>{list.name}</strong>
                             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>
                               {list.description || 'Geen beschrijving'}
-                              {list.assigned_to_profile?.full_name && (
+                              {list.assigned_to && users.find(u => u.id === list.assigned_to) && (
                                 <span className="ml-2" style={{ color: 'var(--secondary)' }}>
-                                  • {list.assigned_to_profile.full_name}
+                                  • {users.find(u => u.id === list.assigned_to).full_name}
                                 </span>
                               )}
                             </p>

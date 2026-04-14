@@ -74,14 +74,10 @@ export function useLeadLists() {
   async function addLeadsToList(listId, leadIds) {
     if (isDemoMode) return { error: null }
 
-    const items = leadIds.map(leadId => ({
-      lead_list_id: listId,
-      lead_id: leadId
-    }))
-
     const { error } = await supabase
-      .from('lead_list_items')
-      .upsert(items, { ignoreDuplicates: true })
+      .from('leads')
+      .update({ lead_list_id: listId })
+      .in('id', leadIds)
 
     return { error }
   }
@@ -90,10 +86,9 @@ export function useLeadLists() {
     if (isDemoMode) return { error: null }
 
     const { error } = await supabase
-      .from('lead_list_items')
-      .delete()
-      .eq('lead_list_id', listId)
-      .eq('lead_id', leadId)
+      .from('leads')
+      .update({ lead_list_id: null })
+      .eq('id', leadId)
 
     return { error }
   }

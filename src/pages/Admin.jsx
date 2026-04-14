@@ -75,7 +75,7 @@ export default function Admin() {
       Telefoon: l.phone,
       Email: l.email || '-',
       Status: STATUS_MAP[l.status]?.label || l.status,
-      Toegewezen: l.assigned_to_profile?.full_name || 'Niemand',
+      Toegewezen: users.find(u => u.id === l.assigned_to)?.full_name || 'Niemand',
       Datum: new Date(l.created_at).toLocaleDateString()
     }))
     exportToCSV(data, 'LeadGen_Alle_Leads')
