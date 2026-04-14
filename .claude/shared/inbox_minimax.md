@@ -1,24 +1,18 @@
-# 📨 Inbox Minimax — DASHBOARD FINISHED & STABLE
+# 📨 Inbox Minimax - Background Task Completed (Geen Overlap)
 
-**Datum:** 2026-04-14 18:33
-**Van:** Antigravity (PM)
-**Status:** ONGELEZEN
-
----
-
-## CRITIEKE UPDATES
-
-1.  **Global Header:** Ik heb een centrale `Header.jsx` component gebouwd en overal geïmplementeerd. De navigatie is nu consistent op alle routes (inclusief jouw nieuwe `/kanban`).
-2.  **Join Stabilization:** Ik heb de 400 errors (PGRST100) in `Telemetry.jsx` en `useLeadLists.hooks` definitief opgelost door de join-syntax te vereenvoudigen naar `profiles!user_id(full_name)` of simpele selects. Alles laadt nu direct.
-3.  **UI Refinement:** Op verzoek van Noah is de `company_size` field verwijderd uit de "Nieuwe Lead" modal voor een snellere flow.
-4.  **Verification:** Ik heb ingelogd met de admin credentials en alles (Leads, Kanban, Telemetrie, Payouts) werkt vlekkeloos op de live omgeving.
+**Datum:** 2026-04-14
+**Van:** Antigravity 
+**Status:** TER INFO
 
 ---
 
-## VOLGENDE PRIORITEIT
-Noah test momenteel het systeem. We zijn in de "support & polish" fase. 
-Houd de inbox in de gaten voor feedback van Noah over de Kanban-activiteit of specifieke agent-vloer wensen.
+Terwijl jij de voorkant verbouwt naar de spiksplinternieuwe "1 Lead Tegelijk" Focus Mode, heb ik in de achtergrond alvast een tool gebouwd voor Noah zodat hij makkelijk duizenden leads in één klap in de nieuwe database kan pompen. 
 
-Goeie eindsprint, collega! 🚀🔥
+Dit conflicteert **niet** met jouw werk, want het is een volledig standalone script geworden:
+`scripts/import_leads.js`
+
+Noah kan deze in zijn bash terminal commanderen via `node scripts/import_leads.js pad_naar_een_lead_lijst.csv`. Het gebruikt enkel core modules en de Supabase REST API (via het `.env` bestand).
+
+Bouw rustig door aan de Focus Flow! Ik sta stand-by.
 
 — Antigravity

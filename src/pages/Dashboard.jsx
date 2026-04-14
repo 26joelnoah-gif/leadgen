@@ -39,6 +39,14 @@ export default function Dashboard() {
   const [creating, setCreating] = useState(false)
   const [users, setUsers] = useState([])
 
+  // Calling mode state (1 lead at a time)
+  const [isCallingMode, setIsCallingMode] = useState(false)
+  const [selectedCallingList, setSelectedCallingList] = useState(null)
+  const [callingLeads, setCallingLeads] = useState([])
+  const [currentLeadIndex, setCurrentLeadIndex] = useState(0)
+
+  const isAdmin = profile?.role === 'admin'
+
   useEffect(() => {
     async function fetchUsers() {
       const { data } = await supabase.from('profiles').select('*').order('full_name')
@@ -101,10 +109,114 @@ export default function Dashboard() {
     }
   }
 
+  // Start calling mode with selected list
+  async function startCallingMode(listId) {
+    const list = leadLists.find(l => l.id === listId)
+    if (!list) return
+    const leadsInList = await getLeadsInList(listId)
+    if (leadsInList.length === 0) {
+      alert('Deze lijst heeft geen leads')
+      return
+    }
+    setSelectedCallingList(list)
+    setCallingLeads(leadsInList)
+    setCurrentLeadIndex(0)
+    setIsCallingMode(true)
+  }
+
+  function nextLead() {
+    if (currentLeadIndex < callingLeads.length - 1) {
+      setCurrentLeadIndex(prev => prev + 1)
+    } else {
+      // End of list
+      setIsCallingMode(false)
+      setSelectedCallingList(null)
+      setCallingLeads([])
+      setCurrentLeadIndex(0)
+    }
+  }
+
+  function exitCallingMode() {
+    setIsCallingMode(false)
+    setSelectedCallingList(null)
+    setCallingLeads([])
+    setCurrentLeadIndex(0)
+  }
+
+  // Calling mode: fullscreen 1 lead at a time
+  if (isCallingMode && callingLeads.length > 0) {
+    const currentLead = callingLeads[currentLeadIndex]
+    const isLastLead = currentLeadIndex === callingLeads.length - 1
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="dashboard-page"
+        style={{ minHeight: '100vh', background: 'var(--bg-dark)', display: 'flex', flexDirection: 'column' }}
+      >
+        <Header />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+          {/* Progress */}
+          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+              {currentLeadIndex + 1} van {callingLeads.length}
+            </span>
+            <div style={{ width: '200px', height: '4px', background: 'var(--bg-elevated)', borderRadius: '2px', marginTop: '8px' }}>
+              <div style={{
+                width: `${((currentLeadIndex + 1) / callingLeads.length) * 100}%`,
+                height: '100%',
+                background: 'var(--primary)',
+                borderRadius: '2px',
+                transition: 'width 0.3s'
+              }} />
+            </div>
+          </div>
+
+          {/* Current Lead Card */}
+          <motion.div
+            key={currentLead.id}
+            initial={{ scale: 0.95, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="card"
+            style={{ width: '100%', maxWidth: '500px', textAlign: 'center' }}
+          >
+            <div style={{ fontSize: '2rem', fontWeight: 900, marginBottom: '8px' }}>{currentLead.name}</div>
+            <div style={{ fontSize: '1.5rem', color: 'var(--primary)', marginBottom: '16px' }}>{currentLead.phone}</div>
+            {currentLead.email && <div style={{ color: 'var(--text-muted)', marginBottom: '8px' }}>{currentLead.email}</div>}
+            {currentLead.notes && (
+              <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: '8px', marginTop: '16px', textAlign: 'left' }}>
+                <strong style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Notities:</strong>
+                <p style={{ margin: '8px 0 0 0' }}>{currentLead.notes}</p>
+              </div>
+            )}
+          </motion.div>
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+            <button
+              onClick={exitCallingMode}
+              className="btn btn-outline"
+              style={{ padding: '12px 24px' }}
+            >
+              <X size={18} /> Stoppen
+            </button>
+            <button
+              onClick={nextLead}
+              className="btn btn-secondary"
+              style={{ padding: '12px 24px', background: 'var(--primary)' }}
+            >
+              {isLastLead ? 'Klaar ✓' : 'Volgende →'}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    )
+  }
+
   return (
-    <motion.div 
-      initial={{ opacity: 0 }} 
-      animate={{ opacity: 1 }} 
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
       className="dashboard-page"
     >
       <Header />
@@ -134,19 +246,43 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
+        {/* Non-admin: Bellen knoppen naast header stats */}
+        {!isAdmin && leadLists.length > 0 && (
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="card mb-4"
+            style={{ padding: '20px', textAlign: 'center' }}
+          >
+            <p style={{ marginBottom: '12px', color: 'var(--text-muted)' }}>Wil je systematisch bellen?</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'center' }}>
+              {leadLists.map(list => (
+                <button
+                  key={list.id}
+                  onClick={() => startCallingMode(list.id)}
+                  className="btn btn-primary"
+                  style={{ padding: '10px 20px', fontSize: '0.9rem' }}
+                >
+                  <Phone size={16} /> {list.name} doorbellen
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
         <div className="filter-bar glass-panel flex justify-between items-center" style={{ gap: '20px' }}>
           <div className="search-input" style={{ flex: 1, position: 'relative' }}>
             <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            <input 
-              type="text" 
-              placeholder="Zoek op naam..." 
+            <input
+              type="text"
+              placeholder="Zoek op naam..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="form-control"
               style={{ paddingLeft: '40px', width: '100%', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 10px 10px 40px' }}
             />
           </div>
-          
+
           <div className="flex items-center gap-2">
             <Filter size={18} className="text-muted" />
             <select

@@ -12,6 +12,7 @@ export default function Payouts() {
   const { profile, signOut, sessionCallCount } = useAuth()
   const [users, setUsers] = useState([])
   const [payouts, setPayouts] = useState({})
+  const [leadCounts, setLeadCounts] = useState({}) // { userId: { deals, appointments } }
   const [loading, setLoading] = useState(true)
   const [editingUser, setEditingUser] = useState(null)
   const [systemSettings] = useState(getSettings)
@@ -23,9 +24,10 @@ export default function Payouts() {
   async function fetchData() {
     setLoading(true)
     try {
-      const [usersRes, payoutsRes] = await Promise.all([
+      const [usersRes, payoutsRes, leadsRes] = await Promise.all([
         supabase.from('profiles').select('*').order('full_name'),
-        supabase.from('payouts').select('*').order('created_at', { ascending: false })
+        supabase.from('payouts').select('*').order('created_at', { ascending: false }),
+        supabase.from('leads').select('id, assigned_to, status')
       ])
 
       if (usersRes.data) setUsers(usersRes.data)
@@ -36,6 +38,20 @@ export default function Payouts() {
           payoutsByUser[p.user_id] = p
         })
         setPayouts(payoutsByUser)
+      }
+
+      // Tel deals en appointments per user uit leads tabel
+      if (leadsRes.data) {
+        const counts = {}
+        leadsRes.data.forEach(lead => {
+          if (!lead.assigned_to) return
+          if (!counts[lead.assigned_to]) {
+            counts[lead.assigned_to] = { deals: 0, appointments: 0 }
+          }
+          if (lead.status === 'deal') counts[lead.assigned_to].deals++
+          if (lead.status === 'afspraak_gemaakt') counts[lead.assigned_to].appointments++
+        })
+        setLeadCounts(counts)
       }
     } catch (err) {
       console.error('Error fetching payouts data:', err)
@@ -261,9 +277,10 @@ export default function Payouts() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
             {users.map((user, index) => {
               const payout = payouts[user.id]
+              const counts = leadCounts[user.id] || { deals: 0, appointments: 0 }
               const statusInfo = getStatusInfo(payout)
-              const totalAmount = (payout?.deals_count || 0) * (payout?.deal_payout || systemSettings.dealValue) +
-                (payout?.appointments_count || 0) * (payout?.appointment_payout || systemSettings.appointmentValue)
+              const totalAmount = (counts.deals || 0) * (payout?.deal_payout || systemSettings.dealValue) +
+                (counts.appointments || 0) * (payout?.appointment_payout || systemSettings.appointmentValue)
 
               return (
                 <motion.div
@@ -329,42 +346,23 @@ export default function Payouts() {
                     ))}
                   </div>
 
-                  {/* Editable Fields - Admin Only */}
+                  {/* Auto-synced counts from leads table */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
                     <div>
                       <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
                         Deals
                       </label>
                       <div className="flex items-center gap-2">
-                        {profile?.role === 'admin' ? (
-                          <input
-                            type="number"
-                            min="0"
-                            value={payout?.deals_count || 0}
-                            onChange={(e) => updatePayoutField(user.id, 'deals_count', parseInt(e.target.value) || 0)}
-                            style={{
-                              width: '60px',
-                              padding: '8px',
-                              borderRadius: '6px',
-                              border: '1px solid var(--border)',
-                              background: 'var(--bg-dark)',
-                              color: 'white',
-                              fontWeight: 700,
-                              textAlign: 'center'
-                            }}
-                          />
-                        ) : (
-                          <span style={{
-                            width: '60px',
-                            padding: '8px',
-                            borderRadius: '6px',
-                            background: 'var(--bg-dark)',
-                            color: 'white',
-                            fontWeight: 700,
-                            textAlign: 'center',
-                            display: 'inline-block'
-                          }}>{payout?.deals_count || 0}</span>
-                        )}
+                        <span style={{
+                          width: '60px',
+                          padding: '8px',
+                          borderRadius: '6px',
+                          background: 'var(--bg-dark)',
+                          color: 'white',
+                          fontWeight: 700,
+                          textAlign: 'center',
+                          display: 'inline-block'
+                        }}>{counts.deals || 0}</span>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>× €{payout?.deal_payout || systemSettings.dealValue}</span>
                       </div>
                     </div>
@@ -373,35 +371,16 @@ export default function Payouts() {
                         Afspraken
                       </label>
                       <div className="flex items-center gap-2">
-                        {profile?.role === 'admin' ? (
-                          <input
-                            type="number"
-                            min="0"
-                            value={payout?.appointments_count || 0}
-                            onChange={(e) => updatePayoutField(user.id, 'appointments_count', parseInt(e.target.value) || 0)}
-                            style={{
-                              width: '60px',
-                              padding: '8px',
-                              borderRadius: '6px',
-                              border: '1px solid var(--border)',
-                              background: 'var(--bg-dark)',
-                              color: 'white',
-                              fontWeight: 700,
-                              textAlign: 'center'
-                            }}
-                          />
-                        ) : (
-                          <span style={{
-                            width: '60px',
-                            padding: '8px',
-                            borderRadius: '6px',
-                            background: 'var(--bg-dark)',
-                            color: 'white',
-                            fontWeight: 700,
-                            textAlign: 'center',
-                            display: 'inline-block'
-                          }}>{payout?.appointments_count || 0}</span>
-                        )}
+                        <span style={{
+                          width: '60px',
+                          padding: '8px',
+                          borderRadius: '6px',
+                          background: 'var(--bg-dark)',
+                          color: 'white',
+                          fontWeight: 700,
+                          textAlign: 'center',
+                          display: 'inline-block'
+                        }}>{counts.appointments || 0}</span>
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>× €{payout?.appointment_payout || systemSettings.appointmentValue}</span>
                       </div>
                     </div>

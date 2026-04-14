@@ -5,8 +5,8 @@ import { formatDate } from '../utils/dateUtils';
 import StatusSelector from './StatusSelector';
 import { useAuth } from '../context/AuthContext';
 
-export default function LeadCard({ lead, onStatusChange, onClaim, loading = false, callEnabled = true }) {
-  const { logCall, user } = useAuth();
+export default function LeadCard({ lead, onStatusChange, onClaim, loading = false, callEnabled = true, showLeadScore = false }) {
+  const { logCall, user, profile } = useAuth();
 
   const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
   const isLockedRecently = lead.locked_by && lead.locked_at && (Date.now() - new Date(lead.locked_at).getTime()) < LOCK_TIMEOUT_MS;
@@ -63,7 +63,7 @@ export default function LeadCard({ lead, onStatusChange, onClaim, loading = fals
       <div className="flex justify-between items-center mb-2">
         <h3 className="lead-name" style={{ fontSize: '1.2rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           {lead.name}
-          {lead.lead_score > 0 && (
+          {(showLeadScore || profile?.role === 'admin') && lead.lead_score > 0 && (
             <span style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '3px' }}>
               <Zap size={10} fill="currentColor" /> {lead.lead_score}
             </span>

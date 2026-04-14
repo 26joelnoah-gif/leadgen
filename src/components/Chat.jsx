@@ -23,6 +23,11 @@ export default function Chat() {
     setIsInitialized(true)
   }, [])
 
+  // Auto-scroll naar nieuwe berichten
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
+
   useEffect(() => {
     if (!isInitialized) return
     fetchChannels()
@@ -105,9 +110,24 @@ export default function Chat() {
       channel_id: currentChannel === 'general' ? null : currentChannel
     }
 
+    // Optimistic update - toon direct in UI
+    const tempId = 'temp-' + Date.now()
+    const optimisticMsg = {
+      ...messageData,
+      id: tempId,
+      created_at: new Date().toISOString(),
+      pending: true
+    }
+    setMessages(prev => [...prev, optimisticMsg])
+    setInput('')
+
     const { error } = await supabase.from('messages').insert(messageData)
 
-    if (!error) setInput('')
+    if (error) {
+      // Verwijder optimistic message bij error
+      setMessages(prev => prev.filter(m => m.id !== tempId))
+      console.error('Kon bericht niet verzenden:', error.message)
+    }
   }
 
   function handleKeyPress(e) {
@@ -177,8 +197,8 @@ export default function Chat() {
                 messages.map(msg => (
                   <div
                     key={msg.id}
-                    className={`chat-message ${msg.is_admin ? 'admin' : 'user'}`}
-                    style={{ marginBottom: '12px' }}
+                    className={`chat-message ${msg.is_admin ? 'admin' : 'user'} ${msg.pending ? 'pending' : ''}`}
+                    style={{ marginBottom: '12px', opacity: msg.pending ? 0.6 : 1 }}
                   >
                     <div className="flex justify-between items-start">
                       <div style={{ fontSize: '0.75rem', fontWeight: 700, color: msg.is_admin ? 'var(--secondary)' : 'var(--primary)' }}>
@@ -187,6 +207,7 @@ export default function Chat() {
                       </div>
                       <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>
                         {new Date(msg.created_at).toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })}
+                        {msg.pending && ' • verzenden...'}
                       </div>
                     </div>
                     <div style={{ fontSize: '0.9rem', marginTop: '2px' }}>{msg.text}</div>

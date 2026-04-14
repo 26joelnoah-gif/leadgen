@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS public.leads (
     assigned_to UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     created_by UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at TIMESTAMPTZ -- Soft delete: null = actief, timestamp = verwijderd
 );
 
 -- 3. Create messages table for real-time chat
@@ -128,19 +129,30 @@ CREATE POLICY "Users can update own profile" ON public.profiles
 CREATE POLICY "Admins can insert profiles" ON public.profiles
     FOR INSERT WITH CHECK (auth.role() = 'authenticated');
 
--- Leads: employees see assigned leads, admins see all
-CREATE POLICY "Employees can view assigned leads" ON public.leads
+-- Leads: employees see only own leads, admins see all
+-- Soft delete: filtered out via deleted_at IS NULL
+CREATE POLICY "Employees can view own leads" ON public.leads
     FOR SELECT USING (
-        assigned_to = auth.uid() OR
-        EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+        deleted_at IS NULL AND (
+            assigned_to = auth.uid() OR
+            EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+        )
     );
 
 CREATE POLICY "Users can insert leads" ON public.leads
-    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL AND deleted_at IS NULL);
 
-CREATE POLICY "Users can update leads" ON public.leads
+CREATE POLICY "Users can update own leads" ON public.leads
     FOR UPDATE USING (
-        assigned_to = auth.uid() OR
+        deleted_at IS NULL AND (
+            assigned_to = auth.uid() OR
+            EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
+        )
+    );
+
+-- Soft delete: admin sets deleted_at instead of actual DELETE
+CREATE POLICY "Admins can soft delete leads" ON public.leads
+    FOR DELETE USING (
         EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin')
     );
 
