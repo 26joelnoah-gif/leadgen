@@ -447,6 +447,9 @@ export default function Payouts() {
                             color: 'white'
                           }}
                         />
+                      ) : (
+                        <span style={{ color: 'white', fontWeight: 600 }}>€{payout?.appointment_payout || systemSettings.appointmentValue}</span>
+                      )}
                     </div>
                   </div>
 
