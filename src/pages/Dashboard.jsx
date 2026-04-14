@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -53,8 +53,17 @@ export default function Dashboard() {
   }, [])
 
   const filteredLeads = leads.filter(lead => {
-    // Hide concluded leads from standard workers
-    if (!isAdmin && ['deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer', 'cold'].includes(lead.status)) {
+    // For standard workers: ONLY show callbacks (terugbelafspraak)
+    if (!isAdmin) {
+      if (lead.status !== 'terugbelafspraak') return false
+      
+      const matchesSearch = lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                           (lead.phone && lead.phone.includes(searchTerm))
+      return matchesSearch
+    }
+
+    // Admin/Standard logic for Concluded leads
+    if (['deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer', 'cold'].includes(lead.status) && !isAdmin) {
       return false
     }
 
@@ -68,12 +77,11 @@ export default function Dashboard() {
                          (lead.phone && lead.phone.includes(searchTerm))
     return matchesFilter && matchesSearch
   }).sort((a, b) => {
-    // Hot leads first: new, callback, appointment
-    const priority = { new: 0, terugbelafspraak: 1, afspraak_gemaakt: 2, later_bellen: 3, mailbox: 4, geen_interesse: 5, deal: 6, verkeerd_nummer: 7 }
+    // Hot leads first
+    const priority = { terugbelafspraak: 0, new: 1, afspraak_gemaakt: 2, later_bellen: 3, mailbox: 4, geen_interesse: 5, deal: 6, verkeerd_nummer: 7 }
     const aPriority = priority[a.status] ?? 9
     const bPriority = priority[b.status] ?? 9
     if (aPriority !== bPriority) return aPriority - bPriority
-    // Then by date (newest first)
     return new Date(b.created_at) - new Date(a.created_at)
   })
 
@@ -231,7 +239,12 @@ export default function Dashboard() {
         >
           <div>
             <h1>Welkom terug, {profile?.full_name?.split(' ')[0] || 'Sales'}</h1>
-            <p>Je hebt vandaag {leads.filter(l => l.status === 'new').length} nieuwe leads om op te volgen.</p>
+            <p>
+              {isAdmin 
+                ? `Je hebt vandaag ${leads.filter(l => l.status === 'new').length} nieuwe leads om op te volgen.`
+                : `Je hebt ${leads.filter(l => l.status === 'terugbelafspraak').length} terugbelopdrachten voor vandaag.`
+              }
+            </p>
           </div>
           <div className="flex items-center gap-2">
             {isDemoMode && (
@@ -298,28 +311,30 @@ export default function Dashboard() {
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <Filter size={18} className="text-muted" />
-            <select
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              style={{ padding: '10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
-            >
-              <option value="all">Alle leads</option>
-              <option value="hot">🔥 Hot Leads</option>
-              <option value="new">Nieuwe leads</option>
-              {Object.entries(STATUS_MAP).map(([key, details]) => (
-                <option key={key} value={key}>{details.label}</option>
-              ))}
-            </select>
-          </div>
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <Filter size={18} className="text-muted" />
+              <select
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                style={{ padding: '10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
+              >
+                <option value="all">Alle leads</option>
+                <option value="hot">🔥 Hot Leads</option>
+                <option value="new">Nieuwe leads</option>
+                {Object.entries(STATUS_MAP).map(([key, details]) => (
+                  <option key={key} value={key}>{details.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
 
         {/* Quick Stats */}
         <div className="stats-grid mb-4" style={{ marginTop: '24px' }}>
           {[
-            { label: 'Nieuwe Leads', val: leads.filter(l => l.status === 'new').length, icon: '📬', color: 'var(--primary)' },
-            { label: 'Hot Leads', val: leads.filter(l => ['new', 'terugbelafspraak', 'later_bellen'].includes(l.status)).length, icon: '🔥', color: 'var(--danger)', pulse: true },
+            ...(isAdmin ? [{ label: 'Nieuwe Leads', val: leads.filter(l => l.status === 'new').length, icon: '📬', color: 'var(--primary)' }] : []),
+            { label: 'Terugbelacties', val: leads.filter(l => l.status === 'terugbelafspraak').length, icon: '📞', color: 'var(--danger)', pulse: true },
             { label: 'Afspraken', val: leads.filter(l => l.status === 'afspraak_gemaakt').length, icon: '📅', color: 'var(--success)' },
             { label: 'Deals', val: leads.filter(l => l.status === 'deal').length, icon: '🏆', color: 'var(--secondary)' }
           ].map((stat, i) => (
