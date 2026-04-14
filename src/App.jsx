@@ -6,6 +6,7 @@ import TBAs from './pages/TBAs'
 import Earnings from './pages/Earnings'
 import Admin from './pages/Admin'
 import Reports from './pages/Reports'
+import Kanban from './pages/Kanban'
 import Telemetry from './pages/Telemetry'
 import Payouts from './pages/Payouts'
 
@@ -87,6 +88,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute requireAdmin>
             <Telemetry />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/kanban"
+        element={
+          <ProtectedRoute>
+            <Kanban />
           </ProtectedRoute>
         }
       />

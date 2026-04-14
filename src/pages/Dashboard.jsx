@@ -3,8 +3,9 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { RefreshCw, Search, Filter, Phone, PhoneOff, Activity, Zap, Plus, X } from 'lucide-react'
+import { RefreshCw, Search, Filter, Phone, PhoneOff, Activity, Zap, Plus, X, List } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
+import { useLeadLists } from '../hooks/useLeadLists'
 import { STATUS_MAP } from '../utils/statusUtils'
 import LeadCard from '../components/LeadCard'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -18,9 +19,13 @@ import ActivityFeed from '../components/ActivityFeed'
 export default function Dashboard() {
   const { user, profile, signOut, callEnabled, toggleCallEnabled, isDemoMode, sessionCallCount } = useAuth()
   const { leads, loading, fetchLeads, updateLeadStatus, createLead } = useLeads()
+  const { leadLists, loading: leadListsLoading, getLeadsInList } = useLeadLists()
   const [filter, setFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [showNewLeadModal, setShowNewLeadModal] = useState(false)
+  const [showLeadLists, setShowLeadLists] = useState(false)
+  const [expandedListId, setExpandedListId] = useState(null)
+  const [listLeads, setListLeads] = useState({})
   const [newLead, setNewLead] = useState({
     name: '',
     phone: '',
@@ -84,6 +89,16 @@ export default function Dashboard() {
       alert(`Fout bij aanmaken lead: ${err.message}`)
     } finally {
       setCreating(false)
+    }
+  }
+
+  async function toggleExpandList(listId) {
+    if (expandedListId === listId) {
+      setExpandedListId(null)
+    } else {
+      setExpandedListId(listId)
+      const leadsInList = await getLeadsInList(listId)
+      setListLeads(prev => ({ ...prev, [listId]: leadsInList }))
     }
   }
 
@@ -250,6 +265,51 @@ export default function Dashboard() {
             </div>
             <div className="dashboard-sidebar">
               <TeamLeaderboard />
+
+              {/* Agent Lead Lists */}
+              {leadLists.length > 0 && (
+                <div className="card" style={{ padding: '16px' }}>
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="card-title" style={{ fontSize: '1rem' }}><List size={16} /> Mijn Lead Lijsten</h3>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--secondary)', fontWeight: 600 }}>{leadLists.length}</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {leadLists.map(list => (
+                      <div key={list.id}>
+                        <div
+                          className="flex items-center gap-2 p-2"
+                          style={{
+                            background: 'var(--bg-elevated)',
+                            borderRadius: '8px',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => toggleExpandList(list.id)}
+                        >
+                          <span style={{ fontWeight: 600, fontSize: '0.9rem', flex: 1 }}>{list.name}</span>
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                            {listLeads[list.id] ? listLeads[list.id].length : '...'} leads
+                          </span>
+                        </div>
+                        {expandedListId === list.id && listLeads[list.id] && (
+                          <div style={{ padding: '8px 0 8px 16px' }}>
+                            {listLeads[list.id].length > 0 ? (
+                              listLeads[list.id].map(lead => (
+                                <div key={lead.id} className="flex justify-between items-center p-2" style={{ fontSize: '0.85rem' }}>
+                                  <span style={{ fontWeight: 600 }}>{lead.name}</span>
+                                  <span style={{ color: 'var(--text-muted)' }}>{lead.phone}</span>
+                                </div>
+                              ))
+                            ) : (
+                              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Geen leads in deze lijst</p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <ActivityFeed />
             </div>
           </div>

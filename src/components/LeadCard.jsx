@@ -1,12 +1,18 @@
 import { motion } from 'framer-motion';
-import { Phone, Globe, MapPin, Calendar, ExternalLink, Zap, Flame, Clock, PhoneCall } from 'lucide-react';
+import { Phone, Globe, MapPin, Calendar, ExternalLink, Zap, Flame, Clock, PhoneCall, Lock } from 'lucide-react';
 import { getStatusDetails } from '../utils/statusUtils';
 import { formatDate } from '../utils/dateUtils';
 import StatusSelector from './StatusSelector';
 import { useAuth } from '../context/AuthContext';
 
-export default function LeadCard({ lead, onStatusChange, loading = false, callEnabled = true }) {
-  const { logCall } = useAuth();
+export default function LeadCard({ lead, onStatusChange, onClaim, loading = false, callEnabled = true }) {
+  const { logCall, user } = useAuth();
+
+  const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
+  const isLockedRecently = lead.locked_by && lead.locked_at && (Date.now() - new Date(lead.locked_at).getTime()) < LOCK_TIMEOUT_MS;
+  const isLockedByMe = lead.locked_by === user?.id;
+  const isLockedByOther = isLockedRecently && !isLockedByMe;
+  const isAvailable = lead.call_status === 'available' && !isLockedRecently;
   const statusDetails = getStatusDetails(lead.status);
 
   // Lead scoring based on status
@@ -70,30 +76,73 @@ export default function LeadCard({ lead, onStatusChange, loading = false, callEn
             loading={loading}
           />
           {callEnabled && (
-            <motion.a
-              whileHover={{ scale: 1.1, boxShadow: '0 0 15px rgba(16, 185, 129, 0.4)' }}
-              whileTap={{ scale: 0.9 }}
-              href={`tel:${lead.phone}`}
-              onClick={() => logCall(lead.id, lead.name)}
-              className="btn btn-success btn-sm"
-              style={{
-                textDecoration: 'none',
-                borderRadius: '50%',
-                width: '32px',
-                height: '32px',
-                padding: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: 'var(--success)',
-                color: 'white',
-                border: 'none',
-                boxShadow: '0 4px 10px rgba(16, 185, 129, 0.2)'
-              }}
-              title="Bel deze lead"
-            >
-              <Phone size={14} />
-            </motion.a>
+            <>
+              {/* Claim / Next Lead button */}
+              {onClaim && isAvailable && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => onClaim(lead.id)}
+                  className="btn btn-sm"
+                  style={{
+                    background: 'var(--primary-gradient)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: 'var(--radius-sm)',
+                    padding: '4px 12px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                  title="Claim deze lead om te bellen"
+                >
+                  Bellen
+                </motion.button>
+              )}
+              {isLockedByOther && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  background: 'var(--warning-bg, rgba(245,158,11,0.1))',
+                  color: 'var(--warning, #f59e0b)',
+                  border: '1px solid var(--warning, #f59e0b)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '4px 10px',
+                  fontSize: '0.72rem',
+                  fontWeight: 600
+                }}>
+                  <Lock size={11} /> Bezet door collega
+                </div>
+              )}
+              {/* Regular call button — disabled if locked by other, shown if available or locked by me */}
+              <motion.a
+                whileHover={isLockedByOther ? {} : { scale: 1.1, boxShadow: '0 0 15px rgba(16, 185, 129, 0.4)' }}
+                whileTap={isLockedByOther ? {} : { scale: 0.9 }}
+                href={isLockedByOther ? undefined : `tel:${lead.phone}`}
+                onClick={isLockedByOther ? (e) => e.preventDefault() : () => logCall(lead.id, lead.name)}
+                className="btn btn-success btn-sm"
+                style={{
+                  textDecoration: 'none',
+                  borderRadius: '50%',
+                  width: '32px',
+                  height: '32px',
+                  padding: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: isLockedByOther ? 'var(--text-muted, #6b7280)' : 'var(--success)',
+                  color: 'white',
+                  border: 'none',
+                  boxShadow: isLockedByOther ? 'none' : '0 4px 10px rgba(16, 185, 129, 0.2)',
+                  cursor: isLockedByOther ? 'not-allowed' : 'pointer',
+                  opacity: isLockedByOther ? 0.5 : 1
+                }}
+                title={isLockedByOther ? 'Lead bezet door collega' : 'Bel deze lead'}
+              >
+                <Phone size={14} />
+              </motion.a>
+            </>
           )}
         </div>
       </div>

@@ -141,6 +141,44 @@ export function useLeads() {
     await logActivity(leadId, 'call', 'Gebeld')
   }
 
+  async function claimLead(leadId) {
+    const now = new Date().toISOString()
+    const { error } = await supabase
+      .from('leads')
+      .update({
+        locked_by: user.id,
+        locked_at: now,
+        call_status: 'calling'
+      })
+      .eq('id', leadId)
+      .or(`locked_by.is.null,locked_at.lt.${new Date(Date.now() - 5*60000).toISOString()}`)
+
+    if (!error) {
+      setLeads(leads.map(l => l.id === leadId ? { ...l, locked_by: user.id, locked_at: now, call_status: 'calling' } : l))
+      await logActivity(leadId, 'lead_claimed', 'Lead geclaimd voor bellen')
+    }
+    return error
+  }
+
+  async function releaseLead(leadId) {
+    await supabase.from('leads').update({
+      locked_by: null,
+      locked_at: null,
+      call_status: 'available'
+    }).eq('id', leadId)
+
+    setLeads(leads.map(l => l.id === leadId ? { ...l, locked_by: null, locked_at: null, call_status: 'available' } : l))
+  }
+
+  async function getNextLead() {
+    const available = leads.find(l => l.call_status === 'available' && !l.locked_by)
+    if (available) {
+      await claimLead(available.id)
+      return available
+    }
+    return null
+  }
+
   async function createLead(leadData) {
     const newLead = {
       name: leadData.name,
@@ -210,6 +248,9 @@ export function useLeads() {
     assignLead,
     logActivity,
     callLead,
-    createLead
+    createLead,
+    claimLead,
+    releaseLead,
+    getNextLead
   }
 }

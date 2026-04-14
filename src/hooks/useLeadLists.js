@@ -21,11 +21,15 @@ export function useLeadLists() {
     try {
       const { data, error } = await supabase
         .from('lead_lists')
-        .select('*, created_by_profile:profiles!created_by(full_name)')
+        .select('*, created_by_profile:profiles!created_by(full_name), assigned_to_profile:profiles!assigned_to(full_name)')
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      setLeadLists(data || [])
+      // Agents only see lists assigned to them or created by them
+      const lists = profile?.role === 'admin'
+        ? (data || [])
+        : (data || []).filter(l => l.assigned_to === profile?.id || l.created_by === profile?.id)
+      setLeadLists(lists)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -47,7 +51,7 @@ export function useLeadLists() {
 
     const { data, error } = await supabase
       .from('lead_lists')
-      .insert({ name, description })
+      .insert({ name, description, created_by: profile?.id })
       .select()
       .single()
 
@@ -113,11 +117,23 @@ export function useLeadLists() {
     return { error }
   }
 
+  async function assignListToAgent(listId, agentId) {
+    if (isDemoMode) return { error: null }
+    const { error } = await supabase
+      .from('lead_lists')
+      .update({ assigned_to: agentId || null })
+      .eq('id', listId)
+    if (!error) {
+      setLeadLists(leadLists.map(l => l.id === listId ? { ...l, assigned_to: agentId } : l))
+    }
+    return { error }
+  }
+
   useEffect(() => {
-    if (profile?.role === 'admin') {
+    if (profile?.id) {
       fetchLeadLists()
     }
-  }, [profile?.role, isDemoMode])
+  }, [profile?.id, isDemoMode])
 
   return {
     leadLists,
@@ -128,6 +144,7 @@ export function useLeadLists() {
     addLeadsToList,
     removeLeadFromList,
     getLeadsInList,
-    deleteLeadList
+    deleteLeadList,
+    assignListToAgent
   }
 }
