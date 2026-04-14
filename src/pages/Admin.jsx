@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
+import Header from '../components/Header'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Users, Settings, UserPlus, Phone, PhoneOff, Mail, UserCheck, Shield, Activity, Download, Play, Zap, Upload, X, CheckCircle, AlertTriangle, Bell, Megaphone, Target, DollarSign, Calendar, List } from 'lucide-react'
@@ -18,6 +19,7 @@ import BriefingModal, { BriefingCard } from '../components/BriefingModal'
 import { LeadListModal } from '../components/LeadListModal'
 import PipelineFunnel from '../components/PipelineFunnel'
 import EmployeeModal from '../components/EmployeeModal'
+import Header from '../components/Header'
 
 export default function Admin() {
   const { user, profile, signOut, callEnabled, toggleCallEnabled, isDemoMode, sessionCallCount } = useAuth()
@@ -285,30 +287,7 @@ export default function Admin() {
       animate={{ opacity: 1 }} 
       className="admin-page"
     >
-      <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)' }}>
-        <div className="container header-content">
-          <Logo size="medium" />
-          <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
-            <Link to="/">Dashboard</Link>
-            <Link to="/tba">TBA's</Link>
-            <Link to="/earnings">Verdiensten</Link>
-            <Link to="/admin/telemetry">Telemetrie</Link>
-            <Link to="/admin" className="active">Admin</Link>
-            <Link to="/admin/reports">Rapportage</Link>
-            <Link to="/admin/payouts">Payouts</Link>
-          </nav>
-          <div className="header-actions">
-            <div className="flex items-center gap-2 mr-3" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '20px' }}>
-              <Zap size={14} className="text-secondary" />
-              <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span></span>
-            </div>
-            <button onClick={() => setShowSettings(true)} className="btn btn-sm btn-outline" title="Systeem instellingen">
-              <Settings size={16} />
-            </button>
-            <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
-          </div>
-        </div>
-      </header>
+      <Header onOpenSettings={() => setShowSettings(true)} />
 
       <main className="container">
         <motion.div 

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, X, CheckCircle, Clock, AlertTriangle, User } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
+import Header from '../components/Header'
 
 const KANBAN_FILE = '/Users/noah/LEADGEN/.claude/shared/kanban.json'
 
@@ -38,7 +39,9 @@ export default function Kanban() {
   }
 
   return (
-    <div style={{ padding: '20px', minHeight: '100vh', background: 'var(--bg-dark)' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
+      <Header />
+      <div style={{ padding: '20px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Agent Kanban</h1>
         {profile?.role === 'admin' && (

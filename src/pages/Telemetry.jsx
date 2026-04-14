@@ -7,6 +7,7 @@ import { Phone, Users, TrendingUp, Award, Zap, Activity, ChevronRight, Clock, Ca
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts'
 import Logo from '../components/Logo'
 import LoadingSpinner from '../components/LoadingSpinner'
+import Header from '../components/Header'
 
 export default function Telemetry() {
   const { user, profile, signOut, sessionCallCount, isDemoMode } = useAuth()
@@ -48,9 +49,9 @@ export default function Telemetry() {
         setTotalTeamCalls(105)
       } else {
         const [statsRes, allCallsRes, activityRes] = await Promise.all([
-           supabase.from('activities').select('user_id, profiles(full_name)').eq('action', 'call'),
+           supabase.from('activities').select('user_id, profiles:profiles!user_id(full_name)').eq('action', 'call'),
            supabase.from('activities').select('created_at').eq('action', 'call'),
-           supabase.from('activities').select('*, profiles:profiles(full_name)').order('created_at', { ascending: false }).limit(20)
+           supabase.from('activities').select('*, profiles:profiles!user_id(full_name)').order('created_at', { ascending: false }).limit(20)
         ])
 
         // Process Stats
@@ -103,25 +104,7 @@ export default function Telemetry() {
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="telemetry-page">
-      <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)' }}>
-        <div className="container header-content">
-          <Logo size="medium" />
-          <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
-            <Link to="/">Dashboard</Link>
-            <Link to="/tba">TBA's</Link>
-            <Link to="/earnings">Verdiensten</Link>
-            <Link to="/admin/telemetry" className="active">Telemetrie</Link>
-            {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
-            {profile?.role === 'admin' && <Link to="/admin/reports">Rapportage</Link>}
-          </nav>
-          <div className="header-actions">
-             <div className="session-pill">
-                <Zap size={14} fill="currentColor" /> {sessionCallCount} calls
-             </div>
-             <button onClick={signOut} className="btn btn-sm btn-outline">Log uit</button>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="container">
         <div className="page-header">

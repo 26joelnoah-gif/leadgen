@@ -15,6 +15,7 @@ import TeamLeaderboard from '../components/TeamLeaderboard'
 import MobileNav from '../components/MobileNav'
 import Chat from '../components/Chat'
 import ActivityFeed from '../components/ActivityFeed'
+import Header from '../components/Header'
 
 export default function Dashboard() {
   const { user, profile, signOut, callEnabled, toggleCallEnabled, isDemoMode, sessionCallCount } = useAuth()
@@ -106,44 +107,7 @@ export default function Dashboard() {
       animate={{ opacity: 1 }} 
       className="dashboard-page"
     >
-      <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)' }}>
-        <div className="container header-content">
-          <Logo size="medium" />
-          <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
-            <Link to="/">Dashboard</Link>
-            <Link to="/tba">TBA's</Link>
-            <Link to="/kanban">Kanban</Link>
-            <Link to="/earnings">Verdiensten</Link>
-            {profile?.role === 'admin' && <Link to="/admin/telemetry">Telemetrie</Link>}
-            {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
-            {profile?.role === 'admin' && <Link to="/admin/reports">Rapportage</Link>}
-          </nav>
-          <MobileNav profile={profile} />
-          <div className="header-actions">
-            <div className="flex items-center gap-2" style={{ background: 'rgba(232, 185, 35, 0.15)', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--secondary)', marginRight: '16px' }}>
-              <Zap size={18} style={{ color: 'var(--secondary)' }} />
-              <span style={{ fontSize: '1rem', fontWeight: 800, color: 'white' }}>{sessionCallCount}</span>
-              <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>calls</span>
-            </div>
-            <div className="user-profile flex items-center gap-2">
-              <div className="avatar" style={{ width: '32px', height: '32px', background: 'var(--secondary)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', color: 'var(--primary-dark)', fontSize: '0.8rem' }}>
-                {profile?.full_name?.charAt(0) || user?.email?.charAt(0).toUpperCase()}
-              </div>
-              <span style={{ fontSize: '0.9rem', fontWeight: '500' }}>{profile?.full_name || user?.email?.split('@')[0] || 'Gebruiker'}</span>
-            </div>
-            <button
-              onClick={toggleCallEnabled}
-              className={`btn btn-sm ${callEnabled ? 'btn-secondary' : 'btn-outline'}`}
-              style={{ gap: '6px', minWidth: '80px' }}
-              title={callEnabled ? 'Bellen ingeschakeld' : 'Bellen uitgeschakeld'}
-            >
-              {callEnabled ? <Phone size={14} /> : <PhoneOff size={14} />}
-              <span>{callEnabled ? 'Aan' : 'Uit'}</span>
-            </button>
-            <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="container">
         <motion.div 

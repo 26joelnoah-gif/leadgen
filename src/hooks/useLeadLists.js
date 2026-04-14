@@ -21,7 +21,7 @@ export function useLeadLists() {
     try {
       const { data, error } = await supabase
         .from('lead_lists')
-        .select('*, created_by_profile:profiles!created_by(full_name), assigned_to_profile:profiles!assigned_to(full_name)')
+        .select('*')
         .order('created_at', { ascending: false })
       
       // Try fallback if join fails (due to naming)
