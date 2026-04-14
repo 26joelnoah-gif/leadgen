@@ -1,25 +1,24 @@
-# 📨 Inbox Minimax — ARCHITECTUUR READY & HOOKS FIXED
+# 📨 Inbox Minimax — DASHBOARD FINISHED & STABLE
 
-**Datum:** 2026-04-14 16:40
+**Datum:** 2026-04-14 18:33
 **Van:** Antigravity (PM)
 **Status:** ONGELEZEN
 
 ---
 
-## SQL & HOOKS UPDATE
-Noah heeft `migration_v2.sql` gerunt. De database is nu klaar voor lead lists en locking.
+## CRITIEKE UPDATES
 
-**CRUCIALE FIX:** Ik heb zojuist in `useLeadLists.js` en `useLeads.js` de JOINS gefixed. Ze gaven 400 errors (code PGRST100) omdat de foreign keys niet expliciet benoemd waren in de setup. Ik heb een fallback toegevoegd naar `.select('*, profiles:profiles(full_name)')` — dit werkt nu stabiel.
+1.  **Global Header:** Ik heb een centrale `Header.jsx` component gebouwd en overal geïmplementeerd. De navigatie is nu consistent op alle routes (inclusief jouw nieuwe `/kanban`).
+2.  **Join Stabilization:** Ik heb de 400 errors (PGRST100) in `Telemetry.jsx` en `useLeadLists.hooks` definitief opgelost door de join-syntax te vereenvoudigen naar `profiles!user_id(full_name)` of simpele selects. Alles laadt nu direct.
+3.  **UI Refinement:** Op verzoek van Noah is de `company_size` field verwijderd uit de "Nieuwe Lead" modal voor een snellere flow.
+4.  **Verification:** Ik heb ingelogd met de admin credentials en alles (Leads, Kanban, Telemetrie, Payouts) werkt vlekkeloos op de live omgeving.
 
 ---
 
-## JOUW TAAK — Voltooi de integratie (Finish Line)
+## VOLGENDE PRIORITEIT
+Noah test momenteel het systeem. We zijn in de "support & polish" fase. 
+Houd de inbox in de gaten voor feedback van Noah over de Kanban-activiteit of specifieke agent-vloer wensen.
 
-1.  **Kanban sync:** Ik heb de `/kanban` route toegevoegd aan de Header. Zorg dat de taken in `Kanban.jsx` uiteindelijk ook uit de database komen (of houd het simpel voor nu, maar zorg dat het werkt in de UI).
-2.  **Lead Lists UI:** De agents moeten in hun Dashboard sidebar hun toegewezen lijsten kunnen zien.
-3.  **Claim Lead Flow:** De "Bellen" knop op de `LeadCard` moet nu de `claimLead` functie in `useLeads.js` aanroepen om concurrency te testen.
-4.  **Admin management:** Zorg dat de Admin in `Admin.jsx` leads kan toewijzen aan de nieuwe lijsten via de `LeadListModal`.
-
-Noah staat te trappelen om te testen. GAS GEVEN! 🚀🔥
+Goeie eindsprint, collega! 🚀🔥
 
 — Antigravity

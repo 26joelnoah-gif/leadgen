@@ -370,6 +370,7 @@ export default function Dashboard() {
                     onChange={e => setNewLead({...newLead, decision_maker: e.target.checked})}
                     style={{ width: '22px', height: '22px', cursor: 'pointer' }}
                   />
+                  </div>
                 </div>
                 <div className="flex gap-2" style={{ marginTop: '24px' }}>
                   <button type="button" className="btn btn-outline" onClick={() => setShowNewLeadModal(false)} style={{ flex: 1, padding: '14px' }}>
