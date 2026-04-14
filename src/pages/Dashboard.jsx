@@ -52,38 +52,49 @@ export default function Dashboard() {
     fetchUsers()
   }, [])
 
-  const filteredLeads = leads.filter(lead => {
-    // For standard workers: ONLY show callbacks (terugbelafspraak)
-    if (!isAdmin) {
-      if (lead.status !== 'terugbelafspraak') return false
-      
-      const matchesSearch = lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           (lead.phone && lead.phone.includes(searchTerm))
-      return matchesSearch
+  // Single-pass stats computation
+  const stats = useMemo(() => {
+    let nieuweLeads = 0
+    let terugbelacties = 0
+    let hotLeads = 0
+    let afspraken = 0
+    let deals = 0
+
+    for (const lead of leads) {
+      if (lead.status === 'new') nieuweLeads++
+      if (lead.status === 'terugbelafspraak') terugbelacties++
+      if (['new', 'terugbelafspraak', 'later_bellen'].includes(lead.status)) hotLeads++
+      if (lead.status === 'afspraak_gemaakt') afspraken++
+      if (lead.status === 'deal') deals++
     }
 
-    // Admin/Standard logic for Concluded leads
-    if (['deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer', 'cold'].includes(lead.status) && !isAdmin) {
-      return false
-    }
+    return { nieuweLeads, terugbelacties, hotLeads, afspraken, deals }
+  }, [leads])
 
-    let matchesFilter = true
-    if (filter === 'all') matchesFilter = true
-    else if (filter === 'hot') matchesFilter = ['new', 'terugbelafspraak', 'later_bellen'].includes(lead.status)
-    else if (filter === 'new') matchesFilter = lead.status === 'new'
-    else matchesFilter = lead.status === filter
+  // Memoized filtered + sorted leads
+  const filteredLeads = useMemo(() => {
+    const search = searchTerm.toLowerCase()
+    const filtered = leads.filter(lead => {
+      if (!isAdmin && lead.status !== 'terugbelafspraak') return false
+      if (!isAdmin && ['deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer', 'cold'].includes(lead.status)) return false
 
-    const matchesSearch = lead.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (lead.phone && lead.phone.includes(searchTerm))
-    return matchesFilter && matchesSearch
-  }).sort((a, b) => {
-    // Hot leads first
+      let matchesFilter = true
+      if (filter === 'hot') matchesFilter = ['new', 'terugbelafspraak', 'later_bellen'].includes(lead.status)
+      else if (filter === 'new') matchesFilter = lead.status === 'new'
+      else if (filter !== 'all') matchesFilter = lead.status === filter
+
+      const matchesSearch = lead.name.toLowerCase().includes(search) || (lead.phone && lead.phone.includes(search))
+      return matchesFilter && matchesSearch
+    })
+
     const priority = { terugbelafspraak: 0, new: 1, afspraak_gemaakt: 2, later_bellen: 3, mailbox: 4, geen_interesse: 5, deal: 6, verkeerd_nummer: 7 }
-    const aPriority = priority[a.status] ?? 9
-    const bPriority = priority[b.status] ?? 9
-    if (aPriority !== bPriority) return aPriority - bPriority
-    return new Date(b.created_at) - new Date(a.created_at)
-  })
+    return filtered.sort((a, b) => {
+      const aP = priority[a.status] ?? 9
+      const bP = priority[b.status] ?? 9
+      if (aP !== bP) return aP - bP
+      return new Date(b.created_at) - new Date(a.created_at)
+    })
+  }, [leads, filter, searchTerm, isAdmin])
 
   async function handleCreateLead(e) {
     e.preventDefault()
@@ -333,16 +344,16 @@ export default function Dashboard() {
         {/* Quick Stats */}
         <div className="stats-grid mb-4" style={{ marginTop: '24px' }}>
           {[
-            ...(isAdmin ? [{ label: 'Nieuwe Leads', val: leads.filter(l => l.status === 'new').length, icon: '📬', color: 'var(--primary)' }] : []),
-            { label: 'Terugbelacties', val: leads.filter(l => l.status === 'terugbelafspraak').length, icon: '📞', color: 'var(--danger)', pulse: true },
-            { label: 'Afspraken', val: leads.filter(l => l.status === 'afspraak_gemaakt').length, icon: '📅', color: 'var(--success)' },
-            { label: 'Deals', val: leads.filter(l => l.status === 'deal').length, icon: '🏆', color: 'var(--secondary)' }
+            ...(isAdmin ? [{ label: 'Nieuwe Leads', val: stats.nieuweLeads, icon: '📬', color: 'var(--primary)' }] : []),
+            { label: 'Terugbelacties', val: stats.terugbelacties, icon: '📞', color: 'var(--danger)', pulse: true },
+            { label: 'Afspraken', val: stats.afspraken, icon: '📅', color: 'var(--success)' },
+            { label: 'Deals', val: stats.deals, icon: '🏆', color: 'var(--secondary)' }
           ].map((stat, i) => (
             <motion.div
               key={stat.label}
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: i * 0.1 }}
+              transition={{ delay: Math.min(i * 0.05, 0.2) }}
               className="stat-card glass-panel glow-hover"
               style={{ padding: '20px', borderLeft: `4px solid ${stat.color}` }}
             >
@@ -380,7 +391,7 @@ export default function Dashboard() {
                       initial={{ scale: 0.95, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       exit={{ scale: 0.95, opacity: 0 }}
-                      transition={{ delay: i * 0.05 }}
+                      transition={{ delay: Math.min(i * 0.02, 0.5) }}
                     >
                       <LeadCard
                         lead={lead}

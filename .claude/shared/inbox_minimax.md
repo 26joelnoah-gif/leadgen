@@ -1,23 +1,34 @@
-# 📨 Inbox Minimax - Update van Antigravity over de CRM / Werkomgeving
+# Taken over from Antigravity: Code Review Report
 
-**Datum:** 2026-04-15
-**Status:** **LOGIN PROMOS & BRUTALIST UI UPDATE**
+Hi Minimax, 
 
----
+Ik (Antigravity) heb zojuist de meest kritische security bugs uit de gestuurde Code Review opgelost (XSS, Auth routing, RLS impersonatie, en de later_bellen disposition issue). Er ligt echter nog een flinke lijst aan refactortaken, RLS/database structuur optimalisaties en React performance checks (zoals pagination, memoization, en de O(n) iteraties) voor jou klaar. 
 
-Hoi MiniMax,
+Hierbij het verzoek van de user om hierin te duiken en de rest van de actiepunten aan te pakken!
 
-Ik heb zojuist de Login pagina een flinke update gegeven met een "Onboarding Promo Modal" die in een sequence van 2 slides voorbij komt. Ook zijn we weer terug naar de originele Logo-stijl gegaan.
+De overgebleven actielijst vanuit het rapport:
 
-Hier zijn wat nieuwe 'makkelijke' taken voor jou om de boel visueel naar het volgende niveau te tillen:
+**Critical & Architecture:**
+1. Security - Client-Controlled Admin Flag in `Chat.jsx` (wordt nu op basis van profiel client-state doorgegeven, mogelijk beter lokaal DB trigger voor inregelen of RLS).
+2. WorkInterface - `workingLead` workflow is dead code (wordt nergens functioneel aangeroepen / gezet).
+3. `lead_list_id` op `leads` mist stiekem in het base schemacreation in `supabase-setup.sql` (item 13 in report), terwijl de codebase wel zo migreert.
+4. RLS update/delete regels voor `activities`, `lead_lists`, `messages`. En de profiless insert policy is te ruim.
 
-### Nieuwe Takenlijst (Login & UX):
+**Performance & React (High / Performance Priority):**
+1. **Geen pagination** - ALLES (Dashboard leads, Reports, Activities, Telemetry) wordt onbegrensd ingeladen. Dit schaalt niet.
+2. Dashboard `filteredLeads` leunt niet op `useMemo`, en stats berekenen met 4x O(n) iteraties de totalen (`leads.filter(..).length` voor elke box) -> refactor dit naar één single pass reduce!
+3. Dashboard stagger animaties: met duizenden leads levert dit lag op door Framer Motion delay berekeningen (`delay: i * 0.05`). 
+4. ActivityFeed refetched álles bij elk nieuw insert event via realtime.  Moet via optimistische appends opgelost worden.
 
-1. **Auto-slide voor Login Promo:** Op dit moment moet de gebruiker zelf op 'Volgende' klikken in de `Login.jsx` promo modal. Kun jij een `useEffect` toevoegen die de slides automatisch om de 5 seconden laat wisselen (tenzij de gebruiker zelf klikt)?
-2. **Mobiele Responsive Check:** Controleer of de nieuwe `promo-overlay` in `Login.jsx` er ook op mobiel (kleine schermen) nog steeds strak uitziet. Misschien moet de `font-size` van de titels of de padding van de modal daar iets kleiner.
-3. **Floating "Contact" Button:** Voeg op de Login pagina (buiten de modal en login-card) een subtiele, kleine floating knop of link toe in een hoek (bijv. rechtsonder) met de tekst "Hulp nodig? Neem contact op". Maak deze in de stijl van het dashboard (donker, glas, gouden randje).
-4. **Micro-interacties op Menu:** Voeg in `Dashboard.jsx` een subtiele animatie toe wanneer je wisselt tussen tabs (bijv. een klein 'slidend' balkje achter de actieve tabnaam) zodat de overgang vloeiender aanvoelt.
+**Medium & Bugs:**
+1. Demo mode: `handleLeadDisposition` is leeg in `useLeads.js`, gooit error / doet niets in demo-view.
+2. Promotie/verjaardags modal (`Login.jsx`?) triggert bij elke refresh ipv lokaal Storage check.
+3. Ontbrekende indexen voor `activities(user_id, action, created_at)`.
+4. Geen datum filters in `Earnings.jsx` en `Reports.jsx` (haalt heel de pipeline op).
+5. Chat maxed uit op 50 messages zonder older-paging of scroll-fetch en connectiestatus indicator ontbreekt.
 
-Zet hem op! Ik focus me ondertussen weer op de data-flows en de backend.
+Succes! Je kunt hiermee direct aan de slag in de betreffende React files en in `supabase-setup.sql`. 
 
-— Antigravity
+
+**Antigravity Note (Update):**
+Heel strak plan! Let er even op dat je de wijzigingen in indexen en RLS schoon commit. En vergeet niet dat  in de app al functioneel was na de , maar blijkbaar nog miste in  base file. Goed dat je dat aftikt! Succes. Maak kleine git commits per fase.

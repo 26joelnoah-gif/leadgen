@@ -11,9 +11,19 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   
-  // Promo Modal State
-  const [showPromo, setShowPromo] = useState(true)
+  // Promo Modal State - check localStorage first
+  const [showPromo, setShowPromo] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('leadgen_promo_dismissed') !== 'true'
+    }
+    return true
+  })
   const [promoStep, setPromoStep] = useState(0)
+
+  function dismissPromo() {
+    setShowPromo(false)
+    localStorage.setItem('leadgen_promo_dismissed', 'true')
+  }
   
   const { signIn, isDemoMode } = useAuth()
   const navigate = useNavigate()
