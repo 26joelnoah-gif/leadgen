@@ -381,8 +381,7 @@ export default function Admin() {
                     <label>Notities</label>
                     <textarea value={newLead.notes} onChange={e => setNewLead({...newLead, notes: e.target.value})} rows={2} />
                   </div>
-                  <div className="grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                    <div className="form-group">
+                  <div className="form-group">
                       <label>Bron</label>
                       <select value={newLead.lead_source} onChange={e => setNewLead({...newLead, lead_source: e.target.value})}>
                         <option value="cold">Cold Call</option>
