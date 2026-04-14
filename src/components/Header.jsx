@@ -1,11 +1,13 @@
+import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Zap, Settings, LogOut, Phone } from 'lucide-react'
+import { Zap, Settings, LogOut, Phone, Menu, X } from 'lucide-react'
 import Logo from './Logo'
 
 export default function Header({ onOpenSettings, onOpenWork }) {
   const { profile, signOut, sessionCallCount } = useAuth()
   const location = useLocation()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const isAdmin = profile?.role === 'admin'
 
@@ -28,13 +30,25 @@ export default function Header({ onOpenSettings, onOpenWork }) {
   return (
     <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 100 }}>
       <div className="container header-content">
-        <Logo size="medium" />
-        <nav className="nav" style={{ marginLeft: '40px', flex: 1, display: 'flex', gap: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+          <Logo size="medium" />
+          
+          <button 
+            className="mobile-menu-btn" 
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '8px' }}
+          >
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
+
+        <nav className={`nav ${mobileMenuOpen ? 'mobile-open' : ''}`} style={{ marginLeft: '40px', flex: 1, display: 'flex', gap: '20px' }}>
           {navLinks.map(link => (
             <Link
               key={link.path}
               to={link.path}
               className={isActive(link.path) ? 'active' : ''}
+              onClick={() => setMobileMenuOpen(false)}
               style={{ fontSize: '0.9rem', fontWeight: isActive(link.path) ? 700 : 500 }}
             >
               {link.label}
@@ -45,6 +59,7 @@ export default function Header({ onOpenSettings, onOpenWork }) {
               key={link.path}
               to={link.path}
               className={isActive(link.path) ? 'active' : ''}
+              onClick={() => setMobileMenuOpen(false)}
               style={{ fontSize: '0.9rem', fontWeight: isActive(link.path) ? 700 : 500 }}
             >
               {link.label}
@@ -70,7 +85,7 @@ export default function Header({ onOpenSettings, onOpenWork }) {
             </button>
           )}
 
-          <div className="flex items-center gap-2" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 14px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <div className="flex items-center gap-2" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 14px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', whiteSpace: 'nowrap' }}>
             <Zap size={14} className="text-secondary" />
             <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'white' }}>
               {sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span>
@@ -93,7 +108,17 @@ export default function Header({ onOpenSettings, onOpenWork }) {
         .nav a:hover { color: white; }
         .nav a.active { color: var(--secondary) !important; position: relative; }
         .nav a.active::after { content: ''; position: absolute; bottom: -21px; left: 0; right: 0; height: 2px; background: var(--secondary); }
-        @media (max-width: 900px) { .nav { display: none !important; } .hide-mobile { display: none; } }
+        .mobile-menu-btn { display: none !important; }
+        @media (max-width: 900px) { 
+          .header-content { flex-direction: column; align-items: stretch; gap: 16px; padding: 12px 0; }
+          .mobile-menu-btn { display: block !important; }
+          .nav { display: none !important; flex-direction: column; gap: 12px; margin-left: 0 !important; width: 100%; }
+          .nav.mobile-open { display: flex !important; }
+          .nav a.active::after { display: none; }
+          .nav a { padding: 12px 16px; background: var(--bg-elevated); border-radius: 8px; width: 100%; text-align: center; }
+          .hide-mobile { display: none; } 
+          .header-actions { justify-content: space-between; overflow-x: auto; padding-bottom: 8px; }
+        }
       `}</style>
     </header>
   )
