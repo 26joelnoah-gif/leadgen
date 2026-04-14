@@ -240,6 +240,78 @@ export function useLeads() {
     fetchLeads()
   }, [isDemoMode, profile?.role, user?.id])
 
+  async function handleLeadDisposition(leadId, currentListName, dispositionType, notes, nextDate = null) {
+    if (isDemoMode) return
+    const currentLead = leads.find(l => l.id === leadId)
+    if (!currentLead) return
+
+    const moveToBatch = async (batchNamePrefix) => {
+      if (!currentListName) return
+      const batchedListName = `${batchNamePrefix} - ${currentListName}`
+      let targetListId = null
+      
+      const { data: existingLists } = await supabase.from('lead_lists').select('id').eq('name', batchedListName)
+      if (existingLists && existingLists.length > 0) {
+        targetListId = existingLists[0].id
+      } else {
+        const { data: newList } = await supabase.from('lead_lists').insert({
+          name: batchedListName,
+          description: `Automatische batch: ${batchNamePrefix}`,
+          created_by: user?.id
+        }).select().single()
+        if (newList) targetListId = newList.id
+      }
+
+      if (targetListId) {
+        await supabase.from('leads').update({ lead_list_id: targetListId }).eq('id', leadId)
+      }
+    }
+
+    if (dispositionType === 'geen_interesse') {
+      await updateLeadStatus(leadId, 'geen_interesse')
+      await logActivity(leadId, 'reason_lost', notes || 'Geen interesse')
+      await moveToBatch('Geen interesse')
+    }
+    else if (dispositionType === 'verkeerde_info') {
+      await updateLeadStatus(leadId, 'verkeerd_nummer')
+      await logActivity(leadId, 'note', notes || 'Verkeerde info')
+      await moveToBatch('Verkeerde info')
+    }
+    else if (dispositionType === 'terugbelopdracht') {
+      await supabase.from('leads').update({ 
+        status: 'terugbelafspraak', 
+        next_contact_date: nextDate,
+        updated_at: new Date().toISOString()
+      }).eq('id', leadId)
+      await logActivity(leadId, 'snooze', notes || 'TBA ingepland')
+    }
+    else if (dispositionType === 'niet_bereikbaar') {
+      const attempts = (currentLead.contact_attempts || 0) + 1
+      if (attempts >= 3) {
+        await supabase.from('leads').update({ 
+          status: 'cold', 
+          contact_attempts: attempts,
+          next_contact_date: null,
+          updated_at: new Date().toISOString()
+        }).eq('id', leadId)
+        await logActivity(leadId, 'note', 'Voor 3de keer niet bereikbaar, lead afgesloten.')
+        await moveToBatch('Niet bereikbaar')
+      } else {
+        await supabase.from('leads').update({ 
+          contact_attempts: attempts,
+          updated_at: new Date().toISOString()
+        }).eq('id', leadId)
+        await logActivity(leadId, 'note', `Niet bereikbaar (Poging ${attempts}/3)`)
+      }
+    }
+    else if (dispositionType === 'later_bellen') {
+      await logActivity(leadId, 'note', 'Uitgesteld: later bellen')
+      // Note: array shifting handled in UI
+    }
+    
+    await fetchLeads()
+  }
+
   return {
     leads,
     loading,
@@ -252,6 +324,7 @@ export function useLeads() {
     createLead,
     claimLead,
     releaseLead,
-    getNextLead
+    getNextLead,
+    handleLeadDisposition
   }
 }
