@@ -25,14 +25,13 @@ export default function Admin() {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddLead, setShowAddLead] = useState(false)
-  const [newLead, setNewLead] = useState({ 
-    name: '', 
-    phone: '', 
-    email: '', 
-    notes: '', 
+  const [newLead, setNewLead] = useState({
+    name: '',
+    phone: '',
+    email: '',
+    notes: '',
     assigned_to: '',
     lead_source: 'cold',
-    company_size: '1-10',
     decision_maker: false
   })
   const [showImport, setShowImport] = useState(false)
@@ -220,7 +219,6 @@ export default function Admin() {
         notes: '',
         assigned_to: '',
         lead_source: 'cold',
-        company_size: '1-10',
         decision_maker: false
       })
       fetchData()
@@ -392,15 +390,6 @@ export default function Admin() {
                         <option value="referral">Referral</option>
                       </select>
                     </div>
-                    <div className="form-group">
-                      <label>Grootte</label>
-                      <select value={newLead.company_size} onChange={e => setNewLead({...newLead, company_size: e.target.value})}>
-                        <option value="1-10">1-10 medewerkers</option>
-                        <option value="11-50">11-50 medewerkers</option>
-                        <option value="51+">51+ medewerkers</option>
-                      </select>
-                    </div>
-                  </div>
                   <div className="form-group flex justify-between items-center" style={{ background: 'var(--bg-elevated)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)' }}>
                     <label style={{ margin: 0, cursor: 'pointer' }} className="flex items-center gap-2">
                        <Shield size={14} /> Beslisser?

@@ -190,7 +190,6 @@ export function useLeads() {
       created_by: user?.id,
       lead_source: leadData.lead_source || 'cold',
       decision_maker: leadData.decision_maker || false,
-      company_size: leadData.company_size || '1-10',
       contact_attempts: 0
     }
 

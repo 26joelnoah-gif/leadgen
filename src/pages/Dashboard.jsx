@@ -32,7 +32,6 @@ export default function Dashboard() {
     email: '',
     notes: '',
     lead_source: 'cold',
-    company_size: '1-10',
     decision_maker: false,
     assigned_to: ''
   })
@@ -79,7 +78,6 @@ export default function Dashboard() {
         email: '',
         notes: '',
         lead_source: 'cold',
-        company_size: '1-10',
         decision_maker: false,
         assigned_to: ''
       })
@@ -392,16 +390,7 @@ export default function Dashboard() {
                     </select>
                   </div>
                   <div className="form-group">
-                    <label>Grootte</label>
-                    <select value={newLead.company_size} onChange={e => setNewLead({...newLead, company_size: e.target.value})} style={{ padding: '14px 16px', fontSize: '1rem' }}>
-                      <option value="1-10">1-10 medewerkers</option>
-                      <option value="11-50">11-50 medewerkers</option>
-                      <option value="51+">51+ medewerkers</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label>Toewijzen aan</label>
+                    <label>Toewijzen aan</label>
                   <select value={newLead.assigned_to} onChange={e => setNewLead({...newLead, assigned_to: e.target.value})} style={{ padding: '14px 16px', fontSize: '1rem' }}>
                     <option value="">Niet toegewezen</option>
                     {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
