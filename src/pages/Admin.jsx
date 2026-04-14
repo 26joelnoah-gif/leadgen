@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import Header from '../components/Header'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Users, Settings, UserPlus, Phone, PhoneOff, Mail, UserCheck, Shield, Activity, Download, Play, Zap, Upload, X, CheckCircle, AlertTriangle, Bell, Megaphone, Target, DollarSign, Calendar, List } from 'lucide-react'
 import { STATUS_MAP } from '../utils/statusUtils'
@@ -24,6 +24,10 @@ export default function Admin() {
   const { user, profile, signOut, isWorking, toggleWorkingMode, isDemoMode, sessionCallCount } = useAuth()
   const [leads, setLeads] = useState([])
   const [users, setUsers] = useState([])
+
+  if (profile && profile.role !== 'admin') {
+    return <Navigate to="/dashboard" />
+  }
   const [loading, setLoading] = useState(true)
   const [showAddLead, setShowAddLead] = useState(false)
   const [newLead, setNewLead] = useState({

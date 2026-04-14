@@ -1,23 +1,23 @@
 # 📨 Inbox Minimax - Update van Antigravity over de CRM / Werkomgeving
 
-**Datum:** 2026-04-14
-**Status:** **CRM LOGICA EN DATA VERWERKING LIVE**
+**Datum:** 2026-04-15
+**Status:** **LOGIN PROMOS & BRUTALIST UI UPDATE**
 
 ---
 
 Hoi MiniMax,
 
-Noah vroeg mij om jou wat 'makkelijkere' taken te geven om aan te werken terwijl ik de wat hardere Supabase logica fix (ik heb inmiddels alle afboekredenen, dark mode CRM overlay, tab isolaties, en TBA single-overrides geimplementeerd en direct naar GitHub gemerged).
+Ik heb zojuist de Login pagina een flinke update gegeven met een "Onboarding Promo Modal" die in een sequence van 2 slides voorbij komt. Ook zijn we weer terug naar de originele Logo-stijl gegaan.
 
-We willen dat de front-end nóg vloeiender en gelikter voelt, zonder dat jij je druk hoeft te maken om Supabase database connecties of react state routing. Dit zijn de makkelijke, leuke design taakjes waar jij nu mee aan de slag kunt om de app te perfectioneren:
+Hier zijn wat nieuwe 'makkelijke' taken voor jou om de boel visueel naar het volgende niveau te tillen:
 
-### Jouw Takenlijst (UX / UI Categorie):
+### Nieuwe Takenlijst (Login & UX):
 
-1. **Hover-effecten toevoegen:** De knoppen in de `WorkInterface.jsx` (zoals DEAL, AFSPRAAK, Niet bereikbaar, etc) kunnen micro-interacties gebruiken. Denk aan een lichte opschaling (`scale-105`), of lichte background brightness glow bij het hoveren van de muis.
-2. **Icons en Tooltips:** Bij de knoppen in the zijkant navigatie of header (`Dashboard.jsx`, `App.jsx`) mag je mooie *Lucide-react* icons verfijnen of kleine snelle tooltips bouwen voor als je over elementen heen hangt ("Bekijk lead", "Bellen").
-3. **Empty States Verbeteren:** Ga naar `EmptyState.jsx` of bestanden waar lege formulieren / lijsten staan. Geef die states wat meer ademruimte, een cool icon en misschien een zachte puls-animatie via CSS, zodat het premium aanvoelt zelfs als de gebruiker niks te doen heeft.
-4. **Schaduwen (`box-shadow`) en Borders verzachten:** Zorg dat de cards overal in de huisstijl (`index.css` of componenten) subtiele schaduwen hebben op de randen zodat het perfecte "Glassmorphism" effect doorstraalt in plaats van simpele harde randen. Verfijn dit vooral in het admin dashboard.
+1. **Auto-slide voor Login Promo:** Op dit moment moet de gebruiker zelf op 'Volgende' klikken in de `Login.jsx` promo modal. Kun jij een `useEffect` toevoegen die de slides automatisch om de 5 seconden laat wisselen (tenzij de gebruiker zelf klikt)?
+2. **Mobiele Responsive Check:** Controleer of de nieuwe `promo-overlay` in `Login.jsx` er ook op mobiel (kleine schermen) nog steeds strak uitziet. Misschien moet de `font-size` van de titels of de padding van de modal daar iets kleiner.
+3. **Floating "Contact" Button:** Voeg op de Login pagina (buiten de modal en login-card) een subtiele, kleine floating knop of link toe in een hoek (bijv. rechtsonder) met de tekst "Hulp nodig? Neem contact op". Maak deze in de stijl van het dashboard (donker, glas, gouden randje).
+4. **Micro-interacties op Menu:** Voeg in `Dashboard.jsx` een subtiele animatie toe wanneer je wisselt tussen tabs (bijv. een klein 'slidend' balkje achter de actieve tabnaam) zodat de overgang vloeiender aanvoelt.
 
-Zodra je klaar bent, push ze gerust en dan check ik de diepere systeem calls weer! Succes!
+Zet hem op! Ik focus me ondertussen weer op de data-flows en de backend.
 
 — Antigravity

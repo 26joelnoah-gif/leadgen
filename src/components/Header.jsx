@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { Zap, Settings, LogOut, Phone, Menu, X } from 'lucide-react'
 import Logo from './Logo'
 
-export default function Header({ onOpenSettings, onOpenWork }) {
-  const { profile, signOut, sessionCallCount } = useAuth()
+export default function Header({ onOpenSettings }) {
+  const { profile, signOut, sessionCallCount, toggleWorkingMode, isWorking } = useAuth()
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -68,12 +68,12 @@ export default function Header({ onOpenSettings, onOpenWork }) {
         </nav>
 
         <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {!isAdmin && onOpenWork && (
+          {!isAdmin && (
             <button
-              onClick={onOpenWork}
+              onClick={toggleWorkingMode}
               className="btn btn-sm"
               style={{
-                background: 'var(--primary)',
+                background: isWorking ? 'var(--secondary)' : 'var(--primary)',
                 padding: '8px 16px',
                 display: 'flex',
                 alignItems: 'center',
@@ -81,7 +81,7 @@ export default function Header({ onOpenSettings, onOpenWork }) {
                 fontWeight: 700
               }}
             >
-              <Phone size={14} /> Werk
+              <Phone size={14} /> {isWorking ? 'Stoppen' : 'Werk'}
             </button>
           )}
 

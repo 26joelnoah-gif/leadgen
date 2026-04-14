@@ -102,8 +102,10 @@ export default function Chat() {
   async function sendMessage() {
     if (!input.trim() || !user) return
 
+    const safeText = input.trim().replace(/</g, "&lt;").replace(/>/g, "&gt;")
+
     const messageData = {
-      text: input.trim(),
+      text: safeText,
       user_id: user.id,
       user_name: profile?.full_name || user?.email,
       is_admin: isAdmin,

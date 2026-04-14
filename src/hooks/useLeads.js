@@ -315,6 +315,7 @@ export function useLeads() {
       }
     }
     else if (dispositionType === 'later_bellen') {
+      await updateLeadStatus(leadId, 'later_bellen')
       await logActivity(leadId, 'note', 'Uitgesteld: later bellen')
       // Note: array shifting handled in UI
     }
