@@ -3,14 +3,14 @@ export const CAMPAIGN_TYPES = {
     id: 'linkedin',
     name: 'LinkedIn',
     icon: '🔗',
-    color: '#0A66C2',
+    color: 'var(--primary)',
     description: 'LinkedIn berichten en connecties'
   },
   cold_call: {
     id: 'cold_call',
     name: 'Koude Belletjes',
     icon: '📞',
-    color: '#10B981',
+    color: 'var(--success)',
     description: 'Koude belletjes outbound',
     hasBudget: true
   },
@@ -18,14 +18,14 @@ export const CAMPAIGN_TYPES = {
     id: 'data_enrichment',
     name: 'Data Verrijken',
     icon: '📊',
-    color: '#F59E0B',
+    color: 'var(--warning)',
     description: 'Data verrijken en updaten'
   }
 }
 
 export const CAMPAIGN_STATUS = {
-  draft: { label: 'Draft', color: '#6B7280', bg: '#F3F4F6' },
-  active: { label: 'Actief', color: '#10B981', bg: '#D1FAE5' },
-  paused: { label: 'Gepauzeerd', color: '#F59E0B', bg: '#FEF3C7' },
-  completed: { label: 'Afgerond', color: '#6B7280', bg: '#E5E7EB' }
+  draft: { label: 'Draft', color: 'var(--text-muted)', bg: 'var(--bg-elevated)' },
+  active: { label: 'Actief', color: 'var(--success)', bg: 'var(--success-bg)' },
+  paused: { label: 'Gepauzeerd', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  completed: { label: 'Afgerond', color: 'var(--text-muted)', bg: 'var(--bg-elevated)' }
 }

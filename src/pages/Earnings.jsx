@@ -33,16 +33,17 @@ export default function Earnings() {
   }
 
   return (
-    <div className="earnings-page" style={{ minHeight: '100vh', background: 'var(--bg-light)' }}>
+    <div className="earnings-page" style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
       <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)' }}>
         <div className="container header-content">
           <Logo size="medium" />
           <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
             <Link to="/">Dashboard</Link>
-            {profile?.role !== 'admin' && <Link to="/focus">Focus Mode</Link>}
             <Link to="/tba">TBA's</Link>
             <Link to="/earnings" className="active">Verdiensten</Link>
+            {profile?.role === 'admin' && <Link to="/admin/telemetry">Telemetrie</Link>}
             {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
+            {profile?.role === 'admin' && <Link to="/admin/reports">Rapportage</Link>}
           </nav>
           <MobileNav profile={profile} />
           <div className="header-actions">
@@ -88,12 +89,12 @@ export default function Earnings() {
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
-            <div style={{ background: 'rgba(15, 76, 54, 0.05)', padding: '20px', borderRadius: '12px' }}>
+            <div style={{ background: 'var(--bg-elevated)', padding: '20px', borderRadius: '12px' }}>
               <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--success)' }}>{deals.length}</div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>DEALS</div>
               <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', marginTop: '4px' }}>€{dealAmount}</div>
             </div>
-            <div style={{ background: 'rgba(15, 76, 54, 0.05)', padding: '20px', borderRadius: '12px' }}>
+            <div style={{ background: 'var(--bg-elevated)', padding: '20px', borderRadius: '12px' }}>
               <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--info)' }}>{appointments.length}</div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>AFSPRAKEN</div>
               <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', marginTop: '4px' }}>€{appointmentAmount}</div>

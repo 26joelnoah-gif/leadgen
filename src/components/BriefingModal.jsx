@@ -153,9 +153,9 @@ export default function BriefingModal({ isOpen, onClose, onSend, userName, users
 
 export function BriefingCard({ briefing }) {
   const priorityColors = {
-    low: { bg: '#E5E7EB', color: '#6B7280' },
-    normal: { bg: '#DBEAFE', color: '#2563EB' },
-    high: { bg: '#FEE2E2', color: '#DC2626' }
+    low: { bg: 'var(--bg-elevated)', color: 'var(--text-muted)' },
+    normal: { bg: 'var(--info-bg)', color: 'var(--info)' },
+    high: { bg: 'var(--danger-bg)', color: 'var(--danger)' }
   }
   const colors = priorityColors[briefing.priority] || priorityColors.normal
 

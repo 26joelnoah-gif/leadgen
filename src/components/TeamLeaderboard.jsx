@@ -104,18 +104,19 @@ export default function TeamLeaderboard() {
 
       <style>{`
         .team-leaderboard {
-          background: white;
+          background: var(--bg-card);
           border-radius: var(--radius-md);
           box-shadow: var(--shadow-md);
           padding: 16px;
           margin-top: 24px;
+          border: 1px solid var(--border);
         }
         .leaderboard-header {
           display: flex;
           align-items: center;
           gap: 8px;
           font-weight: 700;
-          color: var(--primary);
+          color: var(--text-main);
           margin-bottom: 12px;
           padding-bottom: 8px;
           border-bottom: 1px solid var(--border);
@@ -131,12 +132,12 @@ export default function TeamLeaderboard() {
           gap: 12px;
           padding: 10px 12px;
           border-radius: var(--radius-sm);
-          background: var(--bg-light);
+          background: var(--bg-elevated);
           transition: all 0.2s;
         }
         .leaderboard-item.current-user {
-          background: rgba(212, 175, 55, 0.1);
-          border: 1px solid var(--secondary);
+          background: rgba(59, 130, 246, 0.1);
+          border: 1px solid var(--primary);
         }
         .leaderboard-rank {
           font-size: 0.85rem;
@@ -166,7 +167,7 @@ export default function TeamLeaderboard() {
         .you-badge {
           font-size: 0.7rem;
           background: var(--secondary);
-          color: var(--primary-dark);
+          color: var(--bg-dark);
           padding: 2px 6px;
           border-radius: 4px;
           font-weight: 700;

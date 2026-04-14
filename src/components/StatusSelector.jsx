@@ -1,15 +1,17 @@
 import { STATUS_MAP } from '../utils/statusUtils';
 
 export default function StatusSelector({ currentStatus, onStatusChange, loading = false }) {
+  const statusStyle = STATUS_MAP[currentStatus] || { bg: 'var(--bg-elevated)', color: 'var(--text-main)' };
+
   return (
-    <select 
+    <select
       className="status-select"
       value={currentStatus}
       onChange={(e) => onStatusChange(e.target.value)}
       disabled={loading}
       style={{
-        background: STATUS_MAP[currentStatus]?.bg || '#fff',
-        color: STATUS_MAP[currentStatus]?.color || '#000',
+        background: statusStyle.bg,
+        color: statusStyle.color,
         fontWeight: '700',
         border: 'none',
         borderRadius: 'var(--radius-sm)',
@@ -22,7 +24,7 @@ export default function StatusSelector({ currentStatus, onStatusChange, loading 
       }}
     >
       {Object.entries(STATUS_MAP).map(([key, details]) => (
-        <option key={key} value={key} style={{ background: '#fff', color: '#000', fontWeight: 'normal' }}>
+        <option key={key} value={key} style={{ background: 'var(--bg-card)', color: 'var(--text-main)', fontWeight: 'normal' }}>
           {details.label}
         </option>
       ))}

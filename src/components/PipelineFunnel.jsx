@@ -6,11 +6,11 @@ export default function PipelineFunnel({ leads = [], isDemoMode = false }) {
   const funnelLeads = isDemoMode ? DEMO_LEADS : leads
 
   const statuses = [
-    { key: 'new', label: 'Nieuwe Leads', color: '#3B82F6' },
-    { key: 'contacted', label: 'In Contact', keys: ['mailen', 'voicemail', 'later_bellen', 'geen_gehoor'], color: '#F59E0B' },
-    { key: 'terugbelafspraak', label: 'Terugbelafspraak', color: '#10B981' },
-    { key: 'afspraak_gemaakt', label: 'Afspraak Gemaakt', color: '#D4AF37' },
-    { key: 'deal', label: 'Deals Gesloten', color: '#0F4C36' }
+    { key: 'new', label: 'Nieuwe Leads', color: 'var(--primary)' },
+    { key: 'contacted', label: 'In Contact', keys: ['mailen', 'voicemail', 'later_bellen', 'geen_gehoor'], color: 'var(--warning)' },
+    { key: 'terugbelafspraak', label: 'Terugbelafspraak', color: 'var(--success)' },
+    { key: 'afspraak_gemaakt', label: 'Afspraak Gemaakt', color: 'var(--secondary)' },
+    { key: 'deal', label: 'Deals Gesloten', color: 'var(--success)' }
   ]
 
   const getCount = (statusObj) => {

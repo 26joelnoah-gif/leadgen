@@ -180,7 +180,7 @@ export function useLeads() {
 
   useEffect(() => {
     fetchLeads()
-  }, [isDemoMode, profile?.role])
+  }, [isDemoMode, profile?.role, user?.id])
 
   return {
     leads,

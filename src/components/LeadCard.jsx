@@ -23,7 +23,7 @@ export default function LeadCard({ lead, onStatusChange, loading = false, callEn
           position: 'absolute',
           top: -8,
           right: 16,
-          background: 'linear-gradient(135deg, #EF4444 0%, #F97316 100%)',
+          background: 'var(--primary-gradient)',
           color: 'white',
           padding: '4px 12px',
           borderRadius: 'var(--radius-full)',
@@ -41,7 +41,7 @@ export default function LeadCard({ lead, onStatusChange, loading = false, callEn
           position: 'absolute',
           top: -8,
           right: 16,
-          background: 'linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%)',
+          background: 'linear-gradient(135deg, var(--warning) 0%, var(--secondary-light) 100%)',
           color: 'white',
           padding: '4px 12px',
           borderRadius: 'var(--radius-full)',
@@ -124,12 +124,12 @@ export default function LeadCard({ lead, onStatusChange, loading = false, callEn
       </div>
 
       {/* Contact attempts and last called */}
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '12px', padding: '10px', background: contactAttempts > 0 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(59, 130, 246, 0.1)', borderRadius: '8px' }}>
+      <div style={{ display: 'flex', gap: '16px', marginBottom: '12px', padding: '10px', background: contactAttempts > 0 ? 'var(--warning-bg)' : 'var(--info-bg)', borderRadius: '8px' }}>
         <div className="flex items-center gap-2" style={{ fontSize: '0.85rem' }}>
-          <PhoneCall size={14} style={{ color: contactAttempts > 2 ? '#EF4444' : '#6B7280' }} />
+          <PhoneCall size={14} style={{ color: contactAttempts > 2 ? 'var(--danger)' : 'var(--text-muted)' }} />
           <span className="text-muted">Gebeld:</span>
           <span style={{ fontWeight: 700 }}>{contactAttempts}x</span>
-          {contactAttempts >= 3 && <span style={{ fontSize: '0.7rem', color: '#EF4444', fontWeight: 600 }}>(koud)</span>}
+          {contactAttempts >= 3 && <span style={{ fontSize: '0.7rem', color: 'var(--danger)', fontWeight: 600 }}>(koud)</span>}
         </div>
         {lastCalled && (
           <div className="flex items-center gap-2" style={{ fontSize: '0.85rem' }}>
@@ -141,7 +141,7 @@ export default function LeadCard({ lead, onStatusChange, loading = false, callEn
       </div>
 
       {lead.notes && (
-        <div style={{ padding: '12px', background: 'var(--bg-light)', borderRadius: 'var(--radius-sm)', fontSize: '0.9rem', borderLeft: '4px solid var(--secondary)' }}>
+        <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', fontSize: '0.9rem', borderLeft: '4px solid var(--secondary)' }}>
           <strong>Laatste notitie:</strong> {lead.notes}
         </div>
       )}

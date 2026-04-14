@@ -13,22 +13,34 @@ export default function Chat() {
   const [currentChannel, setCurrentChannel] = useState('general')
   const [showChannelModal, setShowChannelModal] = useState(false)
   const [newChannelName, setNewChannelName] = useState('')
+  const [isInitialized, setIsInitialized] = useState(false)
   const messagesEndRef = useRef(null)
 
   const isAdmin = profile?.role === 'admin'
 
+  // Initialize on mount
   useEffect(() => {
-    fetchChannels()
-    fetchMessages()
-  }, [currentChannel])
+    setIsInitialized(true)
+  }, [])
 
   useEffect(() => {
+    if (!isInitialized) return
+    fetchChannels()
+    fetchMessages()
+  }, [currentChannel, isInitialized])
+
+  useEffect(() => {
+    if (!isInitialized) return
     // Real-time subscription
     const channel = supabase
-      .channel('public:messages')
+      .channel('chat-messages-' + currentChannel)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
-        if (payload.new.channel_id === currentChannel || (currentChannel === 'general' && !payload.new.channel_id)) {
-          setMessages(prev => [...prev, payload.new])
+        const msg = payload.new
+        const matchesChannel = currentChannel === 'general'
+          ? !msg.channel_id || msg.channel_id === null
+          : msg.channel_id === currentChannel
+        if (matchesChannel) {
+          setMessages(prev => [...prev, msg])
         }
       })
       .subscribe()
@@ -36,7 +48,7 @@ export default function Chat() {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [currentChannel])
+  }, [currentChannel, isInitialized])
 
   async function fetchChannels() {
     if (isAdmin) {

@@ -105,6 +105,7 @@ export default function Admin() {
         email: lead.email || null,
         notes: lead.notes || '',
         status: 'new',
+        assigned_to: user.id,
         created_by: user.id
       })
     }
@@ -162,7 +163,6 @@ export default function Admin() {
         show_deals_in_earnings: true
       }
       setUsers([newUser, ...users])
-      alert(`Medewerker ${employee.name} is toegevoegd!`)
       return
     }
 
@@ -175,7 +175,7 @@ export default function Admin() {
     })
 
     if (authError) {
-      if (authError.message.includes('not allowed') || authError.message.includes('unauthorized')) {
+      if (authError.message.includes('not allowed') || authError.message.includes('unauthorized') || authError.message.includes('admin')) {
         alert('Je hebt geen rechten om medewerkers aan te maken. Dit vereist admin-toegang in Supabase.')
       } else {
         alert(`Fout bij aanmaken: ${authError.message}`)
@@ -183,16 +183,24 @@ export default function Admin() {
       return
     }
 
-    // Then update the profile with additional fields
+    // Then update the profile with additional fields (use upsert in case profile doesn't exist)
     if (authData?.user) {
-      await supabase.from('profiles').update({
+      const { error: profileError } = await supabase.from('profiles').upsert({
+        id: authData.user.id,
+        email: employee.email,
+        full_name: employee.name,
         role: employee.role,
         show_appointments_in_earnings: true,
         show_deals_in_earnings: true
-      }).eq('id', authData.user.id)
+      })
+
+      if (profileError) {
+        alert(`Let op: Auth gebruiker aangemaakt maar profiel kon niet worden opgeslagen. Fout: ${profileError.message}`)
+        fetchData() // Still refresh to show the partial state
+        return
+      }
     }
 
-    alert(`Medewerker ${employee.name} is toegevoegd!`)
     fetchData()
   }
 
@@ -281,9 +289,12 @@ export default function Admin() {
           <Logo size="medium" />
           <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
             <Link to="/">Dashboard</Link>
+            <Link to="/tba">TBA's</Link>
+            <Link to="/earnings">Verdiensten</Link>
             <Link to="/admin/telemetry">Telemetrie</Link>
             <Link to="/admin" className="active">Admin</Link>
             <Link to="/admin/reports">Rapportage</Link>
+            <Link to="/admin/payouts">Payouts</Link>
           </nav>
           <div className="header-actions">
             <div className="flex items-center gap-2 mr-3" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '20px' }}>
@@ -384,9 +395,9 @@ export default function Admin() {
                       </select>
                     </div>
                   </div>
-                  <div className="form-group flex justify-between items-center" style={{ background: 'rgba(15, 76, 54, 0.05)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                  <div className="form-group flex justify-between items-center" style={{ background: 'var(--bg-elevated)', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)' }}>
                     <label style={{ margin: 0, cursor: 'pointer' }} className="flex items-center gap-2">
-                       <Shield size={14} /> Beslisser? 
+                       <Shield size={14} /> Beslisser?
                     </label>
                     <input type="checkbox" checked={newLead.decision_maker} onChange={e => setNewLead({...newLead, decision_maker: e.target.checked})} style={{ width: '20px', height: '20px', cursor: 'pointer' }} />
                   </div>
@@ -473,7 +484,7 @@ export default function Admin() {
                   <button className="modal-close" onClick={() => setEditingUser(null)}><X size={18} /></button>
                 </div>
                 <div className="flex flex-column gap-3 mt-3">
-                   <div className="flex justify-between items-center p-3 glass-panel">
+                   <div className="flex justify-between items-center p-3 glass-panel" style={{ background: 'var(--bg-elevated)' }}>
                       <div>
                         <strong>Toon afspraken in verdiensten</strong>
                         <p className="text-muted" style={{ fontSize: '0.8rem' }}>Mag deze medewerker zijn afspraken zien?</p>
@@ -484,7 +495,7 @@ export default function Admin() {
                         updateUserSettings(newUser.id, { show_appointments_in_earnings: e.target.checked });
                       }} style={{ width: '20px', height: '20px' }} />
                    </div>
-                   <div className="flex justify-between items-center p-3 glass-panel">
+                   <div className="flex justify-between items-center p-3 glass-panel" style={{ background: 'var(--bg-elevated)' }}>
                       <div>
                         <strong>Toon deals in verdiensten</strong>
                         <p className="text-muted" style={{ fontSize: '0.8rem' }}>Mag deze medewerker zijn deals zien?</p>
@@ -599,7 +610,7 @@ export default function Admin() {
                 <thead><tr><th style={{ width: '40px' }}><input type="checkbox" checked={selectedLeads.length === leads.length && leads.length > 0} onChange={selectAllLeads} /></th><th>Details</th><th>Contact</th><th>Status</th><th>Toegewezen aan</th></tr></thead>
                 <tbody>
                   {leads.map(lead => (
-                    <tr key={lead.id} style={{ background: selectedLeads.includes(lead.id) ? 'rgba(212, 175, 55, 0.1)' : 'transparent' }}>
+                    <tr key={lead.id} style={{ background: selectedLeads.includes(lead.id) ? 'rgba(245, 158, 11, 0.1)' : 'transparent' }}>
                       <td><input type="checkbox" checked={selectedLeads.includes(lead.id)} onChange={() => toggleLeadSelection(lead.id)} /></td>
                       <td><strong>{lead.name}</strong></td>
                       <td><div className="flex items-center gap-1">{callEnabled && <Phone size={14} className="text-success" />}{lead.phone}</div></td>

@@ -175,6 +175,8 @@ export default function Reports() {
           <Logo size="medium" />
           <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
             <Link to="/">Dashboard</Link>
+            <Link to="/tba">TBA's</Link>
+            <Link to="/earnings">Verdiensten</Link>
             <Link to="/admin/telemetry">Telemetrie</Link>
             {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
             {profile?.role === 'admin' && <Link to="/admin/reports" className="active">Rapportage</Link>}

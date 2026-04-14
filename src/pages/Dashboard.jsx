@@ -16,7 +16,7 @@ import Chat from '../components/Chat'
 
 export default function Dashboard() {
   const { user, profile, signOut, callEnabled, toggleCallEnabled, isDemoMode, sessionCallCount } = useAuth()
-  const { leads, loading, refreshLeads, updateLeadStatus, createLead } = useLeads()
+  const { leads, loading, fetchLeads, updateLeadStatus, createLead } = useLeads()
   const [filter, setFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [showNewLeadModal, setShowNewLeadModal] = useState(false)
@@ -91,9 +91,9 @@ export default function Dashboard() {
           <Logo size="medium" />
           <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
             <Link to="/" className="active">Dashboard</Link>
-            {profile?.role !== 'admin' && <Link to="/focus">Focus Mode</Link>}
+            <Link to="/tba">TBA's</Link>
             <Link to="/earnings">Verdiensten</Link>
-            <Link to="/admin/telemetry">Telemetrie</Link>
+            {profile?.role === 'admin' && <Link to="/admin/telemetry">Telemetrie</Link>}
             {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
             {profile?.role === 'admin' && <Link to="/admin/reports">Rapportage</Link>}
           </nav>
@@ -143,7 +143,7 @@ export default function Dashboard() {
             <button className="btn btn-secondary btn-sm" onClick={() => setShowNewLeadModal(true)}>
               <Plus size={16} /> Nieuwe Lead
             </button>
-            <button className="btn btn-outline btn-sm" onClick={refreshLeads}>
+            <button className="btn btn-outline btn-sm" onClick={fetchLeads}>
               <RefreshCw size={16} /> Vernieuwen
             </button>
           </div>
@@ -182,10 +182,10 @@ export default function Dashboard() {
         {/* Quick Stats */}
         <div className="stats-grid mb-4" style={{ marginTop: '24px' }}>
           {[
-            { label: 'Nieuwe Leads', val: leads.filter(l => l.status === 'new').length, icon: '📬', color: '#3B82F6' },
-            { label: 'Hot Leads', val: leads.filter(l => ['new', 'terugbelafspraak', 'later_bellen'].includes(l.status)).length, icon: '🔥', color: '#EF4444', pulse: true },
-            { label: 'Afspraken', val: leads.filter(l => l.status === 'afspraak_gemaakt').length, icon: '📅', color: '#10B981' },
-            { label: 'Deals', val: leads.filter(l => l.status === 'deal').length, icon: '🏆', color: '#D4AF37' }
+            { label: 'Nieuwe Leads', val: leads.filter(l => l.status === 'new').length, icon: '📬', color: 'var(--primary)' },
+            { label: 'Hot Leads', val: leads.filter(l => ['new', 'terugbelafspraak', 'later_bellen'].includes(l.status)).length, icon: '🔥', color: 'var(--danger)', pulse: true },
+            { label: 'Afspraken', val: leads.filter(l => l.status === 'afspraak_gemaakt').length, icon: '📅', color: 'var(--success)' },
+            { label: 'Deals', val: leads.filter(l => l.status === 'deal').length, icon: '🏆', color: 'var(--secondary)' }
           ].map((stat, i) => (
             <motion.div
               key={stat.label}
@@ -338,7 +338,7 @@ export default function Dashboard() {
                     {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
                   </select>
                 </div>
-                <div className="form-group flex justify-between items-center mb-3" style={{ background: 'rgba(15, 76, 54, 0.05)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                <div className="form-group flex justify-between items-center mb-3" style={{ background: 'var(--bg-elevated)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border)' }}>
                   <label style={{ margin: 0, cursor: 'pointer' }} className="flex items-center gap-2">
                      <Zap size={14} fill="currentColor" className="text-secondary" /> Beslisser?
                   </label>

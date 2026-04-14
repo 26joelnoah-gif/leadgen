@@ -3,7 +3,7 @@ import {
   Cell, LineChart, Line, Legend, PieChart, Pie
 } from 'recharts';
 
-const COLORS = ['#0F4C36', '#D4AF37', '#166A4B', '#093322', '#E5C158', '#2E7D32', '#D32F2F', '#0288D1', '#F57C00', '#7B1FA2'];
+const COLORS = ['var(--primary)', 'var(--secondary)', 'var(--success)', 'var(--info)', 'var(--warning)', 'var(--danger)', 'var(--primary-light)', 'var(--secondary-light)'];
 
 export default function StatsChart({ type = 'bar', data = [], dataKey = 'value', nameKey = 'name', title }) {
   if (!data || data.length === 0) {
@@ -54,8 +54,8 @@ export default function StatsChart({ type = 'bar', data = [], dataKey = 'value',
             <XAxis dataKey={nameKey} axisLine={false} tickLine={false} fontSize={12} tick={{ fill: 'var(--text-muted)' }} />
             <YAxis axisLine={false} tickLine={false} fontSize={12} tick={{ fill: 'var(--text-muted)' }} />
             <Tooltip
-              cursor={{ fill: 'rgba(15, 76, 54, 0.05)' }}
-              contentStyle={{ background: 'var(--bg-white)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }}
+              cursor={{ fill: 'var(--primary-bg, rgba(59, 130, 246, 0.05))' }}
+              contentStyle={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }}
               formatter={(value, name) => [value, title.toLowerCase().includes('status') ? 'Afspraken' : 'Leads']}
             />
             <Bar dataKey={dataKey} radius={[4, 4, 0, 0]}>

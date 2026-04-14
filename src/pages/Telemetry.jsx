@@ -47,9 +47,8 @@ export default function Telemetry() {
         ])
         setTotalTeamCalls(105)
       } else {
-        const [statsRes, hourlyRes, dailyRes, activityRes] = await Promise.all([
+        const [statsRes, allCallsRes, activityRes] = await Promise.all([
            supabase.from('activities').select('user_id, profiles(full_name)').eq('action', 'call'),
-           supabase.from('activities').select('created_at').eq('action', 'call'),
            supabase.from('activities').select('created_at').eq('action', 'call'),
            supabase.from('activities').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(20)
         ])
@@ -65,15 +64,33 @@ export default function Telemetry() {
            setTotalTeamCalls(statsRes.data.length)
         }
 
-        // Process Hourly (Dummy for now, in real it would group by date_part)
-        setHourlyData([
-          { hour: '09:00', calls: 4 }, { hour: '10:00', calls: 10 }, { hour: '11:00', calls: 15 },
-          { hour: '12:00', calls: 7 }, { hour: '13:00', calls: 12 }, { hour: '14:00', calls: 20 }
-        ])
-        
-        setDailyData([
-          { day: 'Ma', calls: 45 }, { day: 'Di', calls: 52 }, { day: 'Wo', calls: 68 }
-        ])
+        // Process Hourly from today
+        const now = new Date()
+        const today = now.toISOString().split('T')[0]
+        const hourlyCounts = {}
+        const dayNames = ['Zo', 'Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za']
+        const dailyCounts = {}
+
+        allCallsRes.data?.forEach(call => {
+          if (call.created_at) {
+            const callDate = new Date(call.created_at)
+            const hour = callDate.getHours().toString().padStart(2, '0') + ':00'
+            const dayName = dayNames[callDate.getDay()]
+
+            if (callDate.toISOString().startsWith(today)) {
+              hourlyCounts[hour] = (hourlyCounts[hour] || 0) + 1
+            }
+            dailyCounts[dayName] = (dailyCounts[dayName] || 0) + 1
+          }
+        })
+
+        // Fill in missing hours with 0
+        const hours = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00', '17:00']
+        setHourlyData(hours.map(h => ({ hour: h, calls: hourlyCounts[h] || 0 })))
+
+        // Fill in missing days with 0
+        const days = ['Ma', 'Di', 'Wo', 'Do', 'Vr']
+        setDailyData(days.map(d => ({ day: d, calls: dailyCounts[d] || 0 })))
 
         setActivities(activityRes.data?.map(a => ({ ...a, user_name: a.profiles?.full_name })) || [])
       }
@@ -89,10 +106,13 @@ export default function Telemetry() {
       <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)' }}>
         <div className="container header-content">
           <Logo size="medium" />
-          <nav className="nav">
+          <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
             <Link to="/">Dashboard</Link>
+            <Link to="/tba">TBA's</Link>
+            <Link to="/earnings">Verdiensten</Link>
             <Link to="/admin/telemetry" className="active">Telemetrie</Link>
             {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
+            {profile?.role === 'admin' && <Link to="/admin/reports">Rapportage</Link>}
           </nav>
           <div className="header-actions">
              <div className="session-pill">
@@ -151,7 +171,7 @@ export default function Telemetry() {
                              <stop offset="95%" stopColor="var(--secondary)" stopOpacity={0}/>
                           </linearGradient>
                        </defs>
-                       <XAxis dataKey="hour" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                       <XAxis dataKey="hour" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
                        <Tooltip contentStyle={{ background: 'var(--primary-dark)', border: 'none', borderRadius: '8px', color: '#fff' }} />
                        <Area type="monotone" dataKey="calls" stroke="var(--secondary)" strokeWidth={3} fillOpacity={1} fill="url(#colorCalls)" />
                     </AreaChart>
@@ -164,7 +184,7 @@ export default function Telemetry() {
               <div style={{ height: '250px', marginTop: '20px' }}>
                  <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={dailyData}>
-                       <XAxis dataKey="day" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                       <XAxis dataKey="day" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
                        <Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{ background: 'var(--primary-dark)', border: 'none', borderRadius: '8px', color: '#fff' }} />
                        <Bar dataKey="calls" radius={[4, 4, 0, 0]}>
                           {dailyData.map((entry, index) => (

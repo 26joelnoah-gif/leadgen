@@ -20,11 +20,11 @@ export default function TBAs() {
 
   const now = new Date()
   const upcomingTBAs = tbaLeads.filter(l => {
-    const tbaTime = new Date(l.next_callback || l.updated_at)
-    return tbaTime >= now || !l.next_callback
+    const tbaTime = new Date(l.next_contact_date || l.updated_at)
+    return tbaTime >= now || !l.next_contact_date
   })
   const pastTBAs = tbaLeads.filter(l => {
-    const tbaTime = new Date(l.next_callback || l.updated_at)
+    const tbaTime = new Date(l.next_contact_date || l.updated_at)
     return tbaTime < now
   })
 
@@ -66,10 +66,11 @@ export default function TBAs() {
           <Logo size="medium" />
           <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
             <Link to="/">Dashboard</Link>
-            <Link to="/focus">Focus Mode</Link>
             <Link to="/tba" className="active">TBA's</Link>
             <Link to="/earnings">Verdiensten</Link>
+            {profile?.role === 'admin' && <Link to="/admin/telemetry">Telemetrie</Link>}
             {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
+            {profile?.role === 'admin' && <Link to="/admin/reports">Rapportage</Link>}
           </nav>
           <MobileNav profile={profile} />
           <div className="header-actions">
@@ -150,7 +151,7 @@ export default function TBAs() {
                 >
                   <div className="tba-time-badge">
                     <Clock size={14} />
-                    {lead.next_callback ? formatDateTime(lead.next_callback) : 'Zodra mogelijk'}
+                    {lead.next_contact_date ? formatDateTime(lead.next_contact_date) : 'Zodra mogelijk'}
                   </div>
                   <div className="tba-info">
                     <h3>{lead.name}</h3>

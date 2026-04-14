@@ -59,7 +59,7 @@ export default function CampaignModal({ isOpen, onClose, onStartCampaign }) {
                   padding: '16px',
                   border: selectedType === type.id ? `2px solid ${type.color}` : '2px solid var(--border)',
                   borderRadius: 'var(--radius-md)',
-                  background: selectedType === type.id ? `${type.color}10` : 'white',
+                  background: selectedType === type.id ? 'var(--primary-bg, rgba(59, 130, 246, 0.1))' : 'var(--bg-elevated)',
                   cursor: 'pointer',
                   textAlign: 'left',
                   transition: 'all 0.2s'
@@ -88,11 +88,11 @@ export default function CampaignModal({ isOpen, onClose, onStartCampaign }) {
         </div>
 
         {selectedType && CAMPAIGN_TYPES[selectedType]?.hasBudget && (
-          <div style={{ marginTop: '16px', padding: '12px', background: 'rgba(245, 158, 11, 0.1)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--text-main)', border: '1px solid var(--warning)' }}>
+          <div style={{ marginTop: '16px', padding: '12px', background: 'var(--warning-bg)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--text-main)', border: '1px solid var(--warning)' }}>
             <strong>Budget:</strong> Bij dit campagnetype kan budget worden gebruikt.
           </div>
         )}
-        <div style={{ marginTop: '12px', padding: '12px', background: 'var(--bg-light)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+        <div style={{ marginTop: '12px', padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
           <strong>Let op:</strong> Campagnes worden gekoppeld aan Apify voor geautomatiseerde lead extractie.
         </div>
       </motion.div>

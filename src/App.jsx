@@ -2,12 +2,12 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
-import FocusMode from './pages/FocusMode'
 import TBAs from './pages/TBAs'
 import Earnings from './pages/Earnings'
 import Admin from './pages/Admin'
 import Reports from './pages/Reports'
 import Telemetry from './pages/Telemetry'
+import Payouts from './pages/Payouts'
 
 function ProtectedRoute({ children, requireAdmin = false }) {
   const { user, profile, loading } = useAuth()
@@ -43,14 +43,6 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/focus"
-        element={
-          <ProtectedRoute>
-            <FocusMode />
-          </ProtectedRoute>
-        }
-      />
-      <Route
         path="/tba"
         element={
           <ProtectedRoute>
@@ -79,6 +71,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute requireAdmin>
             <Reports />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/payouts"
+        element={
+          <ProtectedRoute requireAdmin>
+            <Payouts />
           </ProtectedRoute>
         }
       />

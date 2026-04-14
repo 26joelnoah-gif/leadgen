@@ -8,12 +8,13 @@ export default function MobileNav({ profile }) {
 
   const links = [
     { to: '/', label: 'Dashboard' },
-    ...(profile?.role !== 'admin' ? [{ to: '/focus', label: 'Focus Mode' }] : []),
     { to: '/tba', label: 'TBA\'s' },
     { to: '/earnings', label: 'Verdiensten' },
     ...(profile?.role === 'admin' ? [
+      { to: '/admin/telemetry', label: 'Telemetrie' },
       { to: '/admin', label: 'Admin' },
-      { to: '/admin/reports', label: 'Rapportage' }
+      { to: '/admin/reports', label: 'Rapportage' },
+      { to: '/admin/payouts', label: 'Payouts' }
     ] : [])
   ]
 
@@ -88,7 +89,7 @@ export default function MobileNav({ profile }) {
           transition: background 0.2s;
         }
         .mobile-nav-link:hover {
-          background: rgba(255,255,255,0.1);
+          background: var(--bg-elevated);
         }
       `}</style>
     </>

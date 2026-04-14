@@ -55,7 +55,7 @@ export default function ActivityFeed({ activities = [] }) {
               {activity.action} voor <strong>{activity.lead?.name || 'onbekende lead'}</strong>
             </p>
             {activity.notes && (
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', background: 'rgba(0,0,0,0.02)', padding: '4px 8px', borderRadius: '4px', marginTop: '4px' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', fontStyle: 'italic', background: 'var(--bg-elevated)', padding: '4px 8px', borderRadius: '4px', marginTop: '4px' }}>
                 "{activity.notes}"
               </p>
             )}

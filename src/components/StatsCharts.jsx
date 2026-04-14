@@ -1,7 +1,7 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { getStatusLabel } from '../utils/statusUtils'
 
-const COLORS = ['#1565C0', '#E65100', '#2E7D32', '#7B1FA2', '#00838F', '#546E7A', '#BF360C', '#C62828', '#1B5E20', '#1B5E20']
+const COLORS = ['var(--primary)', 'var(--warning)', 'var(--success)', 'var(--info)', 'var(--secondary)', 'var(--text-muted)', 'var(--danger)', 'var(--danger)', 'var(--success)', 'var(--success)']
 
 export function StatusBarChart({ data }) {
   const chartData = Object.entries(data).map(([status, count]) => ({
@@ -12,13 +12,13 @@ export function StatusBarChart({ data }) {
   return (
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-        <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-        <YAxis allowDecimals={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'var(--text-muted)' }} />
+        <YAxis allowDecimals={false} tick={{ fill: 'var(--text-muted)' }} />
         <Tooltip
-          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+          contentStyle={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }}
         />
-        <Bar dataKey="value" fill="#0F4C36" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="value" fill="var(--primary)" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   )
@@ -49,7 +49,7 @@ export function StatusPieChart({ data }) {
           ))}
         </Pie>
         <Tooltip
-          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+          contentStyle={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }}
         />
       </PieChart>
     </ResponsiveContainer>
@@ -65,13 +65,13 @@ export function UserBarChart({ data }) {
   return (
     <ResponsiveContainer width="100%" height={300}>
       <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-        <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
-        <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-        <YAxis allowDecimals={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+        <XAxis dataKey="name" tick={{ fontSize: 12, fill: 'var(--text-muted)' }} />
+        <YAxis allowDecimals={false} tick={{ fill: 'var(--text-muted)' }} />
         <Tooltip
-          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+          contentStyle={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }}
         />
-        <Bar dataKey="value" fill="#D4AF37" radius={[4, 4, 0, 0]} />
+        <Bar dataKey="value" fill="var(--secondary)" radius={[4, 4, 0, 0]} />
       </BarChart>
     </ResponsiveContainer>
   )
