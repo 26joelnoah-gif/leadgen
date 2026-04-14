@@ -23,6 +23,16 @@ export function useLeadLists() {
         .from('lead_lists')
         .select('*, created_by_profile:profiles!created_by(full_name), assigned_to_profile:profiles!assigned_to(full_name)')
         .order('created_at', { ascending: false })
+      
+      // Try fallback if join fails (due to naming)
+      if (error && error.code === 'PGRST100') {
+        const { data: fallbackData } = await supabase
+          .from('lead_lists')
+          .select('*, profiles:profiles(full_name)')
+          .order('created_at', { ascending: false })
+        setLeadLists(fallbackData || [])
+        return
+      }
 
       if (error) throw error
       // Agents only see lists assigned to them or created by them
@@ -93,7 +103,7 @@ export function useLeadLists() {
 
     const { data, error } = await supabase
       .from('lead_list_items')
-      .select('lead_id, leads(*, assigned_to_profile:profiles!assigned_to(full_name))')
+      .select('lead_id, leads(*)')
       .eq('lead_list_id', listId)
 
     if (error) throw error

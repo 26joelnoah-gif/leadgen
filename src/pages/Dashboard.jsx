@@ -112,8 +112,9 @@ export default function Dashboard() {
         <div className="container header-content">
           <Logo size="medium" />
           <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
-            <Link to="/" className="active">Dashboard</Link>
+            <Link to="/">Dashboard</Link>
             <Link to="/tba">TBA's</Link>
+            <Link to="/kanban">Kanban</Link>
             <Link to="/earnings">Verdiensten</Link>
             {profile?.role === 'admin' && <Link to="/admin/telemetry">Telemetrie</Link>}
             {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
