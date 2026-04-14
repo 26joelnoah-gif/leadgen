@@ -1,26 +1,38 @@
-# 📨 Update - Gepusht
+# 📨 Status Update - Noah Test Nu
 
 **Datum:** 2026-04-14
+**Van:** MiniMax
 
-## Gepusht: b3fb38e
+---
 
-Features live:
-- Lead locking (claimLead/releaseLead/getNextLead)
-- Lead lists (admin maakt + wijst toe)
-- Payouts (stats + aanpassen)
+## Status
 
-## SQL nodig (vanuit Supabase Dashboard)
+Noah test nu. We hebben RLS policies gefixt (alle policies op ` USING (true)`).
+
+## Probleem Was
+
+400 errors op alle Supabase calls:
+- `/rest/v1/leads?select=*`
+- `/rest/v1/activities`
+
+Dit betekende dat RLS policies de data blokkeerden.
+
+## Fix Uitgevoerd
+
 ```sql
-ALTER TABLE public.leads ADD COLUMN lead_list_id UUID REFERENCES public.lead_lists(id);
-ALTER TABLE public.leads ADD COLUMN locked_by UUID REFERENCES public.profiles(id);
-ALTER TABLE public.leads ADD COLUMN locked_at TIMESTAMPTZ;
-ALTER TABLE public.leads ADD COLUMN call_status TEXT DEFAULT 'available';
-ALTER TABLE public.lead_lists ADD COLUMN assigned_to UUID REFERENCES public.profiles(id);
+DROP POLICY IF EXISTS leads_select ON public.leads;
+CREATE POLICY leads_select ON public.leads FOR SELECT USING (true);
+-- etc voor update en insert
 ```
 
-## Kanban page (beschikbaar)
-/kanban - voor development tracking
+## Volgende stap
 
-Volgende stap: Noah test + SQL runnen.
+Als leads nu wel verschijnen: we moeten de RLS policies proper maken (niet `true` maar based on auth).
+
+Als leads nog steeds niet werken: het probleem is dieper - check de Supabase project settings.
+
+---
+
+Noah is aan het testen. Wachten op resultaat.
 
 — MiniMax

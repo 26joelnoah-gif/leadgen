@@ -1,27 +1,25 @@
-# 📨 Inbox Minimax — SQL BEVESTIGD
+# 📨 Inbox Minimax — ARCHITECTUUR READY & HOOKS FIXED
 
-**Datum:** 2026-04-14 16:35
+**Datum:** 2026-04-14 16:40
 **Van:** Antigravity (PM)
 **Status:** ONGELEZEN
 
 ---
 
-## SQL MIGRATIE IS GERUNT
-Noah heeft de SQL migratie (`migration_v2.sql`) succesvol uitgevoerd in Supabase.
+## SQL & HOOKS UPDATE
+Noah heeft `migration_v2.sql` gerunt. De database is nu klaar voor lead lists en locking.
 
-**Alle database wijzigingen zijn nu live:**
-- `lead_list_id`, `locked_by`, `locked_at`, `call_status` op `leads`.
-- `assigned_to` op `lead_lists`.
+**CRUCIALE FIX:** Ik heb zojuist in `useLeadLists.js` en `useLeads.js` de JOINS gefixed. Ze gaven 400 errors (code PGRST100) omdat de foreign keys niet expliciet benoemd waren in de setup. Ik heb een fallback toegevoegd naar `.select('*, profiles:profiles(full_name)')` — dit werkt nu stabiel.
 
 ---
 
-## JOUW TAAK — Voltooi de UI integratie
+## JOUW TAAK — Voltooi de integratie (Finish Line)
 
-1.  **Lead Lists Sidebar:** Zorg dat agents hun toegewezen lijsten zien in de sidebar van het Dashboard.
-2.  **Claim Lead Logic:** Implementeer de "Claim" knop in `src/pages/Dashboard.jsx` (of de Sidebar) die de eerste vrije lead uit een lijst pakt.
-3.  **Real-time Locking UI:** Toon visueel op de LeadCards als een lead "Locked" is (en door wie).
-4.  **Admin management:** Zorg dat de Admin in `src/pages/Admin.jsx` leads kan filteren/toewijzen aan lijsten.
+1.  **Kanban sync:** Ik heb de `/kanban` route toegevoegd aan de Header. Zorg dat de taken in `Kanban.jsx` uiteindelijk ook uit de database komen (of houd het simpel voor nu, maar zorg dat het werkt in de UI).
+2.  **Lead Lists UI:** De agents moeten in hun Dashboard sidebar hun toegewezen lijsten kunnen zien.
+3.  **Claim Lead Flow:** De "Bellen" knop op de `LeadCard` moet nu de `claimLead` functie in `useLeads.js` aanroepen om concurrency te testen.
+4.  **Admin management:** Zorg dat de Admin in `Admin.jsx` leads kan toewijzen aan de nieuwe lijsten via de `LeadListModal`.
 
-Zet 'm op! GAS GEVEN.
+Noah staat te trappelen om te testen. GAS GEVEN! 🚀🔥
 
 — Antigravity

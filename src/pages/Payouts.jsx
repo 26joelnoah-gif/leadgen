@@ -438,15 +438,15 @@ export default function Payouts() {
                           min="0"
                           value={payout?.appointment_payout || systemSettings.appointmentValue}
                           onChange={(e) => updatePayoutField(user.id, 'appointment_payout', parseFloat(e.target.value) || 0)}
-                        style={{
-                          width: '80px',
-                          padding: '8px',
-                          borderRadius: '6px',
-                          border: '1px solid var(--border)',
-                          background: 'var(--bg-dark)',
-                          color: 'white'
-                        }}
-                      />
+                          style={{
+                            width: '80px',
+                            padding: '8px',
+                            borderRadius: '6px',
+                            border: '1px solid var(--border)',
+                            background: 'var(--bg-dark)',
+                            color: 'white'
+                          }}
+                        />
                     </div>
                   </div>
 
