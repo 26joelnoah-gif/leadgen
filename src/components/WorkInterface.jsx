@@ -206,7 +206,19 @@ export default function WorkInterface() {
         {/* Top Header */}
         <header style={{ background: 'var(--primary-dark)', color: 'white', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div className="flex items-center gap-4">
-             <h2 style={{ margin: 0, fontSize: '1.2rem', display: 'flex', gap: '8px', alignItems: 'center' }}><Phone size={18}/> Acquisitiegemak Beller</h2>
+             <h2 style={{ margin: 0, fontSize: '1.4rem', display: 'flex', gap: '8px', alignItems: 'center' }}>
+               <Phone size={20} />
+               <span style={{ 
+                 background: 'linear-gradient(135deg, var(--secondary) 0%, #FFF 100%)',
+                 WebkitBackgroundClip: 'text',
+                 WebkitTextFillColor: 'transparent',
+                 fontWeight: 900,
+                 letterSpacing: '1px',
+                 fontStyle: 'italic'
+               }}>
+                 DOORTIKKEN
+               </span>
+             </h2>
              <span style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>Live Counter: {sessionCallCount}</span>
           </div>
           <button onClick={closeAll} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer' }}><X size={16} /> Sluiten</button>
@@ -358,20 +370,6 @@ export default function WorkInterface() {
             </div>
           </div>
 
-          {/* Sectie: Uploads */}
-          <div style={{ marginBottom: '24px' }}>
-             <h3 style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', padding: '8px 12px', margin: '0 0 16px 0', borderRadius: '4px', fontSize: '1rem', border: '1px solid var(--border)' }}>&gt; Uploads</h3>
-             <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', padding: '20px' }}>
-                <table style={{ width: '100%', textAlign: 'left', marginBottom: '20px' }}>
-                   <thead><tr style={{ borderBottom: '2px solid var(--border)' }}><th style={{ paddingBottom: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>BESTANDSNAAM</th><th style={{ paddingBottom: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>DATUM UPLOAD</th><th style={{ paddingBottom: '8px', fontSize: '0.8rem', color: 'var(--text-muted)' }}>ACTIES</th></tr></thead>
-                   <tbody><tr><td colSpan={3} style={{ paddingTop: '16px', fontSize: '0.9rem', color: 'var(--text-main)' }}>Er zijn nog geen uploads.</td></tr></tbody>
-                </table>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                   <input type="file" style={{ fontSize: '0.9rem' }} />
-                   <button style={{ background: 'var(--primary)', color: 'white', border: 'none', padding: '6px 16px', borderRadius: '4px' }}>Upload</button>
-                </div>
-             </div>
-          </div>
           </>
           )}
 
