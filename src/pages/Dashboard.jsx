@@ -13,6 +13,7 @@ import Logo from '../components/Logo'
 import TeamLeaderboard from '../components/TeamLeaderboard'
 import MobileNav from '../components/MobileNav'
 import Chat from '../components/Chat'
+import ActivityFeed from '../components/ActivityFeed'
 
 export default function Dashboard() {
   const { user, profile, signOut, callEnabled, toggleCallEnabled, isDemoMode, sessionCallCount } = useAuth()
@@ -249,6 +250,7 @@ export default function Dashboard() {
             </div>
             <div className="dashboard-sidebar">
               <TeamLeaderboard />
+              <ActivityFeed />
             </div>
           </div>
         )}

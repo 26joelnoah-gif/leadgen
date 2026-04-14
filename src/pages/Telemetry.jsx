@@ -50,7 +50,7 @@ export default function Telemetry() {
         const [statsRes, allCallsRes, activityRes] = await Promise.all([
            supabase.from('activities').select('user_id, profiles(full_name)').eq('action', 'call'),
            supabase.from('activities').select('created_at').eq('action', 'call'),
-           supabase.from('activities').select('*, profiles(full_name)').order('created_at', { ascending: false }).limit(20)
+           supabase.from('activities').select('*, profiles:profiles(full_name)').order('created_at', { ascending: false }).limit(20)
         ])
 
         // Process Stats
