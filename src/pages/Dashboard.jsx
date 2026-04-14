@@ -391,12 +391,12 @@ export default function Dashboard() {
                   </div>
                   <div className="form-group">
                     <label>Toewijzen aan</label>
-                  <select value={newLead.assigned_to} onChange={e => setNewLead({...newLead, assigned_to: e.target.value})} style={{ padding: '14px 16px', fontSize: '1rem' }}>
-                    <option value="">Niet toegewezen</option>
-                    {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group flex justify-between items-center mb-3" style={{ background: 'var(--bg-elevated)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border)' }}>
+                    <select value={newLead.assigned_to} onChange={e => setNewLead({...newLead, assigned_to: e.target.value})} style={{ padding: '14px 16px', fontSize: '1rem' }}>
+                      <option value="">Niet toegewezen</option>
+                      {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group flex justify-between items-center mb-3" style={{ background: 'var(--bg-elevated)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border)' }}>
                   <label style={{ margin: 0, cursor: 'pointer' }} className="flex items-center gap-2">
                      <Zap size={14} fill="currentColor" className="text-secondary" /> Beslisser?
                   </label>
