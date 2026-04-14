@@ -209,10 +209,10 @@ export default function Payouts() {
             <Link to="/">Dashboard</Link>
             <Link to="/tba">TBA's</Link>
             <Link to="/earnings">Verdiensten</Link>
-            <Link to="/admin/telemetry">Telemetrie</Link>
-            <Link to="/admin">Admin</Link>
-            <Link to="/admin/reports">Rapportage</Link>
-            <Link to="/admin/payouts" className="active">Payouts</Link>
+            {profile?.role === 'admin' && <Link to="/admin/telemetry">Telemetrie</Link>}
+            {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
+            {profile?.role === 'admin' && <Link to="/admin/reports">Rapportage</Link>}
+            {profile?.role === 'admin' && <Link to="/admin/payouts" className="active">Payouts</Link>}
           </nav>
           <div className="header-actions">
             <div className="flex items-center gap-2 mr-3" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '20px' }}>
