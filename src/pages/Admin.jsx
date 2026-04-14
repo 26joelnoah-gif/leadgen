@@ -15,7 +15,7 @@ import Logo from '../components/Logo'
 import MobileNav from '../components/MobileNav'
 import CampaignModal, { CampaignCard } from '../components/CampaignModal'
 import BriefingModal, { BriefingCard } from '../components/BriefingModal'
-import LeadListModal from '../components/LeadListModal'
+import { LeadListModal } from '../components/LeadListModal'
 import PipelineFunnel from '../components/PipelineFunnel'
 import EmployeeModal from '../components/EmployeeModal'
 
