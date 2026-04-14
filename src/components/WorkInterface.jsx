@@ -225,7 +225,7 @@ export default function WorkInterface() {
         </header>
         
         {/* Sub Header */}
-        <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: '20px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: isMobile ? '16px 20px' : '20px 40px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '12px' : '0', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center' }}>
           <div>
              <h1 style={{ margin: '0 0 8px 0', fontSize: '1.4rem', color: 'white' }}>{currentLead.name}</h1>
              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -241,34 +241,10 @@ export default function WorkInterface() {
         <main style={{ flex: 1, padding: isMobile ? '16px' : '24px 40px', overflowY: 'auto' }}>
           
           {isMobile ? (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', alignItems: 'center', justifyContent: 'center', padding: '10px 0' }}>
-              <div style={{ textAlign: 'center' }}>
-                <h2 style={{ fontSize: '1rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Nu bellen met:</h2>
-                <h1 style={{ fontSize: '2rem', color: 'white', margin: '0' }}>{currentLead.name}</h1>
-                <p style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '1.2rem', marginTop: '4px' }}>{currentLead.phone}</p>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '4px' }}>
-                  {currentLead.city || 'Geen plaats'}
-                </div>
-              </div>
-
-              <a 
-                href={`tel:${currentLead.phone}`}
-                onClick={() => logCall(currentLead.id, currentLead.name)}
-                style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px',
-                  background: 'var(--success)', color: 'white', padding: '24px', 
-                  borderRadius: '50px', fontSize: '1.4rem', fontWeight: 800, textDecoration: 'none',
-                  boxShadow: '0 8px 32px rgba(16, 185, 129, 0.4)',
-                  width: '100%', maxWidth: '320px',
-                  border: '2px solid rgba(255,255,255,0.2)'
-                }}
-              >
-                <Phone size={32} /> BEL NU
-              </a>
-
-              <div style={{ width: '100%', background: 'var(--bg-card)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border)', marginTop: '8px' }}>
-                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '8px', fontWeight: 600 }}>Notities over {currentLead.name}</p>
-                 <textarea value={editableLead.notes || ''} onChange={e => setEditableLead({...editableLead, notes: e.target.value})} rows={3} style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white', fontSize: '1rem' }} placeholder="Type hier je notities en bijzonderheden..." />
+            <div style={{ padding: '8px 0' }}>
+              <div style={{ width: '100%', background: 'var(--bg-card)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border)', marginBottom: '8px' }}>
+                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '8px', fontWeight: 600 }}>Notities</p>
+                 <textarea value={editableLead.notes || ''} onChange={e => setEditableLead({...editableLead, notes: e.target.value})} rows={5} style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white', fontSize: '1rem' }} placeholder="Notities en bijzonderheden..." />
                  <button onClick={saveLeadEdits} style={{ background: 'var(--primary)', color: 'white', border: 'none', padding: '12px', borderRadius: '8px', marginTop: '12px', width: '100%', fontWeight: 700, fontSize: '1rem' }}>Sla Notities Op</button>
               </div>
             </div>
