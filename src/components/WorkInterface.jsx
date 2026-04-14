@@ -18,6 +18,13 @@ export default function WorkInterface() {
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [callbackDate, setCallbackDate] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 900)
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth <= 900)
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
   
   const currentLead = leads[currentIndex]
   const [editableLead, setEditableLead] = useState({})
@@ -219,11 +226,45 @@ export default function WorkInterface() {
           </div>
         </div>
 
-        <main style={{ flex: 1, padding: '24px 40px', overflowY: 'auto' }}>
+        <main style={{ flex: 1, padding: isMobile ? '16px' : '24px 40px', overflowY: 'auto' }}>
           
-          {/* Sectie: Bedrijfsgegevens */}
-          <div style={{ marginBottom: '24px' }}>
-            <h3 style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', padding: '8px 12px', margin: '0 0 16px 0', borderRadius: '4px', fontSize: '1rem', border: '1px solid var(--border)' }}>&gt; Bedrijfsgegevens</h3>
+          {isMobile ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', alignItems: 'center', justifyContent: 'center', padding: '10px 0' }}>
+              <div style={{ textAlign: 'center' }}>
+                <h2 style={{ fontSize: '1rem', color: 'var(--text-muted)', marginBottom: '4px' }}>Nu bellen met:</h2>
+                <h1 style={{ fontSize: '2rem', color: 'white', margin: '0' }}>{currentLead.name}</h1>
+                <p style={{ color: 'var(--primary)', fontWeight: 600, fontSize: '1.2rem', marginTop: '4px' }}>{currentLead.phone}</p>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginTop: '4px' }}>
+                  {currentLead.city || 'Geen plaats'}
+                </div>
+              </div>
+
+              <a 
+                href={`tel:${currentLead.phone}`}
+                onClick={() => logCall(currentLead.id, currentLead.name)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16px',
+                  background: 'var(--success)', color: 'white', padding: '24px', 
+                  borderRadius: '50px', fontSize: '1.4rem', fontWeight: 800, textDecoration: 'none',
+                  boxShadow: '0 8px 32px rgba(16, 185, 129, 0.4)',
+                  width: '100%', maxWidth: '320px',
+                  border: '2px solid rgba(255,255,255,0.2)'
+                }}
+              >
+                <Phone size={32} /> BEL NU
+              </a>
+
+              <div style={{ width: '100%', background: 'var(--bg-card)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border)', marginTop: '8px' }}>
+                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '8px', fontWeight: 600 }}>Notities over {currentLead.name}</p>
+                 <textarea value={editableLead.notes || ''} onChange={e => setEditableLead({...editableLead, notes: e.target.value})} rows={3} style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white', fontSize: '1rem' }} placeholder="Type hier je notities en bijzonderheden..." />
+                 <button onClick={saveLeadEdits} style={{ background: 'var(--primary)', color: 'white', border: 'none', padding: '12px', borderRadius: '8px', marginTop: '12px', width: '100%', fontWeight: 700, fontSize: '1rem' }}>Sla Notities Op</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Sectie: Bedrijfsgegevens (Desktop View) */}
+              <div style={{ marginBottom: '24px' }}>
+                <h3 style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', padding: '8px 12px', margin: '0 0 16px 0', borderRadius: '4px', fontSize: '1rem', border: '1px solid var(--border)' }}>&gt; Bedrijfsgegevens</h3>
             <div className="work-interface-grid" style={{ display: 'grid', gap: '20px' }}>
               
               {/* Adres Blok */}
@@ -335,7 +376,7 @@ export default function WorkInterface() {
         </main>
 
         {/* Action Bar Bottom (Afboeken) */}
-        <div style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border)', padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border)', padding: isMobile ? '16px 20px' : '16px 40px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? '12px' : '0' }}>
            
            {showDatePicker ? (
               <div style={{ display: 'flex', gap: '16px', alignItems: 'center', width: '100%' }}>
@@ -347,29 +388,29 @@ export default function WorkInterface() {
            ) : (
               <>
                 <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  <button onClick={() => handleAfboeken('deal')} style={{ background: 'var(--success)', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: 'white' }}>
+                  <button className="btn-mobile-full" onClick={() => handleAfboeken('deal')} style={{ background: 'var(--success)', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: 'white' }}>
                      DEAL
                   </button>
-                  <button onClick={() => handleAfboeken('afspraak_gemaakt')} style={{ background: 'var(--info)', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: 'white' }}>
+                  <button className="btn-mobile-full" onClick={() => handleAfboeken('afspraak_gemaakt')} style={{ background: 'var(--info)', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: 'white' }}>
                      AFSPRAAK
                   </button>
-                  <button onClick={() => handleAfboeken('later_bellen')} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-main)' }}>
+                  <button className="btn-mobile-full" onClick={() => handleAfboeken('later_bellen')} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: 'var(--text-main)' }}>
                      <Clock size={16}/> Later bellen
                   </button>
-                  <button onClick={() => handleAfboeken('geen_interesse')} style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--danger)' }}>
+                  <button className="btn-mobile-full" onClick={() => handleAfboeken('geen_interesse')} style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: 'var(--danger)' }}>
                      Geen interesse
                   </button>
-                  <button onClick={() => handleAfboeken('terugbelopdracht')} style={{ background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--warning)' }}>
+                  <button className="btn-mobile-full" onClick={() => handleAfboeken('terugbelopdracht')} style={{ background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: 'var(--warning)' }}>
                      <CalendarIcon size={16}/> Terugbelopdracht
                   </button>
-                  <button onClick={() => handleAfboeken('niet_bereikbaar')} style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#f59e0b' }}>
+                  <button className="btn-mobile-full" onClick={() => handleAfboeken('niet_bereikbaar')} style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#f59e0b' }}>
                      Niet bereikbaar
                   </button>
-                  <button onClick={() => handleAfboeken('verkeerde_info')} style={{ background: 'rgba(168, 85, 247, 0.1)', border: '1px solid rgba(168, 85, 247, 0.3)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', color: '#a855f7' }}>
+                  <button className="btn-mobile-full" onClick={() => handleAfboeken('verkeerde_info')} style={{ background: 'rgba(168, 85, 247, 0.1)', border: '1px solid rgba(168, 85, 247, 0.3)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#a855f7' }}>
                      Verkeerde info
                   </button>
                 </div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Leads: {currentIndex+1}/{leads.length}</div>
+                {!isMobile && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Leads: {currentIndex+1}/{leads.length}</div>}
               </>
            )}
         </div>
