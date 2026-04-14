@@ -5,8 +5,8 @@ import { formatDate } from '../utils/dateUtils';
 import StatusSelector from './StatusSelector';
 import { useAuth } from '../context/AuthContext';
 
-export default function LeadCard({ lead, onStatusChange, onClaim, loading = false, callEnabled = true, showLeadScore = false }) {
-  const { logCall, user, profile } = useAuth();
+export default function LeadCard({ lead, onStatusChange, onClaim, loading = false, showLeadScore = false }) {
+  const { logCall, user, profile, isWorking } = useAuth();
 
   const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
   const isLockedRecently = lead.locked_by && lead.locked_at && (Date.now() - new Date(lead.locked_at).getTime()) < LOCK_TIMEOUT_MS;
@@ -75,7 +75,7 @@ export default function LeadCard({ lead, onStatusChange, onClaim, loading = fals
             onStatusChange={(newStatus) => onStatusChange(lead.id, newStatus)}
             loading={loading}
           />
-          {callEnabled && (
+          {isWorking && (
             <>
               {/* Claim / Next Lead button */}
               {onClaim && isAvailable && (

@@ -9,6 +9,7 @@ import Reports from './pages/Reports'
 import Kanban from './pages/Kanban'
 import Telemetry from './pages/Telemetry'
 import Payouts from './pages/Payouts'
+import WorkInterface from './components/WorkInterface'
 
 function ProtectedRoute({ children, requireAdmin = false }) {
   const { user, profile, loading } = useAuth()
@@ -108,6 +109,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <WorkInterface />
         <AppRoutes />
       </AuthProvider>
     </BrowserRouter>

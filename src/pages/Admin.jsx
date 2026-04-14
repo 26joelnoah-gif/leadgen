@@ -21,7 +21,7 @@ import PipelineFunnel from '../components/PipelineFunnel'
 import EmployeeModal from '../components/EmployeeModal'
 
 export default function Admin() {
-  const { user, profile, signOut, callEnabled, toggleCallEnabled, isDemoMode, sessionCallCount } = useAuth()
+  const { user, profile, signOut, isWorking, toggleWorkingMode, isDemoMode, sessionCallCount } = useAuth()
   const [leads, setLeads] = useState([])
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -315,12 +315,12 @@ export default function Admin() {
               <input type="file" accept=".csv" onChange={handleFileUpload} style={{ display: 'none' }} />
             </label>
             <button 
-              className={`btn btn-sm ${callEnabled ? 'btn-secondary' : 'btn-outline'}`} 
-              onClick={toggleCallEnabled}
-              title={callEnabled ? 'Bellen ingeschakeld' : 'Bellen uitgeschakeld'}
+              className={`btn btn-sm ${isWorking ? 'btn-secondary' : 'btn-outline'}`} 
+              onClick={toggleWorkingMode}
+              title={isWorking ? 'Bellen ingeschakeld' : 'Bellen uitgeschakeld'}
             >
-              {callEnabled ? <Phone size={18} /> : <PhoneOff size={18} />}
-              <span className="ml-1">{callEnabled ? 'Aan' : 'Uit'}</span>
+              {isWorking ? <Phone size={18} /> : <PhoneOff size={18} />}
+              <span className="ml-1">{isWorking ? 'Aan' : 'Uit'}</span>
             </button>
             <button className="btn btn-outline" onClick={handleExportAll}>
               <Download size={18} /> Export Leads
@@ -590,7 +590,7 @@ export default function Admin() {
                     <tr key={lead.id} style={{ background: selectedLeads.includes(lead.id) ? 'rgba(245, 158, 11, 0.1)' : 'transparent' }}>
                       <td><input type="checkbox" checked={selectedLeads.includes(lead.id)} onChange={() => toggleLeadSelection(lead.id)} /></td>
                       <td><strong>{lead.name}</strong></td>
-                      <td><div className="flex items-center gap-1">{callEnabled && <Phone size={14} className="text-success" />}{lead.phone}</div></td>
+                      <td><div className="flex items-center gap-1">{isWorking && <Phone size={14} className="text-success" />}{lead.phone}</div></td>
                       <td><StatusSelector currentStatus={lead.status} onStatusChange={(s) => updateStatus(lead.id, s)} /></td>
                       <td>
                         <select value={lead.assigned_to || ''} onChange={(e) => assignLead(lead.id, e.target.value)} style={{ padding: '6px', borderRadius: '4px', border: '1px solid var(--border)' }}>

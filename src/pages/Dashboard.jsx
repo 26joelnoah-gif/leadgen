@@ -15,7 +15,7 @@ import ActivityFeed from '../components/ActivityFeed'
 import Header from '../components/Header'
 
 export default function Dashboard() {
-  const { user, profile, signOut, callEnabled, toggleCallEnabled, isDemoMode, sessionCallCount } = useAuth()
+  const { user, profile, signOut, isWorking, toggleWorkingMode, isDemoMode, sessionCallCount } = useAuth()
   const { leads, loading, fetchLeads, updateLeadStatus, createLead } = useLeads()
   const { leadLists, loading: leadListsLoading, getLeadsInList } = useLeadLists()
   const [filter, setFilter] = useState('all')
@@ -40,6 +40,8 @@ export default function Dashboard() {
   const [isCallingMode, setIsCallingMode] = useState(false)
   const [selectedCallingList, setSelectedCallingList] = useState(null)
   const [callingLeads, setCallingLeads] = useState([])
+  const [currentLeadIndex, setCurrentLeadIndex] = useState(0)
+
   const [currentLeadIndex, setCurrentLeadIndex] = useState(0)
 
   const isAdmin = profile?.role === 'admin'
@@ -259,7 +261,7 @@ export default function Dashboard() {
             </p>
             {leadLists.length > 0 && (
               <button
-                onClick={() => startCallingMode(leadLists[0].id)}
+                onClick={() => toggleWorkingMode()}
                 className="btn btn-primary"
                 style={{ padding: '16px 48px', fontSize: '1.1rem', fontWeight: 700 }}
               >
@@ -268,16 +270,13 @@ export default function Dashboard() {
             )}
             {leadLists.length > 1 && (
               <div style={{ marginTop: '12px' }}>
-                <select
-                  onChange={(e) => e.target.value && startCallingMode(e.target.value)}
-                  defaultValue=""
-                  style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'white' }}
+                <button
+                  onClick={() => toggleWorkingMode()}
+                  className="btn btn-outline"
+                  style={{ padding: '10px 20px' }}
                 >
-                  <option value="" disabled>Of kies een andere lijst...</option>
-                  {leadLists.slice(1).map(list => (
-                    <option key={list.id} value={list.id}>{list.name}</option>
-                  ))}
-                </select>
+                  Ander project kiezen...
+                </button>
               </div>
             )}
           </motion.div>
@@ -368,7 +367,6 @@ export default function Dashboard() {
                       <LeadCard
                         lead={lead}
                         onStatusChange={updateLeadStatus}
-                        callEnabled={callEnabled}
                       />
                     </motion.div>
                   ))

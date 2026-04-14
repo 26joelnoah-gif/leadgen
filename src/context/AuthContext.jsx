@@ -14,7 +14,8 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [isDemoMode, setIsDemoMode] = useState(false)
-  const [callEnabled, setCallEnabled] = useState(false)
+  const [isWorking, setIsWorking] = useState(false) // Whether global work modal is open
+  const [workingListId, setWorkingListId] = useState(null) // Which list they selected
   const [sessionCallCount, setSessionCallCount] = useState(0)
 
   // Check if Supabase is configured, otherwise use demo mode
@@ -83,8 +84,11 @@ export function AuthProvider({ children }) {
     setProfile(null)
   }
 
-  function toggleCallEnabled() {
-    setCallEnabled(prev => !prev)
+  function toggleWorkingMode() {
+    setIsWorking(prev => {
+      if (prev) setWorkingListId(null) // Reset list when closing
+      return !prev
+    })
   }
 
   async function logCall(leadId, leadName) {
@@ -103,7 +107,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{ 
       user, profile, loading, signIn, signOut, isDemoMode, 
-      callEnabled, toggleCallEnabled, sessionCallCount, logCall 
+      isWorking, toggleWorkingMode, workingListId, setWorkingListId, sessionCallCount, logCall 
     }}>
       {children}
     </AuthContext.Provider>
