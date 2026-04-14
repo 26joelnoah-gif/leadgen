@@ -1,29 +1,23 @@
 # 📨 Inbox Minimax - Update van Antigravity over de CRM / Werkomgeving
 
 **Datum:** 2026-04-14
-**Status:** **CRM UI EN LOGICA LIVE**
+**Status:** **CRM LOGICA EN DATA VERWERKING LIVE**
 
 ---
 
 Hoi MiniMax,
 
-Noah vroeg mij: *"bouw dit en brief minimax om mee te bouwen met zo min mogelijk overlap"*. Dat betekende dat ik flink heb lopen scheppen in de bestanden.
+Noah vroeg mij om jou wat 'makkelijkere' taken te geven om aan te werken terwijl ik de wat hardere Supabase logica fix (ik heb inmiddels alle afboekredenen, dark mode CRM overlay, tab isolaties, en TBA single-overrides geimplementeerd en direct naar GitHub gemerged).
 
-Ik heb goed nieuws: **De volledige "Starten met Werken" module én het nieuwe CRM leadscherm uit de afbeelding zijn helemaal klaar, werkend en door mij gepusht naar `main`.**
+We willen dat de front-end nóg vloeiender en gelikter voelt, zonder dat jij je druk hoeft te maken om Supabase database connecties of react state routing. Dit zijn de makkelijke, leuke design taakjes waar jij nu mee aan de slag kunt om de app te perfectioneren:
 
-### Wat IK zojuist gebouwd heb (Raak dit niet onnodig aan, want het werkt al perfect):
-1. **Globaal Beschikbaar:** Ik heb de `isWorking` status in `AuthContext` gemaakt en het `WorkInterface.jsx` element hoog in `App.jsx` gehangen. Waar je ook bent in de applicatie; druk op de knop "Starten met bellen", en het scherm schuift beeldvullend over je heen en herinnert precies welk project/leadlijst je aan het bellen bent. En klik je op sluiten? Dan ga je verder waar je gebleven was in de hoofdschermen.
-2. **De Exacte UI:** De grote 3-kolommen grid view (Adres, Contactpersoon, Contact), Extra Velden, Uploads sectie, alles is visueel 1 op 1 nabouwd en gelinkt aan de veldnamen van de array.
-3. **De Logica Knoppen Afhandeling ("Afboekredenen"):**
-   *Later bellen*, *Geen interesse*, *TBA inplannen (met datum picker)*, *Niet bereikbaar* en *Verkeerde info* zijn als solide knoppen op de interface geplaatst. 
-   **Belangrijk: De knoppen onderin sturen al exact met de goeie variabelen de `handleLeadDisposition` aan.** Geen interesse haalt hem letterlijk uit de lijst en plaatst hem in een aparte automatische nieuw gecreëerde lijst `Geen interesse - [Naam Project]`. Dit dekt Noah's workflow-wens in zijn geheel in.
+### Jouw Takenlijst (UX / UI Categorie):
 
-### Jouw Taak (Waarom ik je brief):
-Jij hoeft de vormgeving en de navigatierouting niet meer te doen. Wat wél jouw gebied blijft:
+1. **Hover-effecten toevoegen:** De knoppen in de `WorkInterface.jsx` (zoals DEAL, AFSPRAAK, Niet bereikbaar, etc) kunnen micro-interacties gebruiken. Denk aan een lichte opschaling (`scale-105`), of lichte background brightness glow bij het hoveren van de muis.
+2. **Icons en Tooltips:** Bij de knoppen in the zijkant navigatie of header (`Dashboard.jsx`, `App.jsx`) mag je mooie *Lucide-react* icons verfijnen of kleine snelle tooltips bouwen voor als je over elementen heen hangt ("Bekijk lead", "Bellen").
+3. **Empty States Verbeteren:** Ga naar `EmptyState.jsx` of bestanden waar lege formulieren / lijsten staan. Geef die states wat meer ademruimte, een cool icon en misschien een zachte puls-animatie via CSS, zodat het premium aanvoelt zelfs als de gebruiker niks te doen heeft.
+4. **Schaduwen (`box-shadow`) en Borders verzachten:** Zorg dat de cards overal in de huisstijl (`index.css` of componenten) subtiele schaduwen hebben op de randen zodat het perfecte "Glassmorphism" effect doorstraalt in plaats van simpele harde randen. Verfijn dit vooral in het admin dashboard.
 
-1. **Testen en Integraties van State:** Mijn formuliervelden in `WorkInterface.jsx` (zoals 'Geslacht', 'Website', 'Naam', etc) zijn visueel aanwezig, maar sommigen (die niet in de lead database voorkomen) zijn ingesteld op `<input placeholder="..." />`. Jij moet óf de datastructuur synchroniseren/opslaan (Bijv. die "Bedrijf bewerken" knop activeren), of de velden onveranderd laten en eventuele frontend fixes toepassen indien Netlify er anders over denkt!
-2. **Dashboard en "Starten" Updates:** Check of het dashboard het huidige lead volume en session counters nog steeds perfect update.
-
-**Check elke tien minuten of Noah via jou of mij weer met taken zwaait.** We hebben met deze live push op dit vlak exact nul overlap bereikt en staan stevig schouder aan schouder!
+Zodra je klaar bent, push ze gerust en dan check ik de diepere systeem calls weer! Succes!
 
 — Antigravity
