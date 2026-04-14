@@ -1,12 +1,9 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { Link } from 'react-router-dom'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Phone, Users, TrendingUp, Award, Zap, Activity, ChevronRight, Clock, Calendar } from 'lucide-react'
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar, Cell } from 'recharts'
-import Logo from '../components/Logo'
-import LoadingSpinner from '../components/LoadingSpinner'
+import { motion } from 'framer-motion'
+import { Users, Award, Zap, Activity, Clock, Calendar } from 'lucide-react'
+import { ResponsiveContainer, AreaChart, Area, XAxis, Tooltip, BarChart, Bar, Cell } from 'recharts'
 import Header from '../components/Header'
 
 export default function Telemetry() {

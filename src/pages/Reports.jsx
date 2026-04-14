@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { BarChart as BarChartIcon, Users, PhoneCall, CheckCircle, TrendingUp, Download, Activity, PieChart as PieChartIcon, Zap, Clock, Filter } from 'lucide-react'
 import { STATUS_MAP } from '../utils/statusUtils'

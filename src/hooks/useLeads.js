@@ -192,8 +192,7 @@ export function useLeads() {
       assigned_to: leadData.assigned_to || user?.id,
       created_by: user?.id,
       lead_source: leadData.lead_source || 'cold',
-      decision_maker: leadData.decision_maker || false,
-      contact_attempts: 0
+      decision_maker: leadData.decision_maker || false
     }
 
     if (isDemoMode) {

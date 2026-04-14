@@ -1,18 +1,15 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
-import { RefreshCw, Search, Filter, Phone, PhoneOff, Activity, Zap, Plus, X, List } from 'lucide-react'
+import { RefreshCw, Search, Filter, Phone, Zap, Plus, X, List } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
 import { useLeadLists } from '../hooks/useLeadLists'
 import { STATUS_MAP } from '../utils/statusUtils'
 import LeadCard from '../components/LeadCard'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
-import Logo from '../components/Logo'
 import TeamLeaderboard from '../components/TeamLeaderboard'
-import MobileNav from '../components/MobileNav'
 import Chat from '../components/Chat'
 import ActivityFeed from '../components/ActivityFeed'
 import Header from '../components/Header'
@@ -252,21 +249,37 @@ export default function Dashboard() {
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             className="card mb-4"
-            style={{ padding: '20px', textAlign: 'center' }}
+            style={{ padding: '24px', textAlign: 'center', border: '2px solid var(--primary)' }}
           >
-            <p style={{ marginBottom: '12px', color: 'var(--text-muted)' }}>Wil je systematisch bellen?</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'center' }}>
-              {leadLists.map(list => (
-                <button
-                  key={list.id}
-                  onClick={() => startCallingMode(list.id)}
-                  className="btn btn-primary"
-                  style={{ padding: '10px 20px', fontSize: '0.9rem' }}
+            <h2 style={{ marginBottom: '8px' }}>Ben je klaar om te bellen?</h2>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>
+              {leadLists.length === 0 && 'Nog geen lijsten toegewezen aan jou'}
+              {leadLists.length === 1 && '1 lijst beschikbaar'}
+              {leadLists.length > 1 && `${leadLists.length} lijsten beschikbaar`}
+            </p>
+            {leadLists.length > 0 && (
+              <button
+                onClick={() => startCallingMode(leadLists[0].id)}
+                className="btn btn-primary"
+                style={{ padding: '16px 48px', fontSize: '1.1rem', fontWeight: 700 }}
+              >
+                <Phone size={20} /> START MET BELLEN
+              </button>
+            )}
+            {leadLists.length > 1 && (
+              <div style={{ marginTop: '12px' }}>
+                <select
+                  onChange={(e) => e.target.value && startCallingMode(e.target.value)}
+                  defaultValue=""
+                  style={{ padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'white' }}
                 >
-                  <Phone size={16} /> {list.name} doorbellen
-                </button>
-              ))}
-            </div>
+                  <option value="" disabled>Of kies een andere lijst...</option>
+                  {leadLists.slice(1).map(list => (
+                    <option key={list.id} value={list.id}>{list.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </motion.div>
         )}
 

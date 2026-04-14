@@ -12,11 +12,11 @@ export default function Header({ onOpenSettings }) {
   const navLinks = [
     { path: '/', label: 'Dashboard' },
     { path: '/tba', label: 'TBA\'s' },
-    { path: '/kanban', label: 'Kanban' },
     { path: '/earnings', label: 'Verdiensten' },
   ]
 
   const adminLinks = [
+    { path: '/kanban', label: 'Kanban' },
     { path: '/admin/telemetry', label: 'Telemetrie' },
     { path: '/admin', label: 'Admin' },
     { path: '/admin/reports', label: 'Rapportage' },

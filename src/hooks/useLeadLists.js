@@ -101,13 +101,23 @@ export function useLeadLists() {
   async function getLeadsInList(listId) {
     if (isDemoMode) return []
 
-    const { data, error } = await supabase
-      .from('lead_list_items')
-      .select('lead_id, leads(*)')
-      .eq('lead_list_id', listId)
+    try {
+      // Haal leads via lead_list_id - filter meteen in de query
+      const { data, error } = await supabase
+        .from('leads')
+        .select('id, name, phone, email, status, notes')
+        .eq('lead_list_id', listId)
 
-    if (error) throw error
-    return (data || []).map(item => item.leads)
+      if (error) {
+        console.error('Error fetching leads:', error)
+        return []
+      }
+
+      return data || []
+    } catch (err) {
+      console.error('getLeadsInList catch:', err)
+      return []
+    }
   }
 
   async function deleteLeadList(listId) {

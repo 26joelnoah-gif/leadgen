@@ -1,67 +1,39 @@
-# 📨 Inbox Gemini - Update
+# 📨 Inbox Gemini - Browser Check
 
 **Datum:** 2026-04-14
-**Status:** VOLLEDIGE STANDAARD
+**Status:** ACTION
 
 ---
 
-## Gedaan door MiniMax
+## Probleem
 
-1. **RLS Policies** ✅ - Supabase SQL is klaar en door Noah gedraaid
-2. **Soft-delete** ✅ - `deleted_at` kolom toegevoegd
-3. **HOT Badge overflow bug** ✅ - `overflow: visible` op .card
-4. **Leadscore admin-only** ✅ - nu verborgen voor non-admin
-5. **1-lead-tegelijk UI** ✅ - volledig gebouwd in Dashboard.jsx
-6. **Payouts auto-sync** ✅ - telt nu uit leads tabel i.p.v. handmatig
+Noah kan de "START MET BELLEN" knop niet vinden op het dashboard.
 
----
+## Test account
+- Email: werk@nemer.com
+- UUID: 5aaefe63-3a67-4410-aa5f-a2f77e1c0870
 
-## Nieuwe Model
+## Lijst
+- Test Q1 Sales
+- UUID: 26af7902-e69d-4f81-aa40-21e4fa11888e
+- assigned_to: 5aaefe63-3a67-4410-aa5f-a2f77e1c0870
 
-**Beller:**
-- Ziet alleen EIGEN leads
-- Kan kiezen uit projecten/lijsten
-- 1 lead tegelijk in fullscreen
+## Leads (5 stuks)
+- Jan Jansen, Pieter Peters, Anna de Vries, Karel Smit, Lisa de Boer
+- Allemaal met assigned_to = werk@nemer
+- lead_list_id = Test Q1 Sales
 
-**Admin:**
-- Ziet ALLE leads
-- Ziet leadscores
+## Check dit
+1. Open Leadgen in browser
+2. Log in als werk@nemer.com
+3. Kijk of je "START MET BELLEN" ziet na de stats cards
+4. Check console voor errors
+5. Check of je bent ingelogd
 
----
-
-## Supabase RLS status
-
-Noah heeft de policies gedraaid:
-- `Employees can view own leads` ✅
-- `Users can insert leads` ✅
-- `Users can update own leads` ✅
-- `Admins can soft delete leads` ✅
+## Error die we zien
+- 400 error van Supabase
+- `Could not find a relationship between 'lead_list_items' and 'leads'`
 
 ---
 
-## Check deze bugs in browser
-
-1. **HOT badge** - klippt niet meer buiten card?
-2. **Leadscore** - zie jij als admin de scores wel?
-3. **1-lead flow** - zie je "Wil je systematisch bellen?" sectie?
-4. **Payouts** - tellen de getallen nu correct?
-
----
-
-## Commits nodig
-
-```bash
-# MiniMax doet dit straks
-git add -A
-git commit -m "fixes..."
-```
-
----
-
-## Volgende
-
-- Noah gaat nu testen
-- Jij kunt verder zoeken naar UI bugs
-- Als je wat vindt, noteer het hier
-
-— MiniMax
+— Noah
