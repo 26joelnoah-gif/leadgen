@@ -74,12 +74,42 @@ export default function WorkInterface() {
     setLeadIndex(0)
   }, [workingListId])
 
-  // Don't render if not working or no lead available
-  if (!isWorking || !currentLead) return null
+  // Don't render if not working
+  if (!isWorking) return null
 
   const listName = workingListId || 'Direct'
   const isListMode = !!workingListId && !workingLead
   const progress = isListMode ? { current: leadIndex + 1, total: listLeads.length } : null
+
+  // Empty state when no leads available
+  if (!currentLead) {
+    return (
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        background: 'var(--bg-dark)', zIndex: 9999,
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        color: 'var(--text-main)', padding: '20px'
+      }}>
+        <div style={{ textAlign: 'center', maxWidth: '400px' }}>
+          <div style={{ fontSize: '4rem', marginBottom: '16px', opacity: 0.5 }}>📭</div>
+          <h2 style={{ color: 'white', marginBottom: '8px' }}>Geen leads beschikbaar</h2>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
+            Er zijn geen leads meer in deze lijst om te bewerken.
+          </p>
+          <button
+            onClick={toggleWorkingMode}
+            style={{
+              background: 'var(--primary)', color: 'white',
+              border: 'none', padding: '12px 24px', borderRadius: '8px',
+              fontWeight: 700, cursor: 'pointer'
+            }}
+          >
+            Terug naar Dashboard
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   const saveLeadEdits = async () => {
     const error = await updateLeadStatus(currentLead.id, currentLead.status, editableLead)
@@ -88,48 +118,48 @@ export default function WorkInterface() {
     }
   }
 
-  const handleFinalDisposition = async () => {
-    if (!selectedDisposition) return
-
-    await handleLeadDisposition(
-      currentLead.id,
-      listName,
-      selectedDisposition,
-      dispositionNotes,
-      nextContactDate || null
-    )
-
-    setShowDispositionModal(false)
-    setDispositionNotes('')
-    setNextContactDate('')
-    setSelectedDisposition(null)
-
-    if (workingLead) {
-      // TBA single lead — sluit
-      toggleWorkingMode()
-    } else if (isListMode) {
-      // Lijst modus — volgende lead of sluit als lijst leeg is
-      if (leadIndex < listLeads.length - 2) {
-        setLeadIndex(prev => prev + 1)
-      } else {
-        toggleWorkingMode()
-      }
-    }
-  }
-
-  const closeAll = () => {
-    toggleWorkingMode()
-  }
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const dispositions = [
-    { id: 'deal', label: 'DEAL', color: 'var(--success)', icon: <CheckCircle2 size={18} /> },
-    { id: 'afspraak_gemaakt', label: 'AFSPRAAK', color: '#10B981', icon: <Calendar size={18} /> },
-    { id: 'terugbelafspraak', label: 'TBA (Terugbel)', color: '#3B82F6', icon: <Clock size={18} /> },
+    { id: 'deal', label: 'DEAL', color: '#10B981', icon: <CheckCircle2 size={18} /> },
+    { id: 'afspraak_gemaakt', label: 'AFSPRAAK', color: '#3B82F6', icon: <Calendar size={18} /> },
+    { id: 'terugbelafspraak', label: 'TBA (Terugbel)', color: '#8B5CF6', icon: <Clock size={18} /> },
     { id: 'later_bellen', label: 'LATER BELLEN', color: '#F59E0B', icon: <Clock size={18} /> },
-    { id: 'geen_gehoor', label: 'GEEN GEHOOR', color: '#94A3B8', icon: <Phone size={18} /> },
+    { id: 'geen_gehoor', label: 'GEEN GEHOOR', color: '#64748B', icon: <Phone size={18} /> },
     { id: 'verkeerd_nummer', label: 'FOUTIEVE INFO', color: '#EF4444', icon: <AlertCircle size={18} /> },
-    { id: 'geen_interesse', label: 'GEEN INTERESSE', color: '#71717A', icon: <X size={18} /> },
+    { id: 'geen_interesse', label: 'GEEN INTERESSE', color: '#334155', icon: <X size={18} /> },
   ]
+
+  const handleFinalDisposition = async () => {
+    if (!selectedDisposition || isSubmitting) return
+    setIsSubmitting(true)
+    try {
+      await handleLeadDisposition(
+        currentLead.id,
+        listName,
+        selectedDisposition,
+        dispositionNotes,
+        nextContactDate || null
+      )
+
+      setShowDispositionModal(false)
+      setDispositionNotes('')
+      setNextContactDate('')
+      setSelectedDisposition(null)
+
+      if (workingLead) {
+        toggleWorkingMode()
+      } else if (isListMode) {
+        if (leadIndex < listLeads.length - 1) {
+          setLeadIndex(prev => prev + 1)
+        } else {
+          toggleWorkingMode()
+        }
+      }
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
     <AnimatePresence>
@@ -375,6 +405,7 @@ export default function WorkInterface() {
 
                     <button
                       onClick={handleFinalDisposition}
+                      disabled={isSubmitting}
                       style={{
                         background: dispositions.find(d => d.id === selectedDisposition)?.color,
                         color: 'white',
@@ -383,11 +414,23 @@ export default function WorkInterface() {
                         border: 'none',
                         fontWeight: 800,
                         fontSize: '1.1rem',
-                        cursor: 'pointer',
-                        marginTop: '10px'
+                        cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                        marginTop: '10px',
+                        opacity: isSubmitting ? 0.7 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '10px'
                       }}
                     >
-                      AFRONDEN & VOLGENDE
+                      {isSubmitting ? (
+                        <>
+                          <div className="spinner-small" style={{ width: '18px', height: '18px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
+                          AFHANDELEN...
+                        </>
+                      ) : (
+                        'AFRONDEN & VOLGENDE'
+                      )}
                     </button>
                   </div>
                </motion.div>
