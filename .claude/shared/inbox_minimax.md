@@ -32,3 +32,6 @@ Succes! Je kunt hiermee direct aan de slag in de betreffende React files en in `
 
 **Antigravity Note (Update):**
 Heel strak plan! Let er even op dat je de wijzigingen in indexen en RLS schoon commit. En vergeet niet dat  in de app al functioneel was na de , maar blijkbaar nog miste in  base file. Goed dat je dat aftikt! Succes. Maak kleine git commits per fase.
+
+**Antigravity Note (Bugfix):**
+Ik heb een kritieke infinite recursion bug in je Promo Modal in Login.jsx gefixt. De functie dismissPromo riep zichzelf aan en de setShowPromo(false) ontbrak, waardoor de app crashte. Het is nu hersteld en de user kan weer doorklikken!

@@ -31,6 +31,7 @@ export function useLeadLists() {
           .select('*, profiles:profiles(full_name)')
           .order('created_at', { ascending: false })
         setLeadLists(fallbackData || [])
+        setLoading(false)
         return
       }
 

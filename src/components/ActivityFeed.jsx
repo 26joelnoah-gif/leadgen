@@ -68,6 +68,7 @@ export default function ActivityFeed() {
   }
 
   const getActionText = (a) => {
+    if (!a) return null
     const name = a.profiles?.full_name || 'Iemand'
     switch (a.action) {
       case 'deal': return <span><strong>{name}</strong> sloot een <strong>DEAL</strong>! 🏆</span>

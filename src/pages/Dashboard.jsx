@@ -104,7 +104,10 @@ export default function Dashboard() {
     let afspraken = 0
     let deals = 0
 
+    if (!leads || !Array.isArray(leads)) return { nieuweLeads, terugbelacties, hotLeads, afspraken, deals }
+
     for (const lead of leads) {
+      if (!lead || !lead.status) continue
       if (lead.status === 'new') nieuweLeads++
       if (lead.status === 'terugbelafspraak') terugbelacties++
       if (['new', 'terugbelafspraak', 'later_bellen'].includes(lead.status)) hotLeads++
@@ -118,26 +121,32 @@ export default function Dashboard() {
   // Memoized filtered + sorted leads
   const filteredLeads = useMemo(() => {
     const search = searchTerm.toLowerCase()
-    const filtered = leads.filter(lead => {
+    const filtered = (leads || []).filter(lead => {
+      if (!lead) return false
       if (!isAdmin && lead.status !== 'terugbelafspraak') return false
       if (!isAdmin && ['deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer', 'cold'].includes(lead.status)) return false
 
       let matchesFilter = true
-      if (filter === 'hot') matchesFilter = ['new', 'terugbelafspraak', 'later_bellen'].includes(lead.status)
-      else if (filter === 'new') matchesFilter = lead.status === 'new'
-      else if (filter !== 'all') matchesFilter = lead.status === filter
+      const status = lead.status || 'new'
+      if (filter === 'hot') matchesFilter = ['new', 'terugbelafspraak', 'later_bellen'].includes(status)
+      else if (filter === 'new') matchesFilter = status === 'new'
+      else if (filter !== 'all') matchesFilter = status === filter
 
-      const matchesSearch = lead.name.toLowerCase().includes(search) || (lead.phone && lead.phone.includes(search))
+      const name = (lead.name || '').toLowerCase()
+      const phone = lead.phone || ''
+      const matchesSearch = name.includes(search) || phone.includes(search)
       return matchesFilter && matchesSearch
     })
 
     const priority = { terugbelafspraak: 0, new: 1, afspraak_gemaakt: 2, later_bellen: 3, mailbox: 4, geen_interesse: 5, deal: 6, verkeerd_nummer: 7 }
     return filtered.sort((a, b) => {
+      if (!a || !b) return 0
       const aP = priority[a.status] ?? 9
       const bP = priority[b.status] ?? 9
       if (aP !== bP) return aP - bP
-      // Use string comparison for ISO dates - much faster than new Date()
-      return b.created_at.localeCompare(a.created_at)
+      const dateA = a.created_at || ''
+      const dateB = b.created_at || ''
+      return dateB.localeCompare(dateA)
     })
   }, [leads, filter, searchTerm, isAdmin])
 
