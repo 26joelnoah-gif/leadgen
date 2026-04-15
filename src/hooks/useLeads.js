@@ -104,7 +104,6 @@ export function useLeads() {
 
     if (!error) {
       setLeads(leads.map(l => l.id === leadId ? { ...l, ...updates } : l))
-      await logActivity(leadId, 'status_change', `Status gewijzigd naar: ${updates.status}`)
     }
     return error
   }

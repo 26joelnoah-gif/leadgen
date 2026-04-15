@@ -21,7 +21,7 @@ export default function Login() {
   const [promoStep, setPromoStep] = useState(0)
 
   function dismissPromo() {
-    setShowPromo(false)
+    dismissPromo()
     localStorage.setItem('leadgen_promo_dismissed', 'true')
   }
   
@@ -70,7 +70,7 @@ export default function Login() {
     if (promoStep < promos.length - 1) {
       setPromoStep(promoStep + 1)
     } else {
-      setShowPromo(false)
+      dismissPromo()
     }
   }
 
@@ -116,7 +116,7 @@ export default function Login() {
               }}
             >
               <button 
-                onClick={() => setShowPromo(false)}
+                onClick={() => dismissPromo()}
                 style={{ position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
               >
                 <X size={24} />

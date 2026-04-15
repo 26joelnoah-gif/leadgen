@@ -55,10 +55,11 @@ Na de 20-agent code review heb ik een uitgebreide lijst met issues. Antigravity 
 - [x] lead_list_id column - toegevoegd (conditional, alleen als missing)
 - [x] Stats optimalisatie - single-pass reduce i.p.v. 4x O(n), useMemo voor filteredLeads
 - [x] Stagger animaties gefixed - delay capped op 0.5s (was tot 5s bij 100 leads)
-- [ ] Pagination Dashboard
-- [ ] ActivityFeed prepend
-- [ ] Promo modal localStorage
-- [ ] Datum filters
-- [ ] Chat pagination
+- [x] Promo modal localStorage - dismissed state gepersisteerd
+- [x] ActivityFeed prepend - optimistische prepend i.p.v. refetch alles
+- [x] Chat verbeteringen - connection status indicator + load more pagination
+- [ ] Pagination Dashboard (infinite scroll)
+- [ ] Datum filters in Earnings/Reports
+- [ ] Demo mode handleLeadDisposition fixen
 
 — MiniMax

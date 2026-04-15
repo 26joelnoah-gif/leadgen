@@ -14,7 +14,12 @@ export default function Chat() {
   const [showChannelModal, setShowChannelModal] = useState(false)
   const [newChannelName, setNewChannelName] = useState('')
   const [isInitialized, setIsInitialized] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState('connecting') // 'connecting' | 'connected' | 'error'
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [oldestMessageId, setOldestMessageId] = useState(null)
   const messagesEndRef = useRef(null)
+  const messagesContainerRef = useRef(null)
 
   const isAdmin = profile?.role === 'admin'
 
@@ -36,7 +41,8 @@ export default function Chat() {
 
   useEffect(() => {
     if (!isInitialized) return
-    // Real-time subscription
+    // Real-time subscription with connection status
+    setConnectionStatus('connecting')
     const channel = supabase
       .channel('chat-messages-' + currentChannel)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, payload => {
@@ -48,7 +54,13 @@ export default function Chat() {
           setMessages(prev => [...prev, msg])
         }
       })
-      .subscribe()
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED') {
+          setConnectionStatus('connected')
+        } else if (status === 'CHANNEL_ERROR') {
+          setConnectionStatus('error')
+        }
+      })
 
     return () => {
       supabase.removeChannel(channel)
@@ -79,7 +91,39 @@ export default function Chat() {
     }
 
     const { data } = await query
-    if (data) setMessages(data)
+    if (data) {
+      setMessages(data)
+      setHasMore(data.length === 50)
+      setOldestMessageId(data.length > 0 ? data[0].id : null)
+    }
+  }
+
+  async function loadMoreMessages() {
+    if (!oldestMessageId || loadingMore) return
+    setLoadingMore(true)
+
+    let query = supabase
+      .from('messages')
+      .select('*')
+      .order('created_at', { ascending: true })
+      .limit(50)
+      .lt('id', oldestMessageId)
+
+    if (currentChannel === 'general') {
+      query = query.is('channel_id', null)
+    } else {
+      query = query.eq('channel_id', currentChannel)
+    }
+
+    const { data } = await query
+    if (data && data.length > 0) {
+      setMessages(prev => [...prev, ...data])
+      setOldestMessageId(data[data.length - 1].id)
+      setHasMore(data.length === 50)
+    } else {
+      setHasMore(false)
+    }
+    setLoadingMore(false)
   }
 
   async function createChannel() {
@@ -154,6 +198,15 @@ export default function Chat() {
               <div className="flex items-center gap-2">
                 <MessageCircle size={18} />
                 <span>Team Chat</span>
+                <span style={{
+                  fontSize: '0.6rem',
+                  padding: '2px 6px',
+                  borderRadius: '10px',
+                  background: connectionStatus === 'connected' ? 'rgba(34, 197, 94, 0.2)' : connectionStatus === 'error' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(234, 179, 8, 0.2)',
+                  color: connectionStatus === 'connected' ? '#22c55e' : connectionStatus === 'error' ? '#ef4444' : '#eab308'
+                }}>
+                  {connectionStatus === 'connected' ? '● Live' : connectionStatus === 'error' ? '● Error' : '● Connecting'}
+                </span>
               </div>
               <div className="flex items-center gap-2">
                 {isAdmin && (
@@ -189,6 +242,25 @@ export default function Chat() {
             </div>
 
             <div className="chat-messages" style={{ flex: 1, overflowY: 'auto', padding: '12px' }}>
+              {hasMore && (
+                <button
+                  onClick={loadMoreMessages}
+                  disabled={loadingMore}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    marginBottom: '12px',
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
+                    borderRadius: '6px',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem'
+                  }}
+                >
+                  {loadingMore ? 'Laden...' : 'Oudere berichten laden'}
+                </button>
+              )}
               {messages.length === 0 ? (
                 <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '40%' }}>
                   <MessageCircle size={48} style={{ opacity: 0.3, marginBottom: '12px' }} />

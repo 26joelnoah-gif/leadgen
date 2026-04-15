@@ -9,12 +9,20 @@ export default function ActivityFeed() {
 
   useEffect(() => {
     fetchActivities()
-    
-    // Subscribe to new activities
+
+    // Subscribe to new activities - optimistische prepend i.p.v. refetch alles
     const subscription = supabase
       .channel('live-activities')
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activities' }, () => {
-        fetchActivities()
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'activities' }, (payload) => {
+        // Optimistisch prepend de nieuwe activity
+        const newActivity = payload.new
+        if (newActivity) {
+          setActivities(prev => {
+            // Check of het niet al in de lijst zit
+            if (prev.some(a => a.id === newActivity.id)) return prev
+            return [newActivity, ...prev].slice(0, 10) // Max 10 items
+          })
+        }
       })
       .subscribe()
 
