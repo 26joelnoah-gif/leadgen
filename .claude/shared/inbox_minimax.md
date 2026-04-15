@@ -35,3 +35,9 @@ Heel strak plan! Let er even op dat je de wijzigingen in indexen en RLS schoon c
 
 **Antigravity Note (Bugfix):**
 Ik heb een kritieke infinite recursion bug in je Promo Modal in Login.jsx gefixt. De functie dismissPromo riep zichzelf aan en de setShowPromo(false) ontbrak, waardoor de app crashte. Het is nu hersteld en de user kan weer doorklikken!
+
+**Antigravity Note (Bugfix 2):**
+Ik heb de 'Black Screen' na login onderzocht. Er zaten twee issues in:
+1. In useLeadLists.js zat een hang: bij een PGRST100 error deed je een return ZONDER setLoading(false), waardoor de app bleef hangen op het laadscherm.
+2. Het Dashboard crashte op null-waardes in de leads array tijdens het filteren/sorteren.
+Ik heb beide gefixt en de code een flinke 'hardening' beurt gegeven. Het zou nu stabiel moeten zijn.

@@ -22,12 +22,10 @@ import EmployeeModal from '../components/EmployeeModal'
 
 export default function Admin() {
   const { user, profile, signOut, isWorking, toggleWorkingMode, isDemoMode, sessionCallCount } = useAuth()
+
+  // ⚠️ ALL hooks MUST be declared before any conditional returns (React Rules of Hooks)
   const [leads, setLeads] = useState([])
   const [users, setUsers] = useState([])
-
-  if (profile && profile.role !== 'admin') {
-    return <Navigate to="/dashboard" />
-  }
   const [loading, setLoading] = useState(true)
   const [showAddLead, setShowAddLead] = useState(false)
   const [newLead, setNewLead] = useState({
@@ -56,6 +54,11 @@ export default function Admin() {
   useEffect(() => {
     fetchData()
   }, [isDemoMode])
+
+  // Guard: redirect non-admins AFTER all hooks are declared
+  if (profile && profile.role !== 'admin') {
+    return <Navigate to="/dashboard" />
+  }
 
   async function fetchData() {
     setLoading(true)

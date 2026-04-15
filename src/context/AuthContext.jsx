@@ -48,13 +48,23 @@ export function AuthProvider({ children }) {
   }, [])
 
   async function fetchProfile(userId) {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single()
-    setProfile(data)
-    setLoading(false)
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single()
+      
+      if (error) {
+        console.error('fetchProfile error:', error.message)
+      }
+      setProfile(data || null)
+    } catch (err) {
+      console.error('fetchProfile catch:', err)
+      setProfile(null)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function signIn(email, password) {
@@ -64,9 +74,9 @@ export function AuthProvider({ children }) {
         const demoUser = DEMO_USERS[email]
         setUser({ id: demoUser.id, email: demoUser.email })
         setProfile(demoUser)
-        return { user: demoUser }
+        return { data: { user: demoUser }, error: null }
       }
-      throw new Error('Ongeldige demo inloggegevens. Gebruik employee@demo.nl of admin@demo.nl met wachtwoord: demo123')
+      throw new Error('Ongeldige demo inloggegevens. Gebruik admin@demo.nl of employee@demo.nl met demo123')
     }
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })

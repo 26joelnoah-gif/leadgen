@@ -14,7 +14,29 @@ import WorkInterface from './components/WorkInterface'
 function ProtectedRoute({ children, requireAdmin = false }) {
   const { user, profile, loading } = useAuth()
 
-  if (loading) return <div className="loading">Laden...</div>
+  if (loading) return (
+    <div style={{ 
+      minHeight: '100vh', 
+      display: 'flex', 
+      flexDirection: 'column',
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      background: 'var(--bg-dark)',
+      color: 'var(--secondary)'
+    }}>
+      <div className="loading-spinner-box" style={{ 
+        width: '40px', 
+        height: '40px', 
+        border: '3px solid rgba(245, 158, 11, 0.1)', 
+        borderTopColor: 'var(--secondary)', 
+        borderRadius: '50%',
+        animation: 'spin 1s linear infinite',
+        marginBottom: '16px'
+      }} />
+      <div style={{ fontWeight: 600, letterSpacing: '1px' }}>LADEN...</div>
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  )
 
   if (!user) return <Navigate to="/login" replace />
 
@@ -109,6 +131,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '2px', background: 'var(--secondary)', zIndex: 10001 }} />
         <WorkInterface />
         <AppRoutes />
       </AuthProvider>
