@@ -21,7 +21,7 @@ export default function Login() {
   const [promoStep, setPromoStep] = useState(0)
 
   function dismissPromo() {
-    dismissPromo()
+    setShowPromo(false)
     localStorage.setItem('leadgen_promo_dismissed', 'true')
   }
   
