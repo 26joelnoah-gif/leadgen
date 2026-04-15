@@ -766,32 +766,3 @@ function ListButton({ list, active, onClick }) {
   )
 }
 
-function StatusBadge({ status }) {
-  const configs = {
-    deal: { color: 'var(--success)', icon: <CheckCircle size={12} />, label: 'DEAL' },
-    afspraak_gemaakt: { color: 'var(--success)', icon: <Calendar size={12} />, label: 'AFSPRAAK' },
-    later_bellen: { color: 'var(--warning)', icon: <Clock size={12} />, label: 'LATER' },
-    verkeerd_nummer: { color: 'var(--danger)', icon: <PhoneOff size={12} />, label: 'WRONG' },
-    geen_interesse: { color: '#71717A', icon: <UserMinus size={12} />, label: 'LOST' },
-  }
-
-  const config = configs[status] || { color: 'var(--primary)', icon: <Shield size={12} />, label: status?.toUpperCase() }
-
-  return (
-    <span style={{ 
-      display: 'inline-flex', 
-      alignItems: 'center', 
-      gap: '6px', 
-      background: `${config.color}20`, 
-      color: config.color, 
-      padding: '4px 10px', 
-      borderRadius: '20px', 
-      fontSize: '0.65rem', 
-      fontWeight: 900,
-      border: `1px solid ${config.color}40`,
-      letterSpacing: '0.5px'
-    }}>
-      {config.icon} {config.label}
-    </span>
-  )
-}
