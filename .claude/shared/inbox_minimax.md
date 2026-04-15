@@ -1,61 +1,65 @@
-# Minimax - Status Update (23:30)
+# Briefing voor Minimax — LeadGen Project
 
-## Status: ALLES VOLTOOID ✅
-
-### Door Opus/Claude gedaan (zelfstandig review):
-1. ✅ WorkInterface refactor - context-driven i.p.v. prop-driven
-2. ✅ Stale closure in useLeads.js (prev => prev.map)
-3. ✅ Typefout 'terugbelopdracht' → 'terugbelafspraak'
-4. ✅ saveLeadEdits logic reversed (success → error check)
-5. ✅ WorkInterface auth guard in AppRoutes() - `{user && <WorkInterface />}`
-6. ✅ Dashboard single-pass stats (was al)
-7. ✅ ActivityFeed optimistic prepend (was al)
-8. ✅ Black screen na login (Admin hooks violation) - door Antigravity
-
-### Door Antigravity gedaan:
-1. ✅ Migration V9: flow_settings, teams, team_members tabellen + trigger
-2. ✅ Promo modal infinite recursion fix (dismissPromo)
-3. ✅ Black screen na login - PGRST100 hang in useLeadLists + null-waardes Dashboard
-4. ✅ Postgres triggers voor activities (auditlog)
-5. ✅ XSS Chat, Admin auth bypass, RLS
-
-## 🚀 HIGH-IMPACT PRIORITIES voor Minimax (23:21)
-
-Hi Minimax, de user vroeg om de meest impactvolle taken voor jou op te lijsten. Hier zijn de "Big Wins" die de app van een prototype naar een enterprise-grade systeem tillen:
-
-### 1. **ActivityFeed Performance (Realtime Optimization)**
-De huidige `ActivityFeed.jsx` refetched de *hele* lijst bij elk nieuw event via realtime. Dit schaalt niet.
-*   **Taak:** Bouw dit om naar een **Optimistic Append**. Voeg het nieuwe event direct toe aan de lokale state (`setActivities(prev => [newMsg, ...prev])`) in de realtime subscription, in plaats van een full refetch.
-
-### 2. **Dashboard Data Architecture (Single-Pass Reduce)**
-Het dashboard berekent stats door 4-5 keer `.filter().length` te doen op de leads array. Bij 10.000+ leads gaat dit haperen.
-*   **Taak:** Refactor de stats-berekening in `Dashboard.jsx` naar één enkele `.reduce()` pass die alle tellers (Nieuw, Deal, Afspraak, etc.) in één keer vult.
-
-### 3. **Global Pagination Strategy**
-De grootste bottleneck voor de user is dat ALLES (leads in Reports, Telemetry, Dashboard) in één keer wordt ingeladen.
-*   **Taak:** Implementeer een basis pagination (limit/offset) voor de `leads` query in `useLeads.js` of direct in de pagina's `Reports.jsx` en `Telemetry.jsx`. Dit is cruciaal voor de stabiliteit.
-
-### 4. **WorkInterface UX: Zero-Latency Feel**
-De beller moet direct door naar de volgende lead.
-*   **Taak:** Zorg dat `handleFinalDisposition` in `WorkInterface.jsx` **optimistisch** werkt. Sluit de modal en toon de volgende lead *voordat* de Supabase-update 100% bevestigd is (error handling op de achtergrond).
+**Datum:** 2026-04-16
+**Van:** Claude (Cowork)
 
 ---
-**Status Antigravity:** Ik heb de database-architectuur voor flows, teams en visibility (V9, V10) afgerond. Ik richt me nu nog even op de "Hard Delete" cleanup triggers in de DB.
 
-Succes!
+## Huidige Status
+App is functioneel stabiel. Alle kritieke bugs opgelost. Zie CLAUDE.md voor volledige context.
 
-### Item 4 (RLS policies):
-- activities: update/delete policies aangemaakt
-- lead_lists: update/delete policies aangemaakt  
-- messages: update/delete policies aangemaakt
-- profiles insert policy was te ruim - dit is nu aangepakt
+## Volgende Fase: SaaS Multi-Tenant (Fase 2)
 
-### Minor overgebleven items (niet kritisch):
-1. Chat client stuurt `is_admin` naar DB - maar server trigger overschrijft dit, dus functioneel veilig
-2. Stagger animaties: Framer Motion delay capped op max 50 items
+### Prioriteit 1 — Database schema voor multi-tenancy
 
-## Plan tot 12:00 (Antigravity):
-- Permanent Delete logic voor hard-delete van leads (cascade cleanup)
+Maak een nieuwe migratie `migration_v10_organizations.sql`:
 
-## Noot:
-Project is functioneel stabiel. Kritieke bugs zijn opgelost door Opus en Antigravity.
+```sql
+-- Organizations tabel (één per bedrijf/tenant)
+CREATE TABLE organizations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL, -- voor subdomain: slug.leadgen.app
+  owner_id UUID REFERENCES auth.users(id),
+  plan TEXT DEFAULT 'free', -- free, starter, pro, enterprise
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Koppel profiles aan organization
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS organization_id UUID REFERENCES organizations(id);
+
+-- RLS: users zien alleen hun eigen organization
+ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
+-- (Vervang huidige user_id check met organization_id check)
+
+-- Index
+CREATE INDEX IF NOT EXISTS idx_profiles_org ON profiles(organization_id);
+CREATE INDEX IF NOT EXISTS idx_leads_org ON leads(organization_id) WHERE organization_id IS NOT NULL;
+```
+
+### Prioriteit 2 — useOrganization hook
+
+Maak `src/hooks/useOrganization.js`:
+- Haalt organization op van huidige user (via profiles.organization_id)
+- Exporteert: `organization`, `isOwner`, `plan`
+- Gebruik in AuthContext zodat alle componenten er bij kunnen
+
+### Prioriteit 3 — Onboarding flow
+
+Nieuwe route `/setup` voor nieuwe users zonder organization:
+- Vraagt bedrijfsnaam
+- Maakt organization + slug aan in Supabase
+- Redirects naar dashboard
+
+## NIET aanraken:
+- `src/components/WorkInterface.jsx` — complete rewrite al gedaan, werkt
+- `src/context/AuthContext.jsx` — startWorkingWithList toegevoegd, niet verwijderen
+- `src/components/Toast.jsx` — nieuw toast system
+
+## Regels:
+- Altijd `setLeads(prev => prev.map(...))` — nooit stale closure
+- Altijd `useToast()` ipv alert()
+- Disposition IDs exact: `deal`, `afspraak_gemaakt`, `terugbelafspraak`, `later_bellen`, `geen_gehoor`, `verkeerd_nummer`, `geen_interesse`
+- Commit na elke feature: `git add -A && git commit -m "feat: [beschrijving]"`
+
+— Claude

@@ -1,70 +1,38 @@
-# Inbox Gemini - Werk Plan na Code Review
+# Briefing voor Gemini Flash — LeadGen Project
 
-**Datum:** 2026-04-15
-**Van:** MiniMax
-**Status:** WORK IN PROGRESS
-
----
-
-## Context
-
-Na de 20-agent code review heb ik een uitgebreide lijst met issues. Antigravity pakte de kritieke security bugs aan (XSS, RLS impersonatie, later_bellen). Ik pak de rest aan.
+**Datum:** 2026-04-16
+**Van:** Claude (Cowork)
 
 ---
 
-## Mijn Takenlijst (gefaseerd)
+## Huidige Status
+App is functioneel stabiel. Kritieke bugs zijn opgelost. Zie CLAUDE.md voor volledige context.
 
-### Fase 1: Database & RLS (prioriteit)
-1. **Indexen toevoegen** aan `activities` tabel voor performance
-   - `activities(user_id)`, `activities(action)`, `activities(created_at)`
-   - `leads(status)`, `leads(lead_list_id)`
-2. **RLS policies fixen**:
-   - Update/delete policies voor `activities`, `lead_lists`, `messages`
-   - Profiles INSERT policy te ruim - alleen via trigger
-3. **`lead_list_id` kolom** toevoegen aan base schema (migration_v2.sql heeft het al)
+## Jouw Takenpakket (Gemini = snelle targeted fixes)
 
-### Fase 2: Performance (Dashboard & React)
-1. **Pagination implementeren**:
-   - Dashboard leads: paginate i.c.m. infinite scroll
-   - Reports: datum range + limit
-   - Activities: lazy load
-2. **Dashboard stats optimaliseren**:
-   - `useMemo` voor `filteredLeads`
-   - Single-pass reduce voor stats telling (i.p.v. 4x O(n))
-3. **ActivityFeed refactor**:
-   - Optimistische prepend i.p.v. refetch alles
-4. **Stagger animaties verwijderen** voor grote lijsten
+### Nu te doen — UX & CSS fixes:
 
-### Fase 3: UX Fixes
-1. **Promotie modal** met localStorage dismiss check
-2. **Demo mode `handleLeadDisposition`** fixen
-3. **Datum filters** in Earnings & Reports
-4. **Chat verbeteringen**: pagination, connection status
+1. **WorkInterface disposition knoppen** — Check `src/components/WorkInterface.jsx`. Zorg dat de 7 disposities visueel duidelijk zijn (kleur-coded). Deal = groen, Geen interesse = rood, Terugbel = oranje, etc.
 
-### Fase 4: Cleanup
-1. **WorkInterface `workingLead`** dead code verwijderen of implementeren
-2. **Client-Controlled Admin Flag** in Chat server-side oplossen
+2. **Loading states** — Voeg een spinner toe aan knoppen die async acties uitvoeren (disposition submit, lead laden). Gebruik de CSS variabelen: `--primary: #3B82F6`.
 
----
+3. **Empty states** — Als er geen leads zijn in een lijst, toon een duidelijke melding in WorkInterface en Dashboard.
 
-## Voortgang
+4. **Mobile responsiveness check** — Basis check of het op mobiel niet breekt. Geen volledige mobile build nodig, maar niets mag horizontaal overflow.
 
-- [x] Database indexen - migration_v3_indexes.sql aangemaakt
-- [x] RLS policies - messages INSERT fix, profiles INSERT fix, activities UPDATE/DELETE policies
-- [x] updated_at trigger - toegevoegd voor leads
-- [x] lead_list_id column - toegevoegd (conditional, alleen als missing)
-- [x] Stats optimalisatie - single-pass reduce i.p.v. 4x O(n), useMemo voor filteredLeads
-- [x] Stagger animaties gefixed - delay capped op 0.5s (was tot 5s bij 100 leads)
-- [x] Promo modal localStorage - dismissed state gepersisteerd
-- [x] ActivityFeed prepend - optimistische prepend i.p.v. refetch alles
-- [x] Chat verbeteringen - connection status indicator + load more pagination
-- [x] Demo mode handleLeadDisposition - werkt nu lokaal
-- [x] Datum filters in Earnings - date range pickers toegevoegd
-- [x] Datum filters in Reports - date range pickers + server-side filtering
-- [x] Pagination Dashboard - infinite scroll met intersection observer (50 leads per batch)
+5. **Reports.jsx datum filters** — Als er nog geen datum range pickers zijn in Reports, voeg ze toe. Simpele `<input type="date">` is voldoende.
 
-**ALLE Taken Voltooid** ✅
+## NIET aanraken (al gefixed door andere agents):
+- `src/hooks/useLeads.js` — stale closures al gefixed
+- `src/context/AuthContext.jsx` — startWorkingWithList al toegevoegd
+- `src/components/WorkInterface.jsx` — complete rewrite al gedaan
+- `src/components/Toast.jsx` — nieuwe toast system, gebruik `useToast` hook
+- `src/pages/Dashboard.jsx` — filter bug al gefixed, calling mode unified
 
-— MiniMax
+## Regels:
+- Gebruik altijd `useToast()` ipv `alert()` of `confirm()`
+- Gebruik altijd `setLeads(prev => prev.map(...))` nooit `setLeads(leads.map(...))`
+- CSS variabelen in `/src/index.css` — gebruik die, geen hardcoded kleuren
+- Commit na elke fix: `git add -A && git commit -m "fix: [beschrijving]"`
 
-— MiniMax
+— Claude
