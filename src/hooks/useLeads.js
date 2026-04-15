@@ -71,9 +71,9 @@ export function useLeads() {
     }
   }
 
-  async function updateLeadStatus(leadId, status) {
+  async function updateLeadStatus(leadId, status, additionalFields = {}) {
     const currentLead = leads.find(l => l.id === leadId)
-    let updates = { status, updated_at: new Date().toISOString() }
+    let updates = { status, ...additionalFields, updated_at: new Date().toISOString() }
 
     if (status === 'later_bellen' || status === 'geen_gehoor') {
       const nextAttempt = (currentLead?.contact_attempts || 0) + 1
@@ -240,15 +240,38 @@ export function useLeads() {
   }, [isDemoMode, profile?.role, user?.id])
 
   async function handleLeadDisposition(leadId, currentListName, dispositionType, notes, nextDate = null) {
-    if (isDemoMode) return
     const currentLead = leads.find(l => l.id === leadId)
     if (!currentLead) return
+
+    // Demo mode: update local state only
+    if (isDemoMode) {
+      const statusMap = {
+        'geen_interesse': 'geen_interesse',
+        'verkeerde_info': 'verkeerd_nummer',
+        'deal': 'deal',
+        'afspraak_gemaakt': 'afspraak_gemaakt',
+        'terugbelopdracht': 'terugbelafspraak',
+        'niet_bereikbaar': 'niet_bereikbaar',
+        'later_bellen': 'later_bellen'
+      }
+      const newStatus = statusMap[dispositionType] || currentLead.status
+      const updatedLead = {
+        ...currentLead,
+        status: newStatus,
+        next_contact_date: dispositionType === 'terugbelopdracht' ? nextDate : currentLead.next_contact_date,
+        contact_attempts: dispositionType === 'niet_bereikbaar'
+          ? (currentLead.contact_attempts || 0) + 1
+          : currentLead.contact_attempts
+      }
+      setLeads(prev => prev.map(l => l.id === leadId ? updatedLead : l))
+      return
+    }
 
     const moveToBatch = async (batchNamePrefix) => {
       if (!currentListName) return
       const batchedListName = `${batchNamePrefix} - ${currentListName}`
       let targetListId = null
-      
+
       const { data: existingLists } = await supabase.from('lead_lists').select('id').eq('name', batchedListName)
       if (existingLists && existingLists.length > 0) {
         targetListId = existingLists[0].id
@@ -287,38 +310,25 @@ export function useLeads() {
       await moveToBatch('Afspraken')
     }
     else if (dispositionType === 'terugbelopdracht') {
-      await supabase.from('leads').update({ 
-        status: 'terugbelafspraak', 
-        next_contact_date: nextDate,
-        updated_at: new Date().toISOString()
-      }).eq('id', leadId)
+      await updateLeadStatus(leadId, 'terugbelafspraak', { next_contact_date: nextDate })
       await logActivity(leadId, 'snooze', notes || 'TBA ingepland')
     }
     else if (dispositionType === 'niet_bereikbaar') {
       const attempts = (currentLead.contact_attempts || 0) + 1
       if (attempts >= 3) {
-        await supabase.from('leads').update({ 
-          status: 'cold', 
-          contact_attempts: attempts,
-          next_contact_date: null,
-          updated_at: new Date().toISOString()
-        }).eq('id', leadId)
+        await updateLeadStatus(leadId, 'cold', { contact_attempts: attempts, next_contact_date: null })
         await logActivity(leadId, 'note', 'Voor 3de keer niet bereikbaar, lead afgesloten.')
         await moveToBatch('Niet bereikbaar')
       } else {
-        await supabase.from('leads').update({ 
-          contact_attempts: attempts,
-          updated_at: new Date().toISOString()
-        }).eq('id', leadId)
+        await updateLeadStatus(leadId, currentLead.status, { contact_attempts: attempts }) // Keep current status but incr attempts
         await logActivity(leadId, 'note', `Niet bereikbaar (Poging ${attempts}/3)`)
       }
     }
     else if (dispositionType === 'later_bellen') {
       await updateLeadStatus(leadId, 'later_bellen')
       await logActivity(leadId, 'note', 'Uitgesteld: later bellen')
-      // Note: array shifting handled in UI
     }
-    
+
     await fetchLeads()
   }
 

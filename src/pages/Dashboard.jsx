@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -42,7 +42,51 @@ export default function Dashboard() {
   const [callingLeads, setCallingLeads] = useState([])
   const [currentLeadIndex, setCurrentLeadIndex] = useState(0)
 
+  // Pagination state for infinite scroll
+  const LEAD_PAGE_SIZE = 50
+  const [displayedLeads, setDisplayedLeads] = useState([])
+  const [hasMoreLeads, setHasMoreLeads] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const loadMoreRef = useRef(null)
+
   const isAdmin = profile?.role === 'admin'
+
+  // Reset displayed leads when filteredLeads changes
+  useEffect(() => {
+    setDisplayedLeads(filteredLeads.slice(0, LEAD_PAGE_SIZE))
+    setHasMoreLeads(filteredLeads.length > LEAD_PAGE_SIZE)
+  }, [filteredLeads])
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    if (!loadMoreRef.current) return
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreLeads && !loadingMore) {
+          loadMoreLeads()
+        }
+      },
+      { threshold: 0.1 }
+    )
+
+    observer.observe(loadMoreRef.current)
+    return () => observer.disconnect()
+  }, [hasMoreLeads, loadingMore, displayedLeads.length])
+
+  const loadMoreLeads = useCallback(() => {
+    if (loadingMore || !hasMoreLeads) return
+    setLoadingMore(true)
+
+    // Simulate async load for smooth UX
+    setTimeout(() => {
+      const currentLength = displayedLeads.length
+      const nextBatch = filteredLeads.slice(currentLength, currentLength + LEAD_PAGE_SIZE)
+      setDisplayedLeads(prev => [...prev, ...nextBatch])
+      setHasMoreLeads(currentLength + LEAD_PAGE_SIZE < filteredLeads.length)
+      setLoadingMore(false)
+    }, 150)
+  }, [loadingMore, hasMoreLeads, displayedLeads.length, filteredLeads])
 
   useEffect(() => {
     async function fetchUsers() {
@@ -92,7 +136,8 @@ export default function Dashboard() {
       const aP = priority[a.status] ?? 9
       const bP = priority[b.status] ?? 9
       if (aP !== bP) return aP - bP
-      return new Date(b.created_at) - new Date(a.created_at)
+      // Use string comparison for ISO dates - much faster than new Date()
+      return b.created_at.localeCompare(a.created_at)
     })
   }, [leads, filter, searchTerm, isAdmin])
 
@@ -382,10 +427,10 @@ export default function Dashboard() {
           <div className="dashboard-content" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '24px', alignItems: 'start' }}>
             <div className="leads-list">
               <AnimatePresence>
-                {filteredLeads.length === 0 ? (
+                {displayedLeads.length === 0 && filteredLeads.length === 0 ? (
                   <EmptyState key="empty" title="Geen leads gevonden" />
                 ) : (
-                  filteredLeads.map((lead, i) => (
+                  displayedLeads.map((lead, i) => (
                     <motion.div
                       key={lead.id}
                       initial={{ scale: 0.95, opacity: 0 }}
@@ -401,6 +446,29 @@ export default function Dashboard() {
                   ))
                 )}
               </AnimatePresence>
+
+              {/* Load More Trigger / Indicator */}
+              {hasMoreLeads && (
+                <div 
+                  ref={loadMoreRef} 
+                  style={{ 
+                    padding: '24px', 
+                    textAlign: 'center', 
+                    display: 'flex', 
+                    justifyContent: 'center',
+                    opacity: loadingMore ? 1 : 0.4,
+                    transition: 'opacity 0.3s'
+                  }}
+                >
+                  <LoadingSpinner size="small" />
+                </div>
+              )}
+
+              {!hasMoreLeads && displayedLeads.length > 0 && (
+                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                  Alle {displayedLeads.length} leads geladen
+                </div>
+              )}
             </div>
             <div className="dashboard-sidebar">
               <TeamLeaderboard />

@@ -80,3 +80,21 @@ BEGIN
         ALTER TABLE public.leads ADD COLUMN lead_list_id UUID REFERENCES public.lead_lists(id) ON DELETE SET NULL;
     END IF;
 END $$;
+
+-- =====================================================
+-- CHAT SECURITY: Auto-set is_admin
+-- =====================================================
+CREATE OR REPLACE FUNCTION public.handle_message_admin_flag()
+RETURNS TRIGGER AS 53697
+BEGIN
+    SELECT role = 'admin' INTO NEW.is_admin 
+    FROM public.profiles 
+    WHERE id = NEW.user_id;
+    RETURN NEW;
+END;
+53697 LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS tr_message_admin_flag ON public.messages;
+CREATE TRIGGER tr_message_admin_flag
+    BEFORE INSERT OR UPDATE ON public.messages
+    FOR EACH ROW EXECUTE FUNCTION public.handle_message_admin_flag();

@@ -19,9 +19,18 @@ export default function Reports() {
   const [selectedUser, setSelectedUser] = useState('all')
   const [users, setUsers] = useState([])
 
+  // Date range filters
+  const now = new Date()
+  const [startDate, setStartDate] = useState(() => {
+    const d = new Date(now)
+    d.setDate(d.getDate() - 30) // Default: last 30 days
+    return d.toISOString().split('T')[0]
+  })
+  const [endDate, setEndDate] = useState(() => now.toISOString().split('T')[0])
+
   useEffect(() => {
     fetchReports()
-  }, [isDemoMode])
+  }, [isDemoMode, startDate, endDate])
 
   async function fetchReports() {
     setLoading(true)
@@ -36,9 +45,15 @@ export default function Reports() {
           { id: '2', full_name: 'Maria Admin' }
         ]
       } else {
+        // Filter by date range
+        const start = new Date(startDate)
+        start.setHours(0, 0, 0, 0)
+        const end = new Date(endDate)
+        end.setHours(23, 59, 59, 999)
+
         const [leadsRes, activitiesRes, usersRes] = await Promise.all([
-          supabase.from('leads').select('*'),
-          supabase.from('activities').select('*, user:profiles(full_name), lead:leads(name)').order('created_at', { ascending: false }),
+          supabase.from('leads').select('*').gte('created_at', start.toISOString()).lte('created_at', end.toISOString()),
+          supabase.from('activities').select('*, user:profiles(full_name), lead:leads(name)').gte('created_at', start.toISOString()).lte('created_at', end.toISOString()).order('created_at', { ascending: false }),
           supabase.from('profiles').select('*')
         ])
         leads = leadsRes.data || []
@@ -200,6 +215,35 @@ export default function Reports() {
           <div>
             <h1>Rapportage Dashboard</h1>
             <p>Real-time inzichten in je sales funnel {isDemoMode ? '(Demo modus)' : ''}</p>
+            <div className="flex gap-2 mt-2" style={{ flexWrap: 'wrap' }}>
+              <input
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-elevated)',
+                  color: 'white',
+                  fontSize: '0.8rem'
+                }}
+              />
+              <span className="text-muted" style={{ display: 'flex', alignItems: 'center' }}>tot</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-elevated)',
+                  color: 'white',
+                  fontSize: '0.8rem'
+                }}
+              />
+            </div>
           </div>
           <div className="flex gap-2">
             <button className="btn btn-outline btn-sm" onClick={handleExportActivities}>

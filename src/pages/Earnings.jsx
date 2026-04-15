@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { DollarSign, Zap, Copy, CheckCircle, Phone, PhoneOff } from 'lucide-react'
+import { DollarSign, Zap, Copy, CheckCircle, Phone, PhoneOff, Calendar } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
 import { getSettings } from '../utils/settingsUtils'
@@ -14,8 +14,36 @@ export default function Earnings() {
   const [copied, setCopied] = useState(false)
   const [settings] = useState(getSettings)
 
-  const deals = leads.filter(l => l.status === 'deal')
-  const appointments = leads.filter(l => l.status === 'afspraak_gemaakt')
+  // Date range state - default to current month
+  const now = new Date()
+  const [startDate, setStartDate] = useState(() => {
+    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+  })
+  const [endDate, setEndDate] = useState(() => {
+    return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+  })
+
+  // Filter leads by date range
+  const { deals, appointments } = useMemo(() => {
+    const start = new Date(startDate)
+    start.setHours(0, 0, 0, 0)
+    const end = new Date(endDate)
+    end.setHours(23, 59, 59, 999)
+
+    const filteredDeals = leads.filter(l => {
+      if (l.status !== 'deal') return false
+      const created = new Date(l.created_at)
+      return created >= start && created <= end
+    })
+
+    const filteredAppointments = leads.filter(l => {
+      if (l.status !== 'afspraak_gemaakt') return false
+      const created = new Date(l.created_at)
+      return created >= start && created <= end
+    })
+
+    return { deals: filteredDeals, appointments: filteredAppointments }
+  }, [leads, startDate, endDate])
 
   const showDeals = profile?.role === 'admin' || profile?.show_deals_in_earnings !== false
   const showAppointments = profile?.role === 'admin' || profile?.show_appointments_in_earnings !== false
@@ -24,7 +52,12 @@ export default function Earnings() {
   const appointmentAmount = showAppointments ? appointments.length * settings.appointmentValue : 0
   const totalAmount = dealAmount + appointmentAmount
 
-  const invoiceText = `${profile?.full_name || 'Medewerker'}\nPeriode: April 2026\n\nDeals: ${deals.length} x €${settings.dealValue} = €${dealAmount}\nAfspraken: ${appointments.length} x €${settings.appointmentValue} = €${appointmentAmount}\n\nTotaal te factureren: €${totalAmount}`
+  // Format period for display
+  const startFormatted = new Date(startDate).toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })
+  const endFormatted = new Date(endDate).toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })
+  const periodLabel = startFormatted === endFormatted ? startFormatted : `${startFormatted} - ${endFormatted}`
+
+  const invoiceText = `${profile?.full_name || 'Medewerker'}\nPeriode: ${periodLabel}\n\nDeals: ${deals.length} x €${settings.dealValue} = €${dealAmount}\nAfspraken: ${appointments.length} x €${settings.appointmentValue} = €${appointmentAmount}\n\nTotaal te factureren: €${totalAmount}`
 
   function copyInvoice() {
     navigator.clipboard.writeText(invoiceText)
@@ -67,8 +100,40 @@ export default function Earnings() {
             Facturatie Overzicht
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>
-            {profile?.full_name || 'Medewerker'} - April 2026
+            {profile?.full_name || 'Medewerker'} - {periodLabel}
           </p>
+          <div className="flex gap-2 justify-center mt-3" style={{ flexWrap: 'wrap' }}>
+            <div className="flex items-center gap-2">
+              <Calendar size={14} className="text-muted" />
+              <input
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-elevated)',
+                  color: 'white',
+                  fontSize: '0.85rem'
+                }}
+              />
+              <span className="text-muted">tot</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+                style={{
+                  padding: '6px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border)',
+                  background: 'var(--bg-elevated)',
+                  color: 'white',
+                  fontSize: '0.85rem'
+                }}
+              />
+            </div>
+          </div>
         </motion.div>
 
         <motion.div

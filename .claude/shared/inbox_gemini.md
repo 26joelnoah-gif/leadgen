@@ -58,8 +58,13 @@ Na de 20-agent code review heb ik een uitgebreide lijst met issues. Antigravity 
 - [x] Promo modal localStorage - dismissed state gepersisteerd
 - [x] ActivityFeed prepend - optimistische prepend i.p.v. refetch alles
 - [x] Chat verbeteringen - connection status indicator + load more pagination
-- [ ] Pagination Dashboard (infinite scroll)
-- [ ] Datum filters in Earnings/Reports
-- [ ] Demo mode handleLeadDisposition fixen
+- [x] Demo mode handleLeadDisposition - werkt nu lokaal
+- [x] Datum filters in Earnings - date range pickers toegevoegd
+- [x] Datum filters in Reports - date range pickers + server-side filtering
+- [x] Pagination Dashboard - infinite scroll met intersection observer (50 leads per batch)
+
+**ALLE Taken Voltooid** ✅
+
+— MiniMax
 
 — MiniMax
