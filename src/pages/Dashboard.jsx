@@ -220,37 +220,66 @@ export default function Dashboard() {
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             className="card mb-4"
-            style={{ padding: '24px', textAlign: 'center', border: '2px solid var(--primary)' }}
+            style={{ 
+              padding: '40px 24px', 
+              textAlign: 'center', 
+              border: '2px solid var(--primary)',
+              background: 'linear-gradient(135deg, rgba(52, 152, 219, 0.1) 0%, rgba(0,0,0,0) 100%)',
+              boxShadow: '0 0 40px rgba(52, 152, 219, 0.15)'
+            }}
           >
-            <h2 style={{ marginBottom: '8px' }}>Ben je klaar om te bellen?</h2>
-            <p style={{ color: 'var(--text-muted)', marginBottom: '16px' }}>
-              {leadLists.length === 0 && 'Nog geen lijsten toegewezen aan jou'}
-              {leadLists.length === 1 && '1 lijst beschikbaar'}
-              {leadLists.length > 1 && `${leadLists.length} lijsten beschikbaar`}
-            </p>
-            {leadLists.length === 1 && (
-              <button
-                onClick={() => startWorkingWithList(leadLists[0].id)}
-                className="btn btn-primary"
-                style={{ padding: '16px 48px', fontSize: '1.1rem', fontWeight: 700 }}
-              >
-                <Phone size={20} /> START MET BELLEN
-              </button>
-            )}
-            {leadLists.length > 1 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', marginTop: '8px' }}>
-                {leadLists.map(list => (
-                  <button
-                    key={list.id}
-                    onClick={() => startWorkingWithList(list.id)}
-                    className="btn btn-primary"
-                    style={{ padding: '10px 20px' }}
-                  >
-                    <Phone size={16} /> {list.name}
-                  </button>
-                ))}
+            <div style={{ marginBottom: '24px' }}>
+              <div style={{ 
+                display: 'inline-flex', 
+                alignItems: 'center', 
+                gap: '8px', 
+                padding: '4px 12px', 
+                background: 'rgba(255,255,255,0.05)', 
+                borderRadius: '100px',
+                marginBottom: '16px'
+              }}>
+                <div className="status-indicator status-online" style={{ margin: 0 }}></div>
+                <span style={{ fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--text-muted)' }}>
+                  {leadLists.length} Projecten Beschikbaar
+                </span>
               </div>
-            )}
+              <h2 style={{ fontSize: '2.5rem', fontWeight: 900, letterSpacing: '-2px', fontStyle: 'italic', marginBottom: '8px' }}>
+                READY TO <span className="text-primary">SYNC & DIAL?</span>
+              </h2>
+              <p style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Selecteer je batch en start direct met bellen.</p>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+              {leadLists.length === 1 ? (
+                <button
+                  onClick={() => startWorkingWithList(leadLists[0].id)}
+                  className="btn btn-primary"
+                  style={{ padding: '20px 60px', fontSize: '1.25rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '1px' }}
+                >
+                  <Phone size={24} /> START DIRECT MET BELLEN
+                </button>
+              ) : (
+                <>
+                  {/* Selecteer modus als er meerdere zijn */}
+                  <div style={{ position: 'relative', width: '100%', maxWidth: '400px' }}>
+                    <select 
+                      onChange={(e) => startWorkingWithList(e.target.value)}
+                      className="bg-dark border-2 border-primary/30 p-4 rounded-xl w-full text-white font-black uppercase tracking-widest text-sm focus:border-primary transition-all outline-none"
+                      defaultValue=""
+                    >
+                      <option value="" disabled>--- KIES JE PROJECT ---</option>
+                      {leadLists.map(list => (
+                        <option key={list.id} value={list.id}>{list.name.toUpperCase()}</option>
+                      ))}
+                    </select>
+                    <div style={{ pointerEvents: 'none', position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)' }}>
+                       <ChevronRight size={20} className="text-primary" />
+                    </div>
+                  </div>
+                  <p className="text-[10px] uppercase font-black tracking-widest text-muted opacity-40">Of selecteer een speciaal belflow via het menu</p>
+                </>
+              )}
+            </div>
           </motion.div>
         )}
 
