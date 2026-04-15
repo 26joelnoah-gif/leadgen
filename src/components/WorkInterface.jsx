@@ -58,6 +58,7 @@ export default function WorkInterface() {
   const [showDispositionModal, setShowDispositionModal] = useState(false)
   const [selectedDisposition, setSelectedDisposition] = useState(null)
   const [nextContactDate, setNextContactDate] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024)
@@ -118,7 +119,6 @@ export default function WorkInterface() {
     }
   }
 
-  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const dispositions = [
     { id: 'deal', label: 'DEAL', color: '#10B981', icon: <CheckCircle2 size={18} /> },
@@ -207,7 +207,7 @@ export default function WorkInterface() {
                  </span>
                )}
             </div>
-            <button onClick={closeAll} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><X size={16} /> Sluiten</button>
+            <button onClick={toggleWorkingMode} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><X size={16} /> Sluiten</button>
           </header>
 
           {/* Sub Header */}

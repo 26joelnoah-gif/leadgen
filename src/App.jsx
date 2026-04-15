@@ -43,11 +43,6 @@ function ProtectedRoute({ children, requireAdmin = false }) {
 
   if (!user) return <Navigate to="/login" replace />
 
-  // Redirect to setup if no organization (skip for demo mode + existing data without org)
-  if (!isDemoMode && profile && !profile.organization_id) {
-    return <Navigate to="/setup" replace />
-  }
-
   if (requireAdmin && profile?.role !== 'admin') {
     return (
       <div className="access-denied">
