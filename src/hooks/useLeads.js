@@ -44,33 +44,44 @@ export function useLeads() {
     }
 
     try {
-      // 1. Get user's teams if not admin
-      let userTeamIds = []
-      if (profile?.role !== 'admin') {
-        const { data: memberships } = await supabase.from('team_members').select('team_id').eq('profile_id', user?.id)
-        userTeamIds = memberships?.map(m => m.team_id) || []
-      }
-
-      // 2. Fetch leads with list info for filtering
-      let query = supabase.from('leads').select('*, lead_lists(assigned_team_id)')
-
-      if (profile?.role !== 'admin') {
+      let filteredLeads = []
+      
+      if (profile?.role === 'admin') {
+        const { data, error } = await supabase
+          .from('leads')
+          .select('*, lead_lists(assigned_team_id)')
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+        if (error) throw error
+        filteredLeads = data || []
+      } else {
         const me = user?.id
-        let filterStr = `assigned_to.eq.${me}`
-        if (userTeamIds.length > 0) {
-           const teamIdsStr = userTeamIds.map(id => `"${id}"`).join(',')
-           // Better filtering logic for teams:
-           query = query.or(`assigned_to.eq.${me},lead_list_id.in.(select id from lead_lists where assigned_team_id.in.(${teamIdsStr}))`)
-        } else {
-           query = query.eq('assigned_to', me)
+        // 1. Get user's teams
+        const { data: memberships } = await supabase.from('team_members').select('team_id').eq('profile_id', me)
+        const teamIds = memberships?.map(m => m.team_id) || []
+        
+        // 2. Get lists assigned to these teams
+        let teamListIds = []
+        if (teamIds.length > 0) {
+          const { data: lists } = await supabase.from('lead_lists').select('id').in('assigned_team_id', teamIds)
+          teamListIds = lists?.map(l => l.id) || []
         }
+
+        // 3. Build OR filter: assigned to me OR in my team's lists
+        let query = supabase.from('leads').select('*, lead_lists(assigned_team_id)').is('deleted_at', null)
+        
+        if (teamListIds.length > 0) {
+          query = query.or(`assigned_to.eq.${me},lead_list_id.in.(${teamListIds.join(',')})`)
+        } else {
+          query = query.eq('assigned_to', me)
+        }
+        
+        const { data, error } = await query.order('created_at', { ascending: false })
+        if (error) throw error
+        filteredLeads = data || []
       }
 
-      query = query.order('created_at', { ascending: false })
-      const { data, error } = await query
-      if (error) throw error
-
-      const scoredLeads = (data || []).map(l => ({
+      const scoredLeads = filteredLeads.map(l => ({
         ...l,
         lead_score: calculateLeadScore(l)
       }))
