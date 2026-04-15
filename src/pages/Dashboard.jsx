@@ -174,7 +174,6 @@ export default function Dashboard() {
     }
   }
 
-  // Start calling mode with selected list
   return (
     <motion.div
       initial={{ opacity: 0 }}
