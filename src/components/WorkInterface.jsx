@@ -44,8 +44,13 @@ export default function WorkInterface() {
   const { isWorking, toggleWorkingMode, workingLead, workingListId, sessionCallCount, profile, user } = useAuth()
   const { leads, updateLeadStatus, logActivity, handleLeadDisposition } = useLeads()
 
-  // Determine which lead to show: single workingLead (from TBA) or first from list
-  const currentLead = workingLead || (workingListId ? leads.find(l => l.lead_list_id === workingListId && l.status === 'new') : null)
+  // List mode: leads for current list, sorted by status priority
+  const listLeads = workingListId
+    ? leads.filter(l => l.lead_list_id === workingListId && !['deal','afspraak_gemaakt','geen_interesse','verkeerd_nummer','cold'].includes(l.status))
+    : []
+
+  const [leadIndex, setLeadIndex] = useState(0)
+  const currentLead = workingLead || listLeads[leadIndex] || null
 
   const [editableLead, setEditableLead] = useState({})
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024)
@@ -64,10 +69,17 @@ export default function WorkInterface() {
     if (currentLead) setEditableLead(currentLead)
   }, [currentLead?.id])
 
+  // Reset index when list changes
+  useEffect(() => {
+    setLeadIndex(0)
+  }, [workingListId])
+
   // Don't render if not working or no lead available
   if (!isWorking || !currentLead) return null
 
   const listName = workingListId || 'Direct'
+  const isListMode = !!workingListId && !workingLead
+  const progress = isListMode ? { current: leadIndex + 1, total: listLeads.length } : null
 
   const saveLeadEdits = async () => {
     const error = await updateLeadStatus(currentLead.id, currentLead.status, editableLead)
@@ -92,9 +104,16 @@ export default function WorkInterface() {
     setNextContactDate('')
     setSelectedDisposition(null)
 
-    // If single lead (TBA), close. If list mode, stay open for next lead.
     if (workingLead) {
+      // TBA single lead — sluit
       toggleWorkingMode()
+    } else if (isListMode) {
+      // Lijst modus — volgende lead of sluit als lijst leeg is
+      if (leadIndex < listLeads.length - 2) {
+        setLeadIndex(prev => prev + 1)
+      } else {
+        toggleWorkingMode()
+      }
     }
   }
 
@@ -152,6 +171,11 @@ export default function WorkInterface() {
                  </span>
                </h2>
                <span style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>Live Counter: {sessionCallCount}</span>
+               {progress && (
+                 <span style={{ background: 'rgba(255,255,255,0.15)', color: 'white', padding: '2px 10px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                   {progress.current} / {progress.total}
+                 </span>
+               )}
             </div>
             <button onClick={closeAll} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><X size={16} /> Sluiten</button>
           </header>

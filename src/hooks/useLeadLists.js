@@ -52,7 +52,7 @@ export function useLeadLists() {
         description,
         created_at: new Date().toISOString()
       }
-      setLeadLists([newList, ...leadLists])
+      setLeadLists(prev => [newList, ...prev])
       return newList
     }
 
@@ -63,7 +63,7 @@ export function useLeadLists() {
       .single()
 
     if (!error && data) {
-      setLeadLists([data, ...leadLists])
+      setLeadLists(prev => [data, ...prev])
     }
     return { data, error }
   }
@@ -114,7 +114,7 @@ export function useLeadLists() {
 
   async function deleteLeadList(listId) {
     if (isDemoMode) {
-      setLeadLists(leadLists.filter(l => l.id !== listId))
+      setLeadLists(prev => prev.filter(l => l.id !== listId))
       return { error: null }
     }
 
@@ -125,7 +125,7 @@ export function useLeadLists() {
       .eq('id', listId)
 
     if (!error) {
-      setLeadLists(leadLists.filter(l => l.id !== listId))
+      setLeadLists(prev => prev.filter(l => l.id !== listId))
     }
     return { error }
   }
@@ -155,7 +155,7 @@ export function useLeadLists() {
       .update({ assigned_to: agentId || null })
       .eq('id', listId)
     if (!error) {
-      setLeadLists(leadLists.map(l => l.id === listId ? { ...l, assigned_to: agentId } : l))
+      setLeadLists(prev => prev.map(l => l.id === listId ? { ...l, assigned_to: agentId } : l))
     }
     return { error }
   }

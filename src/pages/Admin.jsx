@@ -200,7 +200,7 @@ export default function Admin() {
 
         {activeTab === 'data' && (
            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <LeadManagement />
+              <LeadManagement standalone={false} />
            </motion.div>
         )}
 

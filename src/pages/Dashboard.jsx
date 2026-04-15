@@ -15,7 +15,7 @@ import ActivityFeed from '../components/ActivityFeed'
 import Header from '../components/Header'
 
 export default function Dashboard() {
-  const { user, profile, signOut, isWorking, toggleWorkingMode, isDemoMode, sessionCallCount } = useAuth()
+  const { user, profile, signOut, isWorking, toggleWorkingMode, startWorkingWithList, isDemoMode, sessionCallCount } = useAuth()
   const { leads, loading, fetchLeads, updateLeadStatus, createLead } = useLeads()
   const { leadLists, loading: leadListsLoading, getLeadsInList } = useLeadLists()
   const [filter, setFilter] = useState('all')
@@ -36,11 +36,6 @@ export default function Dashboard() {
   const [creating, setCreating] = useState(false)
   const [users, setUsers] = useState([])
 
-  // Calling mode state (1 lead at a time)
-  const [isCallingMode, setIsCallingMode] = useState(false)
-  const [selectedCallingList, setSelectedCallingList] = useState(null)
-  const [callingLeads, setCallingLeads] = useState([])
-  const [currentLeadIndex, setCurrentLeadIndex] = useState(0)
 
   // Pagination state for infinite scroll
   const LEAD_PAGE_SIZE = 50
@@ -78,8 +73,8 @@ export default function Dashboard() {
     const search = searchTerm.toLowerCase()
     const filtered = (leads || []).filter(lead => {
       if (!lead) return false
-      if (!isAdmin && lead.status !== 'terugbelafspraak') return false
-      if (!isAdmin && ['deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer', 'cold'].includes(lead.status)) return false
+      // Hide closed statuses from dashboard for everyone
+      if (['deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer', 'cold'].includes(lead.status)) return false
 
       let matchesFilter = true
       const status = lead.status || 'new'
@@ -180,109 +175,6 @@ export default function Dashboard() {
   }
 
   // Start calling mode with selected list
-  async function startCallingMode(listId) {
-    const list = leadLists.find(l => l.id === listId)
-    if (!list) return
-    const leadsInList = await getLeadsInList(listId)
-    if (leadsInList.length === 0) {
-      alert('Deze lijst heeft geen leads')
-      return
-    }
-    setSelectedCallingList(list)
-    setCallingLeads(leadsInList)
-    setCurrentLeadIndex(0)
-    setIsCallingMode(true)
-  }
-
-  function nextLead() {
-    if (currentLeadIndex < callingLeads.length - 1) {
-      setCurrentLeadIndex(prev => prev + 1)
-    } else {
-      // End of list
-      setIsCallingMode(false)
-      setSelectedCallingList(null)
-      setCallingLeads([])
-      setCurrentLeadIndex(0)
-    }
-  }
-
-  function exitCallingMode() {
-    setIsCallingMode(false)
-    setSelectedCallingList(null)
-    setCallingLeads([])
-    setCurrentLeadIndex(0)
-  }
-
-  // Calling mode: fullscreen 1 lead at a time
-  if (isCallingMode && callingLeads.length > 0) {
-    const currentLead = callingLeads[currentLeadIndex]
-    const isLastLead = currentLeadIndex === callingLeads.length - 1
-    return (
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        className="dashboard-page"
-        style={{ minHeight: '100vh', background: 'var(--bg-dark)', display: 'flex', flexDirection: 'column' }}
-      >
-        <Header />
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          {/* Progress */}
-          <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-            <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-              {currentLeadIndex + 1} van {callingLeads.length}
-            </span>
-            <div style={{ width: '200px', height: '4px', background: 'var(--bg-elevated)', borderRadius: '2px', marginTop: '8px' }}>
-              <div style={{
-                width: `${((currentLeadIndex + 1) / callingLeads.length) * 100}%`,
-                height: '100%',
-                background: 'var(--primary)',
-                borderRadius: '2px',
-                transition: 'width 0.3s'
-              }} />
-            </div>
-          </div>
-
-          {/* Current Lead Card */}
-          <motion.div
-            key={currentLead.id}
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="card"
-            style={{ width: '100%', maxWidth: '500px', textAlign: 'center' }}
-          >
-            <div style={{ fontSize: '2rem', fontWeight: 900, marginBottom: '8px' }}>{currentLead.name}</div>
-            <div style={{ fontSize: '1.5rem', color: 'var(--primary)', marginBottom: '16px' }}>{currentLead.phone}</div>
-            {currentLead.email && <div style={{ color: 'var(--text-muted)', marginBottom: '8px' }}>{currentLead.email}</div>}
-            {currentLead.notes && (
-              <div style={{ padding: '12px', background: 'var(--bg-elevated)', borderRadius: '8px', marginTop: '16px', textAlign: 'left' }}>
-                <strong style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Notities:</strong>
-                <p style={{ margin: '8px 0 0 0' }}>{currentLead.notes}</p>
-              </div>
-            )}
-          </motion.div>
-
-          {/* Actions */}
-          <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
-            <button
-              onClick={exitCallingMode}
-              className="btn btn-outline"
-              style={{ padding: '12px 24px' }}
-            >
-              <X size={18} /> Stoppen
-            </button>
-            <button
-              onClick={nextLead}
-              className="btn btn-secondary"
-              style={{ padding: '12px 24px', background: 'var(--primary)' }}
-            >
-              {isLastLead ? 'Klaar ✓' : 'Volgende →'}
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    )
-  }
-
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -335,9 +227,9 @@ export default function Dashboard() {
               {leadLists.length === 1 && '1 lijst beschikbaar'}
               {leadLists.length > 1 && `${leadLists.length} lijsten beschikbaar`}
             </p>
-            {leadLists.length > 0 && (
+            {leadLists.length === 1 && (
               <button
-                onClick={() => toggleWorkingMode()}
+                onClick={() => startWorkingWithList(leadLists[0].id)}
                 className="btn btn-primary"
                 style={{ padding: '16px 48px', fontSize: '1.1rem', fontWeight: 700 }}
               >
@@ -345,14 +237,17 @@ export default function Dashboard() {
               </button>
             )}
             {leadLists.length > 1 && (
-              <div style={{ marginTop: '12px' }}>
-                <button
-                  onClick={() => toggleWorkingMode()}
-                  className="btn btn-outline"
-                  style={{ padding: '10px 20px' }}
-                >
-                  Ander project kiezen...
-                </button>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', justifyContent: 'center', marginTop: '8px' }}>
+                {leadLists.map(list => (
+                  <button
+                    key={list.id}
+                    onClick={() => startWorkingWithList(list.id)}
+                    className="btn btn-primary"
+                    style={{ padding: '10px 20px' }}
+                  >
+                    <Phone size={16} /> {list.name}
+                  </button>
+                ))}
               </div>
             )}
           </motion.div>

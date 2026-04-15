@@ -112,6 +112,12 @@ export function AuthProvider({ children }) {
     })
   }
 
+  function startWorkingWithList(listId) {
+    setWorkingListId(listId)
+    setWorkingLead(null)
+    setIsWorking(true)
+  }
+
   async function logCall(leadId, leadName) {
     setSessionCallCount(prev => prev + 1)
     
@@ -128,7 +134,7 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{ 
       user, profile, loading, signIn, signOut, isDemoMode, 
-      isWorking, toggleWorkingMode, workingListId, setWorkingListId, workingLead, setWorkingLead, sessionCallCount, logCall 
+      isWorking, toggleWorkingMode, startWorkingWithList, workingListId, setWorkingListId, workingLead, setWorkingLead, sessionCallCount, logCall
     }}>
       {children}
     </AuthContext.Provider>
