@@ -13,9 +13,11 @@ import TeamLeaderboard from '../components/TeamLeaderboard'
 import Chat from '../components/Chat'
 import ActivityFeed from '../components/ActivityFeed'
 import Header from '../components/Header'
+import { useToast } from '../components/Toast'
 
 export default function Dashboard() {
   const { user, profile, signOut, isWorking, toggleWorkingMode, startWorkingWithList, isDemoMode, sessionCallCount } = useAuth()
+  const toast = useToast()
   const { leads, loading, fetchLeads, updateLeadStatus, createLead } = useLeads()
   const { leadLists, loading: leadListsLoading, getLeadsInList } = useLeadLists()
   const [filter, setFilter] = useState('all')
@@ -158,7 +160,7 @@ export default function Dashboard() {
       setShowNewLeadModal(false)
     } catch (err) {
       console.error('Failed to create lead:', err)
-      alert(`Fout bij aanmaken lead: ${err.message}`)
+      toast(err.message, 'error')
     } finally {
       setCreating(false)
     }

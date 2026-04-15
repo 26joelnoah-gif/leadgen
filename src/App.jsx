@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
+import { ToastProvider } from './components/Toast'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import TBAs from './pages/TBAs'
@@ -143,8 +144,10 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '4px', background: 'var(--primary)', zIndex: 10001 }} />
-        <AppRoutes />
+        <ToastProvider>
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '4px', background: 'var(--primary)', zIndex: 10001 }} />
+          <AppRoutes />
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   )

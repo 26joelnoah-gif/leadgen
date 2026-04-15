@@ -16,6 +16,7 @@ import { exportToCSV } from '../utils/exportUtils'
 import { parseCSV, validateLeads } from '../utils/importUtils'
 import { CAMPAIGN_TYPES } from '../utils/campaignUtils'
 import { getSettings, saveSettings } from '../utils/settingsUtils'
+import { useToast } from '../components/Toast'
 import LoadingSpinner from '../components/LoadingSpinner'
 import StatusSelector from '../components/StatusSelector'
 import PipelineFunnel from '../components/PipelineFunnel'
@@ -27,6 +28,7 @@ import LeadManagement from './LeadManagement' // IMPORT THE MANAGEMENT COMPONENT
 
 export default function Admin() {
   const { user, profile, isWorking, toggleWorkingMode, isDemoMode } = useAuth()
+  const toast = useToast()
   const { leadLists, fetchLeadLists } = useLeadLists()
 
   const [activeTab, setActiveTab] = useState('dashboard')
@@ -66,16 +68,16 @@ export default function Admin() {
   }
 
   async function handleDeleteEmployee(userId) {
-    if (confirm('Verwijderen?')) {
-      await supabase.from('profiles').delete().eq('id', userId)
-      setUsers(users.filter(u => u.id !== userId))
-    }
+    if (!window.confirm('Verwijderen?')) return
+    await supabase.from('profiles').delete().eq('id', userId)
+    setUsers(prev => prev.filter(u => u.id !== userId))
+    toast('Medewerker verwijderd', 'success')
   }
 
   async function addLead(e) {
     e.preventDefault()
     if (!newLead.lead_list_id) {
-       alert('Selecteer een lijst (Batch) om de lead aan toe te voegen!')
+       toast('Selecteer eerst een lijst', 'error')
        return
     }
     try {
@@ -94,9 +96,9 @@ export default function Admin() {
       if (error) throw error
       setShowAddLead(false)
       fetchData()
-      alert('Lead toegevoegd!')
+      toast('Lead toegevoegd!', 'success')
     } catch (err) {
-      alert(`Fout: ${err.message}`)
+      toast(err.message, 'error')
     }
   }
 

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import LoadingSpinner from '../components/LoadingSpinner'
+import { useToast } from '../components/Toast'
 
 function StatusBadge({ status }) {
   const configs = {
@@ -39,6 +40,7 @@ const TABS = [
 
 export default function LeadManagement({ standalone = true }) {
   const { profile, user } = useAuth()
+  const toast = useToast()
   const { 
     leadLists, loading: listsLoading, fetchLeadLists, deleteLeadList, 
     restoreLeadList, permanentDeleteLeadList 
@@ -125,10 +127,10 @@ export default function LeadManagement({ standalone = true }) {
   }
 
   async function handlePermanentDelete(id) {
-    if (confirm('Lijst definitief verwijderen? Dit kan niet ongedaan worden gemaakt.')) {
-      await permanentDeleteLeadList(id)
-      fetchDeletedLists()
-    }
+    if (!window.confirm('Lijst definitief verwijderen? Dit kan niet ongedaan worden gemaakt.')) return
+    await permanentDeleteLeadList(id)
+    fetchDeletedLists()
+    toast('Lijst verwijderd', 'success')
   }
 
   async function handleUpdateFlow(disposition, updates) {
@@ -169,15 +171,15 @@ export default function LeadManagement({ standalone = true }) {
 
   async function runBulkAssignment() {
     if (!bulkListId || (!bulkTargetAgentId && !bulkTargetTeamId)) {
-      alert('Selecteer een lijst en een doel (Agent of Team)')
+      toast('Selecteer een lijst én een doel', 'error')
       return
     }
-    
+
     setProcessingBulk(true)
     try {
       const updates = { updated_at: new Date().toISOString() }
       if (bulkTargetAgentId) updates.assigned_to = bulkTargetAgentId
-      
+
       const { error } = await supabase
         .from('leads')
         .update(updates)
@@ -188,10 +190,10 @@ export default function LeadManagement({ standalone = true }) {
       }
 
       if (error) throw error
-      alert('Bulk-toewijzing voltooid!')
+      toast('Bulk-toewijzing voltooid!', 'success')
       fetchLeadLists()
     } catch (err) {
-      alert(`Fout: ${err.message}`)
+      toast(err.message, 'error')
     } finally {
       setProcessingBulk(false)
     }
