@@ -8,7 +8,7 @@ export function useLeadLists() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
-  async function fetchLeadLists() {
+  async function fetchLeadLists(includeDeleted = false) {
     setLoading(true)
     setError(null)
 
@@ -19,21 +19,17 @@ export function useLeadLists() {
     }
 
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('lead_lists')
         .select('*')
-        .order('created_at', { ascending: false })
       
-      // Try fallback if join fails (due to naming)
-      if (error && error.code === 'PGRST100') {
-        const { data: fallbackData } = await supabase
-          .from('lead_lists')
-          .select('*, profiles:profiles(full_name)')
-          .order('created_at', { ascending: false })
-        setLeadLists(fallbackData || [])
-        setLoading(false)
-        return
+      if (!includeDeleted) {
+        query = query.is('deleted_at', null)
       }
+
+      query = query.order('created_at', { ascending: false })
+      
+      const { data, error } = await query
 
       if (error) throw error
       // Agents only see lists assigned to them or created by them
@@ -122,14 +118,33 @@ export function useLeadLists() {
       return { error: null }
     }
 
+    // Soft delete: set deleted_at to current timestamp
     const { error } = await supabase
       .from('lead_lists')
-      .delete()
+      .update({ deleted_at: new Date().toISOString() })
       .eq('id', listId)
 
     if (!error) {
       setLeadLists(leadLists.filter(l => l.id !== listId))
     }
+    return { error }
+  }
+
+  async function restoreLeadList(listId) {
+    if (isDemoMode) return { error: null }
+    const { error } = await supabase
+      .from('lead_lists')
+      .update({ deleted_at: null })
+      .eq('id', listId)
+    return { error }
+  }
+
+  async function permanentDeleteLeadList(listId) {
+    if (isDemoMode) return { error: null }
+    const { error } = await supabase
+      .from('lead_lists')
+      .delete()
+      .eq('id', listId)
     return { error }
   }
 
@@ -161,6 +176,8 @@ export function useLeadLists() {
     removeLeadFromList,
     getLeadsInList,
     deleteLeadList,
+    restoreLeadList,
+    permanentDeleteLeadList,
     assignListToAgent
   }
 }

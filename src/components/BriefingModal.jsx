@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { X, Send, Bell, Users } from 'lucide-react'
+import { X, Send, Bell, Users, Trash2 } from 'lucide-react'
 
 export default function BriefingModal({ isOpen, onClose, onSend, userName, users = [] }) {
   const [title, setTitle] = useState('')
@@ -151,7 +151,7 @@ export default function BriefingModal({ isOpen, onClose, onSend, userName, users
   )
 }
 
-export function BriefingCard({ briefing }) {
+export function BriefingCard({ briefing, onDelete }) {
   const priorityColors = {
     low: { bg: 'var(--bg-elevated)', color: 'var(--text-muted)' },
     normal: { bg: 'var(--info-bg)', color: 'var(--info)' },
@@ -162,9 +162,30 @@ export function BriefingCard({ briefing }) {
   return (
     <div className="card" style={{
       borderLeft: `4px solid ${colors.color}`,
-      background: colors.bg
+      background: colors.bg,
+      position: 'relative'
     }}>
-      <div className="flex justify-between items-start mb-2">
+      {onDelete && (
+        <button 
+          onClick={() => onDelete(briefing.id)}
+          style={{
+            position: 'absolute',
+            top: '10px',
+            right: '10px',
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            padding: '4px',
+            borderRadius: '4px',
+          }}
+          className="hover-danger"
+          title="Briefing verwijderen"
+        >
+          <Trash2 size={16} />
+        </button>
+      )}
+      <div className="flex justify-between items-start mb-2" style={{ paddingRight: onDelete ? '24px' : '0' }}>
         <strong style={{ color: colors.color }}>{briefing.title}</strong>
         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
           {new Date(briefing.created_at).toLocaleDateString('nl-NL')}

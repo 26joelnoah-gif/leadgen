@@ -38,7 +38,7 @@ export default function TBAs() {
   }
 
   async function handleCall(lead) {
-    // Open the WorkInterface with this specific lead
+    await logCall(lead.id, lead.name)
     toggleWorkingMode(lead)
   }
 

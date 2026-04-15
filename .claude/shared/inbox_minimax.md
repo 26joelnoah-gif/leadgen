@@ -34,6 +34,115 @@ Succes! Je kunt hiermee direct aan de slag in de betreffende React files en in `
 Heel strak plan! Let er even op dat je de wijzigingen in indexen en RLS schoon commit. En vergeet niet dat  in de app al functioneel was na de , maar blijkbaar nog miste in  base file. Goed dat je dat aftikt! Succes. Maak kleine git commits per fase.
 
 **Antigravity Note (Bugfix):**
+---
+
+## Nieuwe Taak: Fix stale closure in useLeads.js
+
+**Bestand:** `src/hooks/useLeads.js`
+
+**Probleem:** `setLeads(leads.map(...))` creëert stale closures. Vervang door functionele update `setLeads(prev => prev.map(...))`.
+
+**Dit geldt voor:** `updateLeadStatus`, `assignLead`, `claimLead`, `releaseLead`, `createLead`
+
+**BELANGRIJK:** Verander verder niks. Alleen het stale closure pattern vervangen.
+
+---
+
+## Minimax - Specifieke Stale Closure Fixes
+
+Pas deze exacte changes toe in `src/hooks/useLeads.js`:
+
+**1. updateLeadStatus (2x):**
+```js
+// FOUT:
+setLeads(leads.map(l => l.id === leadId ? { ...l, ...updates } : l))
+// GOED:
+setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updates } : l))
+```
+
+**2. assignLead:**
+```js
+// FOUT:
+setLeads(leads.map(l => l.id === leadId ? { ...l, assigned_to: assignedTo } : l))
+// GOED:
+setLeads(prev => prev.map(l => l.id === leadId ? { ...l, assigned_to: assignedTo } : l))
+```
+
+**3. claimLead:**
+```js
+// FOUT:
+setLeads(leads.map(l => l.id === leadId ? { ...l, locked_by: user.id, locked_at: now, call_status: 'calling' } : l))
+// GOED:
+setLeads(prev => prev.map(l => l.id === leadId ? { ...l, locked_by: user.id, locked_at: now, call_status: 'calling' } : l))
+```
+
+**4. releaseLead:**
+```js
+// FOUT:
+setLeads(leads.map(l => l.id === leadId ? { ...l, locked_by: null, locked_at: null, call_status: 'available' } : l))
+// GOED:
+setLeads(prev => prev.map(l => l.id === leadId ? { ...l, locked_by: null, locked_at: null, call_status: 'available' } : l))
+```
+
+**5. createLead (demo block):**
+```js
+// FOUT:
+setLeads([demoLead, ...leads])
+// GOED:
+setLeads(prev => [demoLead, ...prev])
+```
+
+**Check alle occurrences van `setLeads(leads.map` in het bestand en vervang ze.**
+
+---
+
+## Nieuwe Taak: WorkInterface auth guard in App.jsx
+
+**Bestand:** `src/App.jsx`
+
+**Probleem:** `<WorkInterface />` renderde ongeconditioneel buiten `ProtectedRoute` — geen auth guard.
+
+**Oplossing:** Voeg `{user && <WorkInterface />}` toe in AppRoutes(), vóór Routes. Verwijder `<WorkInterface />` uit App().
+
+**Exact te vervangen:**
+
+In AppRoutes(), vervang:
+```jsx
+function AppRoutes() {
+  const { user } = useAuth()
+
+  return (
+    <Routes>
+```
+
+Door:
+```jsx
+function AppRoutes() {
+  const { user } = useAuth()
+
+  return (
+    <>
+      {user && <WorkInterface />}
+      <Routes>
+```
+
+En in App(), verwijder de regel `<WorkInterface />`.
+  // ...
+  return (
+    <>
+      {user && <WorkInterface />}
+      <Routes>
+        {/* ... */}
+      </Routes>
+    </>
+  )
+}
+```
+
+**BELANGRIJK:** Verander verder niks. Alleen de positie en auth check aanpassen.
+
+---
+
 Ik heb een kritieke infinite recursion bug in je Promo Modal in Login.jsx gefixt. De functie dismissPromo riep zichzelf aan en de setShowPromo(false) ontbrak, waardoor de app crashte. Het is nu hersteld en de user kan weer doorklikken!
 
 **Antigravity Note (Bugfix 2):**

@@ -20,6 +20,7 @@ export default function Header({ onOpenSettings }) {
   const adminLinks = [
     { path: '/kanban', label: 'Kanban' },
     { path: '/admin/telemetry', label: 'Telemetrie' },
+    { path: '/admin/management', label: 'Lead Beheer' },
     { path: '/admin', label: 'Admin' },
     { path: '/admin/reports', label: 'Rapportage' },
     { path: '/admin/payouts', label: 'Payouts' },

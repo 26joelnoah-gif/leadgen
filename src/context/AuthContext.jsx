@@ -9,6 +9,11 @@ const DEMO_USERS = {
   'admin@demo.nl': { id: '2', email: 'admin@demo.nl', full_name: 'Maria Admin', role: 'admin', show_appointments_in_earnings: true, show_deals_in_earnings: true }
 }
 
+
+function sanitizeText(str) {
+  return String(str || '').replace(/[<>"'&]/g, c => ({'<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#x27;','&':'&amp;'}[c]))
+}
+
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [profile, setProfile] = useState(null)
@@ -115,7 +120,7 @@ export function AuthProvider({ children }) {
         user_id: user.id,
         lead_id: leadId,
         action: 'call',
-        notes: `Gebeld naar ${leadName}`
+        notes: `Gebeld naar ${sanitizeText(leadName)}`
       })
     }
   }

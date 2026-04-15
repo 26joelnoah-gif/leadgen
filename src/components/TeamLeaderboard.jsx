@@ -27,30 +27,18 @@ export default function TeamLeaderboard() {
     }
 
     try {
-      // Get call counts per user from activities
       const { data: activities } = await supabase
         .from('activities')
         .select('user_id, profiles(full_name)')
         .eq('action', 'call')
 
-      // Also check for type: 'call' in case that's what's being used
-      const { data: typeCalls } = await supabase
-        .from('activities')
-        .select('user_id, profiles(full_name)')
-        .eq('type', 'call')
-
-      const allActivities = [...(activities || []), ...(typeCalls || [])]
-
-      // Count calls per user
       const counts = {}
-      allActivities.forEach(a => {
-        const userId = a.user_id
-        counts[userId] = (counts[userId] || 0) + 1
+      ;(activities || []).forEach(a => {
+        counts[a.user_id] = (counts[a.user_id] || 0) + 1
       })
 
-      // Get unique users with counts
       const userStats = Object.entries(counts).map(([userId, call_count]) => {
-        const activity = allActivities.find(a => a.user_id === userId)
+        const activity = activities.find(a => a.user_id === userId)
         return {
           user_id: userId,
           full_name: activity?.profiles?.full_name || 'Onbekend',

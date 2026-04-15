@@ -9,6 +9,7 @@ import Reports from './pages/Reports'
 import Kanban from './pages/Kanban'
 import Telemetry from './pages/Telemetry'
 import Payouts from './pages/Payouts'
+import LeadManagement from './pages/LeadManagement'
 import WorkInterface from './components/WorkInterface'
 
 function ProtectedRoute({ children, requireAdmin = false }) {
@@ -56,7 +57,9 @@ function AppRoutes() {
   const { user } = useAuth()
 
   return (
-    <Routes>
+    <>
+      {user && <WorkInterface />}
+      <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route
         path="/"
@@ -99,6 +102,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/management"
+        element={
+          <ProtectedRoute requireAdmin>
+            <LeadManagement />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/admin/payouts"
         element={
           <ProtectedRoute requireAdmin>
@@ -124,6 +135,7 @@ function AppRoutes() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    </>
   )
 }
 
@@ -132,7 +144,6 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '4px', background: 'var(--primary)', zIndex: 10001 }} />
-        <WorkInterface />
         <AppRoutes />
       </AuthProvider>
     </BrowserRouter>

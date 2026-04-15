@@ -1,207 +1,128 @@
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Clock, AlertCircle, Phone, Calendar as CalendarIcon, Upload, Trash2 } from 'lucide-react'
+import { 
+  X, Phone, Mail, MapPin, User, Building2, 
+  Calendar, Clock, AlertCircle, CheckCircle2, 
+  ChevronRight, Copy, Save, Users 
+} from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
-import { useLeadLists } from '../hooks/useLeadLists'
-import { supabase } from '../lib/supabase'
-import LoadingSpinner from './LoadingSpinner'
-import CopyButton from './CopyButton'
 
-export default function WorkInterface() {
-  const { isWorking, toggleWorkingMode, workingListId, setWorkingListId, workingLead, profile, logCall, sessionCallCount } = useAuth()
-  const { leadLists } = useLeadLists()
-  const { handleLeadDisposition } = useLeads()
+const CopyButton = ({ text, label }) => {
+  const [copied, setCopied] = useState(false)
   
-  const [leads, setLeads] = useState([])
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [showDatePicker, setShowDatePicker] = useState(false)
-  const [callbackDate, setCallbackDate] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 900)
+  const handleCopy = () => {
+    if (!text) return
+    navigator.clipboard.writeText(text)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  return (
+    <button 
+      onClick={handleCopy}
+      title={label}
+      style={{ 
+        background: 'rgba(255,255,255,0.1)', 
+        border: 'none', 
+        color: copied ? 'var(--success)' : 'white',
+        padding: '6px',
+        borderRadius: '4px',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        transition: 'all 0.2s'
+      }}
+    >
+      {copied ? <CheckCircle2 size={14} /> : <Copy size={14} />}
+    </button>
+  )
+}
+
+export default function WorkInterface({ isOpen, onClose, lead, listName }) {
+  const { sessionCallCount, profile, user } = useAuth()
+  const { updateLeadStatus, logActivity, handleLeadDisposition } = useLeads()
+  
+  const [editableLead, setEditableLead] = useState(lead || {})
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024)
+  const [dispositionNotes, setDispositionNotes] = useState('')
+  const [showDispositionModal, setShowDispositionModal] = useState(false)
+  const [selectedDisposition, setSelectedDisposition] = useState(null)
+  const [nextContactDate, setNextContactDate] = useState('')
 
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 900)
+    const handleResize = () => setIsMobile(window.innerWidth < 1024)
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
-  
-  const currentLead = leads[currentIndex]
-  const [editableLead, setEditableLead] = useState({})
 
   useEffect(() => {
-    if (currentLead) {
-      setEditableLead(currentLead)
-    }
-  }, [currentLead])
+    if (lead) setEditableLead(lead)
+  }, [lead])
 
-  const listName = workingLead ? 'Individuele Opdracht' : (leadLists.find(l => l.id === workingListId)?.name || 'Onbekende lijst')
+  if (!isOpen || !lead) return null
 
-  // Zorg dat medewerkers alleen hun eigen lijsten zien
-  const availableLists = profile?.role === 'admin' 
-    ? leadLists 
-    : leadLists.filter(l => l.assigned_to === profile?.id || l.created_by === profile?.id)
+  const currentLead = lead
 
-  useEffect(() => {
-    if (isWorking) {
-      if (workingLead) {
-        setLeads([workingLead])
-        setCurrentIndex(0)
-      } else if (workingListId) {
-        loadLeadsForList(workingListId)
-      }
-    }
-  }, [workingListId, isWorking, workingLead])
-
-  async function loadLeadsForList(listId) {
-    setLoading(true)
-    try {
-      let query = supabase
-        .from('leads')
-        .select('*')
-        .eq('lead_list_id', listId)
-        
-      if (profile?.role !== 'admin') {
-        query = query.eq('assigned_to', profile?.id)
-      }
-      
-      const { data, error } = await query
-        .is('deleted_at', null)
-        .order('created_at', { ascending: true })
-
-      if (error) throw error
-      setLeads(data || [])
-      setCurrentIndex(0)
-    } catch (err) {
-      console.error('Error loading leads:', err)
-    } finally {
-      setLoading(false)
+  const saveLeadEdits = async () => {
+    const success = await updateLeadStatus(currentLead.id, currentLead.status, editableLead)
+    if (!success) {
+      alert('Wijzigingen opgeslagen!')
+      logActivity(currentLead.id, 'edit', 'Lead gegevens gewijzigd')
     }
   }
 
-  function closeAll() {
-    setWorkingListId(null)
-    setWorkingLead(null)
-    setLeads([])
-    setCurrentIndex(0)
-    setShowDatePicker(false)
-    toggleWorkingMode()
-  }
-
-  async function handleAfboeken(reason) {
-    if (!currentLead) return
-
-    if (reason === 'terugbelopdracht') {
-      setShowDatePicker(true)
-      return
-    }
-
-    setLoading(true)
-    // Synchronous backend logic via de krachtige hook
-    await handleLeadDisposition(currentLead.id, listName, reason, 'Afgeboekt via CRM UI')
-    await logCall(currentLead.id, currentLead.name)
-
-    // Shift array
-    const updated = leads.filter((_, i) => i !== currentIndex)
-    setLeads(updated)
-    if (currentIndex >= updated.length && updated.length > 0) {
-      setCurrentIndex(updated.length - 1)
-    }
-    setShowDatePicker(false)
-    setLoading(false)
-  }
-
-  async function handleCallbackScheduled() {
-    if (!currentLead || !callbackDate) return
-    setLoading(true)
-    await handleLeadDisposition(currentLead.id, listName, 'terugbelopdracht', 'Afgeboekt via CRM UI', callbackDate)
-    await logCall(currentLead.id, currentLead.name)
-
-    const updated = leads.filter((_, i) => i !== currentIndex)
-    setLeads(updated)
-    if (currentIndex >= updated.length && updated.length > 0) {
-      setCurrentIndex(updated.length - 1)
-    }
-    setShowDatePicker(false)
-    setCallbackDate('')
-    setLoading(false)
-  }
-
-  async function saveLeadEdits() {
-    if (!editableLead?.id) return
-    setLoading(true)
-    const { error } = await supabase.from('leads').update({
-      name: editableLead.name,
-      phone: editableLead.phone,
-      email: editableLead.email,
-      website: editableLead.website,
-      city: editableLead.city,
-      address: editableLead.address,
-      notes: editableLead.notes
-    }).eq('id', editableLead.id)
+  const handleFinalDisposition = async () => {
+    if (!selectedDisposition) return
     
-    if (!error) {
-      await logCall(editableLead.id, 'Bedrijfsgegevens bewerkt')
-      // Update local leads array
-      setLeads(leads.map(l => l.id === editableLead.id ? editableLead : l))
-    }
-    setLoading(false)
-  }
-
-  if (!isWorking) return null
-
-  // STADIUM 1: PROJECT KIEZEN (Indien geen project gekozen)
-  if (!workingListId && !workingLead) {
-    return (
-      <AnimatePresence>
-        <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--bg-light)', zIndex: 9999, display: 'flex', flexDirection: 'column' }}>
-          
-          <header style={{ background: 'var(--primary-dark)', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', color: 'white', borderBottom: '4px solid var(--secondary)' }}>
-            <div className="flex items-center gap-3">
-              <div style={{ background: 'var(--secondary)', padding: '8px', borderRadius: '8px', color: 'var(--primary-dark)' }}><Phone size={20} /></div>
-              <div><h2 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 800 }}>Werk Modus: Project Kiezen</h2></div>
-            </div>
-            <button onClick={toggleWorkingMode} style={{ background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}><X size={20} /></button>
-          </header>
-
-          <main style={{ flex: 1, padding: '40px 20px', background: 'var(--bg-dark)', overflow: 'auto' }}>
-            <div style={{ maxWidth: '600px', margin: '0 auto' }}>
-              <h3 style={{ color: 'white', marginBottom: '20px' }}>Beschikbare Projecten ({availableLists.length})</h3>
-              {availableLists.length === 0 ? <p className="text-muted">Geen projecten toegewezen.</p> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {availableLists.map(list => (
-                    <button key={list.id} onClick={() => setWorkingListId(list.id)} style={{ padding: '24px', background: 'var(--bg-elevated)', border: 'none', borderLeft: '4px solid var(--secondary)', borderRadius: '8px', color: 'white', textAlign: 'left', cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '1.1rem', fontWeight: 600 }}>{list.name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </main>
-        </motion.div>
-      </AnimatePresence>
+    await handleLeadDisposition(
+      currentLead.id, 
+      listName, 
+      selectedDisposition, 
+      dispositionNotes, 
+      nextContactDate
     )
+    
+    setShowDispositionModal(false)
+    onClose()
   }
 
-  // STADIUM 2: LADEN OF KLAAR
-  if (loading) return <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--bg-dark)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><LoadingSpinner /></div>
-  if (!currentLead && !loading) {
-    return (
-      <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--bg-dark)', zIndex: 10000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-        <h2 style={{ fontSize: '2rem', marginBottom: '16px' }}>Project Afgerond! 🎉</h2>
-        <p className="text-muted">Je hebt alle acties voltooid.</p>
-        <button onClick={() => { setWorkingListId(null); setWorkingLead(null) }} className="btn btn-secondary mt-4">Kies ander project</button>
-        <button onClick={closeAll} className="btn btn-outline mt-2">Terug naar menu</button>
-      </div>
-    )
+  const closeAll = () => {
+    onClose()
   }
 
-  // STADIUM 3: DE CRM INTERFACE UIT DE AFBEELDING
+  const dispositions = [
+    { id: 'deal', label: 'DEAL', color: 'var(--success)', icon: <CheckCircle2 size={18} /> },
+    { id: 'afspraak_gemaakt', label: 'AFSPRAAK', color: '#10B981', icon: <Calendar size={18} /> },
+    { id: 'terugbelopdracht', label: 'TBA (Terugbel)', color: '#3B82F6', icon: <Clock size={18} /> },
+    { id: 'later_bellen', label: 'LATER BELLEN', color: '#F59E0B', icon: <Clock size={18} /> },
+    { id: 'niet_bereikbaar', label: 'GEEN GEHOOR', color: '#94A3B8', icon: <Phone size={18} /> },
+    { id: 'verkeerde_info', label: 'FOUTIEVE INFO', color: '#EF4444', icon: <AlertCircle size={18} /> },
+    { id: 'geen_interesse', label: 'GEEN INTERESSE', color: '#71717A', icon: <X size={18} /> },
+  ]
+
   return (
     <AnimatePresence>
-      <motion.div initial={{ y: '100%' }} animate={{ y: 0 }} exit={{ y: '100%' }} transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-          style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'var(--bg-dark)', zIndex: 9999, display: 'flex', flexDirection: 'column', color: 'var(--text-main)', overflow: 'hidden' }}>
+      <motion.div 
+        initial={{ y: '100%' }} 
+        animate={{ y: 0 }} 
+        exit={{ y: '100%' }} 
+        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+        style={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          background: 'var(--bg-dark)', 
+          zIndex: 9999, 
+          display: 'flex', 
+          flexDirection: 'column', 
+          color: 'var(--text-main)', 
+          overflow: 'hidden' 
+        }}
+      >
         
         {/* Top Header */}
         <header style={{ background: 'var(--primary-dark)', color: 'white', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -221,7 +142,7 @@ export default function WorkInterface() {
              </h2>
              <span style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>Live Counter: {sessionCallCount}</span>
           </div>
-          <button onClick={closeAll} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer' }}><X size={16} /> Sluiten</button>
+          <button onClick={closeAll} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><X size={16} /> Sluiten</button>
         </header>
         
         {/* Sub Header */}
@@ -253,143 +174,190 @@ export default function WorkInterface() {
               {/* Sectie: Bedrijfsgegevens (Desktop View) */}
               <div style={{ marginBottom: '24px' }}>
                 <h3 style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', padding: '8px 12px', margin: '0 0 16px 0', borderRadius: '4px', fontSize: '1rem', border: '1px solid var(--border)' }}>&gt; Bedrijfsgegevens</h3>
-            <div className="work-interface-grid" style={{ display: 'grid', gap: '20px' }}>
-              
-              {/* Adres Blok */}
-              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
-                <div style={{ background: 'var(--primary)', color: 'white', padding: '10px 16px', fontWeight: 600 }}>Adres</div>
-                <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div className="crm-input-group">
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Bedrijfsnaam</label>
-                    <input type="text" value={editableLead.name || ''} onChange={e => setEditableLead({...editableLead, name: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <div style={{ flex: 2 }}>
-                       <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Straat</label>
-                       <input type="text" value={editableLead.address || ''} onChange={e => setEditableLead({...editableLead, address: e.target.value})} placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                
+                <div style={{ maxWidth: '850px' }}>
+                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+                    <div style={{ background: 'linear-gradient(90deg, var(--success) 0%, #059669 100%)', color: 'white', padding: '14px 20px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.1rem' }}>
+                      <Users size={20} /> Adres- & Contactinformatie
                     </div>
-                    <div style={{ flex: 1 }}>
-                       <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Huisnummer</label>
-                       <input type="text" placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
-                    </div>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <div style={{ flex: 1 }}>
-                       <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Postcode</label>
-                       <input type="text" placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
-                    </div>
-                    <div style={{ flex: 2 }}>
-                       <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Plaats</label>
-                       <input type="text" value={editableLead.city || ''} onChange={e => setEditableLead({...editableLead, city: e.target.value})} placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                    
+                    <div style={{ padding: '24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                      
+                      {/* Linker Kolom */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div className="crm-input-group">
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Bedrijfsnaam</label>
+                          <input type="text" value={editableLead.name || ''} onChange={e => setEditableLead({...editableLead, name: e.target.value})} style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white', fontSize: '1.1rem', fontWeight: 600 }}/>
+                        </div>
+                        <div className="crm-input-group">
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Contactpersoon</label>
+                          <input type="text" value={editableLead.contact_person || ''} onChange={e => setEditableLead({...editableLead, contact_person: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                        </div>
+                        <div className="crm-input-group">
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Email</label>
+                          <input type="text" value={editableLead.email || ''} onChange={e => setEditableLead({...editableLead, email: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                        </div>
+                        <div className="crm-input-group">
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Telefoonnummer</label>
+                          <input type="text" value={editableLead.phone || ''} onChange={e => setEditableLead({...editableLead, phone: e.target.value})} style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white', fontWeight: 700, fontSize: '1.1rem' }}/>
+                        </div>
+                      </div>
+
+                      {/* Rechter Kolom */}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
+                          <div className="crm-input-group">
+                            <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Straat</label>
+                            <input type="text" value={editableLead.address || ''} onChange={e => setEditableLead({...editableLead, address: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                          </div>
+                          <div className="crm-input-group">
+                            <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Huisnr.</label>
+                            <input type="text" value={editableLead.house_number || ''} onChange={e => setEditableLead({...editableLead, house_number: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                          </div>
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
+                          <div className="crm-input-group">
+                            <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Postcode</label>
+                            <input type="text" value={editableLead.postal_code || ''} onChange={e => setEditableLead({...editableLead, postal_code: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                          </div>
+                          <div className="crm-input-group">
+                            <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Plaats</label>
+                            <input type="text" value={editableLead.city || ''} onChange={e => setEditableLead({...editableLead, city: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                          </div>
+                        </div>
+                        <div className="crm-input-group">
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Functie</label>
+                          <input type="text" value={editableLead.function || ''} onChange={e => setEditableLead({...editableLead, function: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                        </div>
+                        <div className="crm-input-group">
+                          <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Website</label>
+                          <input type="text" value={editableLead.website || ''} onChange={e => setEditableLead({...editableLead, website: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                        </div>
+                      </div>
+
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Contactpersoon Blok */}
-              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
-                <div style={{ background: 'var(--primary)', color: 'white', padding: '10px 16px', fontWeight: 600 }}>Contactpersoon</div>
-                <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Contact personen</label>
-                    <input type="text" placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Geslacht</label>
-                    <select style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}>
-                      <option>Onbekend</option><option>M</option><option>V</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Functie</label>
-                    <input type="text" placeholder="..." style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
+              {/* Sectie: Extra velden */}
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ background: 'var(--secondary)', color: 'var(--bg-dark)', padding: '10px 16px', fontWeight: 700, borderTopLeftRadius: '8px', borderTopRightRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <AlertCircle size={18} /> Notities & Geschiedenis
+                </div>
+                <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderTop: 'none', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <textarea 
+                    value={editableLead.notes || ''} 
+                    onChange={e => setEditableLead({...editableLead, notes: e.target.value})} 
+                    rows={6} 
+                    style={{ width: '100%', padding: '16px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white', fontSize: '1rem', lineHeight: '1.5' }} 
+                    placeholder="Voer hier alle relevante gespreksnotities in..."
+                  />
+                  <div className="flex justify-between items-center">
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Laatste update: {new Date().toLocaleTimeString()}</span>
+                    <button onClick={saveLeadEdits} style={{ background: 'var(--primary)', color: 'white', border: 'none', padding: '10px 24px', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', transition: 'transform 0.2s' }}>
+                      <Save size={18} /> Wijzigingen Opslaan
+                    </button>
                   </div>
                 </div>
               </div>
-
-              {/* Contact Blok */}
-              <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
-                <div style={{ background: 'var(--primary)', color: 'white', padding: '10px 16px', fontWeight: 600 }}>Contact</div>
-                <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Email</label>
-                    <input type="text" value={editableLead.email || ''} onChange={e => setEditableLead({...editableLead, email: e.target.value})} placeholder="xx@hotmail.com" style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Telefoonnummer</label>
-                    <input type="text" value={editableLead.phone || ''} onChange={e => setEditableLead({...editableLead, phone: e.target.value})} style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Website</label>
-                    <input type="text" value={editableLead.website || ''} onChange={e => setEditableLead({...editableLead, website: e.target.value})} placeholder="www..." style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Sectie: Extra velden */}
-          <div style={{ marginBottom: '24px' }}>
-            <div style={{ background: 'var(--primary)', color: 'white', padding: '10px 16px', fontWeight: 600, borderTopLeftRadius: '8px', borderTopRightRadius: '8px' }}>Extra velden</div>
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderTop: 'none', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                 <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Notities / Doel</label>
-                 <textarea value={editableLead.notes || ''} onChange={e => setEditableLead({...editableLead, notes: e.target.value})} rows={3} style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }} />
-              </div>
-              <div>
-                 <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '2px' }}>Datum opname</label>
-                 <input type="text" value={new Date(currentLead.created_at).toLocaleDateString()} readOnly style={{ width: '100%', padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }}/>
-              </div>
-              <button onClick={saveLeadEdits} style={{ alignSelf: 'flex-start', background: 'var(--primary)', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', marginTop: '8px', fontWeight: 600 }}>
-                Bedrijf bewerken opslaan
-              </button>
-            </div>
-          </div>
-
-          </>
+            </>
           )}
-
         </main>
 
-        {/* Action Bar Bottom (Afboeken) */}
-        <div style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border)', padding: isMobile ? '16px 20px' : '16px 40px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', alignItems: isMobile ? 'stretch' : 'center', gap: isMobile ? '12px' : '0' }}>
-           
-           {showDatePicker ? (
-              <div style={{ display: 'flex', gap: '16px', alignItems: 'center', width: '100%' }}>
-                <strong style={{ color: 'var(--primary)' }}>TBA Inplannen:</strong>
-                <input type="datetime-local" value={callbackDate} onChange={e=>setCallbackDate(e.target.value)} style={{ padding: '8px', border: '1px solid var(--border)', borderRadius: '4px', background: 'var(--bg-elevated)', color: 'white' }} />
-                <button onClick={handleCallbackScheduled} className="btn btn-secondary">Inplannen</button>
-                <button onClick={()=>setShowDatePicker(false)} className="btn btn-outline">Annuleer</button>
-              </div>
-           ) : (
-              <>
-                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                  <button className="btn-mobile-full" onClick={() => handleAfboeken('deal')} style={{ background: 'var(--success)', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: 'white' }}>
-                     DEAL
-                  </button>
-                  <button className="btn-mobile-full" onClick={() => handleAfboeken('afspraak_gemaakt')} style={{ background: 'var(--info)', border: 'none', padding: '10px 16px', borderRadius: '6px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: 'white' }}>
-                     AFSPRAAK
-                  </button>
-                  <button className="btn-mobile-full" onClick={() => handleAfboeken('later_bellen')} style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: 'var(--text-main)' }}>
-                     <Clock size={16}/> Later bellen
-                  </button>
-                  <button className="btn-mobile-full" onClick={() => handleAfboeken('geen_interesse')} style={{ background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: 'var(--danger)' }}>
-                     Geen interesse
-                  </button>
-                  <button className="btn-mobile-full" onClick={() => handleAfboeken('terugbelopdracht')} style={{ background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.3)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: 'var(--warning)' }}>
-                     <CalendarIcon size={16}/> Terugbelopdracht
-                  </button>
-                  <button className="btn-mobile-full" onClick={() => handleAfboeken('niet_bereikbaar')} style={{ background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#f59e0b' }}>
-                     Niet bereikbaar
-                  </button>
-                  <button className="btn-mobile-full" onClick={() => handleAfboeken('verkeerde_info')} style={{ background: 'rgba(168, 85, 247, 0.1)', border: '1px solid rgba(168, 85, 247, 0.3)', padding: '10px 16px', borderRadius: '6px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', color: '#a855f7' }}>
-                     Verkeerde info
+        {/* Action Bar (Footer) */}
+        <footer style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border)', padding: '20px 40px', display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {dispositions.map(d => (
+            <button
+              key={d.id}
+              onClick={() => {
+                setSelectedDisposition(d.id)
+                setShowDispositionModal(true)
+              }}
+              style={{ 
+                background: 'var(--bg-elevated)', 
+                border: `1px solid ${d.color}`, 
+                color: d.color, 
+                padding: '10px 20px', 
+                borderRadius: '8px', 
+                fontWeight: 700, 
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                minWidth: '140px',
+                justifyContent: 'center',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = d.color
+                e.currentTarget.style.color = 'white'
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = 'var(--bg-elevated)'
+                e.currentTarget.style.color = d.color
+              }}
+            >
+              {d.icon} {d.label}
+            </button>
+          ))}
+        </footer>
+
+        {/* Disposition Modal */}
+        {showDispositionModal && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} className="glass-panel" style={{ width: '100%', maxWidth: '500px', padding: '30px', position: 'relative' }}>
+                <button onClick={() => setShowDispositionModal(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={24} /></button>
+                
+                <h2 style={{ color: 'white', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {dispositions.find(d => d.id === selectedDisposition)?.icon}
+                  {dispositions.find(d => d.id === selectedDisposition)?.label} AFHANDELEN
+                </h2>
+
+                <div className="flex flex-column gap-4">
+                  {(selectedDisposition === 'terugbelopdracht' || selectedDisposition === 'later_bellen') && (
+                    <div>
+                      <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>Wanneer moet er teruggebeld worden?</label>
+                      <input 
+                        type="datetime-local" 
+                        value={nextContactDate}
+                        onChange={e => setNextContactDate(e.target.value)}
+                        style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'white' }}
+                      />
+                    </div>
+                  )}
+
+                  <div>
+                    <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>Gespreksverslag / Toelichting</label>
+                    <textarea 
+                      value={dispositionNotes}
+                      onChange={e => setDispositionNotes(e.target.value)}
+                      placeholder="Wat is er besproken? Waarom deze status?"
+                      rows={4}
+                      style={{ width: '100%', padding: '15px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'white' }}
+                    />
+                  </div>
+
+                  <button 
+                    onClick={handleFinalDisposition}
+                    style={{ 
+                      background: dispositions.find(d => d.id === selectedDisposition)?.color, 
+                      color: 'white', 
+                      padding: '15px', 
+                      borderRadius: '8px', 
+                      border: 'none', 
+                      fontWeight: 800, 
+                      fontSize: '1.1rem',
+                      cursor: 'pointer',
+                      marginTop: '10px'
+                    }}
+                  >
+                    AFRONDEN & VOLGENDE
                   </button>
                 </div>
-                {!isMobile && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>Leads: {currentIndex+1}/{leads.length}</div>}
-              </>
-           )}
-        </div>
+             </motion.div>
+          </div>
+        )}
       </motion.div>
     </AnimatePresence>
   )
