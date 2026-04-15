@@ -131,7 +131,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '2px', background: 'var(--secondary)', zIndex: 10001 }} />
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, height: '4px', background: 'var(--primary)', zIndex: 10001 }} />
         <WorkInterface />
         <AppRoutes />
       </AuthProvider>

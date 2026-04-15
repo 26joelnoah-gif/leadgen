@@ -195,7 +195,7 @@ export function LeadListModal({ isOpen, onClose }) {
                               }
                             }}
                             className="btn btn-sm btn-outline"
-                            style={{ color: 'var(--error)' }}
+                            style={{ color: 'var(--danger)' }}
                           >
                             <Trash2 size={14} />
                           </button>
