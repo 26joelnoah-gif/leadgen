@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ToastProvider } from './components/Toast'
 import Login from './pages/Login'
+import Setup from './pages/Setup'
 import Dashboard from './pages/Dashboard'
 import TBAs from './pages/TBAs'
 import Earnings from './pages/Earnings'
@@ -14,7 +15,7 @@ import LeadManagement from './pages/LeadManagement'
 import WorkInterface from './components/WorkInterface'
 
 function ProtectedRoute({ children, requireAdmin = false }) {
-  const { user, profile, loading } = useAuth()
+  const { user, profile, loading, isDemoMode } = useAuth()
 
   if (loading) return (
     <div style={{ 
@@ -42,6 +43,11 @@ function ProtectedRoute({ children, requireAdmin = false }) {
 
   if (!user) return <Navigate to="/login" replace />
 
+  // Redirect to setup if no organization (skip for demo mode + existing data without org)
+  if (!isDemoMode && profile && !profile.organization_id) {
+    return <Navigate to="/setup" replace />
+  }
+
   if (requireAdmin && profile?.role !== 'admin') {
     return (
       <div className="access-denied">
@@ -62,6 +68,7 @@ function AppRoutes() {
       {user && <WorkInterface />}
       <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
+      <Route path="/setup" element={user ? <Setup /> : <Navigate to="/login" replace />} />
       <Route
         path="/"
         element={
