@@ -9,7 +9,7 @@ import Logo from '../components/Logo'
 import MobileNav from '../components/MobileNav'
 
 export default function Earnings() {
-  const { profile, signOut, sessionCallCount, callEnabled, toggleCallEnabled } = useAuth()
+  const { profile, signOut, sessionCallCount } = useAuth()
   const { leads } = useLeads()
   const [copied, setCopied] = useState(false)
   const [settings] = useState(getSettings)

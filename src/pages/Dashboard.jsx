@@ -51,52 +51,7 @@ export default function Dashboard() {
 
   const isAdmin = profile?.role === 'admin'
 
-  // Reset displayed leads when filteredLeads changes
-  useEffect(() => {
-    setDisplayedLeads(filteredLeads.slice(0, LEAD_PAGE_SIZE))
-    setHasMoreLeads(filteredLeads.length > LEAD_PAGE_SIZE)
-  }, [filteredLeads])
-
-  // Intersection Observer for infinite scroll
-  useEffect(() => {
-    if (!loadMoreRef.current) return
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMoreLeads && !loadingMore) {
-          loadMoreLeads()
-        }
-      },
-      { threshold: 0.1 }
-    )
-
-    observer.observe(loadMoreRef.current)
-    return () => observer.disconnect()
-  }, [hasMoreLeads, loadingMore, displayedLeads.length])
-
-  const loadMoreLeads = useCallback(() => {
-    if (loadingMore || !hasMoreLeads) return
-    setLoadingMore(true)
-
-    // Simulate async load for smooth UX
-    setTimeout(() => {
-      const currentLength = displayedLeads.length
-      const nextBatch = filteredLeads.slice(currentLength, currentLength + LEAD_PAGE_SIZE)
-      setDisplayedLeads(prev => [...prev, ...nextBatch])
-      setHasMoreLeads(currentLength + LEAD_PAGE_SIZE < filteredLeads.length)
-      setLoadingMore(false)
-    }, 150)
-  }, [loadingMore, hasMoreLeads, displayedLeads.length, filteredLeads])
-
-  useEffect(() => {
-    async function fetchUsers() {
-      const { data } = await supabase.from('profiles').select('*').order('full_name')
-      if (data) setUsers(data)
-    }
-    fetchUsers()
-  }, [])
-
-  // Single-pass stats computation
+  // Single-pass stats computation - must be defined before any useEffect that uses it
   const stats = useMemo(() => {
     let nieuweLeads = 0
     let terugbelacties = 0
@@ -118,7 +73,7 @@ export default function Dashboard() {
     return { nieuweLeads, terugbelacties, hotLeads, afspraken, deals }
   }, [leads])
 
-  // Memoized filtered + sorted leads
+  // Memoized filtered + sorted leads - must be defined before useEffects that reference it
   const filteredLeads = useMemo(() => {
     const search = searchTerm.toLowerCase()
     const filtered = (leads || []).filter(lead => {
@@ -149,6 +104,46 @@ export default function Dashboard() {
       return dateB.localeCompare(dateA)
     })
   }, [leads, filter, searchTerm, isAdmin])
+
+  // loadMoreLeads must be defined before the IntersectionObserver useEffect
+  const loadMoreLeads = useCallback(() => {
+    if (loadingMore || !hasMoreLeads) return
+    setLoadingMore(true)
+    const currentLength = displayedLeads.length
+    const nextBatch = filteredLeads.slice(currentLength, currentLength + LEAD_PAGE_SIZE)
+    setDisplayedLeads(prev => [...prev, ...nextBatch])
+    setHasMoreLeads(currentLength + LEAD_PAGE_SIZE < filteredLeads.length)
+    setLoadingMore(false)
+  }, [loadingMore, hasMoreLeads, displayedLeads.length, filteredLeads])
+
+  // Reset displayed leads when filteredLeads changes
+  useEffect(() => {
+    setDisplayedLeads(filteredLeads.slice(0, LEAD_PAGE_SIZE))
+    setHasMoreLeads(filteredLeads.length > LEAD_PAGE_SIZE)
+  }, [filteredLeads])
+
+  // Intersection Observer for infinite scroll
+  useEffect(() => {
+    if (!loadMoreRef.current) return
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMoreLeads && !loadingMore) {
+          loadMoreLeads()
+        }
+      },
+      { threshold: 0.1 }
+    )
+    observer.observe(loadMoreRef.current)
+    return () => observer.disconnect()
+  }, [hasMoreLeads, loadingMore, displayedLeads.length, loadMoreLeads])
+
+  useEffect(() => {
+    async function fetchUsers() {
+      const { data } = await supabase.from('profiles').select('*').order('full_name')
+      if (data) setUsers(data)
+    }
+    fetchUsers()
+  }, [])
 
   async function handleCreateLead(e) {
     e.preventDefault()
