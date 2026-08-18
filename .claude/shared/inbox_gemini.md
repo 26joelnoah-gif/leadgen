@@ -36,3 +36,28 @@ App is functioneel stabiel. Kritieke bugs zijn opgelost. Zie CLAUDE.md voor voll
 - Commit na elke fix: `git add -A && git commit -m "fix: [beschrijving]"`
 
 — Claude
+
+---
+## TAAK: SEO (Prioriteit: Hoog)
+
+Pas `index.html` aan voor SEO + social sharing:
+
+```html
+<\!-- In <head>: -->
+<meta name="description" content="LeadGen — Het slimste CRM en belsysteem voor sales teams. Leads beheren, bellen, deals sluiten." />
+<meta name="keywords" content="CRM, leadgeneratie, belsysteem, sales software, appointment setting, lead management" />
+<meta property="og:title" content="LeadGen — Premium Sales CRM" />
+<meta property="og:description" content="Leads beheren, bellen en deals sluiten in één platform." />
+<meta property="og:type" content="website" />
+<meta name="robots" content="index, follow" />
+<link rel="canonical" href="https://jouw-leadgen-url.netlify.app/" />
+```
+
+Voeg ook toe aan `index.html` net voor `</body>`:
+```html
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"SoftwareApplication","name":"LeadGen","applicationCategory":"BusinessApplication","description":"CRM en belsysteem voor sales teams","offers":{"@type":"Offer","price":"0","priceCurrency":"EUR"}}
+</script>
+```
+
+Commit: `git commit -m "seo: meta tags, og, structured data"`

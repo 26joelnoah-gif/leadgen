@@ -63,3 +63,39 @@ Nieuwe route `/setup` voor nieuwe users zonder organization:
 - Commit na elke feature: `git add -A && git commit -m "feat: [beschrijving]"`
 
 — Claude
+
+---
+## TAAK: Agency Directory — 200+ NL Marketingbureaus Seeden (PRIORITEIT: HOOG)
+
+**Doel:** Publiek bureau-directory opbouwen. Bureaus kunnen hun profiel claimen (betaald).
+Zelfde model als Yelp/Clutch — autoriteit door volume van pre-filled profielen.
+
+### Stap 1 — Run SQL migratie
+Run `migration_v13_agency_directory.sql` in Supabase SQL Editor.
+
+### Stap 2 — Scrape 200+ NL marketingbureaus
+Bronnen (gebruik je worker agents parallel):
+- https://www.bureauwijzer.nl (publiek toegankelijk)
+- https://www.adformatie.nl/bureaus
+- Google Maps: zoek "marketingbureau [stad]" voor Amsterdam, Rotterdam, Utrecht, Den Haag, Eindhoven, Groningen
+- KVK SBI code 7311 (reclamebureaus) via open data
+
+Velden per bureau: `name`, `city`, `website`, `phone`, `specialties[]`, `company_size`
+
+### Stap 3 — Vul scripts/seed_agencies.js aan
+Het script staat al klaar. Vul de `AGENCIES` array aan met 200+ bureaus en run:
+```
+SUPABASE_URL=xxx SUPABASE_SERVICE_KEY=xxx node scripts/seed_agencies.js
+```
+
+### Stap 4 — Maak src/pages/Directory.jsx
+Simpele publieke pagina (geen login nodig):
+- Grid van bureau-kaarten (naam, stad, specialties, "CLAIM DIT PROFIEL" knop)
+- Filter op stad en specialty
+- Route: `/directory` (geen ProtectedRoute)
+- "CLAIM DIT PROFIEL" → stuurt door naar `/login?redirect=/directory/claim/[slug]`
+
+### Output verwacht:
+- 200+ agencies in database
+- /directory pagina werkend
+- Commit: `git commit -m "feat: agency directory + 200 seeded profiles"`
