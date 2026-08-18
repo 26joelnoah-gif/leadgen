@@ -187,7 +187,8 @@ export function useLeads() {
       lead_source: leadData.lead_source || 'cold', decision_maker: leadData.decision_maker || false,
       address: leadData.address || null, house_number: leadData.house_number || null,
       postal_code: leadData.postal_code || null, city: leadData.city || null,
-      contact_person: leadData.contact_person || null, function: leadData.function || null, website: leadData.website || null
+      contact_person: leadData.contact_person || null, function: leadData.function || null, website: leadData.website || null,
+      organization_id: profile?.organization_id
     }
 
     if (isDemoMode) {
@@ -215,17 +216,29 @@ export function useLeads() {
     if (!currentLead) return
     const agentName = profile?.full_name || user?.email || 'Onbekend'
 
-    const { data: rule } = await supabase.from('flow_settings').select('*').eq('disposition_type', dispositionType).single()
+    let newNotes = currentLead.notes || ''
+    if (notes) newNotes = `${newNotes}\n[${new Date().toLocaleDateString()}] ${notes}`
+
+    if (isDemoMode) {
+      const updates = {
+        status: ['deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer'].includes(dispositionType) ? dispositionType : 'new',
+        notes: newNotes,
+        next_contact_date: nextDate,
+        updated_at: new Date().toISOString()
+      }
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updates } : l))
+      return
+    }
+
+    const { data: rule } = await supabase.from('flow_settings').select('*').eq('disposition_type', dispositionType).maybeSingle()
     const getOrCreateList = async (listName) => {
       const { data: existing } = await supabase.from('lead_lists').select('id').eq('name', listName).limit(1)
       if (existing?.length > 0) return existing[0].id
-      const { data: newList } = await supabase.from('lead_lists').insert({ name: listName, created_by: user?.id }).select().single()
+      const { data: newList } = await supabase.from('lead_lists').insert({ name: listName, created_by: user?.id, organization_id: profile?.organization_id }).select().single()
       return newList?.id
     }
 
     let status = currentLead.status
-    let newNotes = currentLead.notes || ''
-    if (notes) newNotes = `${newNotes}\n[${new Date().toLocaleDateString()}] ${notes}`
 
     if (rule) {
       const targetListName = rule.target_list_name.replace('{{agent}}', agentName)
@@ -235,7 +248,7 @@ export function useLeads() {
       else if (rule.auto_assign_to === 'none') assignedTo = null
       
       const updates = {
-         status: ['deal','afspraak_gemaakt','geen_interesse','verkeerd_nummer'].includes(dispositionType) ? dispositionType : 'new',
+         status: ['deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer'].includes(dispositionType) ? dispositionType : 'new',
          notes: rule.append_agent_note ? `${newNotes}\n🚨 AFBOEKING DOOR: ${agentName}` : newNotes,
          lead_list_id: listId,
          assigned_to: assignedTo,

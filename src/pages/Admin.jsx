@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createClient } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
@@ -56,22 +57,73 @@ export default function Admin() {
     fetchLeadLists()
   }, [isDemoMode])
 
+  async function handleAddEmployee(employeeData) {
+    if (isDemoMode) {
+      const newUser = {
+        id: `demo-${Date.now()}`,
+        email: employeeData.email,
+        full_name: employeeData.name,
+        role: employeeData.role,
+        created_at: new Date().toISOString()
+      }
+      setUsers(prev => [...prev, newUser])
+      toast('Medewerker toegevoegd (Demo Mode)', 'success')
+      return
+    }
+
+    try {
+      // BELANGRIJK: aparte client zonder sessie-opslag, anders vervangt
+      // signUp de sessie van de admin en ben je ineens ingelogd als de nieuwe medewerker
+      const tempClient = createClient(
+        import.meta.env.VITE_SUPABASE_URL,
+        import.meta.env.VITE_SUPABASE_ANON_KEY,
+        { auth: { persistSession: false, autoRefreshToken: false } }
+      )
+      const { error } = await tempClient.auth.signUp({
+        email: employeeData.email,
+        password: employeeData.password,
+        options: {
+          data: {
+             full_name: employeeData.name,
+             role: employeeData.role
+          }
+        }
+      })
+      if (error) throw error
+      toast('Medewerker uitnodiging verstuurd!', 'success')
+      fetchData()
+    } catch (err) {
+      toast(err.message, 'error')
+    }
+  }
+
   if (profile && profile.role !== 'admin') return <Navigate to="/dashboard" />
 
   async function fetchData() {
     setLoading(true)
-    const { data: l } = await supabase.from('leads').select('*').order('created_at', { ascending: false })
-    const { data: u } = await supabase.from('profiles').select('*').order('full_name')
-    setLeads(l || [])
-    setUsers(u || [])
-    setLoading(false)
+    try {
+      const { data: l, error: lErr } = await supabase.from('leads').select('*').order('created_at', { ascending: false })
+      if (lErr) throw lErr
+      const { data: u, error: uErr } = await supabase.from('profiles').select('*').order('full_name')
+      if (uErr) throw uErr
+      setLeads(l || [])
+      setUsers(u || [])
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function handleDeleteEmployee(userId) {
-    if (!window.confirm('Verwijderen?')) return
-    await supabase.from('profiles').delete().eq('id', userId)
-    setUsers(prev => prev.filter(u => u.id !== userId))
-    toast('Medewerker verwijderd', 'success')
+    try {
+      const { error } = await supabase.from('profiles').delete().eq('id', userId)
+      if (error) throw error
+      setUsers(prev => prev.filter(u => u.id !== userId))
+      toast('Medewerker verwijderd', 'success')
+    } catch (err) {
+      toast(err.message, 'error')
+    }
   }
 
   async function addLead(e) {
@@ -91,7 +143,8 @@ export default function Admin() {
         created_by: user.id,
         status: 'new',
         lead_source: newLead.lead_source,
-        decision_maker: newLead.decision_maker
+        decision_maker: newLead.decision_maker,
+        organization_id: profile?.organization_id
       })
       if (error) throw error
       setShowAddLead(false)
@@ -104,8 +157,13 @@ export default function Admin() {
 
   // Support functions...
   const handleUpdateFlow = async (id, updates) => {
-    await supabase.from('profiles').update(updates).eq('id', id)
-    fetchData()
+    try {
+      const { error } = await supabase.from('profiles').update(updates).eq('id', id)
+      if (error) throw error
+      fetchData()
+    } catch (err) {
+      toast(err.message, 'error')
+    }
   }
 
   return (
@@ -280,7 +338,7 @@ export default function Admin() {
 
       </main>
 
-      <EmployeeModal isOpen={showEmployee} onClose={() => setShowEmployee(false)} />
+      <EmployeeModal isOpen={showEmployee} onClose={() => setShowEmployee(false)} onAdd={handleAddEmployee} />
       <BriefingModal isOpen={showBriefing} onClose={() => setShowBriefing(false)} />
       <CampaignModal isOpen={showCampaign} onClose={() => setShowCampaign(false)} />
       <LeadListModal isOpen={showLeadList} onClose={() => setShowLeadList(false)} />

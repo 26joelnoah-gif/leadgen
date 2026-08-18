@@ -13,7 +13,10 @@ export function useLeadLists() {
     setError(null)
 
     if (isDemoMode) {
-      setLeadLists([])
+      setLeadLists([
+        { id: 'list-1', name: 'Zorg & Welzijn Bulk', description: 'Grote lijst met zorginstellingen', created_at: new Date().toISOString() },
+        { id: 'list-2', name: 'Horeca Randstad', description: 'Nieuwe restaurants in Amsterdam/Utrecht', created_at: new Date().toISOString() }
+      ])
       setLoading(false)
       return
     }
@@ -30,13 +33,9 @@ export function useLeadLists() {
       query = query.order('created_at', { ascending: false })
       
       const { data, error } = await query
-
       if (error) throw error
-      // Agents only see lists assigned to them or created by them
-      const lists = profile?.role === 'admin'
-        ? (data || [])
-        : (data || []).filter(l => l.assigned_to === profile?.id || l.created_by === profile?.id)
-      setLeadLists(lists)
+      
+      setLeadLists(data || [])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -58,7 +57,7 @@ export function useLeadLists() {
 
     const { data, error } = await supabase
       .from('lead_lists')
-      .insert({ name, description, created_by: profile?.id })
+      .insert({ name, description, created_by: profile?.id, organization_id: profile?.organization_id })
       .select()
       .single()
 
@@ -71,10 +70,18 @@ export function useLeadLists() {
   async function addLeadsToList(listId, leadIds) {
     if (isDemoMode) return { error: null }
 
-    const { error } = await supabase
+    let query = supabase
       .from('leads')
       .update({ lead_list_id: listId })
       .in('id', leadIds)
+
+    // Alleen op organisatie filteren als de gebruiker er echt één heeft —
+    // met organization_id = null zou de update stilletjes 0 rijen raken
+    if (profile?.organization_id) {
+      query = query.eq('organization_id', profile.organization_id)
+    }
+
+    const { error } = await query
 
     return { error }
   }
