@@ -15,7 +15,8 @@ import { STATUS_MAP } from '../utils/statusUtils'
 import { exportToCSV } from '../utils/exportUtils'
 import { parseCSV, validateLeads } from '../utils/importUtils'
 import { CAMPAIGN_TYPES } from '../utils/campaignUtils'
-import { getSettings, saveSettings } from '../utils/settingsUtils'
+import { useSettings } from '../hooks/useSettings'
+import PayoutRatesCard from '../components/PayoutRatesCard'
 import { useToast } from '../components/Toast'
 import LoadingSpinner from '../components/LoadingSpinner'
 import StatusSelector from '../components/StatusSelector'
@@ -49,7 +50,7 @@ export default function Admin() {
   const [showSettings, setShowSettings] = useState(false)
   const [showEmployee, setShowEmployee] = useState(false)
   const [showLeadList, setShowLeadList] = useState(false)
-  const [systemSettings, setSystemSettings] = useState(getSettings)
+  const { settings: systemSettings, updateSettings, loading: settingsLoading } = useSettings()
 
   useEffect(() => {
     fetchData()
@@ -160,6 +161,13 @@ export default function Admin() {
                    <Link to="/admin/telemetry" className="btn btn-outline btn-block mt-4 border-white/10 text-muted hover:text-white">Open Telemetry Dashboard</Link>
                 </div>
              </div>
+
+             <PayoutRatesCard
+               settings={systemSettings}
+               loading={settingsLoading}
+               onSave={updateSettings}
+               toast={toast}
+             />
           </motion.div>
         )}
 

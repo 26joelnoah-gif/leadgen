@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { DollarSign, Zap, Users, CheckCircle, Clock, AlertCircle, Download, Edit2, X, Check, Calendar } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
-import { getSettings } from '../utils/settingsUtils'
+import { useSettings } from '../hooks/useSettings'
 import Logo from '../components/Logo'
 import LoadingSpinner from '../components/LoadingSpinner'
 
@@ -16,7 +16,7 @@ export default function Payouts() {
   const [leadCounts, setLeadCounts] = useState({}) // { userId: { deals, appointments } }
   const [loading, setLoading] = useState(true)
   const [editingUser, setEditingUser] = useState(null)
-  const [systemSettings] = useState(getSettings)
+  const { settings: systemSettings } = useSettings()
 
   useEffect(() => {
     fetchData()

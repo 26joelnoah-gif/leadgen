@@ -1823,3 +1823,46 @@ img, video, canvas, svg { max-width: 100%; }
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
 }
+
+/* --- uitbetalingstarieven --- */
+.rates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+  gap: 16px;
+}
+
+.rates-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rates-field__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.rates-field__input {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.rates-field__prefix {
+  position: absolute;
+  left: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.rates-field__input .form-control {
+  width: 100%;
+  padding: 10px 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rates-field__prefix ~ .form-control {
+  padding-left: 28px;
+}

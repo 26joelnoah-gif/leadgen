@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import { DollarSign, Zap, Copy, CheckCircle, Phone, PhoneOff, Calendar } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
-import { getSettings } from '../utils/settingsUtils'
+import { useSettings } from '../hooks/useSettings'
 import Logo from '../components/Logo'
 import MobileNav from '../components/MobileNav'
 
@@ -13,7 +13,7 @@ export default function Earnings() {
   const { profile, signOut, sessionCallCount } = useAuth()
   const { leads } = useLeads()
   const [copied, setCopied] = useState(false)
-  const [settings] = useState(getSettings)
+  const { settings } = useSettings()
 
   // Date range state - default to current month
   const now = new Date()
