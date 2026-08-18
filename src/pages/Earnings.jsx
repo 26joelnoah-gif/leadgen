@@ -1,18 +1,69 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { DollarSign, Zap, Copy, CheckCircle, Phone, PhoneOff, Calendar } from 'lucide-react'
+import { DollarSign, Zap, Copy, CheckCircle, Phone, PhoneOff, Calendar, Target, Trophy, Clock } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
 import { getSettings } from '../utils/settingsUtils'
+import { supabase } from '../lib/supabase'
 import Logo from '../components/Logo'
 import MobileNav from '../components/MobileNav'
 
+// Startmoment van een prijs-periode (dag/week/maand)
+function periodStart(period) {
+  const d = new Date()
+  d.setHours(0, 0, 0, 0)
+  if (period === 'week') {
+    const day = d.getDay() === 0 ? 6 : d.getDay() - 1 // maandag = start
+    d.setDate(d.getDate() - day)
+  } else if (period === 'month') {
+    d.setDate(1)
+  }
+  return d
+}
+
 export default function Earnings() {
-  const { profile, signOut, sessionCallCount } = useAuth()
+  const { user, profile, signOut, sessionCallCount, isDemoMode } = useAuth()
   const { leads } = useLeads()
   const [copied, setCopied] = useState(false)
   const [settings] = useState(getSettings)
+  const [rules, setRules] = useState(null)
+  const [todayCalls, setTodayCalls] = useState(0)
+  const [prizes, setPrizes] = useState([])
+  const [callCounts, setCallCounts] = useState({ day: 0, week: 0, month: 0 })
+
+  useEffect(() => {
+    if (!user?.id || isDemoMode) return
+    let cancelled = false
+    async function fetchStats() {
+      try {
+        const { data: ruleRows } = await supabase.from('payout_rules').select('*').limit(1)
+        if (!cancelled && ruleRows?.[0]) setRules(ruleRows[0])
+
+        // Calls per periode uit call_logs
+        const counts = {}
+        for (const period of ['day', 'week', 'month']) {
+          const { count } = await supabase
+            .from('call_logs')
+            .select('id', { count: 'exact', head: true })
+            .eq('agent_id', user.id)
+            .gte('disposed_at', periodStart(period).toISOString())
+          counts[period] = count || 0
+        }
+        if (!cancelled) {
+          setCallCounts(counts)
+          setTodayCalls(counts.day)
+        }
+
+        const { data: prizeRows } = await supabase.from('prizes').select('*').eq('active', true).order('created_at', { ascending: false })
+        if (!cancelled) setPrizes(prizeRows || [])
+      } catch (err) {
+        console.error('Stats laden mislukt:', err)
+      }
+    }
+    fetchStats()
+    return () => { cancelled = true }
+  }, [user?.id, isDemoMode])
 
   // Date range state - default to current month
   const now = new Date()
@@ -23,41 +74,57 @@ export default function Earnings() {
     return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
   })
 
-  // Filter leads by date range
-  const { deals, appointments } = useMemo(() => {
+  // Filter leads by date range — afspraken gesplitst in netto (goedgekeurd) en pending
+  const { deals, appointments, pendingAppointments } = useMemo(() => {
     const start = new Date(startDate)
     start.setHours(0, 0, 0, 0)
     const end = new Date(endDate)
     end.setHours(23, 59, 59, 999)
 
-    const filteredDeals = leads.filter(l => {
-      if (l.status !== 'deal') return false
+    const inRange = (l) => {
       const created = new Date(l.created_at)
       return created >= start && created <= end
-    })
+    }
 
-    const filteredAppointments = leads.filter(l => {
-      if (l.status !== 'afspraak_gemaakt') return false
-      const created = new Date(l.created_at)
-      return created >= start && created <= end
-    })
+    const filteredDeals = leads.filter(l => l.status === 'deal' && inRange(l))
+    const allAppointments = leads.filter(l => l.status === 'afspraak_gemaakt' && inRange(l))
+    const netto = allAppointments.filter(l => l.appointment_approved === true)
+    const pending = allAppointments.filter(l => l.appointment_approved === null || l.appointment_approved === undefined)
 
-    return { deals: filteredDeals, appointments: filteredAppointments }
+    return { deals: filteredDeals, appointments: netto, pendingAppointments: pending }
   }, [leads, startDate, endDate])
 
   const showDeals = profile?.role === 'admin' || profile?.show_deals_in_earnings !== false
   const showAppointments = profile?.role === 'admin' || profile?.show_appointments_in_earnings !== false
 
-  const dealAmount = showDeals ? deals.length * settings.dealValue : 0
-  const appointmentAmount = showAppointments ? appointments.length * settings.appointmentValue : 0
+  // Vergoedingen van de product owner (payout_rules); localStorage als fallback
+  const dealRate = rules ? Number(rules.rate_per_deal) : settings.dealValue
+  const appointmentRate = rules ? Number(rules.rate_per_appointment) : settings.appointmentValue
+  const dailyTarget = rules ? Number(rules.min_calls_per_day) : 0
+
+  const dealAmount = showDeals ? deals.length * dealRate : 0
+  const appointmentAmount = showAppointments ? appointments.length * appointmentRate : 0
   const totalAmount = dealAmount + appointmentAmount
+
+  // Voortgang per prijs voor deze beller
+  function prizeProgress(prize) {
+    if (prize.metric === 'calls') return callCounts[prize.period] || 0
+    const start = periodStart(prize.period)
+    if (prize.metric === 'appointments') {
+      return leads.filter(l => l.status === 'afspraak_gemaakt' && l.appointment_approved === true && new Date(l.updated_at || l.created_at) >= start).length
+    }
+    if (prize.metric === 'deals') {
+      return leads.filter(l => l.status === 'deal' && new Date(l.updated_at || l.created_at) >= start).length
+    }
+    return 0
+  }
 
   // Format period for display
   const startFormatted = new Date(startDate).toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })
   const endFormatted = new Date(endDate).toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })
   const periodLabel = startFormatted === endFormatted ? startFormatted : `${startFormatted} - ${endFormatted}`
 
-  const invoiceText = `${profile?.full_name || 'Medewerker'}\nPeriode: ${periodLabel}\n\nDeals: ${deals.length} x €${settings.dealValue} = €${dealAmount}\nAfspraken: ${appointments.length} x €${settings.appointmentValue} = €${appointmentAmount}\n\nTotaal te factureren: €${totalAmount}`
+  const invoiceText = `${profile?.full_name || 'Medewerker'}\nPeriode: ${periodLabel}\n\nDeals: ${deals.length} x €${dealRate} = €${dealAmount}\nNetto afspraken: ${appointments.length} x €${appointmentRate} = €${appointmentAmount}\n\nTotaal te factureren: €${totalAmount}`
 
   function copyInvoice() {
     navigator.clipboard.writeText(invoiceText)
@@ -136,6 +203,78 @@ export default function Earnings() {
           </div>
         </motion.div>
 
+        {/* Dagtarget voortgang */}
+        {dailyTarget > 0 && (
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="card glass-panel"
+            style={{ maxWidth: '500px', margin: '0 auto 20px auto', padding: '20px' }}
+          >
+            <div className="flex justify-between items-center" style={{ marginBottom: '10px' }}>
+              <span style={{ fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Target size={16} style={{ color: 'var(--secondary)' }} /> DAGTARGET
+              </span>
+              <span style={{ fontSize: '0.9rem', fontWeight: 800, color: todayCalls >= dailyTarget ? 'var(--success)' : 'white' }}>
+                {todayCalls}/{dailyTarget} calls {todayCalls >= dailyTarget && '✅'}
+              </span>
+            </div>
+            <div style={{ height: '8px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%', borderRadius: '4px',
+                width: `${Math.min(100, Math.round((todayCalls / dailyTarget) * 100))}%`,
+                background: todayCalls >= dailyTarget ? 'var(--success)' : 'var(--secondary)',
+                transition: 'width 0.5s ease'
+              }} />
+            </div>
+          </motion.div>
+        )}
+
+        {/* Actieve prijzen */}
+        {prizes.length > 0 && (
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="card glass-panel"
+            style={{ maxWidth: '500px', margin: '0 auto 20px auto', padding: '20px' }}
+          >
+            <span style={{ fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '14px' }}>
+              <Trophy size={16} style={{ color: 'var(--secondary)' }} /> TE WINNEN PRIJZEN
+            </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {prizes.map(p => {
+                const progress = prizeProgress(p)
+                const done = progress >= p.target_value
+                const periodLabels = { day: 'vandaag', week: 'deze week', month: 'deze maand' }
+                const metricLabels = { calls: 'calls', appointments: 'netto afspraken', deals: 'deals' }
+                return (
+                  <div key={p.id}>
+                    <div className="flex justify-between items-center" style={{ marginBottom: '6px' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>
+                        🏆 {p.name}{p.reward_label && <span style={{ color: 'var(--secondary)' }}> — {p.reward_label}</span>}
+                      </span>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 800, color: done ? 'var(--success)' : 'var(--text-muted)' }}>
+                        {progress}/{p.target_value} {done && '🎉'}
+                      </span>
+                    </div>
+                    <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%', borderRadius: '3px',
+                        width: `${Math.min(100, Math.round((progress / Math.max(1, p.target_value)) * 100))}%`,
+                        background: done ? 'var(--success)' : 'var(--primary)',
+                        transition: 'width 0.5s ease'
+                      }} />
+                    </div>
+                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '3px' }}>
+                      {p.target_value} {metricLabels[p.metric] || p.metric} {periodLabels[p.period] || p.period}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </motion.div>
+        )}
+
         <motion.div
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -157,8 +296,13 @@ export default function Earnings() {
             </div>
             <div style={{ background: 'var(--bg-elevated)', padding: '20px', borderRadius: '12px' }}>
               <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--info)' }}>{appointments.length}</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>AFSPRAKEN</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>NETTO AFSPRAKEN</div>
               <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', marginTop: '4px' }}>€{appointmentAmount}</div>
+              {pendingAppointments.length > 0 && (
+                <div style={{ fontSize: '0.7rem', color: 'var(--warning)', marginTop: '4px', fontWeight: 600 }}>
+                  <Clock size={10} style={{ display: 'inline', verticalAlign: '-1px' }} /> +{pendingAppointments.length} wacht op goedkeuring
+                </div>
+              )}
             </div>
           </div>
 
@@ -203,8 +347,8 @@ export default function Earnings() {
 {`${profile?.full_name || 'Medewerker'}
 Periode: April 2026
 
-Deals: ${deals.length} x €${settings.dealValue} = €${dealAmount}
-Afspraken: ${appointments.length} x €${settings.appointmentValue} = €${appointmentAmount}
+Deals: ${deals.length} x €${dealRate} = €${dealAmount}
+Netto afspraken: ${appointments.length} x €${appointmentRate} = €${appointmentAmount}
 
 Totaal te factureren: €${totalAmount}`}
           </pre>

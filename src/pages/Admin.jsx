@@ -25,6 +25,7 @@ import CampaignModal, { CampaignCard } from '../components/CampaignModal'
 import BriefingModal, { BriefingCard } from '../components/BriefingModal'
 import { LeadListModal } from '../components/LeadListModal'
 import EmployeeModal from '../components/EmployeeModal'
+import PayoutSettings from '../components/PayoutSettings'
 import LeadManagement from './LeadManagement' // IMPORT THE MANAGEMENT COMPONENT
 
 export default function Admin() {
@@ -173,15 +174,15 @@ export default function Admin() {
       <main className="container-wide py-6 px-8">
         {/* TABS MENU */}
         <div className="flex gap-4 mb-8 bg-white/5 p-2 rounded-2xl w-fit">
-           {['dashboard', 'medewerkers', 'DATA'].map(t => (
-             <button 
+           {['dashboard', 'medewerkers', 'DATA', 'verdiensten'].map(t => (
+             <button
                key={t}
                onClick={() => setActiveTab(t.toLowerCase())}
                className={`px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all ${
                  activeTab === t.toLowerCase() ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-muted hover:text-white'
                }`}
              >
-               {t === 'DATA' ? <Layers size={16} className="inline mr-2" /> : t === 'medewerkers' ? <Users size={16} className="inline mr-2" /> : <Activity size={16} className="inline mr-2" />}
+               {t === 'DATA' ? <Layers size={16} className="inline mr-2" /> : t === 'medewerkers' ? <Users size={16} className="inline mr-2" /> : t === 'verdiensten' ? <DollarSign size={16} className="inline mr-2" /> : <Activity size={16} className="inline mr-2" />}
                {t}
              </button>
            ))}
@@ -262,6 +263,10 @@ export default function Admin() {
            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <LeadManagement standalone={false} />
            </motion.div>
+        )}
+
+        {activeTab === 'verdiensten' && (
+           <PayoutSettings />
         )}
 
         {/* MODAL: ADD LEAD */}

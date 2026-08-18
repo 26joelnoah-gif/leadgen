@@ -12,7 +12,10 @@ export default function Payouts() {
   const { profile, signOut, sessionCallCount } = useAuth()
   const [users, setUsers] = useState([])
   const [payouts, setPayouts] = useState({})
-  const [leadCounts, setLeadCounts] = useState({}) // { userId: { deals, appointments } }
+  const [leadCounts, setLeadCounts] = useState({}) // { userId: { deals, appointments, pendingAppointments } }
+  const [pendingAppointments, setPendingAppointments] = useState([]) // afspraken die nog beoordeeld moeten worden
+  const [rules, setRules] = useState(null) // payout_rules van de organisatie
+  const [monthlyCalls, setMonthlyCalls] = useState({}) // { userId: calls deze maand }
   const [loading, setLoading] = useState(true)
   const [editingUser, setEditingUser] = useState(null)
   const [systemSettings] = useState(getSettings)
@@ -24,10 +27,15 @@ export default function Payouts() {
   async function fetchData() {
     setLoading(true)
     try {
-      const [usersRes, payoutsRes, leadsRes] = await Promise.all([
+      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+      const monthStartStr = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}-01`
+
+      const [usersRes, payoutsRes, leadsRes, rulesRes, statsRes] = await Promise.all([
         supabase.from('profiles').select('*').order('full_name'),
         supabase.from('payouts').select('*').order('created_at', { ascending: false }),
-        supabase.from('leads').select('id, assigned_to, status')
+        supabase.from('leads').select('id, name, assigned_to, status, appointment_approved'),
+        supabase.from('payout_rules').select('*').limit(1),
+        supabase.from('agent_daily_stats').select('agent_id, calls').gte('dag', monthStartStr)
       ])
 
       if (usersRes.data) setUsers(usersRes.data)
@@ -40,18 +48,37 @@ export default function Payouts() {
         setPayouts(payoutsByUser)
       }
 
-      // Tel deals en appointments per user uit leads tabel
+      if (rulesRes.data?.[0]) setRules(rulesRes.data[0])
+
+      // Calls per user deze maand (voor uitbetalings-target)
+      if (statsRes.data) {
+        const callTotals = {}
+        statsRes.data.forEach(row => {
+          callTotals[row.agent_id] = (callTotals[row.agent_id] || 0) + Number(row.calls || 0)
+        })
+        setMonthlyCalls(callTotals)
+      }
+
+      // Tel deals en NETTO afspraken per user; verzamel afspraken die beoordeling nodig hebben
       if (leadsRes.data) {
         const counts = {}
+        const pending = []
         leadsRes.data.forEach(lead => {
+          if (lead.status === 'afspraak_gemaakt' && (lead.appointment_approved === null || lead.appointment_approved === undefined)) {
+            pending.push(lead)
+          }
           if (!lead.assigned_to) return
           if (!counts[lead.assigned_to]) {
-            counts[lead.assigned_to] = { deals: 0, appointments: 0 }
+            counts[lead.assigned_to] = { deals: 0, appointments: 0, pendingAppointments: 0 }
           }
           if (lead.status === 'deal') counts[lead.assigned_to].deals++
-          if (lead.status === 'afspraak_gemaakt') counts[lead.assigned_to].appointments++
+          if (lead.status === 'afspraak_gemaakt') {
+            if (lead.appointment_approved === true) counts[lead.assigned_to].appointments++
+            else if (lead.appointment_approved === null || lead.appointment_approved === undefined) counts[lead.assigned_to].pendingAppointments++
+          }
         })
         setLeadCounts(counts)
+        setPendingAppointments(pending)
       }
     } catch (err) {
       console.error('Error fetching payouts data:', err)
@@ -59,6 +86,43 @@ export default function Payouts() {
       setLoading(false)
     }
   }
+
+  // Netto afspraak goedkeuren of afkeuren (no-show / niet gekwalificeerd)
+  async function reviewAppointment(leadId, approved) {
+    const { error } = await supabase
+      .from('leads')
+      .update({
+        appointment_approved: approved,
+        appointment_approved_at: new Date().toISOString(),
+        appointment_approved_by: profile?.id
+      })
+      .eq('id', leadId)
+
+    if (error) {
+      console.error('Beoordeling opslaan mislukt:', error.message)
+      return
+    }
+    const lead = pendingAppointments.find(l => l.id === leadId)
+    setPendingAppointments(prev => prev.filter(l => l.id !== leadId))
+    if (lead?.assigned_to) {
+      setLeadCounts(prev => {
+        const cur = prev[lead.assigned_to] || { deals: 0, appointments: 0, pendingAppointments: 0 }
+        return {
+          ...prev,
+          [lead.assigned_to]: {
+            ...cur,
+            appointments: cur.appointments + (approved ? 1 : 0),
+            pendingAppointments: Math.max(0, cur.pendingAppointments - 1)
+          }
+        }
+      })
+    }
+  }
+
+  // Vergoedingen: payout_rules van de owner is leidend, localStorage is fallback
+  const defaultDealRate = rules ? Number(rules.rate_per_deal) : systemSettings.dealValue
+  const defaultAppointmentRate = rules ? Number(rules.rate_per_appointment) : systemSettings.appointmentValue
+  const minCallsForPayout = rules ? Number(rules.min_calls_for_payout) : 0
 
   function getUserLeads(userId) {
     // This would be fetched from leads in real implementation
@@ -144,10 +208,11 @@ export default function Payouts() {
           user_id: userId,
           period_start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
           period_end: new Date().toISOString().split('T')[0],
+          organization_id: profile?.organization_id ?? null,
           deals_count: 0,
           appointments_count: 0,
-          deal_payout: systemSettings.dealValue,
-          appointment_payout: systemSettings.appointmentValue,
+          deal_payout: defaultDealRate,
+          appointment_payout: defaultAppointmentRate,
           is_billable: newIsBillable,
           billable_approved_at: newIsBillable ? new Date().toISOString() : null,
           payout_status: 'pending',
@@ -236,10 +301,53 @@ export default function Payouts() {
           </div>
           <div className="flex gap-2 items-center">
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Deal: €{systemSettings.dealValue} | Afspraak: €{systemSettings.appointmentValue}
+              Deal: €{defaultDealRate} | Netto afspraak: €{defaultAppointmentRate}
+              {minCallsForPayout > 0 && ` | Beltarget: ${minCallsForPayout} calls/maand`}
             </span>
+            <Link to="/admin" style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 700 }}>Tarieven aanpassen →</Link>
           </div>
         </motion.div>
+
+        {/* TE BEOORDELEN AFSPRAKEN — netto of niet? */}
+        {pendingAppointments.length > 0 && (
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="card glass-panel mb-4"
+            style={{ padding: '20px', borderLeft: '4px solid var(--warning)' }}
+          >
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Clock size={18} style={{ color: 'var(--warning)' }} />
+              Te beoordelen afspraken ({pendingAppointments.length})
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+              Keur goed als de afspraak echt heeft plaatsgevonden (netto) — alleen netto afspraken tellen mee voor uitbetaling.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {pendingAppointments.map(lead => {
+                const setter = users.find(u => u.id === lead.assigned_to)
+                return (
+                  <div key={lead.id} className="flex justify-between items-center" style={{ background: 'var(--bg-dark)', padding: '10px 16px', borderRadius: '8px' }}>
+                    <div>
+                      <span style={{ fontWeight: 700 }}>{lead.name}</span>
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '10px' }}>
+                        door {setter?.full_name || 'Onbekend'}
+                      </span>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => reviewAppointment(lead.id, true)} className="btn btn-sm" style={{ background: 'var(--success)', color: 'white', fontWeight: 700 }}>
+                        <Check size={14} /> Netto
+                      </button>
+                      <button onClick={() => reviewAppointment(lead.id, false)} className="btn btn-sm btn-outline" style={{ color: 'var(--danger, #EF4444)' }}>
+                        <X size={14} /> Afkeuren
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </motion.div>
+        )}
 
         {/* Status Legend */}
         <motion.div
@@ -277,10 +385,12 @@ export default function Payouts() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
             {users.map((user, index) => {
               const payout = payouts[user.id]
-              const counts = leadCounts[user.id] || { deals: 0, appointments: 0 }
+              const counts = leadCounts[user.id] || { deals: 0, appointments: 0, pendingAppointments: 0 }
               const statusInfo = getStatusInfo(payout)
-              const totalAmount = (counts.deals || 0) * (payout?.deal_payout || systemSettings.dealValue) +
-                (counts.appointments || 0) * (payout?.appointment_payout || systemSettings.appointmentValue)
+              const totalAmount = (counts.deals || 0) * (payout?.deal_payout || defaultDealRate) +
+                (counts.appointments || 0) * (payout?.appointment_payout || defaultAppointmentRate)
+              const userCalls = monthlyCalls[user.id] || 0
+              const belowCallTarget = minCallsForPayout > 0 && userCalls < minCallsForPayout
 
               return (
                 <motion.div
@@ -363,12 +473,12 @@ export default function Payouts() {
                           textAlign: 'center',
                           display: 'inline-block'
                         }}>{counts.deals || 0}</span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>× €{payout?.deal_payout || systemSettings.dealValue}</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>× €{payout?.deal_payout || defaultDealRate}</span>
                       </div>
                     </div>
                     <div>
                       <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                        Afspraken
+                        Netto afspraken{counts.pendingAppointments > 0 && <span style={{ color: 'var(--warning)' }}> (+{counts.pendingAppointments} te beoordelen)</span>}
                       </label>
                       <div className="flex items-center gap-2">
                         <span style={{
@@ -381,7 +491,7 @@ export default function Payouts() {
                           textAlign: 'center',
                           display: 'inline-block'
                         }}>{counts.appointments || 0}</span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>× €{payout?.appointment_payout || systemSettings.appointmentValue}</span>
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>× €{payout?.appointment_payout || defaultAppointmentRate}</span>
                       </div>
                     </div>
                     <div>
@@ -392,7 +502,7 @@ export default function Payouts() {
                         <input
                           type="number"
                           min="0"
-                          value={payout?.deal_payout || systemSettings.dealValue}
+                          value={payout?.deal_payout || defaultDealRate}
                           onChange={(e) => updatePayoutField(user.id, 'deal_payout', parseFloat(e.target.value) || 0)}
                           style={{
                             width: '80px',
@@ -404,7 +514,7 @@ export default function Payouts() {
                           }}
                         />
                       ) : (
-                        <span style={{ color: 'white', fontWeight: 600 }}>€{payout?.deal_payout || systemSettings.dealValue}</span>
+                        <span style={{ color: 'white', fontWeight: 600 }}>€{payout?.deal_payout || defaultDealRate}</span>
                       )}
                     </div>
                     <div>
@@ -415,7 +525,7 @@ export default function Payouts() {
                         <input
                           type="number"
                           min="0"
-                          value={payout?.appointment_payout || systemSettings.appointmentValue}
+                          value={payout?.appointment_payout || defaultAppointmentRate}
                           onChange={(e) => updatePayoutField(user.id, 'appointment_payout', parseFloat(e.target.value) || 0)}
                           style={{
                             width: '80px',
@@ -427,10 +537,24 @@ export default function Payouts() {
                           }}
                         />
                       ) : (
-                        <span style={{ color: 'white', fontWeight: 600 }}>€{payout?.appointment_payout || systemSettings.appointmentValue}</span>
+                        <span style={{ color: 'white', fontWeight: 600 }}>€{payout?.appointment_payout || defaultAppointmentRate}</span>
                       )}
                     </div>
                   </div>
+
+                  {/* Beltarget check */}
+                  {minCallsForPayout > 0 && (
+                    <div className="flex items-center gap-2 p-2 mb-3" style={{
+                      background: belowCallTarget ? 'rgba(245, 158, 11, 0.12)' : 'rgba(16, 185, 129, 0.12)',
+                      borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600,
+                      color: belowCallTarget ? 'var(--warning)' : 'var(--success)'
+                    }}>
+                      {belowCallTarget ? <AlertCircle size={14} /> : <CheckCircle size={14} />}
+                      {belowCallTarget
+                        ? `Beltarget niet gehaald: ${userCalls}/${minCallsForPayout} calls deze maand`
+                        : `Beltarget gehaald: ${userCalls}/${minCallsForPayout} calls`}
+                    </div>
+                  )}
 
                   {/* Total */}
                   <div className="flex justify-between items-center p-3" style={{ background: 'var(--bg-dark)', borderRadius: '8px', marginBottom: '12px' }}>
