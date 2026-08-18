@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X, Phone, Mail, MapPin, User, Building2,
   Calendar, Clock, AlertCircle, CheckCircle2,
-  ChevronRight, Copy, Save, Users
+  ChevronRight, Copy, Save, Users, Target
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
+import { supabase } from '../lib/supabase'
 
 const CopyButton = ({ text, label }) => {
   const [copied, setCopied] = useState(false)
@@ -65,6 +66,11 @@ export default function WorkInterface() {
   const [nextContactDate, setNextContactDate] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Call tracking: wanneer kwam deze lead in beeld + teller van vandaag
+  const leadStartRef = useRef(new Date().toISOString())
+  const [todayCalls, setTodayCalls] = useState(0)
+  const [dailyTarget, setDailyTarget] = useState(0)
+
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024)
     window.addEventListener('resize', handleResize)
@@ -73,7 +79,37 @@ export default function WorkInterface() {
 
   useEffect(() => {
     if (currentLead) setEditableLead(currentLead)
+    // Start de timer voor deze lead: tijd tot dispositie = afhandeltijd
+    leadStartRef.current = new Date().toISOString()
   }, [currentLead?.id])
+
+  // Haal calls-van-vandaag + dagtarget op zodra de belmodus opent
+  useEffect(() => {
+    if (!user?.id || !isWorking) return
+    let cancelled = false
+    async function fetchTodayStats() {
+      try {
+        const start = new Date()
+        start.setHours(0, 0, 0, 0)
+        const { count } = await supabase
+          .from('call_logs')
+          .select('id', { count: 'exact', head: true })
+          .eq('agent_id', user.id)
+          .gte('disposed_at', start.toISOString())
+        if (!cancelled && typeof count === 'number') setTodayCalls(count)
+
+        const { data: rules } = await supabase
+          .from('payout_rules')
+          .select('min_calls_per_day')
+          .limit(1)
+        if (!cancelled && rules?.[0]?.min_calls_per_day) setDailyTarget(rules[0].min_calls_per_day)
+      } catch (err) {
+        console.error('Kon dagstats niet laden:', err)
+      }
+    }
+    fetchTodayStats()
+    return () => { cancelled = true }
+  }, [user?.id, isWorking])
 
   // Reset index when list changes
   useEffect(() => {
@@ -144,8 +180,10 @@ export default function WorkInterface() {
         listName,
         selectedDisposition,
         dispositionNotes,
-        nextContactDate || null
+        nextContactDate || null,
+        { startedAt: leadStartRef.current }
       )
+      setTodayCalls(prev => prev + 1)
 
       setShowDispositionModal(false)
       setDispositionNotes('')
@@ -205,7 +243,16 @@ export default function WorkInterface() {
                    DOORTIKKEN
                  </span>
                </h2>
-               <span style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>Live Counter: {sessionCallCount}</span>
+               <span style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>📞 Vandaag: {todayCalls}</span>
+               {dailyTarget > 0 && (
+                 <span style={{
+                   background: todayCalls >= dailyTarget ? 'var(--success)' : 'rgba(255,255,255,0.15)',
+                   color: 'white', padding: '2px 10px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold',
+                   display: 'flex', alignItems: 'center', gap: '4px'
+                 }}>
+                   <Target size={12} /> {todayCalls}/{dailyTarget}{todayCalls >= dailyTarget ? ' ✅' : ''}
+                 </span>
+               )}
                {progress && (
                  <span style={{ background: 'rgba(255,255,255,0.15)', color: 'white', padding: '2px 10px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>
                    {progress.current} / {progress.total}

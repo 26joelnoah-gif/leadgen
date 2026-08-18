@@ -211,7 +211,30 @@ export function useLeads() {
     fetchLeads()
   }, [isDemoMode, profile?.role, user?.id])
 
-  async function handleLeadDisposition(leadId, currentListName, dispositionType, notes, nextDate = null) {
+  // Schrijft één rij per behandelde lead naar call_logs (basis voor telemetrie, targets en payouts)
+  async function logCallToDatabase(currentLead, dispositionType, callMeta) {
+    if (isDemoMode || !user?.id) return
+    try {
+      const disposedAt = new Date().toISOString()
+      const startedAt = callMeta?.startedAt || disposedAt
+      const duration = Math.max(0, Math.round((new Date(disposedAt) - new Date(startedAt)) / 1000))
+      await supabase.from('call_logs').insert({
+        agent_id: user.id,
+        organization_id: profile?.organization_id ?? null,
+        lead_id: currentLead.id,
+        lead_list_id: currentLead.lead_list_id || null,
+        disposition: dispositionType,
+        started_at: startedAt,
+        disposed_at: disposedAt,
+        duration_seconds: duration
+      })
+    } catch (err) {
+      // Call logging mag de dispositie-flow nooit blokkeren
+      console.error('call_logs insert mislukt:', err)
+    }
+  }
+
+  async function handleLeadDisposition(leadId, currentListName, dispositionType, notes, nextDate = null, callMeta = null) {
     const currentLead = leads.find(l => l.id === leadId)
     if (!currentLead) return
     const agentName = profile?.full_name || user?.email || 'Onbekend'
@@ -230,9 +253,11 @@ export function useLeads() {
       return
     }
 
-    const { data: rule } = await supabase.from('flow_settings').select('*').eq('disposition_type', dispositionType).maybeSingle()
+    await logCallToDatabase(currentLead, dispositionType, callMeta)
+
+    const { data: rule } = await supabase.from('flow_settings').select('*').eq('disposition_type', dispositionType).eq('is_active', true).maybeSingle()
     const getOrCreateList = async (listName) => {
-      const { data: existing } = await supabase.from('lead_lists').select('id').eq('name', listName).limit(1)
+      const { data: existing } = await supabase.from('lead_lists').select('id').eq('name', listName).is('deleted_at', null).limit(1)
       if (existing?.length > 0) return existing[0].id
       const { data: newList } = await supabase.from('lead_lists').insert({ name: listName, created_by: user?.id, organization_id: profile?.organization_id }).select().single()
       return newList?.id
