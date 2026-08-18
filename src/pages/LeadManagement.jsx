@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import ListAssigneesCard from '../components/ListAssigneesCard'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
@@ -41,9 +42,10 @@ const TABS = [
 export default function LeadManagement({ standalone = true }) {
   const { profile, user } = useAuth()
   const toast = useToast()
-  const { 
-    leadLists, loading: listsLoading, fetchLeadLists, deleteLeadList, 
-    restoreLeadList, permanentDeleteLeadList 
+  const {
+    leadLists, loading: listsLoading, fetchLeadLists, deleteLeadList,
+    restoreLeadList, permanentDeleteLeadList,
+    getListAssignees, setListAssignees
   } = useLeadLists()
   const [activeTab, setActiveTab] = useState('data')
   
@@ -634,9 +636,18 @@ export default function LeadManagement({ standalone = true }) {
             )}
 
             {/* VIEW: MASS OPERATIONS */}
-            {/* VIEW: MASS OPERATIONS */}
             {activeTab === 'mass' && (
               <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="max-w-4xl mx-auto">
+                 <div className="mb-8">
+                   <ListAssigneesCard
+                     leadLists={leadLists}
+                     agents={agents}
+                     getListAssignees={getListAssignees}
+                     setListAssignees={setListAssignees}
+                     toast={toast}
+                   />
+                 </div>
+
                  <div className="glass-panel p-10">
                     <div className="flex items-center gap-6 mb-12">
                        <div className="p-5 bg-secondary/10 text-secondary rounded-[28px] shadow-inner"><FastForward size={32} /></div>

@@ -147,6 +147,54 @@ export function useLeadLists() {
     return { error }
   }
 
+  // Een lijst kon aan één persoon of één team hangen. Via de koppeltabel
+  // lead_list_assignees kan een lijst meerdere bellers hebben, en een
+  // beller meerdere lijsten.
+  async function getListAssignees(listId) {
+    if (isDemoMode) return []
+    const { data, error } = await supabase
+      .from('lead_list_assignees')
+      .select('profile_id')
+      .eq('lead_list_id', listId)
+    if (error) {
+      console.error('getListAssignees error:', error.message)
+      return []
+    }
+    return (data || []).map(r => r.profile_id)
+  }
+
+  async function setListAssignees(listId, profileIds) {
+    if (isDemoMode) return { error: null }
+
+    const wanted = [...new Set(profileIds)]
+    const current = await getListAssignees(listId)
+
+    const toAdd = wanted.filter(id => !current.includes(id))
+    const toRemove = current.filter(id => !wanted.includes(id))
+
+    if (toRemove.length > 0) {
+      const { error } = await supabase
+        .from('lead_list_assignees')
+        .delete()
+        .eq('lead_list_id', listId)
+        .in('profile_id', toRemove)
+      if (error) return { error }
+    }
+
+    if (toAdd.length > 0) {
+      const { error } = await supabase
+        .from('lead_list_assignees')
+        .insert(toAdd.map(profile_id => ({
+          lead_list_id: listId,
+          profile_id,
+          assigned_by: profile?.id ?? null,
+        })))
+      if (error) return { error }
+    }
+
+    return { error: null, added: toAdd.length, removed: toRemove.length }
+  }
+
   async function assignListToAgent(listId, agentId) {
     if (isDemoMode) return { error: null }
     const { error } = await supabase
@@ -177,6 +225,8 @@ export function useLeadLists() {
     deleteLeadList,
     restoreLeadList,
     permanentDeleteLeadList,
-    assignListToAgent
+    assignListToAgent,
+    getListAssignees,
+    setListAssignees
   }
 }

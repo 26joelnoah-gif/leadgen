@@ -132,17 +132,24 @@ export function useLeads() {
 
   async function claimLead(leadId) {
     const now = new Date().toISOString()
-    const { error } = await supabase
+    // Zonder .select() kwam er ook geen fout terug als het slot al bij een
+    // collega lag: de update raakte dan nul rijen en de beller dacht toch
+    // dat hij de lead had. Nu bepaalt de teruggegeven rij of het gelukt is.
+    const { data, error } = await supabase
       .from('leads')
       .update({ locked_by: user.id, locked_at: now, call_status: 'calling' })
       .eq('id', leadId)
-      .or(`locked_by.is.null,locked_at.lt.${new Date(Date.now() - 5*60000).toISOString()}`)
+      .or(`locked_by.is.null,locked_by.eq.${user.id},locked_at.lt.${new Date(Date.now() - 5*60000).toISOString()}`)
+      .select()
 
-    if (!error) {
-      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, locked_by: user.id, locked_at: now, call_status: 'calling' } : l))
-      await logActivity(leadId, 'lead_claimed', 'Lead geclaimd voor bellen')
+    if (error) return error
+    if (!data || data.length === 0) {
+      return { message: 'Deze lead wordt al door een collega gebeld' }
     }
-    return error
+
+    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, locked_by: user.id, locked_at: now, call_status: 'calling' } : l))
+    await logActivity(leadId, 'lead_claimed', 'Lead geclaimd voor bellen')
+    return null
   }
 
   async function releaseLead(leadId) {
