@@ -30,6 +30,14 @@ export function useLeads() {
     setLoading(true)
     setError(null)
 
+    // Zonder sessie geeft RLS terecht niets terug; niet fetchen voorkomt een
+    // lege flits voordat auth rond is.
+    if (!isDemoMode && !user?.id) {
+      setLeads([])
+      setLoading(false)
+      return
+    }
+
     if (isDemoMode) {
       let demoLeads = [...DEMO_LEADS].map(l => ({
         ...l,
@@ -44,44 +52,18 @@ export function useLeads() {
     }
 
     try {
-      let filteredLeads = []
-      
-      if (profile?.role === 'admin') {
-        const { data, error } = await supabase
-          .from('leads')
-          .select('*, lead_lists(assigned_team_id)')
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false })
-        if (error) throw error
-        filteredLeads = data || []
-      } else {
-        const me = user?.id
-        // 1. Get user's teams
-        const { data: memberships } = await supabase.from('team_members').select('team_id').eq('profile_id', me)
-        const teamIds = memberships?.map(m => m.team_id) || []
-        
-        // 2. Get lists assigned to these teams
-        let teamListIds = []
-        if (teamIds.length > 0) {
-          const { data: lists } = await supabase.from('lead_lists').select('id').in('assigned_team_id', teamIds)
-          teamListIds = lists?.map(l => l.id) || []
-        }
+      // Zichtbaarheid wordt door RLS afgedwongen (zie migration_v12): admins zien
+      // alles binnen hun organisatie, bellers zien wat aan hen of hun team hangt.
+      // Client-side nabouwen leverde eerder lege lijsten op zodra team_members
+      // niet leesbaar was.
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*, lead_lists(assigned_team_id)')
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+      if (error) throw error
 
-        // 3. Build OR filter: assigned to me OR in my team's lists
-        let query = supabase.from('leads').select('*, lead_lists(assigned_team_id)').is('deleted_at', null)
-        
-        if (teamListIds.length > 0) {
-          query = query.or(`assigned_to.eq.${me},lead_list_id.in.(${teamListIds.join(',')})`)
-        } else {
-          query = query.eq('assigned_to', me)
-        }
-        
-        const { data, error } = await query.order('created_at', { ascending: false })
-        if (error) throw error
-        filteredLeads = data || []
-      }
-
-      const scoredLeads = filteredLeads.map(l => ({
+      const scoredLeads = (data || []).map(l => ({
         ...l,
         lead_score: calculateLeadScore(l)
       }))
@@ -187,7 +169,8 @@ export function useLeads() {
       lead_source: leadData.lead_source || 'cold', decision_maker: leadData.decision_maker || false,
       address: leadData.address || null, house_number: leadData.house_number || null,
       postal_code: leadData.postal_code || null, city: leadData.city || null,
-      contact_person: leadData.contact_person || null, function: leadData.function || null, website: leadData.website || null
+      contact_person: leadData.contact_person || null, function: leadData.function || null, website: leadData.website || null,
+      organization_id: profile?.organization_id ?? null
     }
 
     if (isDemoMode) {
@@ -215,11 +198,25 @@ export function useLeads() {
     if (!currentLead) return
     const agentName = profile?.full_name || user?.email || 'Onbekend'
 
-    const { data: rule } = await supabase.from('flow_settings').select('*').eq('disposition_type', dispositionType).single()
+    const { data: rule } = await supabase
+      .from('flow_settings')
+      .select('*')
+      .eq('disposition_type', dispositionType)
+      .eq('is_active', true)
+      .maybeSingle()
     const getOrCreateList = async (listName) => {
-      const { data: existing } = await supabase.from('lead_lists').select('id').eq('name', listName).limit(1)
+      const { data: existing } = await supabase
+        .from('lead_lists')
+        .select('id')
+        .eq('name', listName)
+        .is('deleted_at', null)
+        .limit(1)
       if (existing?.length > 0) return existing[0].id
-      const { data: newList } = await supabase.from('lead_lists').insert({ name: listName, created_by: user?.id }).select().single()
+      const { data: newList } = await supabase
+        .from('lead_lists')
+        .insert({ name: listName, created_by: user?.id, organization_id: profile?.organization_id ?? null })
+        .select()
+        .single()
       return newList?.id
     }
 

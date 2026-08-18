@@ -86,14 +86,21 @@ export default function LeadManagement({ standalone = true }) {
   }, [selectedList, activeTab, dataSubTab])
 
   async function fetchData() {
-    const { data: profiles } = await supabase.from('profiles').select('*').order('full_name')
-    setAgents(profiles || [])
-    
-    const { data: flows } = await supabase.from('flow_settings').select('*')
-    setFlowSettings(flows || [])
+    const [profilesRes, flowsRes, teamsRes] = await Promise.all([
+      supabase.from('profiles').select('*').order('full_name'),
+      supabase.from('flow_settings').select('*'),
+      supabase.from('teams').select('*, team_members(*)').order('name'),
+    ])
 
-    const { data: teamsRes } = await supabase.from('teams').select('*, team_members(*)').order('name')
-    setTeams(teamsRes || [])
+    const failure = [profilesRes, flowsRes, teamsRes].find(r => r.error)
+    if (failure) {
+      console.error('fetchData error:', failure.error.message)
+      toast(`Laden mislukt: ${failure.error.message}`, 'error')
+    }
+
+    setAgents(profilesRes.data || [])
+    setFlowSettings(flowsRes.data || [])
+    setTeams(teamsRes.data || [])
   }
 
   async function fetchLeads(listId) {
@@ -140,8 +147,11 @@ export default function LeadManagement({ standalone = true }) {
       .update(updates)
       .eq('disposition_type', disposition)
     
-    if (!error) {
+    if (error) {
+      toast(`Flow opslaan mislukt: ${error.message}`, 'error')
+    } else {
       setFlowSettings(prev => prev.map(f => f.disposition_type === disposition ? { ...f, ...updates } : f))
+      toast('Flow opgeslagen', 'success')
     }
     setSavingFlow(false)
   }
@@ -153,18 +163,24 @@ export default function LeadManagement({ standalone = true }) {
       created_by: user?.id
     }).select().single()
 
-    if (!error) {
-      setTeams([...teams, { ...data, team_members: [] }])
-      setNewTeamName('')
-      setShowAddTeam(false)
+    if (error) {
+      toast(`Team aanmaken mislukt: ${error.message}`, 'error')
+      return
     }
+    setTeams([...teams, { ...data, team_members: [] }])
+    setNewTeamName('')
+    setShowAddTeam(false)
+    toast('Team aangemaakt', 'success')
   }
 
   async function toggleTeamMember(teamId, profileId, isMember) {
-    if (isMember) {
-      await supabase.from('team_members').delete().eq('team_id', teamId).eq('profile_id', profileId)
-    } else {
-      await supabase.from('team_members').insert({ team_id: teamId, profile_id: profileId })
+    const { error } = isMember
+      ? await supabase.from('team_members').delete().eq('team_id', teamId).eq('profile_id', profileId)
+      : await supabase.from('team_members').insert({ team_id: teamId, profile_id: profileId })
+
+    if (error) {
+      toast(`Teamlid bijwerken mislukt: ${error.message}`, 'error')
+      return
     }
     fetchData() // Refresh to get updated membership info
   }

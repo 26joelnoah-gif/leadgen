@@ -72,6 +72,14 @@ export function AuthProvider({ children }) {
     }
   }
 
+  // Na onboarding (organisatie aanmaken) verandert profiles.organization_id.
+  // Zonder verse fetch blijft de app met de oude waarde werken en filtert RLS
+  // vervolgens alles weg.
+  async function refreshProfile() {
+    if (isDemoMode || !user?.id) return
+    await fetchProfile(user.id)
+  }
+
   async function signIn(email, password) {
     // Check for demo mode login
     if (isDemoMode) {
@@ -133,7 +141,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{ 
-      user, profile, loading, signIn, signOut, isDemoMode, 
+      user, profile, loading, signIn, signOut, isDemoMode, refreshProfile, 
       isWorking, toggleWorkingMode, startWorkingWithList, workingListId, setWorkingListId, workingLead, setWorkingLead, sessionCallCount, logCall
     }}>
       {children}

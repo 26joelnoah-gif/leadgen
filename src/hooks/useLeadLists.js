@@ -32,11 +32,10 @@ export function useLeadLists() {
       const { data, error } = await query
 
       if (error) throw error
-      // Agents only see lists assigned to them or created by them
-      const lists = profile?.role === 'admin'
-        ? (data || [])
-        : (data || []).filter(l => l.assigned_to === profile?.id || l.created_by === profile?.id)
-      setLeadLists(lists)
+      // Geen client-side filter meer: die keek alleen naar assigned_to/created_by
+      // en liet lijsten die via assigned_team_id aan je team hangen vallen.
+      // RLS levert nu precies de lijsten die je mag zien.
+      setLeadLists(data || [])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -58,7 +57,7 @@ export function useLeadLists() {
 
     const { data, error } = await supabase
       .from('lead_lists')
-      .insert({ name, description, created_by: profile?.id })
+      .insert({ name, description, created_by: profile?.id, organization_id: profile?.organization_id ?? null })
       .select()
       .single()
 
