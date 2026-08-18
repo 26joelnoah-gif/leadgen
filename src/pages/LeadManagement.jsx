@@ -55,6 +55,7 @@ export default function LeadManagement({ standalone = true }) {
   const [dataSubTab, setDataSubTab] = useState('active') // 'active', 'archived', 'flows'
   const [deletedLists, setDeletedLists] = useState([])
   const [loadingDeleted, setLoadingDeleted] = useState(false)
+  const [confirmPermanentId, setConfirmPermanentId] = useState(null)
   
   // Flows State
   const [flowSettings, setFlowSettings] = useState([])
@@ -86,38 +87,57 @@ export default function LeadManagement({ standalone = true }) {
   }, [selectedList, activeTab, dataSubTab])
 
   async function fetchData() {
-    const { data: profiles } = await supabase.from('profiles').select('*').order('full_name')
-    setAgents(profiles || [])
-    
-    const { data: flows } = await supabase.from('flow_settings').select('*')
-    setFlowSettings(flows || [])
+    try {
+      const { data: profiles, error: pErr } = await supabase.from('profiles').select('*').order('full_name')
+      if (pErr) throw pErr
+      setAgents(profiles || [])
+      
+      const { data: flows, error: fErr } = await supabase.from('flow_settings').select('*')
+      if (fErr) throw fErr
+      setFlowSettings(flows || [])
 
-    const { data: teamsRes } = await supabase.from('teams').select('*, team_members(*)').order('name')
-    setTeams(teamsRes || [])
+      const { data: teamsRes, error: tErr } = await supabase.from('teams').select('*, team_members(*)').order('name')
+      if (tErr) throw tErr
+      setTeams(teamsRes || [])
+    } catch (err) {
+      toast(err.message, 'error')
+    }
   }
 
   async function fetchLeads(listId) {
     setLoadingLeads(true)
-    const { data, error } = await supabase
-      .from('leads')
-      .select('*')
-      .eq('lead_list_id', listId)
-      .is('deleted_at', null) // Only active leads
-      .order('updated_at', { ascending: false })
-    
-    if (!error) setLeads(data || [])
-    setLoadingLeads(false)
+    try {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .eq('lead_list_id', listId)
+        .is('deleted_at', null) // Only active leads
+        .order('updated_at', { ascending: false })
+      
+      if (error) throw error
+      setLeads(data || [])
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setLoadingLeads(false)
+    }
   }
 
   async function fetchDeletedLists() {
     setLoadingDeleted(true)
-    const { data } = await supabase
-      .from('lead_lists')
-      .select('*')
-      .not('deleted_at', 'is', null)
-      .order('deleted_at', { ascending: false })
-    setDeletedLists(data || [])
-    setLoadingDeleted(false)
+    try {
+      const { data, error } = await supabase
+        .from('lead_lists')
+        .select('*')
+        .not('deleted_at', 'is', null)
+        .order('deleted_at', { ascending: false })
+      if (error) throw error
+      setDeletedLists(data || [])
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setLoadingDeleted(false)
+    }
   }
 
   async function handleRestore(id) {
@@ -127,23 +147,33 @@ export default function LeadManagement({ standalone = true }) {
   }
 
   async function handlePermanentDelete(id) {
-    if (!window.confirm('Lijst definitief verwijderen? Dit kan niet ongedaan worden gemaakt.')) return
+    // Twee-staps bevestiging: eerste klik waarschuwt, tweede klik verwijdert echt
+    if (confirmPermanentId !== id) {
+      setConfirmPermanentId(id)
+      toast('Klik nogmaals op de prullenbak om definitief te verwijderen', 'error')
+      return
+    }
+    setConfirmPermanentId(null)
     await permanentDeleteLeadList(id)
     fetchDeletedLists()
-    toast('Lijst verwijderd', 'success')
+    toast('Lijst definitief verwijderd', 'success')
   }
 
   async function handleUpdateFlow(disposition, updates) {
     setSavingFlow(true)
-    const { error } = await supabase
-      .from('flow_settings')
-      .update(updates)
-      .eq('disposition_type', disposition)
-    
-    if (!error) {
+    try {
+      const { error } = await supabase
+        .from('flow_settings')
+        .update(updates)
+        .eq('disposition_type', disposition)
+      
+      if (error) throw error
       setFlowSettings(prev => prev.map(f => f.disposition_type === disposition ? { ...f, ...updates } : f))
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setSavingFlow(false)
     }
-    setSavingFlow(false)
   }
 
   async function createTeam() {
@@ -153,20 +183,28 @@ export default function LeadManagement({ standalone = true }) {
       created_by: user?.id
     }).select().single()
 
-    if (!error) {
-      setTeams([...teams, { ...data, team_members: [] }])
-      setNewTeamName('')
-      setShowAddTeam(false)
+    if (error) {
+      toast(error.message, 'error')
+      return
     }
+    setTeams([...teams, { ...data, team_members: [] }])
+    setNewTeamName('')
+    setShowAddTeam(false)
   }
 
   async function toggleTeamMember(teamId, profileId, isMember) {
-    if (isMember) {
-      await supabase.from('team_members').delete().eq('team_id', teamId).eq('profile_id', profileId)
-    } else {
-      await supabase.from('team_members').insert({ team_id: teamId, profile_id: profileId })
+    try {
+      if (isMember) {
+        const { error } = await supabase.from('team_members').delete().eq('team_id', teamId).eq('profile_id', profileId)
+        if (error) throw error
+      } else {
+        const { error } = await supabase.from('team_members').insert({ team_id: teamId, profile_id: profileId })
+        if (error) throw error
+      }
+      fetchData() // Refresh to get updated membership info
+    } catch (err) {
+      toast(err.message, 'error')
     }
-    fetchData() // Refresh to get updated membership info
   }
 
   async function runBulkAssignment() {
@@ -299,7 +337,7 @@ export default function LeadManagement({ standalone = true }) {
                              </div>
                              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
                                 <button onClick={() => handleRestore(list.id)} className="p-2 hover:bg-success/20 text-success rounded-lg"><RotateCcw size={14}/></button>
-                                <button onClick={() => handlePermanentDelete(list.id)} className="p-2 hover:bg-error/20 text-error rounded-lg"><Trash2 size={14}/></button>
+                                <button onClick={() => handlePermanentDelete(list.id)} className="p-2 hover:bg-error/20 text-error rounded-lg" style={confirmPermanentId === list.id ? { background: 'var(--error, #EF4444)', color: 'white' } : undefined}><Trash2 size={14}/></button>
                              </div>
                           </div>
                         ))
@@ -412,7 +450,7 @@ export default function LeadManagement({ standalone = true }) {
                           </div>
                           <button 
                             className="btn btn-sm btn-outline text-error hover:bg-error/10"
-                            onClick={async () => { if(confirm('Verplaatsen naar prullenbak?')) { await deleteLeadList(selectedList.id); setSelectedList(null); fetchLeadLists(); } }}
+                            onClick={async () => { await deleteLeadList(selectedList.id); setSelectedList(null); fetchLeadLists(); }}
                           ><Trash2 size={14} /> Delete</button>
                         </div>
                       </div>

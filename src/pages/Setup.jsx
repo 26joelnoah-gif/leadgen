@@ -13,7 +13,10 @@ export default function Setup() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!name.trim()) return
+    if (!name.trim()) {
+      setError('Voer een bedrijfsnaam in')
+      return
+    }
 
     setLoading(true)
     setError(null)

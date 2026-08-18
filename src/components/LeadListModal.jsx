@@ -190,7 +190,7 @@ export function LeadListModal({ isOpen, onClose }) {
                           </button>
                           <button
                             onClick={() => {
-                              if (confirm('Weet je zeker dat je deze lijst wilt verwijderen?')) {
+                              {
                                 deleteLeadList(list.id)
                               }
                             }}

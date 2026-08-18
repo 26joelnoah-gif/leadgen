@@ -3,9 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { MessageCircle, X, Send, Plus, Hash, Users } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
+import { useToast } from './Toast'
 
 export default function Chat() {
   const { user, profile } = useAuth()
+  const toast = useToast()
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
@@ -68,33 +70,43 @@ export default function Chat() {
   }, [currentChannel, isInitialized])
 
   async function fetchChannels() {
-    if (isAdmin) {
-      const { data } = await supabase.from('chat_channels').select('*').order('created_at')
-      if (data) {
-        const allChannels = [{ id: 'general', name: 'Team', is_default: true }, ...data]
-        setChannels(allChannels)
+    try {
+      if (isAdmin) {
+        const { data, error } = await supabase.from('chat_channels').select('*').order('created_at')
+        if (error) throw error
+        if (data) {
+          const allChannels = [{ id: 'general', name: 'Team', is_default: true }, ...data]
+          setChannels(allChannels)
+        }
       }
+    } catch (err) {
+      toast(err.message, 'error')
     }
   }
 
   async function fetchMessages() {
-    let query = supabase
-      .from('messages')
-      .select('*')
-      .order('created_at', { ascending: true })
-      .limit(50)
+    try {
+      let query = supabase
+        .from('messages')
+        .select('*')
+        .order('created_at', { ascending: true })
+        .limit(50)
 
-    if (currentChannel === 'general') {
-      query = query.is('channel_id', null)
-    } else {
-      query = query.eq('channel_id', currentChannel)
-    }
+      if (currentChannel === 'general') {
+        query = query.is('channel_id', null)
+      } else {
+        query = query.eq('channel_id', currentChannel)
+      }
 
-    const { data } = await query
-    if (data) {
-      setMessages(data)
-      setHasMore(data.length === 50)
-      setOldestMessageId(data.length > 0 ? data[0].id : null)
+      const { data, error } = await query
+      if (error) throw error
+      if (data) {
+        setMessages(data)
+        setHasMore(data.length === 50)
+        setOldestMessageId(data.length > 0 ? data[0].id : null)
+      }
+    } catch (err) {
+      toast(err.message, 'error')
     }
   }
 
@@ -102,28 +114,34 @@ export default function Chat() {
     if (!oldestMessageId || loadingMore) return
     setLoadingMore(true)
 
-    let query = supabase
-      .from('messages')
-      .select('*')
-      .order('created_at', { ascending: true })
-      .limit(50)
-      .lt('id', oldestMessageId)
+    try {
+      let query = supabase
+        .from('messages')
+        .select('*')
+        .order('created_at', { ascending: true })
+        .limit(50)
+        .lt('id', oldestMessageId)
 
-    if (currentChannel === 'general') {
-      query = query.is('channel_id', null)
-    } else {
-      query = query.eq('channel_id', currentChannel)
-    }
+      if (currentChannel === 'general') {
+        query = query.is('channel_id', null)
+      } else {
+        query = query.eq('channel_id', currentChannel)
+      }
 
-    const { data } = await query
-    if (data && data.length > 0) {
-      setMessages(prev => [...prev, ...data])
-      setOldestMessageId(data[data.length - 1].id)
-      setHasMore(data.length === 50)
-    } else {
-      setHasMore(false)
+      const { data, error } = await query
+      if (error) throw error
+      if (data && data.length > 0) {
+        setMessages(prev => [...prev, ...data])
+        setOldestMessageId(data[data.length - 1].id)
+        setHasMore(data.length === 50)
+      } else {
+        setHasMore(false)
+      }
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setLoadingMore(false)
     }
-    setLoadingMore(false)
   }
 
   async function createChannel() {
@@ -172,7 +190,7 @@ export default function Chat() {
     if (error) {
       // Verwijder optimistic message bij error
       setMessages(prev => prev.filter(m => m.id !== tempId))
-      console.error('Kon bericht niet verzenden:', error.message)
+      toast('Kon bericht niet verzenden: ' + error.message, 'error')
     }
   }
 

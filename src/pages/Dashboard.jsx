@@ -44,6 +44,7 @@ export default function Dashboard() {
   const [displayedLeads, setDisplayedLeads] = useState([])
   const [hasMoreLeads, setHasMoreLeads] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [selectedListId, setSelectedListId] = useState(null)
   const loadMoreRef = useRef(null)
 
   const isAdmin = profile?.role === 'admin'
@@ -161,6 +162,16 @@ export default function Dashboard() {
     } catch (err) {
       console.error('Failed to create lead:', err)
       toast(err.message, 'error')
+      // Reset form on error too
+      setNewLead({
+        name: '',
+        phone: '',
+        email: '',
+        notes: '',
+        lead_source: 'cold',
+        decision_maker: false,
+        assigned_to: ''
+      })
     } finally {
       setCreating(false)
     }
@@ -261,20 +272,25 @@ export default function Dashboard() {
               ) : (
                 <>
                   {/* Selecteer modus als er meerdere zijn */}
-                  <div style={{ position: 'relative', width: '100%', maxWidth: '400px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '400px' }}>
                     <select 
-                      onChange={(e) => startWorkingWithList(e.target.value)}
-                      className="bg-dark border-2 border-primary/30 p-4 rounded-xl w-full text-white font-black uppercase tracking-widest text-sm focus:border-primary transition-all outline-none"
-                      defaultValue=""
+                      onChange={(e) => setSelectedListId(e.target.value)}
+                      value={selectedListId || ''}
+                      style={{ padding: '16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'white', fontWeight: 700, fontSize: '0.9rem', width: '100%' }}
                     >
                       <option value="" disabled>--- KIES JE PROJECT ---</option>
                       {leadLists.map(list => (
                         <option key={list.id} value={list.id}>{list.name.toUpperCase()}</option>
                       ))}
                     </select>
-                    <div style={{ pointerEvents: 'none', position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)' }}>
-                       <ChevronRight size={20} className="text-primary" />
-                    </div>
+                    <button
+                      onClick={() => selectedListId && startWorkingWithList(selectedListId)}
+                      disabled={!selectedListId}
+                      className="btn btn-primary"
+                      style={{ padding: '16px', fontSize: '1rem', fontWeight: 900, opacity: selectedListId ? 1 : 0.4 }}
+                    >
+                      <Phone size={20} /> START MET BELLEN
+                    </button>
                   </div>
                   <p className="text-[10px] uppercase font-black tracking-widest text-muted opacity-40">Of selecteer een speciaal belflow via het menu</p>
                 </>

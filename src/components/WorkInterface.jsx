@@ -14,8 +14,13 @@ const CopyButton = ({ text, label }) => {
   const handleCopy = () => {
     if (!text) return
     navigator.clipboard.writeText(text)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+      .then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      })
+      .catch(err => {
+        console.error('Kopiëren mislukt:', err)
+      })
   }
 
   return (
@@ -331,7 +336,17 @@ export default function WorkInterface() {
           </main>
 
           {/* Action Bar (Footer) */}
-          <footer style={{ background: 'var(--bg-card)', borderTop: '1px solid var(--border)', padding: '20px 40px', display: 'flex', justifyContent: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <footer style={{ 
+            background: 'var(--bg-card)', 
+            borderTop: '1px solid var(--border)', 
+            padding: isMobile ? '12px' : '20px 40px', 
+            display: 'flex', 
+            justifyContent: 'center', 
+            gap: isMobile ? '8px' : '12px', 
+            flexWrap: 'wrap',
+            maxHeight: isMobile ? '30vh' : 'auto',
+            overflowY: isMobile ? 'auto' : 'visible'
+          }}>
             {dispositions.map(d => (
               <button
                 key={d.id}
@@ -339,20 +354,24 @@ export default function WorkInterface() {
                   setSelectedDisposition(d.id)
                   setShowDispositionModal(true)
                 }}
+                className="glow-hover"
                 style={{
                   background: 'var(--bg-elevated)',
                   border: `1px solid ${d.color}`,
                   color: d.color,
-                  padding: '10px 20px',
+                  padding: isMobile ? '8px 12px' : '10px 20px',
                   borderRadius: '8px',
                   fontWeight: 700,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '8px',
-                  minWidth: '140px',
+                  minWidth: isMobile ? '120px' : '140px',
+                  fontSize: isMobile ? '0.8rem' : '0.9rem',
+                  flex: isMobile ? '1 1 120px' : '0 1 auto',
                   justifyContent: 'center',
-                  transition: 'all 0.2s'
+                  transition: 'all 0.2s',
+                  boxShadow: `0 4px 12px ${d.color}20`
                 }}
                 onMouseEnter={e => {
                   e.currentTarget.style.background = d.color
