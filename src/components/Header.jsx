@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Zap, Settings, LogOut, Phone, Menu, X } from 'lucide-react'
@@ -13,114 +13,107 @@ export default function Header({ onOpenSettings }) {
 
   const navLinks = [
     { path: '/', label: 'Dashboard' },
-    { path: '/tba', label: 'TBA\'s' },
+    { path: '/tba', label: "TBA's" },
     { path: '/earnings', label: 'Verdiensten' },
   ]
 
   const adminLinks = [
     { path: '/kanban', label: 'Kanban' },
-    { path: '/admin/telemetry', label: 'Telemetrie' },
     { path: '/admin/management', label: 'Lead Beheer' },
     { path: '/admin', label: 'Admin' },
     { path: '/admin/reports', label: 'Rapportage' },
     { path: '/admin/payouts', label: 'Payouts' },
+    { path: '/admin/telemetry', label: 'Telemetrie' },
   ]
 
+  const links = isAdmin ? [...navLinks, ...adminLinks] : navLinks
   const isActive = (path) => location.pathname === path
 
-  return (
-    <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 100 }}>
-      <div className="container header-content">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
-          <Logo size="medium" />
-          
-          <button 
-            className="mobile-menu-btn" 
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '8px' }}
-          >
-            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-        </div>
+  // Menu sluiten bij navigatie, anders blijft het paneel op mobiel openstaan.
+  useEffect(() => { setMobileMenuOpen(false) }, [location.pathname])
 
-        <nav className={`nav ${mobileMenuOpen ? 'mobile-open' : ''}`} style={{ marginLeft: '40px', flex: 1, display: 'flex', gap: '20px' }}>
-          {navLinks.map(link => (
+  // Achtergrond niet laten scrollen zolang het mobiele menu open is.
+  useEffect(() => {
+    document.body.style.overflow = mobileMenuOpen ? 'hidden' : ''
+    return () => { document.body.style.overflow = '' }
+  }, [mobileMenuOpen])
+
+  return (
+    <header className="app-header">
+      <div className="container app-header__bar">
+        <Link to="/" className="app-header__brand" aria-label="Naar dashboard">
+          <Logo size="medium" />
+        </Link>
+
+        <nav className="app-header__nav" aria-label="Hoofdnavigatie">
+          {links.map(link => (
             <Link
               key={link.path}
               to={link.path}
-              className={isActive(link.path) ? 'active' : ''}
-              onClick={() => setMobileMenuOpen(false)}
-              style={{ fontSize: '0.9rem', fontWeight: isActive(link.path) ? 700 : 500 }}
-            >
-              {link.label}
-            </Link>
-          ))}
-          {isAdmin && adminLinks.map(link => (
-            <Link
-              key={link.path}
-              to={link.path}
-              className={isActive(link.path) ? 'active' : ''}
-              onClick={() => setMobileMenuOpen(false)}
-              style={{ fontSize: '0.9rem', fontWeight: isActive(link.path) ? 700 : 500 }}
+              className={isActive(link.path) ? 'is-active' : ''}
+              aria-current={isActive(link.path) ? 'page' : undefined}
             >
               {link.label}
             </Link>
           ))}
         </nav>
 
-        <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="app-header__actions">
           {!isAdmin && (
             <button
               onClick={toggleWorkingMode}
-              className="btn btn-sm"
-              style={{
-                background: isWorking ? 'var(--secondary)' : 'var(--primary)',
-                padding: '8px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontWeight: 700
-              }}
+              className={`btn btn-sm ${isWorking ? 'btn-warning' : 'btn-primary'}`}
             >
-              <Phone size={14} /> {isWorking ? 'Stoppen' : 'Werk'}
+              <Phone size={14} />
+              <span className="hide-sm">{isWorking ? 'Stoppen' : 'Werk'}</span>
             </button>
           )}
 
-          <div className="flex items-center gap-2" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 14px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', whiteSpace: 'nowrap' }}>
-            <Zap size={14} className="text-secondary" />
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'white' }}>
-              {sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span>
-            </span>
+          <div className="app-header__counter" title={`${sessionCallCount} gesprekken deze sessie`}>
+            <Zap size={14} />
+            <span>{sessionCallCount}</span>
+            <span className="hide-sm app-header__counter-unit">calls</span>
           </div>
-          
+
           {onOpenSettings && (
-            <button onClick={onOpenSettings} className="btn btn-sm btn-outline" style={{ padding: '8px', minWidth: 'auto' }} title="Instellingen">
+            <button onClick={onOpenSettings} className="btn btn-sm btn-icon btn-ghost" title="Instellingen" aria-label="Instellingen">
               <Settings size={16} />
             </button>
           )}
-          
-          <button onClick={signOut} className="btn btn-sm btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <LogOut size={16} /> <span className="hide-mobile">Uitloggen</span>
+
+          <button onClick={signOut} className="btn btn-sm btn-ghost" title="Uitloggen">
+            <LogOut size={16} />
+            <span className="hide-md">Uitloggen</span>
+          </button>
+
+          <button
+            className="btn btn-sm btn-icon btn-ghost app-header__toggle"
+            onClick={() => setMobileMenuOpen(v => !v)}
+            aria-expanded={mobileMenuOpen}
+            aria-label={mobileMenuOpen ? 'Menu sluiten' : 'Menu openen'}
+          >
+            {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
         </div>
       </div>
-      <style>{`
-        .nav a { color: var(--text-muted); text-decoration: none; transition: all 0.2s; }
-        .nav a:hover { color: white; }
-        .nav a.active { color: var(--secondary) !important; position: relative; }
-        .nav a.active::after { content: ''; position: absolute; bottom: -21px; left: 0; right: 0; height: 2px; background: var(--secondary); }
-        .mobile-menu-btn { display: none !important; }
-        @media (max-width: 900px) { 
-          .header-content { flex-direction: column; align-items: stretch; gap: 16px; padding: 12px 0; }
-          .mobile-menu-btn { display: block !important; }
-          .nav { display: none !important; flex-direction: column; gap: 12px; margin-left: 0 !important; width: 100%; }
-          .nav.mobile-open { display: flex !important; }
-          .nav a.active::after { display: none; }
-          .nav a { padding: 12px 16px; background: var(--bg-elevated); border-radius: 8px; width: 100%; text-align: center; }
-          .hide-mobile { display: none; } 
-          .header-actions { justify-content: space-between; overflow-x: auto; padding-bottom: 8px; }
-        }
-      `}</style>
+
+      {mobileMenuOpen && (
+        <>
+          <div className="app-header__scrim" onClick={() => setMobileMenuOpen(false)} />
+          <nav className="app-header__drawer" aria-label="Mobiele navigatie">
+            {links.map(link => (
+              <Link
+                key={link.path}
+                to={link.path}
+                className={isActive(link.path) ? 'is-active' : ''}
+                aria-current={isActive(link.path) ? 'page' : undefined}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        </>
+      )}
     </header>
   )
 }

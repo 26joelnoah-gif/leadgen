@@ -133,7 +133,7 @@ export default function Admin() {
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
              <div className="flex justify-between items-center mb-10">
                 <div>
-                   <h1 className="text-4xl font-black italic tracking-tighter text-white">ADMIN COMMAND</h1>
+                   <h1 className="text-4xl font-bold tracking-tight text-white">ADMIN COMMAND</h1>
                    <p className="text-muted font-bold">Welkom terug, {profile?.full_name}. Systeem is 100% operationeel.</p>
                 </div>
                 <div className="flex gap-3">
@@ -146,16 +146,16 @@ export default function Admin() {
 
              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-10">
                 <div className="glass-panel p-6 border-l-2 border-secondary h-fit">
-                   <h2 className="text-secondary font-black text-sm uppercase tracking-widest mb-4 flex items-center gap-2"><Zap size={14}/> Live Campagnes</h2>
+                   <h2 className="text-secondary font-bold text-sm uppercase tracking-widest mb-4 flex items-center gap-2"><Zap size={14}/> Live Campagnes</h2>
                    {campaigns.length > 0 ? campaigns.map(c => <CampaignCard key={c.id} campaign={c} />) : <p className="text-xs text-muted opacity-50 italic">Geen actieve campagnes.</p>}
                 </div>
                 <div className="glass-panel p-6 border-l-2 border-primary h-fit">
-                   <h2 className="text-primary font-black text-sm uppercase tracking-widest mb-4 flex items-center gap-2"><Bell size={14}/> Mededelingen</h2>
+                   <h2 className="text-primary font-bold text-sm uppercase tracking-widest mb-4 flex items-center gap-2"><Bell size={14}/> Mededelingen</h2>
                    <button onClick={() => setShowBriefing(true)} className="btn btn-outline btn-sm btn-block mb-4">Verstuur nieuwe briefing</button>
                    {briefings.map(b => <BriefingCard key={b.id} briefing={b} />)}
                 </div>
                 <div className="glass-panel p-8 bg-gradient-to-br from-primary/20 to-transparent border border-white/5">
-                   <h2 className="text-2xl font-black italic mb-4">QUICK EXPORT</h2>
+                   <h2 className="text-2xl font-bold mb-4">QUICK EXPORT</h2>
                    <button onClick={() => exportToCSV(leads, 'LeadGen_Backup')} className="btn btn-primary btn-block py-4 shadow-xl shadow-primary/30 font-black tracking-widest">DOWNLOAD ALLE DATA (.CSV)</button>
                    <Link to="/admin/telemetry" className="btn btn-outline btn-block mt-4 border-white/10 text-muted hover:text-white">Open Telemetry Dashboard</Link>
                 </div>
@@ -166,7 +166,7 @@ export default function Admin() {
         {activeTab === 'medewerkers' && (
           <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}>
              <div className="flex justify-between items-center mb-8">
-                <h2 className="text-3xl font-black italic tracking-tight">TEAM OVERVIEW</h2>
+                <h2 className="text-3xl font-bold tracking-tight">TEAM OVERVIEW</h2>
                 <button onClick={() => setShowEmployee(true)} className="btn btn-primary px-6"><UserPlus size={18} /> Nieuwe Medewerker</button>
              </div>
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -212,7 +212,7 @@ export default function Admin() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="modal-overlay" onClick={() => setShowAddLead(false)}>
               <motion.div initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} className="modal glass-panel p-8 max-w-xl w-full" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-8">
-                  <h2 className="text-2xl font-black italic tracking-tighter">LEAD HANDMATIG TOEVOEGEN</h2>
+                  <h2 className="text-2xl font-bold tracking-tight">LEAD HANDMATIG TOEVOEGEN</h2>
                   <button onClick={() => setShowAddLead(false)} className="text-muted hover:text-white"><X size={24}/></button>
                 </div>
                 <form onSubmit={addLead} className="grid grid-cols-1 gap-6">

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
-import { RefreshCw, Search, Filter, Phone, Zap, Plus, X, List, ChevronRight } from 'lucide-react'
+import { RefreshCw, Search, Filter, Phone, Zap, Plus, X, List, ChevronRight, Inbox, PhoneCall, CalendarCheck, Trophy } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
 import { useLeadLists } from '../hooks/useLeadLists'
 import { STATUS_MAP } from '../utils/statusUtils'
@@ -243,7 +243,7 @@ export default function Dashboard() {
                   {leadLists.length} Projecten Beschikbaar
                 </span>
               </div>
-              <h2 style={{ fontSize: '2.5rem', fontWeight: 900, letterSpacing: '-2px', fontStyle: 'italic', marginBottom: '8px' }}>
+              <h2 style={{ fontSize: '2.5rem', fontWeight: 900, letterSpacing: '-2px', marginBottom: '8px' }}>
                 READY TO <span className="text-primary">SYNC & DIAL?</span>
               </h2>
               <p style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Selecteer je batch en start direct met bellen.</p>
@@ -318,31 +318,27 @@ export default function Dashboard() {
         {/* Quick Stats */}
         <div className="stats-grid mb-4" style={{ marginTop: '24px' }}>
           {[
-            ...(isAdmin ? [{ label: 'Nieuwe Leads', val: stats.nieuweLeads, icon: '📬', color: 'var(--primary)' }] : []),
-            { label: 'Terugbelacties', val: stats.terugbelacties, icon: '📞', color: 'var(--danger)', pulse: true },
-            { label: 'Afspraken', val: stats.afspraken, icon: '📅', color: 'var(--success)' },
-            { label: 'Deals', val: stats.deals, icon: '🏆', color: 'var(--secondary)' }
+            ...(isAdmin ? [{ label: 'Nieuwe leads', val: stats.nieuweLeads, Icon: Inbox, color: 'var(--primary)' }] : []),
+            { label: 'Terugbelacties', val: stats.terugbelacties, Icon: PhoneCall, color: 'var(--danger)' },
+            { label: 'Afspraken', val: stats.afspraken, Icon: CalendarCheck, color: 'var(--success)' },
+            { label: 'Deals', val: stats.deals, Icon: Trophy, color: 'var(--secondary)' }
           ].map((stat, i) => (
             <motion.div
               key={stat.label}
-              initial={{ y: 20, opacity: 0 }}
+              initial={{ y: 12, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: Math.min(i * 0.05, 0.2) }}
-              className="stat-card glass-panel glow-hover"
-              style={{ padding: '20px', borderLeft: `4px solid ${stat.color}` }}
+              className="stat-tile"
             >
-              <div className="flex justify-between items-center">
-                <div>
-                  <motion.div
-                    animate={stat.pulse ? { scale: [1, 1.1, 1] } : {}}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                    style={{ fontSize: '2rem', marginBottom: '4px' }}
-                  >
-                    {stat.icon}
-                  </motion.div>
-                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: stat.color }}>{stat.val}</div>
-                  <div className="label">{stat.label}</div>
-                </div>
+              <div
+                className="stat-tile__icon"
+                style={{ background: `color-mix(in srgb, ${stat.color} 15%, transparent)`, color: stat.color }}
+              >
+                <stat.Icon size={18} />
+              </div>
+              <div>
+                <div className="stat-tile__value">{stat.val}</div>
+                <div className="stat-tile__label">{stat.label}</div>
               </div>
             </motion.div>
           ))}

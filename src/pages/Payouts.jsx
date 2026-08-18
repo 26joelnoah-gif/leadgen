@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import Header from '../components/Header'
 import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { DollarSign, Zap, Users, CheckCircle, Clock, AlertCircle, Download, Edit2, X, Check, Calendar } from 'lucide-react'
@@ -202,27 +203,7 @@ export default function Payouts() {
 
   return (
     <div className="payouts-page" style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
-      <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)' }}>
-        <div className="container header-content">
-          <Logo size="medium" />
-          <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
-            <Link to="/">Dashboard</Link>
-            <Link to="/tba">TBA's</Link>
-            <Link to="/earnings">Verdiensten</Link>
-            {profile?.role === 'admin' && <Link to="/admin/telemetry">Telemetrie</Link>}
-            {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
-            {profile?.role === 'admin' && <Link to="/admin/reports">Rapportage</Link>}
-            {profile?.role === 'admin' && <Link to="/admin/payouts" className="active">Payouts</Link>}
-          </nav>
-          <div className="header-actions">
-            <div className="flex items-center gap-2 mr-3" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '20px' }}>
-              <Zap size={14} style={{ color: 'var(--secondary)' }} />
-              <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span></span>
-            </div>
-            <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="container" style={{ paddingTop: '60px', paddingBottom: '60px' }}>
         <motion.div

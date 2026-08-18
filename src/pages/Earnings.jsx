@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import Header from '../components/Header'
 import { Link } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { DollarSign, Zap, Copy, CheckCircle, Phone, PhoneOff, Calendar } from 'lucide-react'
@@ -67,28 +68,7 @@ export default function Earnings() {
 
   return (
     <div className="earnings-page" style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
-      <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)' }}>
-        <div className="container header-content">
-          <Logo size="medium" />
-          <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
-            <Link to="/">Dashboard</Link>
-            <Link to="/tba">TBA's</Link>
-            <Link to="/earnings" className="active">Verdiensten</Link>
-            {profile?.role === 'admin' && <Link to="/admin/telemetry">Telemetrie</Link>}
-            {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
-            {profile?.role === 'admin' && <Link to="/admin/reports">Rapportage</Link>}
-          </nav>
-          <MobileNav profile={profile} />
-          <div className="header-actions">
-            <div className="flex items-center gap-2 mr-3" style={{ background: 'rgba(232, 185, 35, 0.15)', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--secondary)' }}>
-              <Zap size={18} style={{ color: 'var(--secondary)' }} />
-              <span style={{ fontSize: '1rem', fontWeight: 800, color: 'white' }}>{sessionCallCount}</span>
-              <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>calls</span>
-            </div>
-            <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="container" style={{ paddingTop: '60px', paddingBottom: '60px' }}>
         <motion.div
@@ -96,7 +76,7 @@ export default function Earnings() {
           animate={{ y: 0, opacity: 1 }}
           className="text-center mb-5"
         >
-          <h1 style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--primary)', marginBottom: '8px' }}>
+          <h1 style={{ fontSize: 'clamp(1.5rem, 5vw, 2.25rem)', fontWeight: 700, color: 'var(--text-main)', marginBottom: '8px' }}>
             Facturatie Overzicht
           </h1>
           <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem' }}>
@@ -171,7 +151,7 @@ export default function Earnings() {
               fontSize: '1.1rem',
               fontWeight: 700,
               background: copied ? 'var(--success)' : 'var(--secondary)',
-              color: 'var(--primary-dark)',
+              color: copied ? '#FFFFFF' : '#1A1206',
               border: 'none',
               gap: '12px'
             }}

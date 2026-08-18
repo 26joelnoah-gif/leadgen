@@ -229,7 +229,7 @@ export default function LeadManagement({ standalone = true }) {
             <div className="flex items-center gap-2 text-secondary mb-1">
                <Shield size={14} /> <span className="text-xs font-bold uppercase tracking-widest">Administrator</span>
             </div>
-            <h1 className="text-3xl font-black text-white tracking-tight">LEAD CONTROL PANEL</h1>
+            <h1 className="text-3xl font-bold text-white tracking-tight">LEAD CONTROL PANEL</h1>
             <p className="text-muted text-sm mt-1">Stuur leadflows aan, beheer teams en stel automatisering in.</p>
           </div>
           <div className="flex gap-3">
@@ -337,7 +337,7 @@ export default function LeadManagement({ standalone = true }) {
                       <div className="flex items-center gap-4 mb-10">
                         <div className="p-4 bg-primary/20 text-primary rounded-2xl shadow-inner"><FastForward size={28} /></div>
                         <div>
-                          <h2 className="text-2xl font-black italic tracking-tighter uppercase leading-none mb-1">AUTOMATION ENGINE</h2>
+                          <h2 className="text-2xl font-bold tracking-tight uppercase leading-none mb-1">AUTOMATION ENGINE</h2>
                           <p className="text-muted text-xs font-bold tracking-widest uppercase opacity-60">Architectuur van je lead-stromen</p>
                         </div>
                       </div>
@@ -412,7 +412,7 @@ export default function LeadManagement({ standalone = true }) {
                     <div className="glass-panel p-0 overflow-hidden min-h-[600px] flex flex-col">
                       <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
                         <div>
-                           <h2 className="text-xl font-black text-white italic leading-none mb-1">{selectedList.name.toUpperCase()}</h2>
+                           <h2 className="text-xl font-bold text-white leading-none mb-1">{selectedList.name.toUpperCase()}</h2>
                            <p className="text-[10px] text-muted font-bold uppercase tracking-widest">{leads.length} Leads in Batch</p>
                         </div>
                         <div className="flex gap-2">
@@ -496,7 +496,7 @@ export default function LeadManagement({ standalone = true }) {
                   ) : (
                     <div className="glass-panel flex flex-column items-center justify-center p-20 text-center opacity-30">
                        <Layers size={64} className="mb-4 text-primary" />
-                       <h3 className="text-xl font-black italic">INTELLIGENT DATA CENTER</h3>
+                       <h3 className="text-xl font-bold">INTELLIGENT DATA CENTER</h3>
                        <p className="max-w-xs text-sm mt-2 font-bold text-muted">Selecteer een batch of pas de flow-automatisering aan via de menu's links.</p>
                     </div>
                   )}
@@ -511,7 +511,7 @@ export default function LeadManagement({ standalone = true }) {
                   <div className="flex items-center gap-4 mb-8">
                     <div className="p-3 bg-primary/20 text-primary rounded-2xl"><FastForward size={24} /></div>
                     <div>
-                      <h2 className="text-2xl font-black">Post-Call Lead Flows</h2>
+                      <h2 className="text-2xl font-bold">Post-Call Lead Flows</h2>
                       <p className="text-muted text-sm">Stel in waar leads naartoe gaan na de afboeking door een beller.</p>
                     </div>
                   </div>
@@ -573,7 +573,7 @@ export default function LeadManagement({ standalone = true }) {
                   <div key={team.id} className="glass-panel p-6 flex flex-column gap-6">
                     <div className="flex justify-between items-start">
                       <div>
-                         <h3 className="text-xl font-black text-white">{team.name}</h3>
+                         <h3 className="text-xl font-bold text-white">{team.name}</h3>
                          <div className="text-xs text-muted font-bold flex items-center gap-2 mt-1">
                             <Users size={12} /> {team.team_members?.length || 0} Members
                          </div>
@@ -641,7 +641,7 @@ export default function LeadManagement({ standalone = true }) {
                     <div className="flex items-center gap-6 mb-12">
                        <div className="p-5 bg-secondary/10 text-secondary rounded-[28px] shadow-inner"><FastForward size={32} /></div>
                        <div>
-                          <h2 className="text-3xl font-black tracking-tight italic uppercase">BULK DISTRIBUTION</h2>
+                          <h2 className="text-3xl font-bold tracking-tight uppercase">BULK DISTRIBUTION</h2>
                           <p className="text-muted text-sm font-medium">Wijs volledige batches toe aan specifieke medewerkers of teams.</p>
                        </div>
                     </div>
@@ -713,7 +713,7 @@ export default function LeadManagement({ standalone = true }) {
                              {bulkListId ? (
                                 <>
                                    <Zap size={48} className="text-secondary mb-6 animate-pulse" />
-                                   <h3 className="text-xl font-black text-white mb-2 italic">READY TO SYNC</h3>
+                                   <h3 className="text-xl font-bold text-white mb-2">READY TO SYNC</h3>
                                    <p className="text-sm text-muted leading-relaxed font-medium">
                                       Je staat op het punt om <span className="text-white font-bold">{leadLists.find(l => l.id === bulkListId)?.name}</span> toe te wijzen aan 
                                       <span className="text-white font-bold"> {bulkTargetAgentId ? agents.find(a => a.id === bulkTargetAgentId)?.full_name : bulkTargetTeamId ? teams.find(t => t.id === bulkTargetTeamId)?.name : '...'}</span>.

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 const AuthContext = createContext({})
 
@@ -26,10 +26,7 @@ export function AuthProvider({ children }) {
 
   // Check if Supabase is configured, otherwise use demo mode
   useEffect(() => {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-    if (!supabaseUrl || !supabaseKey || supabaseUrl === 'your_supabase_url') {
+    if (!isSupabaseConfigured) {
       // Demo mode - use mock authentication
       setIsDemoMode(true)
       setLoading(false)

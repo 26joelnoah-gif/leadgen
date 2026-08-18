@@ -51,7 +51,7 @@ export default function Kanban() {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+      <div className="kanban-board">
         {statuses.map(status => (
           <div key={status} style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '16px', minHeight: '400px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', paddingBottom: '8px', borderBottom: `2px solid ${statusColors[status]}` }}>

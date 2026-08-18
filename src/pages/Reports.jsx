@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
+import Header from '../components/Header'
 import { supabase } from '../lib/supabase'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { motion } from 'framer-motion'
-import { BarChart as BarChartIcon, Users, PhoneCall, CheckCircle, TrendingUp, Download, Activity, PieChart as PieChartIcon, Zap, Clock, Filter } from 'lucide-react'
+import { BarChart as BarChartIcon, Users, PhoneCall, CheckCircle, TrendingUp, Download, Activity, PieChart as PieChartIcon, Zap, Clock, Filter, RefreshCw, FileText, XCircle, ClipboardList } from 'lucide-react'
 import { STATUS_MAP } from '../utils/statusUtils'
 import { exportToCSV } from '../utils/exportUtils'
 import { DEMO_LEADS, DEMO_ACTIVITIES } from '../lib/demoData'
@@ -162,15 +163,22 @@ export default function Reports() {
     })
   }
 
-  function getActionIcon(action) {
-    switch (action) {
-      case 'call': return '📞'
-      case 'status_change': return '🔄'
-      case 'note': return '📝'
-      case 'snooze': return '⏰'
-      case 'reason_lost': return '❌'
-      default: return '📋'
+  // Emoji lazen als losse tekens tussen de rest; hier echte iconen
+  // met dezelfde kleurcodering als de statussen.
+  function ActionIcon({ action }) {
+    const map = {
+      call:          [PhoneCall,   'var(--primary)'],
+      status_change: [RefreshCw,   'var(--secondary)'],
+      note:          [FileText,    'var(--text-muted)'],
+      snooze:        [Clock,       'var(--warning)'],
+      reason_lost:   [XCircle,     'var(--danger)'],
     }
+    const [Icon, color] = map[action] || [ClipboardList, 'var(--text-muted)']
+    return (
+      <span className="activity-icon" style={{ color }}>
+        <Icon size={16} />
+      </span>
+    )
   }
 
   if (loading) return (
@@ -185,27 +193,7 @@ export default function Reports() {
       animate={{ opacity: 1 }}
       className="reports-page"
     >
-      <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)' }}>
-        <div className="container header-content">
-          <Logo size="medium" />
-          <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
-            <Link to="/">Dashboard</Link>
-            <Link to="/tba">TBA's</Link>
-            <Link to="/earnings">Verdiensten</Link>
-            {profile?.role === 'admin' && <Link to="/admin/telemetry">Telemetrie</Link>}
-            {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
-            {profile?.role === 'admin' && <Link to="/admin/reports" className="active">Rapportage</Link>}
-          </nav>
-          <div className="header-actions">
-            <div className="flex items-center gap-2" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '20px' }}>
-              <Zap size={14} style={{ color: 'var(--secondary)' }} />
-              <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span></span>
-            </div>
-            <span>{profile?.full_name || user?.email?.split('@')[0] || 'Gebruiker'}</span>
-            <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="container">
         <motion.div
@@ -281,7 +269,7 @@ export default function Reports() {
           ))}
         </div>
 
-        <div className="grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px', marginBottom: '40px' }}>
+        <div className="grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(400px, 100%), 1fr))', gap: '24px', marginBottom: '40px' }}>
           <motion.div initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ delay: 0.4 }}>
             <StatsChart type="bar" title="Calls per Dag" data={stats.timeline} dataKey="calls" />
           </motion.div>
@@ -356,7 +344,7 @@ export default function Reports() {
                     alignItems: 'flex-start'
                   }}
                 >
-                  <span style={{ fontSize: '1.5rem' }}>{getActionIcon(a.action)}</span>
+                  <ActionIcon action={a.action} />
                   <div style={{ flex: 1 }}>
                     <div className="flex justify-between items-start">
                       <div>
