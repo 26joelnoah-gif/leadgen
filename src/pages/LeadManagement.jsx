@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import ImportLeadsModal from '../components/ImportLeadsModal'
 import ListAssigneesCard from '../components/ListAssigneesCard'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -10,7 +11,7 @@ import {
   DollarSign, PhoneOff, AlertTriangle, UserMinus,
   CheckCircle, Briefcase, BarChart, ChevronRight,
   X, Clock, Calendar, ArrowRight, UserCheck, FastForward,
-  Filter, Layers, RotateCcw, Share2, Grid
+  Filter, Layers, RotateCcw, Share2, Grid, Upload
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -48,6 +49,7 @@ export default function LeadManagement({ standalone = true }) {
     getListAssignees, setListAssignees
   } = useLeadLists()
   const [activeTab, setActiveTab] = useState('data')
+  const [showImport, setShowImport] = useState(false)
   
   // Data View State
   const [selectedList, setSelectedList] = useState(null)
@@ -217,6 +219,16 @@ export default function LeadManagement({ standalone = true }) {
     }
   }
 
+  const importModal = (
+    <ImportLeadsModal
+      open={showImport}
+      onClose={() => setShowImport(false)}
+      leadLists={leadLists}
+      onImported={() => { fetchLeadLists(); if (selectedList) fetchLeads(selectedList.id) }}
+      toast={toast}
+    />
+  )
+
   if (!profile || profile.role !== 'admin') {
     return <div className="p-8 text-center bg-dark text-white min-h-screen">Toegang geweigerd.</div>
   }
@@ -224,6 +236,7 @@ export default function LeadManagement({ standalone = true }) {
   return (
     <div className={standalone ? 'min-h-screen bg-dark text-white' : 'text-white'}>
       {standalone && <Header />}
+      {importModal}
 
       <main className="container-wide py-8">
         <div className="flex justify-between items-center mb-10 px-6">
@@ -275,7 +288,11 @@ export default function LeadManagement({ standalone = true }) {
                   <div className="glass-panel p-6 sticky top-[100px]">
                     <div className="flex flex-column gap-4 mb-6">
                        <h3 className="text-lg font-bold flex items-center gap-2"><Layers size={20} className="text-primary" /> Data Beheer</h3>
-                       
+
+                       <button onClick={() => setShowImport(true)} className="btn btn-primary btn-block">
+                         <Upload size={16} /> Leads importeren
+                       </button>
+
                        <div className="flex bg-dark p-1 rounded-xl border border-white/5">
                           <button 
                             onClick={() => { setDataSubTab('active'); setSelectedList(null); }}

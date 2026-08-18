@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import AgentPerformance from '../components/AgentPerformance'
 import Header from '../components/Header'
 import { supabase } from '../lib/supabase'
 import { Link } from 'react-router-dom'
@@ -277,6 +278,11 @@ export default function Reports() {
             <StatsChart type="pie" title="Leads per Status" data={stats.byStatus} dataKey="value" />
           </motion.div>
         </div>
+
+        {/* Tempo en conversie per beller */}
+        <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.55 }} className="mb-4">
+          <AgentPerformance activities={activities} users={users} />
+        </motion.div>
 
         {/* Per Agent Dispositions */}
         <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.6 }} className="card mb-4">

@@ -131,12 +131,25 @@ export const DEMO_USERS = [
   { id: '2', email: 'maria@leadgen.nl', full_name: 'Maria Admin', role: 'admin' }
 ]
 
+// Afboekingen worden gelogd met de dispositie als action ('deal',
+// 'afspraak_gemaakt', ...). De demodata gebruikt dezelfde vorm, zodat het
+// tempo- en conversieoverzicht ook in demo-modus iets laat zien.
 export const DEMO_ACTIVITIES = [
-  { id: 'a1', lead_id: '1', user_id: '1', action: 'call', notes: 'Eerste contact', created_at: '2026-04-12T10:00:00Z', user: { full_name: 'Jan de Vries' }, lead: { name: 'Bakkerij Jansen' } },
-  { id: 'a2', lead_id: '2', user_id: '1', action: 'status_change', notes: 'Status gewijzigd naar: Later bellen', created_at: '2026-04-11T10:15:00Z', user: { full_name: 'Jan de Vries' }, lead: { name: 'Restaurant De Toren' } },
-  { id: 'a3', lead_id: '5', user_id: '1', action: 'status_change', notes: 'Status gewijzigd naar: Deal!', created_at: '2026-04-11T15:45:00Z', user: { full_name: 'Jan de Vries' }, lead: { name: 'Slagerij Van der Berg' } },
-  { id: 'a4', lead_id: '4', user_id: '2', action: 'status_change', notes: 'Status gewijzigd naar: Geen interesse', created_at: '2026-04-09T12:00:00Z', user: { full_name: 'Maria Admin' }, lead: { name: 'Hotel Amstel' } },
-  { id: 'a5', lead_id: '3', user_id: '1', action: 'status_change', notes: 'Status gewijzigd naar: Afspraak gemaakt', created_at: '2026-04-12T08:30:00Z', user: { full_name: 'Jan de Vries' }, lead: { name: 'Café De Linde' } }
+  // Jan werkt een blok af op 12 april: ongeveer vier minuten per lead
+  { id: 'a1',  lead_id: '1', user_id: '1', action: 'call',             notes: 'Eerste contact',   created_at: '2026-04-12T09:58:00Z', user: { full_name: 'Jan de Vries' }, lead: { name: 'Bakkerij Jansen' } },
+  { id: 'a2',  lead_id: '1', user_id: '1', action: 'geen_gehoor',      notes: 'Niet opgenomen',   created_at: '2026-04-12T10:00:00Z', user: { full_name: 'Jan de Vries' }, lead: { name: 'Bakkerij Jansen' } },
+  { id: 'a3',  lead_id: '2', user_id: '1', action: 'later_bellen',     notes: 'Belt zelf terug',  created_at: '2026-04-12T10:04:00Z', user: { full_name: 'Jan de Vries' }, lead: { name: 'Restaurant De Toren' } },
+  { id: 'a4',  lead_id: '3', user_id: '1', action: 'afspraak_gemaakt', notes: 'Dinsdag 14:00',    created_at: '2026-04-12T10:09:00Z', user: { full_name: 'Jan de Vries' }, lead: { name: 'Café De Linde' } },
+  { id: 'a5',  lead_id: '6', user_id: '1', action: 'geen_interesse',   notes: 'Heeft al partij',  created_at: '2026-04-12T10:13:00Z', user: { full_name: 'Jan de Vries' }, lead: { name: 'Cafetaria Centraal' } },
+  // pauze van ruim een uur: telt niet mee in de afboektijd
+  { id: 'a6',  lead_id: '5', user_id: '1', action: 'deal',             notes: 'Getekend',         created_at: '2026-04-12T11:30:00Z', user: { full_name: 'Jan de Vries' }, lead: { name: 'Slagerij Van der Berg' } },
+  { id: 'a7',  lead_id: '7', user_id: '1', action: 'voicemail',        notes: 'Ingesproken',      created_at: '2026-04-12T11:34:00Z', user: { full_name: 'Jan de Vries' }, lead: { name: 'Lunchroom De Hoek' } },
+
+  // Maria belt rustiger: rond de tien minuten per lead
+  { id: 'a8',  lead_id: '4', user_id: '2', action: 'geen_interesse',   notes: 'Geen budget',      created_at: '2026-04-12T09:00:00Z', user: { full_name: 'Maria Admin' }, lead: { name: 'Hotel Amstel' } },
+  { id: 'a9',  lead_id: '8', user_id: '2', action: 'mailen',           notes: 'Info gestuurd',    created_at: '2026-04-12T09:11:00Z', user: { full_name: 'Maria Admin' }, lead: { name: 'Brasserie Zuid' } },
+  { id: 'a10', lead_id: '9', user_id: '2', action: 'afspraak_gemaakt', notes: 'Donderdag 10:00',  created_at: '2026-04-12T09:21:00Z', user: { full_name: 'Maria Admin' }, lead: { name: 'Grand Café West' } },
+  { id: 'a11', lead_id: '10',user_id: '2', action: 'geen_gehoor',      notes: 'Derde poging',     created_at: '2026-04-12T09:33:00Z', user: { full_name: 'Maria Admin' }, lead: { name: 'Eetcafé Noord' } }
 ]
 
 export const DEMO_LEADS_ADMIN_VIEW = [...DEMO_LEADS]

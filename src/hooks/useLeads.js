@@ -250,6 +250,10 @@ export function useLeads() {
       await logActivity(leadId, dispositionType, `Automated flow: ${targetListName}`)
     } else {
       await supabase.from('leads').update({ status: dispositionType, notes: newNotes, next_contact_date: nextDate, updated_at: new Date().toISOString() }).eq('id', leadId)
+      // Zonder flow-regel werd hier niets gelogd. Daardoor ontbrak het
+      // merendeel van de afboekingen in het activiteitenlog en in elke
+      // berekening die daarop steunt, zoals afboektijd en conversie.
+      await logActivity(leadId, dispositionType, notes || 'Afgeboekt')
     }
     await fetchLeads()
   }
