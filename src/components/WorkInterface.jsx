@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { supabase } from '../lib/supabase'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   X, Phone, Mail, MapPin, User, Building2,
   Calendar, Clock, AlertCircle, CheckCircle2,
-  ChevronRight, Copy, Save, Users
+  ChevronRight, Copy, Save, Users, Inbox
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
+import LoadingSpinner from './LoadingSpinner'
 
 const CopyButton = ({ text, label }) => {
   const [copied, setCopied] = useState(false)
@@ -44,13 +46,14 @@ export default function WorkInterface() {
   const { isWorking, toggleWorkingMode, workingLead, workingListId, sessionCallCount, profile, user } = useAuth()
   const { leads, updateLeadStatus, logActivity, handleLeadDisposition } = useLeads()
 
-  // List mode: leads for current list, sorted by status priority
-  const listLeads = workingListId
-    ? leads.filter(l => l.lead_list_id === workingListId && !['deal','afspraak_gemaakt','geen_interesse','verkeerd_nummer','cold'].includes(l.status))
-    : []
-
-  const [leadIndex, setLeadIndex] = useState(0)
-  const currentLead = workingLead || listLeads[leadIndex] || null
+  // Leads werden hier op index uit lokale state gepakt. Twee bellers op
+  // dezelfde lijst kregen daardoor allebei listLeads[0] en belden hetzelfde
+  // bedrijf. De database deelt nu één lead tegelijk uit en zet die meteen
+  // op slot (claim_next_lead, FOR UPDATE SKIP LOCKED).
+  const [claimedLead, setClaimedLead] = useState(null)
+  const [claiming, setClaiming] = useState(false)
+  const [queueEmpty, setQueueEmpty] = useState(false)
+  const [calledCount, setCalledCount] = useState(0)
 
   const [editableLead, setEditableLead] = useState({})
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024)
@@ -66,21 +69,88 @@ export default function WorkInterface() {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
+  // Zolang migratie v15 nog niet gedraaid is bestaat claim_next_lead niet.
+  // Dan valt het belscherm terug op de oude werkwijze, zodat bellen blijft
+  // werken; alleen de bescherming tegen dubbel bellen ontbreekt dan nog.
+  const [queueFallback, setQueueFallback] = useState(false)
+  const [fallbackIndex, setFallbackIndex] = useState(0)
+
+  const fallbackLeads = workingListId
+    ? leads.filter(l =>
+        l.lead_list_id === workingListId &&
+        !['deal','afspraak_gemaakt','geen_interesse','verkeerd_nummer','cold'].includes(l.status))
+    : []
+
+  const currentLead =
+    workingLead ||
+    claimedLead ||
+    (queueFallback ? fallbackLeads[fallbackIndex] : null) ||
+    null
+
   useEffect(() => {
     if (currentLead) setEditableLead(currentLead)
   }, [currentLead?.id])
 
-  // Reset index when list changes
-  useEffect(() => {
-    setLeadIndex(0)
+  const claimNext = useCallback(async () => {
+    if (!workingListId) return
+    setClaiming(true)
+    const { data, error } = await supabase.rpc('claim_next_lead', {
+      p_list_id: workingListId,
+    })
+    setClaiming(false)
+
+    if (error) {
+      // 42883 = functie bestaat niet, PGRST202 = onbekend in de API-cache
+      const missing = error.code === '42883' || error.code === 'PGRST202'
+      if (missing) {
+        console.warn('claim_next_lead ontbreekt; migratie v15 nog niet gedraaid. Terugval op lokale volgorde.')
+        setQueueFallback(true)
+        return
+      }
+      console.error('claim_next_lead error:', error.message)
+      setQueueEmpty(true)
+      return
+    }
+
+    // De functie geeft NULL terug als er niets meer te bellen is.
+    const lead = Array.isArray(data) ? data[0] : data
+    if (!lead || !lead.id) {
+      setClaimedLead(null)
+      setQueueEmpty(true)
+      return
+    }
+    setClaimedLead(lead)
+    setQueueEmpty(false)
   }, [workingListId])
+
+  // Nieuwe lijst gekozen: wachtrij opnieuw beginnen.
+  useEffect(() => {
+    setClaimedLead(null)
+    setQueueEmpty(false)
+    setCalledCount(0)
+    setQueueFallback(false)
+    setFallbackIndex(0)
+    if (workingListId) claimNext()
+  }, [workingListId, claimNext])
+
+  // Slot vrijgeven als de beller stopt, anders blijft de lead vijf
+  // minuten voor collega's geblokkeerd.
+  useEffect(() => {
+    if (isWorking) return
+    const id = claimedLead?.id
+    if (!id) return
+    supabase.rpc('release_lead', { p_lead_id: id })
+    setClaimedLead(null)
+  }, [isWorking])
 
   // Don't render if not working
   if (!isWorking) return null
 
   const listName = workingListId || 'Direct'
   const isListMode = !!workingListId && !workingLead
-  const progress = isListMode ? { current: leadIndex + 1, total: listLeads.length } : null
+  // De wachtrij is gedeeld, dus een totaal ("3 van 20") klopt niet meer
+  // zodra een collega meewerkt. We tonen wat deze beller zelf heeft gedaan.
+  const progress = isListMode ? { current: calledCount + 1 } : null
 
   // Empty state when no leads available
   if (!currentLead) {
@@ -91,22 +161,30 @@ export default function WorkInterface() {
         display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         color: 'var(--text-main)', padding: '20px'
       }}>
-        <div style={{ textAlign: 'center', maxWidth: '400px' }}>
-          <div style={{ fontSize: '4rem', marginBottom: '16px', opacity: 0.5 }}>📭</div>
-          <h2 style={{ color: 'white', marginBottom: '8px' }}>Geen leads beschikbaar</h2>
+        <div style={{ textAlign: 'center', maxWidth: '420px' }}>
+          <div style={{ marginBottom: '16px', opacity: 0.5, display: 'flex', justifyContent: 'center' }}>
+            {claiming ? <LoadingSpinner size="large" /> : <Inbox size={56} />}
+          </div>
+          <h2 style={{ color: 'white', marginBottom: '8px' }}>
+            {claiming ? 'Volgende lead ophalen…' : 'Lijst afgewerkt'}
+          </h2>
           <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
-            Er zijn geen leads meer in deze lijst om te bewerken.
+            {claiming
+              ? 'Even geduld.'
+              : calledCount > 0
+                ? `Je hebt ${calledCount} lead${calledCount === 1 ? '' : 's'} afgehandeld. Er staat niets meer klaar in deze lijst.`
+                : 'Er staat op dit moment niets klaar in deze lijst. Werkt een collega mee, dan kan er zo weer iets vrijkomen.'}
           </p>
-          <button
-            onClick={toggleWorkingMode}
-            style={{
-              background: 'var(--primary)', color: 'white',
-              border: 'none', padding: '12px 24px', borderRadius: '8px',
-              fontWeight: 700, cursor: 'pointer'
-            }}
-          >
-            Terug naar Dashboard
-          </button>
+          {!claiming && (
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', flexWrap: 'wrap' }}>
+              <button onClick={claimNext} className="btn btn-secondary">
+                Opnieuw proberen
+              </button>
+              <button onClick={toggleWorkingMode} className="btn btn-primary">
+                Terug naar dashboard
+              </button>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -150,10 +228,12 @@ export default function WorkInterface() {
       if (workingLead) {
         toggleWorkingMode()
       } else if (isListMode) {
-        if (leadIndex < listLeads.length - 1) {
-          setLeadIndex(prev => prev + 1)
+        setCalledCount(n => n + 1)
+        if (queueFallback) {
+          setFallbackIndex(i => i + 1)
         } else {
-          toggleWorkingMode()
+          setClaimedLead(null)
+          await claimNext()
         }
       }
     } finally {
@@ -203,7 +283,7 @@ export default function WorkInterface() {
                <span style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>Live Counter: {sessionCallCount}</span>
                {progress && (
                  <span style={{ background: 'rgba(255,255,255,0.15)', color: 'white', padding: '2px 10px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                   {progress.current} / {progress.total}
+                   Lead {progress.current}
                  </span>
                )}
             </div>

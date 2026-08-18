@@ -26,43 +26,17 @@ export default function LeadCard({ lead, onStatusChange, onClaim, loading = fals
   return (
     <div className="card mb-2 glow-hover" style={{ position: 'relative' }}>
       {isHot && (
-        <div style={{
-          position: 'absolute',
-          top: -8,
-          right: 16,
-          background: 'var(--primary-gradient)',
-          color: 'white',
-          padding: '4px 12px',
-          borderRadius: 'var(--radius-full)',
-          fontSize: '0.7rem',
-          fontWeight: 700,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 4
-        }}>
-          <Flame size={12} /> HOT
+        <div className="lead-card__badge lead-card__badge--hot">
+          <Flame size={11} /> HOT
         </div>
       )}
       {isWarm && !isHot && (
-        <div style={{
-          position: 'absolute',
-          top: -8,
-          right: 16,
-          background: 'linear-gradient(135deg, var(--warning) 0%, var(--secondary-light) 100%)',
-          color: 'white',
-          padding: '4px 12px',
-          borderRadius: 'var(--radius-full)',
-          fontSize: '0.7rem',
-          fontWeight: 700,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 4
-        }}>
-          <Zap size={12} /> WARM
+        <div className="lead-card__badge lead-card__badge--warm">
+          <Zap size={11} /> WARM
         </div>
       )}
-      <div className="flex justify-between items-center mb-2">
-        <h3 className="lead-name" style={{ fontSize: '1.2rem', color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div className="lead-card__head mb-2">
+        <h3 className="lead-name" style={{ fontSize: '1.0625rem', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
           {lead.name}
           {(showLeadScore || profile?.role === 'admin') && lead.lead_score > 0 && (
             <span style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '10px', fontSize: '0.65rem', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '3px' }}>
@@ -70,7 +44,7 @@ export default function LeadCard({ lead, onStatusChange, onClaim, loading = fals
             </span>
           )}
         </h3>
-        <div className="flex items-center gap-2">
+        <div className="lead-card__actions">
           <StatusSelector
             currentStatus={lead.status}
             onStatusChange={(newStatus) => onStatusChange(lead.id, newStatus)}
@@ -175,7 +149,7 @@ export default function LeadCard({ lead, onStatusChange, onClaim, loading = fals
       </div>
 
       {/* Contact attempts and last called */}
-      <div style={{ display: 'flex', gap: '16px', marginBottom: '12px', padding: '10px', background: contactAttempts > 0 ? 'var(--warning-bg)' : 'var(--info-bg)', borderRadius: '8px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', marginBottom: '12px', padding: '10px 12px', background: 'var(--bg-soft)', border: '1px solid var(--border)', borderRadius: '8px' }}>
         <div className="flex items-center gap-2" style={{ fontSize: '0.85rem' }}>
           <PhoneCall size={14} style={{ color: contactAttempts > 2 ? 'var(--danger)' : 'var(--text-muted)' }} />
           <span className="text-muted">Gebeld:</span>

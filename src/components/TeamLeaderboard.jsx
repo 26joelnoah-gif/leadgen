@@ -69,8 +69,8 @@ export default function TeamLeaderboard() {
             key={member.user_id || i}
             className={`leaderboard-item ${member.user_id === user?.id ? 'current-user' : ''}`}
           >
-            <div className="leaderboard-rank">
-              {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`}
+            <div className={`leaderboard-rank${i < 3 ? ' leaderboard-rank--top' : ''}`}>
+              {i + 1}
             </div>
             <div className="leaderboard-avatar">
               {member.avatar}
@@ -128,9 +128,21 @@ export default function TeamLeaderboard() {
           border: 1px solid var(--primary);
         }
         .leaderboard-rank {
-          font-size: 0.85rem;
-          width: 28px;
-          text-align: center;
+          flex: 0 0 auto;
+          width: 22px;
+          height: 22px;
+          display: grid;
+          place-items: center;
+          border-radius: 6px;
+          background: var(--bg-elevated);
+          color: var(--text-muted);
+          font-size: 0.75rem;
+          font-weight: 600;
+          font-variant-numeric: tabular-nums;
+        }
+        .leaderboard-rank--top {
+          background: color-mix(in srgb, var(--secondary) 18%, transparent);
+          color: var(--secondary);
         }
         .leaderboard-avatar {
           width: 32px;

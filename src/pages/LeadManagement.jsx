@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import ImportLeadsModal from '../components/ImportLeadsModal'
+import ListAssigneesCard from '../components/ListAssigneesCard'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
@@ -9,7 +11,7 @@ import {
   DollarSign, PhoneOff, AlertTriangle, UserMinus,
   CheckCircle, Briefcase, BarChart, ChevronRight,
   X, Clock, Calendar, ArrowRight, UserCheck, FastForward,
-  Filter, Layers, RotateCcw, Share2, Grid
+  Filter, Layers, RotateCcw, Share2, Grid, Upload
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -41,11 +43,13 @@ const TABS = [
 export default function LeadManagement({ standalone = true }) {
   const { profile, user } = useAuth()
   const toast = useToast()
-  const { 
-    leadLists, loading: listsLoading, fetchLeadLists, deleteLeadList, 
-    restoreLeadList, permanentDeleteLeadList 
+  const {
+    leadLists, loading: listsLoading, fetchLeadLists, deleteLeadList,
+    restoreLeadList, permanentDeleteLeadList,
+    getListAssignees, setListAssignees
   } = useLeadLists()
   const [activeTab, setActiveTab] = useState('data')
+  const [showImport, setShowImport] = useState(false)
   
   // Data View State
   const [selectedList, setSelectedList] = useState(null)
@@ -86,14 +90,21 @@ export default function LeadManagement({ standalone = true }) {
   }, [selectedList, activeTab, dataSubTab])
 
   async function fetchData() {
-    const { data: profiles } = await supabase.from('profiles').select('*').order('full_name')
-    setAgents(profiles || [])
-    
-    const { data: flows } = await supabase.from('flow_settings').select('*')
-    setFlowSettings(flows || [])
+    const [profilesRes, flowsRes, teamsRes] = await Promise.all([
+      supabase.from('profiles').select('*').order('full_name'),
+      supabase.from('flow_settings').select('*'),
+      supabase.from('teams').select('*, team_members(*)').order('name'),
+    ])
 
-    const { data: teamsRes } = await supabase.from('teams').select('*, team_members(*)').order('name')
-    setTeams(teamsRes || [])
+    const failure = [profilesRes, flowsRes, teamsRes].find(r => r.error)
+    if (failure) {
+      console.error('fetchData error:', failure.error.message)
+      toast(`Laden mislukt: ${failure.error.message}`, 'error')
+    }
+
+    setAgents(profilesRes.data || [])
+    setFlowSettings(flowsRes.data || [])
+    setTeams(teamsRes.data || [])
   }
 
   async function fetchLeads(listId) {
@@ -140,8 +151,11 @@ export default function LeadManagement({ standalone = true }) {
       .update(updates)
       .eq('disposition_type', disposition)
     
-    if (!error) {
+    if (error) {
+      toast(`Flow opslaan mislukt: ${error.message}`, 'error')
+    } else {
       setFlowSettings(prev => prev.map(f => f.disposition_type === disposition ? { ...f, ...updates } : f))
+      toast('Flow opgeslagen', 'success')
     }
     setSavingFlow(false)
   }
@@ -153,18 +167,24 @@ export default function LeadManagement({ standalone = true }) {
       created_by: user?.id
     }).select().single()
 
-    if (!error) {
-      setTeams([...teams, { ...data, team_members: [] }])
-      setNewTeamName('')
-      setShowAddTeam(false)
+    if (error) {
+      toast(`Team aanmaken mislukt: ${error.message}`, 'error')
+      return
     }
+    setTeams([...teams, { ...data, team_members: [] }])
+    setNewTeamName('')
+    setShowAddTeam(false)
+    toast('Team aangemaakt', 'success')
   }
 
   async function toggleTeamMember(teamId, profileId, isMember) {
-    if (isMember) {
-      await supabase.from('team_members').delete().eq('team_id', teamId).eq('profile_id', profileId)
-    } else {
-      await supabase.from('team_members').insert({ team_id: teamId, profile_id: profileId })
+    const { error } = isMember
+      ? await supabase.from('team_members').delete().eq('team_id', teamId).eq('profile_id', profileId)
+      : await supabase.from('team_members').insert({ team_id: teamId, profile_id: profileId })
+
+    if (error) {
+      toast(`Teamlid bijwerken mislukt: ${error.message}`, 'error')
+      return
     }
     fetchData() // Refresh to get updated membership info
   }
@@ -199,6 +219,16 @@ export default function LeadManagement({ standalone = true }) {
     }
   }
 
+  const importModal = (
+    <ImportLeadsModal
+      open={showImport}
+      onClose={() => setShowImport(false)}
+      leadLists={leadLists}
+      onImported={() => { fetchLeadLists(); if (selectedList) fetchLeads(selectedList.id) }}
+      toast={toast}
+    />
+  )
+
   if (!profile || profile.role !== 'admin') {
     return <div className="p-8 text-center bg-dark text-white min-h-screen">Toegang geweigerd.</div>
   }
@@ -206,6 +236,7 @@ export default function LeadManagement({ standalone = true }) {
   return (
     <div className={standalone ? 'min-h-screen bg-dark text-white' : 'text-white'}>
       {standalone && <Header />}
+      {importModal}
 
       <main className="container-wide py-8">
         <div className="flex justify-between items-center mb-10 px-6">
@@ -213,7 +244,7 @@ export default function LeadManagement({ standalone = true }) {
             <div className="flex items-center gap-2 text-secondary mb-1">
                <Shield size={14} /> <span className="text-xs font-bold uppercase tracking-widest">Administrator</span>
             </div>
-            <h1 className="text-3xl font-black text-white tracking-tight">LEAD CONTROL PANEL</h1>
+            <h1 className="text-3xl font-bold text-white tracking-tight">LEAD CONTROL PANEL</h1>
             <p className="text-muted text-sm mt-1">Stuur leadflows aan, beheer teams en stel automatisering in.</p>
           </div>
           <div className="flex gap-3">
@@ -257,7 +288,11 @@ export default function LeadManagement({ standalone = true }) {
                   <div className="glass-panel p-6 sticky top-[100px]">
                     <div className="flex flex-column gap-4 mb-6">
                        <h3 className="text-lg font-bold flex items-center gap-2"><Layers size={20} className="text-primary" /> Data Beheer</h3>
-                       
+
+                       <button onClick={() => setShowImport(true)} className="btn btn-primary btn-block">
+                         <Upload size={16} /> Leads importeren
+                       </button>
+
                        <div className="flex bg-dark p-1 rounded-xl border border-white/5">
                           <button 
                             onClick={() => { setDataSubTab('active'); setSelectedList(null); }}
@@ -321,7 +356,7 @@ export default function LeadManagement({ standalone = true }) {
                       <div className="flex items-center gap-4 mb-10">
                         <div className="p-4 bg-primary/20 text-primary rounded-2xl shadow-inner"><FastForward size={28} /></div>
                         <div>
-                          <h2 className="text-2xl font-black italic tracking-tighter uppercase leading-none mb-1">AUTOMATION ENGINE</h2>
+                          <h2 className="text-2xl font-bold tracking-tight uppercase leading-none mb-1">AUTOMATION ENGINE</h2>
                           <p className="text-muted text-xs font-bold tracking-widest uppercase opacity-60">Architectuur van je lead-stromen</p>
                         </div>
                       </div>
@@ -396,7 +431,7 @@ export default function LeadManagement({ standalone = true }) {
                     <div className="glass-panel p-0 overflow-hidden min-h-[600px] flex flex-col">
                       <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
                         <div>
-                           <h2 className="text-xl font-black text-white italic leading-none mb-1">{selectedList.name.toUpperCase()}</h2>
+                           <h2 className="text-xl font-bold text-white leading-none mb-1">{selectedList.name.toUpperCase()}</h2>
                            <p className="text-[10px] text-muted font-bold uppercase tracking-widest">{leads.length} Leads in Batch</p>
                         </div>
                         <div className="flex gap-2">
@@ -480,7 +515,7 @@ export default function LeadManagement({ standalone = true }) {
                   ) : (
                     <div className="glass-panel flex flex-column items-center justify-center p-20 text-center opacity-30">
                        <Layers size={64} className="mb-4 text-primary" />
-                       <h3 className="text-xl font-black italic">INTELLIGENT DATA CENTER</h3>
+                       <h3 className="text-xl font-bold">INTELLIGENT DATA CENTER</h3>
                        <p className="max-w-xs text-sm mt-2 font-bold text-muted">Selecteer een batch of pas de flow-automatisering aan via de menu's links.</p>
                     </div>
                   )}
@@ -495,7 +530,7 @@ export default function LeadManagement({ standalone = true }) {
                   <div className="flex items-center gap-4 mb-8">
                     <div className="p-3 bg-primary/20 text-primary rounded-2xl"><FastForward size={24} /></div>
                     <div>
-                      <h2 className="text-2xl font-black">Post-Call Lead Flows</h2>
+                      <h2 className="text-2xl font-bold">Post-Call Lead Flows</h2>
                       <p className="text-muted text-sm">Stel in waar leads naartoe gaan na de afboeking door een beller.</p>
                     </div>
                   </div>
@@ -557,7 +592,7 @@ export default function LeadManagement({ standalone = true }) {
                   <div key={team.id} className="glass-panel p-6 flex flex-column gap-6">
                     <div className="flex justify-between items-start">
                       <div>
-                         <h3 className="text-xl font-black text-white">{team.name}</h3>
+                         <h3 className="text-xl font-bold text-white">{team.name}</h3>
                          <div className="text-xs text-muted font-bold flex items-center gap-2 mt-1">
                             <Users size={12} /> {team.team_members?.length || 0} Members
                          </div>
@@ -618,14 +653,23 @@ export default function LeadManagement({ standalone = true }) {
             )}
 
             {/* VIEW: MASS OPERATIONS */}
-            {/* VIEW: MASS OPERATIONS */}
             {activeTab === 'mass' && (
               <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.98 }} className="max-w-4xl mx-auto">
+                 <div className="mb-8">
+                   <ListAssigneesCard
+                     leadLists={leadLists}
+                     agents={agents}
+                     getListAssignees={getListAssignees}
+                     setListAssignees={setListAssignees}
+                     toast={toast}
+                   />
+                 </div>
+
                  <div className="glass-panel p-10">
                     <div className="flex items-center gap-6 mb-12">
                        <div className="p-5 bg-secondary/10 text-secondary rounded-[28px] shadow-inner"><FastForward size={32} /></div>
                        <div>
-                          <h2 className="text-3xl font-black tracking-tight italic uppercase">BULK DISTRIBUTION</h2>
+                          <h2 className="text-3xl font-bold tracking-tight uppercase">BULK DISTRIBUTION</h2>
                           <p className="text-muted text-sm font-medium">Wijs volledige batches toe aan specifieke medewerkers of teams.</p>
                        </div>
                     </div>
@@ -697,7 +741,7 @@ export default function LeadManagement({ standalone = true }) {
                              {bulkListId ? (
                                 <>
                                    <Zap size={48} className="text-secondary mb-6 animate-pulse" />
-                                   <h3 className="text-xl font-black text-white mb-2 italic">READY TO SYNC</h3>
+                                   <h3 className="text-xl font-bold text-white mb-2">READY TO SYNC</h3>
                                    <p className="text-sm text-muted leading-relaxed font-medium">
                                       Je staat op het punt om <span className="text-white font-bold">{leadLists.find(l => l.id === bulkListId)?.name}</span> toe te wijzen aan 
                                       <span className="text-white font-bold"> {bulkTargetAgentId ? agents.find(a => a.id === bulkTargetAgentId)?.full_name : bulkTargetTeamId ? teams.find(t => t.id === bulkTargetTeamId)?.name : '...'}</span>.

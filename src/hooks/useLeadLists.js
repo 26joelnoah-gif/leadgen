@@ -32,11 +32,10 @@ export function useLeadLists() {
       const { data, error } = await query
 
       if (error) throw error
-      // Agents only see lists assigned to them or created by them
-      const lists = profile?.role === 'admin'
-        ? (data || [])
-        : (data || []).filter(l => l.assigned_to === profile?.id || l.created_by === profile?.id)
-      setLeadLists(lists)
+      // Geen client-side filter meer: die keek alleen naar assigned_to/created_by
+      // en liet lijsten die via assigned_team_id aan je team hangen vallen.
+      // RLS levert nu precies de lijsten die je mag zien.
+      setLeadLists(data || [])
     } catch (err) {
       setError(err.message)
     } finally {
@@ -58,7 +57,7 @@ export function useLeadLists() {
 
     const { data, error } = await supabase
       .from('lead_lists')
-      .insert({ name, description, created_by: profile?.id })
+      .insert({ name, description, created_by: profile?.id, organization_id: profile?.organization_id ?? null })
       .select()
       .single()
 
@@ -148,6 +147,54 @@ export function useLeadLists() {
     return { error }
   }
 
+  // Een lijst kon aan één persoon of één team hangen. Via de koppeltabel
+  // lead_list_assignees kan een lijst meerdere bellers hebben, en een
+  // beller meerdere lijsten.
+  async function getListAssignees(listId) {
+    if (isDemoMode) return []
+    const { data, error } = await supabase
+      .from('lead_list_assignees')
+      .select('profile_id')
+      .eq('lead_list_id', listId)
+    if (error) {
+      console.error('getListAssignees error:', error.message)
+      return []
+    }
+    return (data || []).map(r => r.profile_id)
+  }
+
+  async function setListAssignees(listId, profileIds) {
+    if (isDemoMode) return { error: null }
+
+    const wanted = [...new Set(profileIds)]
+    const current = await getListAssignees(listId)
+
+    const toAdd = wanted.filter(id => !current.includes(id))
+    const toRemove = current.filter(id => !wanted.includes(id))
+
+    if (toRemove.length > 0) {
+      const { error } = await supabase
+        .from('lead_list_assignees')
+        .delete()
+        .eq('lead_list_id', listId)
+        .in('profile_id', toRemove)
+      if (error) return { error }
+    }
+
+    if (toAdd.length > 0) {
+      const { error } = await supabase
+        .from('lead_list_assignees')
+        .insert(toAdd.map(profile_id => ({
+          lead_list_id: listId,
+          profile_id,
+          assigned_by: profile?.id ?? null,
+        })))
+      if (error) return { error }
+    }
+
+    return { error: null, added: toAdd.length, removed: toRemove.length }
+  }
+
   async function assignListToAgent(listId, agentId) {
     if (isDemoMode) return { error: null }
     const { error } = await supabase
@@ -178,6 +225,8 @@ export function useLeadLists() {
     deleteLeadList,
     restoreLeadList,
     permanentDeleteLeadList,
-    assignListToAgent
+    assignListToAgent,
+    getListAssignees,
+    setListAssignees
   }
 }

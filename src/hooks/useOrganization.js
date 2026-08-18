@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 
 export function useOrganization() {
-  const { user, profile, isDemoMode } = useAuth()
+  const { user, profile, isDemoMode, refreshProfile } = useAuth()
   const [organization, setOrganization] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -58,23 +58,18 @@ export function useOrganization() {
     // Check uniqueness, append random suffix if taken
     const finalSlug = slug + '-' + Math.random().toString(36).substring(2, 6)
 
-    const { data: org, error: orgError } = await supabase
-      .from('organizations')
-      .insert({ name, slug: finalSlug, owner_id: user.id })
-      .select()
+    // Via RPC zodat het aanmaken, het koppelen van het profiel en het adopteren
+    // van bestaande losse data in één transactie gebeuren. Twee losse calls
+    // konden halverwege stranden en lieten dan alle bestaande leads buiten de
+    // organisatie vallen.
+    const { data: org, error } = await supabase
+      .rpc('create_organization', { p_name: name, p_slug: finalSlug })
       .single()
 
-    if (orgError) throw orgError
-
-    // Link profile to org
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .update({ organization_id: org.id })
-      .eq('id', user.id)
-
-    if (profileError) throw profileError
+    if (error) throw error
 
     setOrganization(org)
+    await refreshProfile?.()
     return org
   }
 

@@ -18,18 +18,23 @@ export function useActivities(limit = 50) {
       return
     }
 
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('activities')
       .select('*, user:profiles(full_name), lead:leads(name)')
       .order('created_at', { ascending: false })
       .limit(limit)
+
+    if (error) console.error('fetchActivities error:', error.message)
     setActivities(data || [])
     setLoading(false)
   }
 
+  // Draaide eerder alleen op isDemoMode, dus de fetch vuurde voordat de sessie
+  // rond was en kwam standaard leeg terug.
   useEffect(() => {
+    if (!isDemoMode && !user?.id) return
     fetchActivities()
-  }, [isDemoMode])
+  }, [isDemoMode, user?.id, profile?.role, limit])
 
   return { activities, loading, refetch: fetchActivities }
 }

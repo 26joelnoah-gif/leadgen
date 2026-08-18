@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 const AuthContext = createContext({})
 
@@ -26,10 +26,7 @@ export function AuthProvider({ children }) {
 
   // Check if Supabase is configured, otherwise use demo mode
   useEffect(() => {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-
-    if (!supabaseUrl || !supabaseKey || supabaseUrl === 'your_supabase_url') {
+    if (!isSupabaseConfigured) {
       // Demo mode - use mock authentication
       setIsDemoMode(true)
       setLoading(false)
@@ -70,6 +67,14 @@ export function AuthProvider({ children }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Na onboarding (organisatie aanmaken) verandert profiles.organization_id.
+  // Zonder verse fetch blijft de app met de oude waarde werken en filtert RLS
+  // vervolgens alles weg.
+  async function refreshProfile() {
+    if (isDemoMode || !user?.id) return
+    await fetchProfile(user.id)
   }
 
   async function signIn(email, password) {
@@ -133,7 +138,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{ 
-      user, profile, loading, signIn, signOut, isDemoMode, 
+      user, profile, loading, signIn, signOut, isDemoMode, refreshProfile, 
       isWorking, toggleWorkingMode, startWorkingWithList, workingListId, setWorkingListId, workingLead, setWorkingLead, sessionCallCount, logCall
     }}>
       {children}
