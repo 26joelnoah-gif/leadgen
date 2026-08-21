@@ -97,7 +97,7 @@ export default function ActivityFeed() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -20, opacity: 0 }}
               transition={{ delay: i * 0.05 }}
-              style={{ fontSize: '0.8rem', padding: '8px', background: 'rgba(255,255,255,0.02)', borderRadius: '6px', borderLeft: `2px solid ${a.action === 'deal' ? 'var(--secondary)' : 'var(--border)'}` }}
+              style={{ fontSize: '0.8rem', padding: '8px', background: 'var(--bg-elevated)', borderRadius: '6px', borderLeft: `2px solid ${a.action === 'deal' ? 'var(--secondary)' : 'var(--border)'}` }}
             >
               <div className="flex items-center gap-2 mb-1">
                 {getIcon(a.action)}

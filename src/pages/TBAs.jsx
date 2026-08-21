@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Phone, Clock, ArrowRight, CheckCircle, AlertCircle, PhoneOff, Zap, Search, Filter } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
@@ -7,11 +6,10 @@ import { useAuth } from '../context/AuthContext'
 import { formatDateTime } from '../utils/dateUtils'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
-import Logo from '../components/Logo'
-import MobileNav from '../components/MobileNav'
+import Header from '../components/Header'
 
 export default function TBAs() {
-  const { user, profile, signOut, isWorking, toggleWorkingMode, sessionCallCount, logCall } = useAuth()
+  const { user, profile, toggleWorkingMode, logCall } = useAuth()
   const { leads, loading, logActivity } = useLeads()
   const [filter, setFilter] = useState('upcoming')
   const [searchTerm, setSearchTerm] = useState('')
@@ -50,35 +48,7 @@ export default function TBAs() {
       animate={{ opacity: 1 }}
       className="tba-page"
     >
-      <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)' }}>
-        <div className="container header-content">
-          <Logo size="medium" />
-          <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
-            <Link to="/">Dashboard</Link>
-            <Link to="/tba" className="active">TBA's</Link>
-            <Link to="/earnings">Verdiensten</Link>
-            {profile?.role === 'admin' && <Link to="/admin/telemetry">Telemetrie</Link>}
-            {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
-            {profile?.role === 'admin' && <Link to="/admin/reports">Rapportage</Link>}
-          </nav>
-          <MobileNav profile={profile} />
-          <div className="header-actions">
-            <div className="flex items-center gap-2 mr-3" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)' }}>
-              <Zap size={14} style={{ color: 'var(--secondary)' }} />
-              <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span></span>
-            </div>
-            <button
-              onClick={() => toggleWorkingMode()}
-              className={`btn btn-sm ${isWorking ? 'btn-secondary' : 'btn-outline'}`}
-              style={{ gap: '6px', minWidth: '80px' }}
-            >
-              {isWorking ? <Phone size={14} /> : <PhoneOff size={14} />}
-              <span>{isWorking ? 'Aan' : 'Uit'}</span>
-            </button>
-            <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="container">
         <div className="page-header flex justify-between items-end">

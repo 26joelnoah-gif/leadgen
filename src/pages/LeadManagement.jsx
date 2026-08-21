@@ -9,13 +9,15 @@ import {
   DollarSign, PhoneOff, AlertTriangle, UserMinus,
   CheckCircle, Briefcase, BarChart, ChevronRight,
   X, Clock, Calendar, ArrowRight, UserCheck, FastForward,
-  Filter, Layers, RotateCcw, Share2, Grid
+  Filter, Layers, RotateCcw, Share2, Grid, Zap, Pause, Play
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { useToast } from '../components/Toast'
+import FlowSettingsEditor from '../components/FlowSettingsEditor'
 import { getStatusDetails } from '../utils/statusUtils'
 import ImportLeadsModal from '../components/ImportLeadsModal'
+import NewProjectWizard from '../components/NewProjectWizard'
 
 function StatusBadge({ status }) {
   const configs = {
@@ -23,8 +25,8 @@ function StatusBadge({ status }) {
     deal: { bg: 'bg-success/20', text: 'text-success', label: 'DEAL' },
     afspraak_gemaakt: { bg: 'bg-info/20', text: 'text-info', label: 'Afspraak' },
     terugbelafspraak: { bg: 'bg-warning/20', text: 'text-warning', label: 'TBA' },
-    geen_gehoor: { bg: 'bg-white/10', text: 'text-muted', label: 'Geen Gehoor' },
-    default: { bg: 'bg-white/5', text: 'text-muted', label: status?.toUpperCase() || 'Onbekend' }
+    geen_gehoor: { bg: 'bg-elevated', text: 'text-muted', label: 'Geen Gehoor' },
+    default: { bg: 'bg-elevated', text: 'text-muted', label: status?.toUpperCase() || 'Onbekend' }
   }
   const config = configs[status] || configs.default
   return (
@@ -35,9 +37,9 @@ function StatusBadge({ status }) {
 }
 
 const TABS = [
-  { id: 'data', label: 'Data & Configuration', icon: <Layers size={18} /> },
-  { id: 'teams', label: 'Team Setup', icon: <Users size={18} /> },
-  { id: 'mass', label: 'Mass Actions', icon: <RotateCcw size={18} /> }
+  { id: 'data', label: 'Projecten & flows', icon: <Layers size={18} /> },
+  { id: 'teams', label: 'Teams', icon: <Users size={18} /> },
+  { id: 'mass', label: 'Bulk-toewijzing', icon: <RotateCcw size={18} /> }
 ]
 
 export default function LeadManagement({ standalone = true }) {
@@ -59,15 +61,14 @@ export default function LeadManagement({ standalone = true }) {
   const [loadingDeleted, setLoadingDeleted] = useState(false)
   const [confirmPermanentId, setConfirmPermanentId] = useState(null)
   
-  // Flows State
-  const [flowSettings, setFlowSettings] = useState([])
-  const [savingFlow, setSavingFlow] = useState(false)
-
   // Team State
   const [teams, setTeams] = useState([])
+  const [campaigns, setCampaigns] = useState([])
   const [agents, setAgents] = useState([])
   const [showAddTeam, setShowAddTeam] = useState(false)
   const [newTeamName, setNewTeamName] = useState('')
+  const [confirmDeleteTeam, setConfirmDeleteTeam] = useState(null)
+  const [confirmDeleteProject, setConfirmDeleteProject] = useState(null)
 
   // Bulk State
   const [bulkListId, setBulkListId] = useState('')
@@ -77,6 +78,7 @@ export default function LeadManagement({ standalone = true }) {
 
   // Import wizard
   const [showImport, setShowImport] = useState(false)
+  const [showNewProject, setShowNewProject] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -97,13 +99,14 @@ export default function LeadManagement({ standalone = true }) {
       if (pErr) throw pErr
       setAgents(profiles || [])
       
-      const { data: flows, error: fErr } = await supabase.from('flow_settings').select('*')
-      if (fErr) throw fErr
-      setFlowSettings(flows || [])
-
       const { data: teamsRes, error: tErr } = await supabase.from('teams').select('*, team_members(*)').order('name')
       if (tErr) throw tErr
       setTeams(teamsRes || [])
+
+      // v21: projecten (campagnes) - hieronder hangen de lijsten, het team hangt aan het project
+      const { data: campRes, error: cErr } = await supabase.from('campaigns').select('*').is('deleted_at', null).order('name')
+      if (cErr) throw cErr
+      setCampaigns(campRes || [])
     } catch (err) {
       toast(err.message, 'error')
     }
@@ -164,23 +167,6 @@ export default function LeadManagement({ standalone = true }) {
     toast('Lijst definitief verwijderd', 'success')
   }
 
-  async function handleUpdateFlow(disposition, updates) {
-    setSavingFlow(true)
-    try {
-      const { error } = await supabase
-        .from('flow_settings')
-        .update(updates)
-        .eq('disposition_type', disposition)
-      
-      if (error) throw error
-      setFlowSettings(prev => prev.map(f => f.disposition_type === disposition ? { ...f, ...updates } : f))
-    } catch (err) {
-      toast(err.message, 'error')
-    } finally {
-      setSavingFlow(false)
-    }
-  }
-
   async function createTeam() {
     if (!newTeamName) return
     const { data, error } = await supabase.from('teams').insert({
@@ -195,6 +181,51 @@ export default function LeadManagement({ standalone = true }) {
     setTeams([...teams, { ...data, team_members: [] }])
     setNewTeamName('')
     setShowAddTeam(false)
+  }
+
+  async function setProjectTeam(campaignId, teamId) {
+    const { error } = await supabase.from('campaigns').update({ assigned_team_id: teamId }).eq('id', campaignId)
+    if (error) { toast(error.message, 'error'); return }
+    toast(teamId ? 'Team gekoppeld - dit team kan nu op alle lijsten in dit project bellen' : 'Team losgekoppeld van dit project', 'success')
+    fetchData()
+  }
+
+  async function toggleProjectActive(campaign) {
+    const nieuweStatus = campaign.is_active === false
+    const { error } = await supabase.from('campaigns').update({ is_active: nieuweStatus }).eq('id', campaign.id)
+    if (error) { toast(error.message, 'error'); return }
+    toast(nieuweStatus ? 'Project geactiveerd - bellers kunnen weer bellen' : 'Project gepauzeerd - bellers zien de lijsten niet meer', 'success')
+    fetchData()
+  }
+
+  async function deleteProject(campaignId) {
+    if (leadLists.some(l => l.campaign_id === campaignId)) {
+      toast('Dit project heeft nog lijsten. Verwijder die eerst (of verplaats de leads).', 'error')
+      return
+    }
+    if (confirmDeleteProject !== campaignId) {
+      setConfirmDeleteProject(campaignId)
+      toast('Klik nogmaals om dit project definitief te verwijderen', 'info')
+      return
+    }
+    setConfirmDeleteProject(null)
+    const { error } = await supabase.from('campaigns').update({ deleted_at: new Date().toISOString() }).eq('id', campaignId)
+    if (error) { toast(error.message, 'error'); return }
+    toast('Project verwijderd', 'success')
+    fetchData()
+  }
+
+  async function deleteTeam(teamId) {
+    if (confirmDeleteTeam !== teamId) {
+      setConfirmDeleteTeam(teamId)
+      toast('Klik nogmaals om dit team definitief te verwijderen', 'info')
+      return
+    }
+    setConfirmDeleteTeam(null)
+    const { error } = await supabase.from('teams').delete().eq('id', teamId)
+    if (error) { toast(error.message, 'error'); return }
+    setTeams(teams.filter(t => t.id !== teamId))
+    toast('Team verwijderd', 'success')
   }
 
   async function toggleTeamMember(teamId, profileId, isMember) {
@@ -220,20 +251,30 @@ export default function LeadManagement({ standalone = true }) {
 
     setProcessingBulk(true)
     try {
-      const updates = { updated_at: new Date().toISOString() }
-      if (bulkTargetAgentId) updates.assigned_to = bulkTargetAgentId
-
-      const { error } = await supabase
-        .from('leads')
-        .update(updates)
-        .eq('lead_list_id', bulkListId)
-
-      if (bulkTargetTeamId) {
-        await supabase.from('lead_lists').update({ assigned_team_id: bulkTargetTeamId }).eq('id', bulkListId)
+      // Beller: alle leads in de lijst worden aan deze beller toegewezen
+      if (bulkTargetAgentId) {
+        const { error } = await supabase
+          .from('leads')
+          .update({ assigned_to: bulkTargetAgentId, updated_at: new Date().toISOString() })
+          .eq('lead_list_id', bulkListId)
+        if (error) throw error
       }
 
-      if (error) throw error
+      // Team: v21 - het team hangt aan het PROJECT (campagne) van deze lijst
+      if (bulkTargetTeamId) {
+        const list = leadLists.find(l => l.id === bulkListId)
+        if (!list?.campaign_id) {
+          throw new Error('Deze lijst hangt nog niet onder een project. Koppel de lijst eerst aan een project - zonder project kan een team niet bellen.')
+        }
+        const { error } = await supabase
+          .from('campaigns')
+          .update({ assigned_team_id: bulkTargetTeamId })
+          .eq('id', list.campaign_id)
+        if (error) throw error
+      }
+
       toast('Bulk-toewijzing voltooid!', 'success')
+      fetchData()
       fetchLeadLists()
     } catch (err) {
       toast(err.message, 'error')
@@ -243,11 +284,11 @@ export default function LeadManagement({ standalone = true }) {
   }
 
   if (!profile || profile.role !== 'admin') {
-    return <div className="p-8 text-center bg-dark text-white min-h-screen">Toegang geweigerd.</div>
+    return <div className="p-8 text-center bg-dark text-body min-h-screen">Toegang geweigerd.</div>
   }
 
   return (
-    <div className={standalone ? 'min-h-screen bg-dark text-white' : 'text-white'}>
+    <div className={standalone ? 'min-h-screen bg-dark text-body' : 'text-body'}>
       {standalone && <Header />}
 
       <main className="container-wide py-8">
@@ -256,22 +297,29 @@ export default function LeadManagement({ standalone = true }) {
             <div className="flex items-center gap-2 text-secondary mb-1">
                <Shield size={14} /> <span className="text-xs font-bold uppercase tracking-widest">Administrator</span>
             </div>
-            <h1 className="text-3xl font-black text-white tracking-tight">LEAD CONTROL PANEL</h1>
-            <p className="text-muted text-sm mt-1">Stuur leadflows aan, beheer teams en stel automatisering in.</p>
+            <h1 className="page-title">Projecten & Leads</h1>
+            <p className="text-muted text-sm mt-1">Beheer je projecten (leadlijsten), teams en wat er na een afboeking gebeurt.</p>
           </div>
           <div className="flex gap-3 items-center">
+             <button
+               onClick={() => setShowNewProject(true)}
+               className="btn btn-secondary"
+               style={{ padding: '14px 24px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}
+             >
+                <Plus size={18} /> Nieuw project
+             </button>
              <button
                onClick={() => setShowImport(true)}
                className="btn btn-primary"
                style={{ padding: '14px 24px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}
              >
-                <Upload size={18} /> LEADS IMPORTEREN
+                <Upload size={18} /> Leads importeren
              </button>
              <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '10px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Grid size={18} className="text-primary" />
                 <div>
-                   <div className="text-xs text-muted uppercase font-bold">Total Lists</div>
-                   <div className="text-xl font-bold">{leadLists.length}</div>
+                   <div className="text-xs text-muted uppercase font-bold">Projecten</div>
+                   <div className="text-xl font-bold">{campaigns.length}</div>
                 </div>
              </div>
           </div>
@@ -279,16 +327,12 @@ export default function LeadManagement({ standalone = true }) {
 
         {/* Tab Navigation */}
         <div className="px-6 mb-8">
-          <div className="flex gap-1 bg-dark-soft p-1.5 rounded-2xl border border-white/5 inline-flex">
+          <div className="tab-bar">
             {TABS.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-6 py-3 rounded-xl transition-all font-bold text-sm ${
-                  activeTab === tab.id 
-                    ? 'bg-primary text-white shadow-xl shadow-primary/20' 
-                    : 'text-muted hover:text-white hover:bg-white/5'
-                }`}
+                className={`tab-btn ${activeTab === tab.id ? 'active' : ''}`}
               >
                 {tab.icon} {tab.label}
               </button>
@@ -306,50 +350,112 @@ export default function LeadManagement({ standalone = true }) {
                 <div className="col-span-12 lg:col-span-4">
                   <div className="glass-panel p-6 sticky top-[100px]">
                     <div className="flex flex-column gap-4 mb-6">
-                       <h3 className="text-lg font-bold flex items-center gap-2"><Layers size={20} className="text-primary" /> Data Beheer</h3>
+                       <h3 className="text-lg font-bold flex items-center gap-2"><Layers size={20} className="text-primary" /> Projecten</h3>
                        
-                       <div className="flex bg-dark p-1 rounded-xl border border-white/5">
+                       <div className="flex bg-dark p-1 rounded-xl border border-border">
                           <button 
                             onClick={() => { setDataSubTab('active'); setSelectedList(null); }}
-                            className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${dataSubTab === 'active' ? 'bg-white/10 text-white' : 'text-muted hover:text-white'}`}
-                          >Batches</button>
+                            className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${dataSubTab === 'active' ? 'bg-elevated text-body' : 'text-muted hover:text-body'}`}
+                          >Projecten</button>
                           <button 
                             onClick={() => { setDataSubTab('flows'); setSelectedList(null); }}
-                            className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${dataSubTab === 'flows' ? 'bg-white/10 text-white' : 'text-muted hover:text-white'}`}
+                            className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${dataSubTab === 'flows' ? 'bg-elevated text-body' : 'text-muted hover:text-body'}`}
                           >Flows</button>
                           <button 
                             onClick={() => { setDataSubTab('archived'); setSelectedList(null); }}
-                            className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${dataSubTab === 'archived' ? 'bg-white/10 text-white' : 'text-muted hover:text-white'}`}
-                          >Archive</button>
+                            className={`flex-1 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${dataSubTab === 'archived' ? 'bg-elevated text-body' : 'text-muted hover:text-body'}`}
+                          >Archief</button>
                        </div>
                     </div>
 
                     <div className="flex flex-column gap-2" style={{ maxHeight: 'calc(100vh - 450px)', overflowY: 'auto' }}>
-                      {dataSubTab === 'active' && leadLists.map(list => (
-                        <button 
-                          key={list.id}
-                          onClick={() => setSelectedList(list)}
-                          className={`flex items-center justify-between p-4 rounded-xl border transition-all ${
-                            selectedList?.id === list.id 
-                              ? 'bg-primary border-primary shadow-lg shadow-primary/20' 
-                              : 'bg-dark-soft border-white/5 hover:border-white/20'
-                          }`}
-                        >
-                          <div className="text-left font-bold text-sm">{list.name}</div>
-                          <ChevronRight size={16} />
-                        </button>
-                      ))}
+                      {dataSubTab === 'active' && (
+                        <>
+                          {campaigns.map(c => {
+                            const teamName = teams.find(t => t.id === c.assigned_team_id)?.name
+                            const lists = leadLists.filter(l => l.campaign_id === c.id)
+                            return (
+                              <div key={c.id} className={`mb-2 ${c.is_active === false ? 'opacity-60' : ''}`}>
+                                <div className="flex items-center justify-between px-2 py-1 gap-2">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-body/70 break-words">{c.name}</span>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    {c.is_active === false ? (
+                                      <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-warning/15 text-warning">gepauzeerd</span>
+                                    ) : (
+                                      <select
+                                        value={c.assigned_team_id || ''}
+                                        onChange={e => setProjectTeam(c.id, e.target.value || null)}
+                                        title="Welk team mag op de lijsten van dit project bellen"
+                                        className={`text-[9px] font-black uppercase tracking-widest px-1 py-1 rounded-lg cursor-pointer ${c.assigned_team_id ? 'bg-success/15 text-success' : 'bg-elevated text-muted'}`}
+                                        style={{ maxWidth: '120px', border: 'none' }}
+                                      >
+                                        <option value="">geen team</option>
+                                        {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                      </select>
+                                    )}
+                                    <button
+                                      onClick={() => toggleProjectActive(c)}
+                                      title={c.is_active === false ? 'Project weer activeren' : 'Project pauzeren (bellers zien de lijsten dan niet meer)'}
+                                      className="p-1 rounded text-muted hover:text-body hover:bg-elevated transition-all"
+                                    >{c.is_active === false ? <Play size={12} /> : <Pause size={12} />}</button>
+                                    <button
+                                      onClick={() => deleteProject(c.id)}
+                                      title={confirmDeleteProject === c.id ? 'Klik nogmaals om definitief te verwijderen' : 'Project verwijderen (kan alleen als het geen lijsten meer heeft)'}
+                                      className={`p-1 rounded transition-all ${confirmDeleteProject === c.id ? 'text-error bg-error/10' : 'text-muted hover:text-error hover:bg-elevated'}`}
+                                    ><Trash2 size={12} /></button>
+                                  </div>
+                                </div>
+                                {lists.length === 0 ? (
+                                  <p className="text-[10px] text-muted px-2 py-1">Nog geen lijsten - importeer leads in dit project.</p>
+                                ) : lists.map(list => (
+                                  <button
+                                    key={list.id}
+                                    onClick={() => setSelectedList(list)}
+                                    className={`w-full flex items-center justify-between p-3 mb-1 rounded-xl border transition-all ${
+                                      selectedList?.id === list.id
+                                        ? 'bg-primary border-primary shadow-lg shadow-primary/20'
+                                        : 'bg-dark-soft border-border hover:border-border'
+                                    }`}
+                                  >
+                                    <div className="text-left font-bold text-sm break-words">{list.name}</div>
+                                    <ChevronRight size={16} />
+                                  </button>
+                                ))}
+                              </div>
+                            )
+                          })}
+                          {leadLists.filter(l => !l.campaign_id).length > 0 && (
+                            <div className="mb-2">
+                              <div className="px-2 py-1 text-[10px] font-black uppercase tracking-widest text-error">Zonder project - niet belbaar voor teams</div>
+                              {leadLists.filter(l => !l.campaign_id).map(list => (
+                                <button
+                                  key={list.id}
+                                  onClick={() => setSelectedList(list)}
+                                  className={`w-full flex items-center justify-between p-3 mb-1 rounded-xl border transition-all ${
+                                    selectedList?.id === list.id
+                                      ? 'bg-primary border-primary shadow-lg shadow-primary/20'
+                                      : 'bg-dark-soft border-error/20 hover:border-error/40'
+                                  }`}
+                                >
+                                  <div className="text-left font-bold text-sm break-words">{list.name}</div>
+                                  <ChevronRight size={16} />
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
 
                       {dataSubTab === 'archived' && (
                         loadingDeleted ? <LoadingSpinner size="sm" /> : deletedLists.map(list => (
-                          <div key={list.id} className="p-4 bg-dark-soft rounded-xl border border-white/5 flex items-center justify-between group">
+                          <div key={list.id} className="p-4 bg-dark-soft rounded-xl border border-border flex items-center justify-between group">
                              <div>
                                 <div className="font-bold text-sm text-muted">{list.name}</div>
-                                <div className="text-[10px] text-error font-mono">Deleted {new Date(list.deleted_at).toLocaleDateString()}</div>
+                                <div className="text-[10px] text-error font-mono">Verwijderd op {new Date(list.deleted_at).toLocaleDateString('nl-NL')}</div>
                              </div>
                              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
                                 <button onClick={() => handleRestore(list.id)} className="p-2 hover:bg-success/20 text-success rounded-lg"><RotateCcw size={14}/></button>
-                                <button onClick={() => handlePermanentDelete(list.id)} className="p-2 hover:bg-error/20 text-error rounded-lg" style={confirmPermanentId === list.id ? { background: 'var(--error, #EF4444)', color: 'white' } : undefined}><Trash2 size={14}/></button>
+                                <button onClick={() => handlePermanentDelete(list.id)} className="p-2 hover:bg-error/20 text-error rounded-lg" style={confirmPermanentId === list.id ? { background: 'var(--error, #EF4444)', color: 'var(--text-on-accent)' } : undefined}><Trash2 size={14}/></button>
                              </div>
                           </div>
                         ))
@@ -367,99 +473,44 @@ export default function LeadManagement({ standalone = true }) {
 
                 <div className="col-span-12 lg:col-span-8">
                   {dataSubTab === 'flows' ? (
-                    <div className="glass-panel p-8">
-                      <div className="flex items-center gap-4 mb-6">
-                        <div className="p-4 bg-primary/20 text-primary rounded-2xl shadow-inner"><FastForward size={28} /></div>
-                        <div>
-                          <h2 className="text-2xl font-black tracking-tight leading-none mb-1">Wat gebeurt er na een afboeking?</h2>
-                          <p className="text-muted text-sm">Per afboekreden zie je hier precies wat het systeem doet.</p>
-                        </div>
-                      </div>
-
-                      <div className="mb-8 p-5 bg-success/5 rounded-2xl border border-success/20 text-sm text-muted leading-relaxed">
-                        <strong className="text-white">De basisregel is simpel:</strong> een lead blijft altijd in zijn eigen projectlijst.
-                        Een afboeking verandert alleen de <strong className="text-white">status</strong> van de lead en wordt vastgelegd
-                        in de gesprekshistorie (zichtbaar in Rapportage). Er worden dus nooit automatisch nieuwe lijsten aangemaakt.
-                        Hieronder stel je per reden alleen nog in: <strong className="text-white">bij wie de lead komt te staan</strong> en of
-                        de naam van de beller in de notities wordt gezet.
-                      </div>
-
-                      <div className="grid gap-4">
-                        {flowSettings.map(flow => (
-                          <div key={flow.id} className="p-6 bg-dark rounded-2xl border border-white/5 hover:border-primary/30 transition-all">
-                             <div className="flex flex-wrap items-start justify-between gap-6">
-                                <div className="flex-1 min-w-[260px]">
-                                   <h4 className="font-black text-white text-lg tracking-tight mb-1">
-                                     {getStatusDetails(flow.disposition_type).label}
-                                   </h4>
-                                   <p className="text-xs text-muted leading-relaxed">{flow.description || 'Lead blijft in de projectlijst; alleen de status verandert.'}</p>
-                                </div>
-
-                                <div className="flex items-center gap-6">
-                                   <div>
-                                      <label className="text-[10px] font-black text-muted uppercase tracking-widest block mb-2">Lead komt te staan bij</label>
-                                      <select
-                                        value={flow.auto_assign_to}
-                                        onChange={(e) => handleUpdateFlow(flow.disposition_type, { auto_assign_to: e.target.value })}
-                                        className="bg-dark-soft p-2.5 rounded-lg text-xs font-bold border border-white/10 text-white min-w-[170px]"
-                                      >
-                                        <option value="agent">De beller zelf</option>
-                                        <option value="none">Niemand (pool)</option>
-                                        <option value="keep">Niet aanpassen</option>
-                                      </select>
-                                   </div>
-
-                                   <div>
-                                      <label className="text-[10px] font-black text-muted uppercase tracking-widest block mb-2">Bellernaam in notitie</label>
-                                      <button
-                                        onClick={() => handleUpdateFlow(flow.disposition_type, { append_agent_note: !flow.append_agent_note })}
-                                        className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all border w-[90px] ${flow.append_agent_note ? 'bg-success/20 border-success text-success' : 'bg-dark-soft text-muted border-white/10'}`}
-                                      >
-                                        {flow.append_agent_note ? 'Aan' : 'Uit'}
-                                      </button>
-                                   </div>
-                                </div>
-                             </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                    <FlowSettingsEditor />
                   ) : selectedList ? (
                     <div className="glass-panel p-0 overflow-hidden min-h-[600px] flex flex-col">
-                      <div className="p-6 border-b border-white/5 flex justify-between items-center bg-white/5">
+                      <div className="p-6 border-b border-border flex justify-between items-center bg-elevated">
                         <div>
-                           <h2 className="text-xl font-black text-white italic leading-none mb-1">{selectedList.name.toUpperCase()}</h2>
-                           <p className="text-[10px] text-muted font-bold uppercase tracking-widest">{leads.length} Leads in Batch</p>
+                           <h2 className="text-xl font-black text-body leading-none mb-1">{selectedList.name}</h2>
+                           <p className="text-[10px] text-muted font-bold uppercase tracking-widest">{leads.length} leads in dit project</p>
                         </div>
                         <div className="flex gap-2">
-                          <div className="relative">
-                             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-                             <input 
-                               type="text" 
-                               value={leadSearch} 
+                          <div style={{ position: 'relative' }}>
+                             <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                             <input
+                               type="text"
+                               value={leadSearch}
                                onChange={e => setLeadSearch(e.target.value)}
-                               placeholder="Zoeken..." 
-                               className="bg-dark border border-white/10 pl-8 pr-4 py-2 rounded-lg text-xs w-[200px] focus:w-[300px] transition-all focus:border-primary/50"
+                               placeholder="Zoeken..."
+                               className="bg-dark border border-border rounded-lg text-xs w-[200px] focus:w-[300px] transition-all focus:border-primary/50"
+                               style={{ padding: '8px 14px 8px 34px' }}
                              />
                           </div>
                           <button 
                             className="btn btn-sm btn-outline text-error hover:bg-error/10"
                             onClick={async () => { await deleteLeadList(selectedList.id); setSelectedList(null); fetchLeadLists(); }}
-                          ><Trash2 size={14} /> Delete</button>
+                          ><Trash2 size={14} /> Verwijderen</button>
                         </div>
                       </div>
 
                       {/* Batch Intelligence Summary */}
-                      <div className="grid grid-cols-4 border-b border-white/5">
-                         <div className="p-4 border-r border-white/5 text-center">
+                      <div className="grid grid-cols-4 border-b border-border">
+                         <div className="p-4 border-r border-border text-center">
                             <div className="text-[10px] font-black text-muted uppercase mb-1">Pijplijn Totaal</div>
                             <div className="text-xl font-black">{leads.length}</div>
                          </div>
-                         <div className="p-4 border-r border-white/5 text-center bg-primary/5">
+                         <div className="p-4 border-r border-border text-center bg-primary/5">
                             <div className="text-[10px] font-black text-primary uppercase mb-1">Nieuwe Leads</div>
                             <div className="text-xl font-black text-primary">{leads.filter(l => l.status === 'new').length}</div>
                          </div>
-                         <div className="p-4 border-r border-white/5 text-center bg-info/5">
+                         <div className="p-4 border-r border-border text-center bg-info/5">
                             <div className="text-[10px] font-black text-info uppercase mb-1">Afspraken</div>
                             <div className="text-xl font-black text-info">{leads.filter(l => l.status === 'afspraak_gemaakt').length}</div>
                          </div>
@@ -469,10 +520,10 @@ export default function LeadManagement({ standalone = true }) {
                          </div>
                       </div>
 
-                      <div className="p-0 flex-1 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 400px)' }}>
+                      <div className="p-0 flex-1 overflow-y-auto overflow-x-auto" style={{ maxHeight: 'calc(100vh - 400px)' }}>
                         {loadingLeads ? <div className="p-20"><LoadingSpinner /></div> : (
                           <table className="w-full text-left border-collapse">
-                            <thead className="sticky top-0 bg-dark z-10 text-[10px] font-black text-muted uppercase tracking-widest border-b border-white/10 shadow-sm">
+                            <thead className="sticky top-0 bg-dark z-10 text-[10px] font-black text-muted uppercase tracking-widest border-b border-border shadow-sm">
                               <tr>
                                 <th className="p-4 pl-8">Lead Contact</th>
                                 <th className="p-4">Huidige Status</th>
@@ -486,28 +537,28 @@ export default function LeadManagement({ standalone = true }) {
                               {(leadSearch ? leads.filter(l => l.name.toLowerCase().includes(leadSearch.toLowerCase()) || l.phone.includes(leadSearch)) : leads).length === 0 ? (
                                 <tr><td colSpan={6} className="p-20 text-center text-muted font-bold italic">Geen leads gevonden die voldoen aan je zoekopdracht...</td></tr>
                               ) : (leadSearch ? leads.filter(l => l.name.toLowerCase().includes(leadSearch.toLowerCase()) || l.phone.includes(leadSearch)) : leads).map(lead => (
-                                <tr key={lead.id} className="border-b border-white/5 hover:bg-white/2 transition-all group">
+                                <tr key={lead.id} className="border-b border-border hover:bg-elevated transition-all group">
                                   <td className="p-4 pl-8">
-                                     <div className="font-bold text-white group-hover:text-primary transition-colors">{lead.name}</div>
+                                     <div className="font-bold text-body group-hover:text-primary transition-colors">{lead.name}</div>
                                      <div className="text-[10px] text-muted font-mono">{lead.phone}</div>
                                   </td>
                                   <td className="p-4"><StatusBadge status={lead.status} /></td>
                                   <td className="p-4">
                                      <div className="flex items-center gap-2">
-                                        <div className="w-6 h-6 rounded-full bg-white/5 flex items-center justify-center text-[10px] font-bold text-muted">
+                                        <div className="w-6 h-6 rounded-full bg-elevated flex items-center justify-center text-[10px] font-bold text-muted">
                                            {(agents.find(a => a.id === lead.assigned_to)?.full_name || '-').charAt(0)}
                                         </div>
                                         <span className="text-xs text-muted">{agents.find(a => a.id === lead.assigned_to)?.full_name || 'Geen toewijzing'}</span>
                                      </div>
                                   </td>
                                   <td className="p-4 text-center font-bold text-muted">{lead.contact_attempts || 0}x</td>
-                                  <td className="p-4 text-xs text-muted" style={{ maxWidth: '260px' }} title={lead.notes || ''}>
+                                  <td className="p-4 text-xs text-muted" style={{ maxWidth: '260px' }}>
                                      <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {(lead.notes || '').split('\n').filter(Boolean).pop() || '—'}
+                                        {(lead.notes || '').split('\n').filter(Boolean).pop() || '-'}
                                      </div>
                                   </td>
                                   <td className="p-4 pr-8 text-right">
-                                     <div className="text-[10px] font-black text-white/40 uppercase">{new Date(lead.updated_at).toLocaleDateString()}</div>
+                                     <div className="text-[10px] font-black text-body/40 uppercase">{new Date(lead.updated_at).toLocaleDateString()}</div>
                                      <div className="text-[9px] text-muted uppercase tracking-tighter">{new Date(lead.updated_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
                                   </td>
                                 </tr>
@@ -520,8 +571,8 @@ export default function LeadManagement({ standalone = true }) {
                   ) : (
                     <div className="glass-panel flex flex-column items-center justify-center p-20 text-center opacity-30">
                        <Layers size={64} className="mb-4 text-primary" />
-                       <h3 className="text-xl font-black italic">INTELLIGENT DATA CENTER</h3>
-                       <p className="max-w-xs text-sm mt-2 font-bold text-muted">Selecteer een batch of pas de flow-automatisering aan via de menu's links.</p>
+                       <h3 className="text-xl font-black">Kies een project</h3>
+                       <p className="max-w-xs text-sm mt-2 font-bold text-muted">Klik links op een project om de leads te zien, of open Flows om in te stellen wat er na een afboeking gebeurt.</p>
                     </div>
                   )}
                 </div>
@@ -537,12 +588,16 @@ export default function LeadManagement({ standalone = true }) {
                   <div key={team.id} className="glass-panel p-6 flex flex-column gap-6">
                     <div className="flex justify-between items-start">
                       <div>
-                         <h3 className="text-xl font-black text-white">{team.name}</h3>
+                         <h3 className="text-xl font-black text-body">{team.name}</h3>
                          <div className="text-xs text-muted font-bold flex items-center gap-2 mt-1">
                             <Users size={12} /> {team.team_members?.length || 0} Members
                          </div>
                       </div>
-                      <button className="text-muted hover:text-error transition-colors"><Trash2 size={18} /></button>
+                      <button
+                        onClick={() => deleteTeam(team.id)}
+                        title={confirmDeleteTeam === team.id ? 'Klik nogmaals om definitief te verwijderen' : 'Team verwijderen'}
+                        className={`transition-colors ${confirmDeleteTeam === team.id ? 'text-error' : 'text-muted hover:text-error'}`}
+                      ><Trash2 size={18} /></button>
                     </div>
 
                     <div className="flex flex-column gap-2">
@@ -551,11 +606,11 @@ export default function LeadManagement({ standalone = true }) {
                           {agents.map(a => {
                             const isMember = team.team_members?.some(m => m.profile_id === a.id)
                             return (
-                              <div key={a.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 transition-all text-sm group">
-                                 <span className={isMember ? 'text-white font-bold' : 'text-muted'}>{a.full_name}</span>
+                              <div key={a.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-elevated transition-all text-sm group">
+                                 <span className={isMember ? 'text-body font-bold' : 'text-muted'}>{a.full_name}</span>
                                  <button 
                                    onClick={() => toggleTeamMember(team.id, a.id, isMember)}
-                                   className={`w-6 h-6 rounded flex items-center justify-center transition-all ${isMember ? 'bg-primary text-white' : 'bg-white/5 text-transparent group-hover:text-muted'}`}
+                                   className={`w-6 h-6 rounded flex items-center justify-center transition-all ${isMember ? 'bg-primary text-white' : 'bg-elevated text-transparent group-hover:text-muted'}`}
                                  >
                                     <CheckCircle size={14} />
                                  </button>
@@ -565,7 +620,6 @@ export default function LeadManagement({ standalone = true }) {
                        </div>
                     </div>
 
-                    <button className="btn btn-outline btn-block btn-sm py-3 mt-auto"><Share2 size={14} /> Manage Permissions</button>
                   </div>
                 ))}
 
@@ -578,7 +632,7 @@ export default function LeadManagement({ standalone = true }) {
                       placeholder="Team Naam..." 
                       value={newTeamName}
                       onChange={e => setNewTeamName(e.target.value)}
-                      className="w-full bg-dark border border-white/10 p-3 rounded-xl mb-4 focus:ring-1 focus:ring-primary"
+                      className="w-full bg-dark border border-border p-3 rounded-xl mb-4 focus:ring-1 focus:ring-primary"
                     />
                     <div className="flex gap-2">
                        <button className="btn btn-primary flex-1" onClick={createTeam}>Opslaan</button>
@@ -588,7 +642,7 @@ export default function LeadManagement({ standalone = true }) {
                 ) : (
                   <button 
                     onClick={() => setShowAddTeam(true)}
-                    className="glass-panel p-6 border-dashed border-white/20 flex flex-column items-center justify-center gap-3 hover:border-primary/50 transition-all text-muted hover:text-primary min-h-[300px]"
+                    className="glass-panel p-6 border-dashed border-border flex flex-column items-center justify-center gap-3 hover:border-primary/50 transition-all text-muted hover:text-primary min-h-[300px]"
                   >
                     <Plus size={32} />
                     <span className="font-bold">Team Toevoegen</span>
@@ -616,10 +670,10 @@ export default function LeadManagement({ standalone = true }) {
                           <div className="flex flex-column gap-3">
                              <div className="flex items-center gap-2">
                                 <span className="w-6 h-6 rounded-full bg-secondary/20 text-secondary text-[10px] flex items-center justify-center font-black">1</span>
-                                <label className="text-xs font-black uppercase tracking-widest text-white/60">Selecteer Bron-Batch</label>
+                                <label className="text-xs font-black uppercase tracking-widest text-muted">Selecteer bron-project</label>
                              </div>
                              <select 
-                               className="bg-dark p-4 rounded-xl border border-white/10 w-full font-bold text-lg focus:border-secondary transition-all"
+                               className="bg-dark p-4 rounded-xl border border-border w-full font-bold text-lg focus:border-secondary transition-all"
                                value={bulkListId}
                                onChange={e => setBulkListId(e.target.value)}
                              >
@@ -631,14 +685,14 @@ export default function LeadManagement({ standalone = true }) {
                           <div className="flex flex-column gap-3">
                              <div className="flex items-center gap-2">
                                 <span className="w-6 h-6 rounded-full bg-secondary/20 text-secondary text-[10px] flex items-center justify-center font-black">2</span>
-                                <label className="text-xs font-black uppercase tracking-widest text-white/60">Doel Toewijzing</label>
+                                <label className="text-xs font-black uppercase tracking-widest text-muted">Doel Toewijzing</label>
                              </div>
                              
-                             <div className="bg-dark/50 p-6 rounded-2xl border border-white/5 space-y-6">
+                             <div className="bg-dark/50 p-6 rounded-2xl border border-border space-y-6">
                                 <div>
                                    <label className="text-[10px] text-muted font-black block mb-3 uppercase tracking-widest">Individuele Beller</label>
                                    <select 
-                                     className="bg-dark p-3 rounded-lg border border-white/10 w-full text-sm font-bold"
+                                     className="bg-dark p-3 rounded-lg border border-border w-full text-sm font-bold"
                                      value={bulkTargetAgentId}
                                      onChange={e => { setBulkTargetAgentId(e.target.value); if(e.target.value) setBulkTargetTeamId(''); }}
                                    >
@@ -648,14 +702,14 @@ export default function LeadManagement({ standalone = true }) {
                                 </div>
 
                                 <div className="relative py-2">
-                                   <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/5"></div></div>
-                                   <div className="relative flex justify-center"><span className="bg-dark px-3 text-[10px] font-black text-white/20 uppercase tracking-widest">of</span></div>
+                                   <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border"></div></div>
+                                   <div className="relative flex justify-center"><span className="bg-dark px-3 text-[10px] font-black text-body/20 uppercase tracking-widest">of</span></div>
                                 </div>
 
                                 <div>
                                    <label className="text-[10px] text-muted font-black block mb-3 uppercase tracking-widest">Beller Groep (Team)</label>
                                    <select 
-                                     className="bg-dark p-3 rounded-lg border border-white/10 w-full text-sm font-bold"
+                                     className="bg-dark p-3 rounded-lg border border-border w-full text-sm font-bold"
                                      value={bulkTargetTeamId}
                                      onChange={e => { setBulkTargetTeamId(e.target.value); if(e.target.value) setBulkTargetAgentId(''); }}
                                    >
@@ -670,19 +724,23 @@ export default function LeadManagement({ standalone = true }) {
                        <div className="flex flex-column">
                           <div className="flex items-center gap-2 mb-3">
                              <span className="w-6 h-6 rounded-full bg-secondary/20 text-secondary text-[10px] flex items-center justify-center font-black">3</span>
-                             <label className="text-xs font-black uppercase tracking-widest text-white/60">Actie Preview</label>
+                             <label className="text-xs font-black uppercase tracking-widest text-muted">Actie Preview</label>
                           </div>
                           
                           <div className="flex-1 bg-gradient-to-br from-secondary/5 to-transparent border border-secondary/10 rounded-2xl p-8 flex flex-column items-center justify-center text-center">
                              {bulkListId ? (
                                 <>
                                    <Zap size={48} className="text-secondary mb-6 animate-pulse" />
-                                   <h3 className="text-xl font-black text-white mb-2 italic">READY TO SYNC</h3>
+                                   <h3 className="text-xl font-black text-body mb-2 italic">READY TO SYNC</h3>
                                    <p className="text-sm text-muted leading-relaxed font-medium">
-                                      Je staat op het punt om <span className="text-white font-bold">{leadLists.find(l => l.id === bulkListId)?.name}</span> toe te wijzen aan 
-                                      <span className="text-white font-bold"> {bulkTargetAgentId ? agents.find(a => a.id === bulkTargetAgentId)?.full_name : bulkTargetTeamId ? teams.find(t => t.id === bulkTargetTeamId)?.name : '...'}</span>.
+                                      {bulkTargetTeamId ? (
+                                        <>Team <span className="text-body font-bold">{teams.find(t => t.id === bulkTargetTeamId)?.name}</span> wordt gekoppeld aan het project van <span className="text-body font-bold">{leadLists.find(l => l.id === bulkListId)?.name}</span> - en mag dan op álle lijsten binnen dat project bellen.</>
+                                      ) : (
+                                        <>Je staat op het punt om alle leads in <span className="text-body font-bold">{leadLists.find(l => l.id === bulkListId)?.name}</span> toe te wijzen aan
+                                        <span className="text-body font-bold"> {bulkTargetAgentId ? agents.find(a => a.id === bulkTargetAgentId)?.full_name : '...'}</span>. Ook leads die al bij iemand anders lagen gaan mee.</>
+                                      )}
                                    </p>
-                                   <div className="mt-8 pt-8 border-t border-white/5 w-full">
+                                   <div className="mt-8 pt-8 border-t border-border w-full">
                                       <button 
                                         onClick={runBulkAssignment}
                                         disabled={processingBulk || (!bulkTargetAgentId && !bulkTargetTeamId)}
@@ -713,23 +771,29 @@ export default function LeadManagement({ standalone = true }) {
       <ImportLeadsModal
         isOpen={showImport}
         onClose={() => setShowImport(false)}
-        onImported={() => { fetchLeadLists(); if (selectedList) fetchLeads(selectedList.id) }}
+        onImported={() => { fetchData(); fetchLeadLists(); if (selectedList) fetchLeads(selectedList.id) }}
+      />
+
+      <NewProjectWizard
+        isOpen={showNewProject}
+        onClose={() => setShowNewProject(false)}
+        onCreated={(list) => { fetchData(); fetchLeadLists(); setDataSubTab('active'); setSelectedList(list) }}
       />
 
       <style>{`
         .container-wide { max-width: 1400px; margin: 0 auto; }
-        .grid-cols-12 { display: grid; grid-template-columns: repeat(12, 1fr); }
-        .col-span-12 { grid-column: span 12; }
+        .grid-cols-12 { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); }
+        .col-span-12 { grid-column: span 12; min-width: 0; }
         .lg\\:col-span-4 { grid-column: span 4; }
         .lg\\:col-span-8 { grid-column: span 8; }
-        .glass-panel { background: rgba(255,255,255,0.03); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.05); border-radius: 24px; }
-        .bg-dark-soft { background: rgba(255,255,255,0.02); }
+        .glass-panel { background: var(--border); backdrop-filter: blur(20px); border: 1px solid var(--border); border-radius: 24px; }
+        .bg-dark-soft { background: var(--bg-elevated); }
         .text-secondary { color: var(--secondary); }
-        .text-error { color: #ef4444; }
+        .text-error { color: var(--danger); }
         .btn-secondary { background: var(--secondary); color: var(--primary-dark); }
-        .btn-outline { border: 1px solid rgba(255,255,255,0.1); color: var(--text-muted); }
-        .btn-outline:hover { background: rgba(255,255,255,0.05); color: white; }
-        .hover-danger:hover { color: #ef4444; }
+        .btn-outline { border: 1px solid var(--border-strong); color: var(--text-muted); }
+        .btn-outline:hover { background: var(--bg-elevated); color: var(--text-primary); }
+        .hover-danger:hover { color: var(--danger); }
       `}</style>
     </div>
   )
@@ -740,14 +804,14 @@ function ListButton({ list, active, onClick }) {
     <button 
       onClick={onClick}
       className={`flex items-center justify-between w-full p-4 rounded-xl transition-all ${
-        active ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'bg-white/3 text-muted hover:bg-white/7'
+        active ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'bg-elevated text-muted hover:bg-elevated'
       }`}
     >
-      <div className="flex items-center gap-3">
-        <List size={16} />
-        <span className="text-sm font-bold truncate">{list.name}</span>
+      <div className="flex items-center gap-3 min-w-0">
+        <List size={16} className="shrink-0" />
+        <span className="text-sm font-bold break-words text-left min-w-0">{list.name}</span>
       </div>
-      <ChevronRight size={14} />
+      <ChevronRight size={14} className="shrink-0" />
     </button>
   )
 }

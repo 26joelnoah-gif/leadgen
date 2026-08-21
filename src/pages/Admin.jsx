@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
 import Header from '../components/Header'
-import { Link, Navigate } from 'react-router-dom'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
   Plus, Users, Settings, UserPlus, Phone, PhoneOff, Mail, 
@@ -26,16 +26,31 @@ import BriefingModal, { BriefingCard } from '../components/BriefingModal'
 import { LeadListModal } from '../components/LeadListModal'
 import EmployeeModal from '../components/EmployeeModal'
 import ManagerProjectsModal from '../components/ManagerProjectsModal'
+import NewProjectWizard from '../components/NewProjectWizard'
 import PayoutSettings from '../components/PayoutSettings'
 import ImportLeadsModal from '../components/ImportLeadsModal'
 import LeadManagement from './LeadManagement' // IMPORT THE MANAGEMENT COMPONENT
+
+// Seconden -> "1u 11m" / "11m"
+function fmtBeltijd(totalSeconds) {
+  const s = Math.max(0, Math.round(totalSeconds || 0))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  if (h > 0) return `${h}u ${m}m`
+  return `${m}m`
+}
 
 export default function Admin() {
   const { user, profile, isWorking, toggleWorkingMode, isDemoMode } = useAuth()
   const toast = useToast()
   const { leadLists, fetchLeadLists } = useLeadLists()
 
-  const [activeTab, setActiveTab] = useState('dashboard')
+  // Tab in de URL (?tab=team) zodat terug-knop en delen van links werken
+  const [searchParams, setSearchParams] = useSearchParams()
+  // Admin start in beheer (Projecten & Leads) - het dashboard met lead-stats
+  // blijft bereikbaar via de tab, maar is niet de beginpagina.
+  const activeTab = searchParams.get('tab') || 'data'
+  const setActiveTab = (t) => setSearchParams(t === 'data' ? {} : { tab: t }, { replace: true })
   const [leads, setLeads] = useState([])
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
@@ -49,10 +64,12 @@ export default function Admin() {
   const [showBriefing, setShowBriefing] = useState(false)
   const [campaigns, setCampaigns] = useState([])
   const [briefings, setBriefings] = useState([])
-  const [editingUser, setEditingUser] = useState(null)
+  const [confirmDeleteUser, setConfirmDeleteUser] = useState(null)
+  const [todayStats, setTodayStats] = useState({ calls: 0, seconds: 0, afspraken: 0, deals: 0, perAgent: {} })
   const [showSettings, setShowSettings] = useState(false)
   const [showEmployee, setShowEmployee] = useState(false)
   const [managingUser, setManagingUser] = useState(null) // manager wiens projecten we koppelen
+  const [showNewProject, setShowNewProject] = useState(false)
   const [managerLinks, setManagerLinks] = useState([]) // project_managers-rijen voor de projectenteller
   const [showLeadList, setShowLeadList] = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -126,6 +143,28 @@ export default function Admin() {
       setLeads(l || [])
       setUsers(u || [])
       setManagerLinks(pm || [])
+
+      // Vandaag: gesprekken, beltijd en resultaten uit call_logs (voor KPI-rij + teamkaarten)
+      const todayStart = new Date()
+      todayStart.setHours(0, 0, 0, 0)
+      const { data: logs } = await supabase
+        .from('call_logs')
+        .select('agent_id, duration_seconds, disposition')
+        .gte('disposed_at', todayStart.toISOString())
+        .limit(5000)
+      const stats = { calls: 0, seconds: 0, afspraken: 0, deals: 0, perAgent: {} }
+      ;(logs || []).forEach(log => {
+        stats.calls++
+        stats.seconds += log.duration_seconds || 0
+        if (log.disposition === 'afspraak_gemaakt') stats.afspraken++
+        if (log.disposition === 'deal') stats.deals++
+        if (log.agent_id) {
+          if (!stats.perAgent[log.agent_id]) stats.perAgent[log.agent_id] = { calls: 0, seconds: 0 }
+          stats.perAgent[log.agent_id].calls++
+          stats.perAgent[log.agent_id].seconds += log.duration_seconds || 0
+        }
+      })
+      setTodayStats(stats)
     } catch (err) {
       toast(err.message, 'error')
     } finally {
@@ -134,6 +173,13 @@ export default function Admin() {
   }
 
   async function handleDeleteEmployee(userId) {
+    // Twee keer klikken = bevestigen (voorkomt per ongeluk verwijderen)
+    if (confirmDeleteUser !== userId) {
+      setConfirmDeleteUser(userId)
+      toast('Klik nogmaals op de prullenbak om definitief te verwijderen', 'error')
+      return
+    }
+    setConfirmDeleteUser(null)
     try {
       const { error } = await supabase.from('profiles').delete().eq('id', userId)
       if (error) throw error
@@ -185,26 +231,24 @@ export default function Admin() {
   }
 
   return (
-    <div className="min-h-screen bg-dark text-white">
+    <div className="min-h-screen bg-dark text-body">
       <Header onOpenSettings={() => setShowSettings(true)} />
 
       <main className="container-wide py-6 px-8">
         {/* TABS MENU */}
-        <div className="flex gap-4 mb-8 bg-white/5 p-2 rounded-2xl w-fit">
+        <div className="tab-bar mb-8">
            {[
-             { id: 'dashboard', label: 'Dashboard', Icon: Activity },
-             { id: 'medewerkers', label: 'Team', Icon: Users },
              { id: 'data', label: 'Projecten & Leads', Icon: Layers },
-             { id: 'verdiensten', label: 'Uitbetaling', Icon: DollarSign }
+             { id: 'medewerkers', label: 'Team', Icon: Users },
+             { id: 'verdiensten', label: 'Uitbetaling', Icon: DollarSign },
+             { id: 'dashboard', label: 'Dashboard', Icon: Activity }
            ].map(t => (
              <button
                key={t.id}
                onClick={() => setActiveTab(t.id)}
-               className={`px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all ${
-                 activeTab === t.id ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-muted hover:text-white'
-               }`}
+               className={`tab-btn ${activeTab === t.id ? 'active' : ''}`}
              >
-               <t.Icon size={16} className="inline mr-2" />
+               <t.Icon size={16} />
                {t.label}
              </button>
            ))}
@@ -212,19 +256,38 @@ export default function Admin() {
 
         {activeTab === 'dashboard' && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-             <div className="flex justify-between items-center mb-10">
+             <div className="flex justify-between items-center mb-10" style={{ flexWrap: 'wrap', gap: '16px' }}>
                 <div>
-                   <h1 className="text-4xl font-black italic tracking-tighter text-white">ADMIN COMMAND</h1>
-                   <p className="text-muted font-bold">Welkom terug, {profile?.full_name}. Systeem is 100% operationeel.</p>
+                   <h1 className="page-title">Admin</h1>
+                   <p className="page-subtitle">Welkom terug, {profile?.full_name?.split(' ')[0]}. Dit gebeurt er vandaag.</p>
                 </div>
-                <div className="flex gap-3">
-                   <button className="btn btn-primary px-8 py-4" onClick={() => setShowImport(true)}><Upload size={20} /> IMPORTEER LEADS</button>
-                   <button className="btn btn-primary px-8 py-4" onClick={() => setShowAddLead(true)}><Plus size={20} /> NIEUWE LEAD</button>
-                   <button className="btn btn-secondary px-8 py-4 text-dark font-black shadow-lg shadow-secondary/20" onClick={() => setShowCampaign(true)}><Megaphone size={20}/> CAMPAGNE</button>
+                <div className="flex gap-3" style={{ flexWrap: 'wrap' }}>
+                   <button className="btn btn-secondary" onClick={() => setShowNewProject(true)}><Layers size={18} /> Nieuw project</button>
+                   <button className="btn btn-primary" onClick={() => setShowImport(true)}><Upload size={18} /> Leads importeren</button>
+                   <button className="btn btn-outline" onClick={() => setShowAddLead(true)}><Plus size={18} /> Nieuwe lead</button>
+                   <button className="btn btn-outline" onClick={() => setShowCampaign(true)}><Megaphone size={18}/> Campagne</button>
                 </div>
              </div>
 
-             <PipelineFunnel leads={leads} isDemoMode={isDemoMode} />
+             {/* KPI-rij: wat gebeurt er vandaag (live uit call_logs) */}
+             <div className="stats-grid">
+                {[
+                  { label: 'Gesprekken vandaag', val: todayStats.calls, Icon: Phone, color: 'var(--primary)' },
+                  { label: 'Beltijd vandaag', val: fmtBeltijd(todayStats.seconds), Icon: Activity, color: 'var(--secondary)' },
+                  { label: 'Afspraken vandaag', val: todayStats.afspraken, Icon: Calendar, color: 'var(--info)' },
+                  { label: 'Deals vandaag', val: todayStats.deals, Icon: CheckCircle, color: 'var(--success)' }
+                ].map((kpi, i) => (
+                  <motion.div key={kpi.label} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.08 }} className="stat-card glass-panel">
+                     <div className="flex justify-between items-start">
+                        <div>
+                           <div className="number" style={{ color: kpi.color }}>{kpi.val}</div>
+                           <div className="label">{kpi.label}</div>
+                        </div>
+                        <kpi.Icon size={24} style={{ color: kpi.color, opacity: 0.25 }} />
+                     </div>
+                  </motion.div>
+                ))}
+             </div>
 
              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-10">
                 <div className="glass-panel p-6 border-l-2 border-secondary h-fit">
@@ -236,10 +299,10 @@ export default function Admin() {
                    <button onClick={() => setShowBriefing(true)} className="btn btn-outline btn-sm btn-block mb-4">Verstuur nieuwe briefing</button>
                    {briefings.map(b => <BriefingCard key={b.id} briefing={b} />)}
                 </div>
-                <div className="glass-panel p-8 bg-gradient-to-br from-primary/20 to-transparent border border-white/5">
-                   <h2 className="text-2xl font-black italic mb-4">QUICK EXPORT</h2>
-                   <button onClick={() => exportToCSV(leads, 'LeadGen_Backup')} className="btn btn-primary btn-block py-4 shadow-xl shadow-primary/30 font-black tracking-widest">DOWNLOAD ALLE DATA (.CSV)</button>
-                   <Link to="/admin/telemetry" className="btn btn-outline btn-block mt-4 border-white/10 text-muted hover:text-white">Open Telemetry Dashboard</Link>
+                <div className="glass-panel p-8 bg-gradient-to-br from-primary/20 to-transparent border border-border">
+                   <h2 className="text-primary font-black text-sm uppercase tracking-widest mb-4 flex items-center gap-2"><Download size={14}/> Export & Tools</h2>
+                   <button onClick={() => exportToCSV(leads, 'LeadGen_Backup')} className="btn btn-primary btn-block py-4 font-black">Download alle data (.csv)</button>
+                   <Link to="/admin/telemetry" className="btn btn-outline btn-block mt-4 border-border text-muted hover:text-body">Telemetrie openen</Link>
                 </div>
              </div>
           </motion.div>
@@ -247,37 +310,46 @@ export default function Admin() {
 
         {activeTab === 'medewerkers' && (
           <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}>
-             <div className="flex justify-between items-center mb-8">
-                <h2 className="text-3xl font-black italic tracking-tight">TEAM OVERVIEW</h2>
-                <button onClick={() => setShowEmployee(true)} className="btn btn-primary px-6"><UserPlus size={18} /> Nieuwe Medewerker</button>
+             <div className="flex justify-between items-center mb-8" style={{ flexWrap: 'wrap', gap: '12px' }}>
+                <div>
+                   <h2 className="page-title">Team</h2>
+                   <p className="page-subtitle">Bellers, managers en admins - met hun activiteit van vandaag.</p>
+                </div>
+                <button onClick={() => setShowEmployee(true)} className="btn btn-primary"><UserPlus size={18} /> Nieuwe medewerker</button>
              </div>
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {users.map(u => (
-                  <div key={u.id} className="glass-panel p-6 group hover:border-primary/50 transition-all border border-white/5">
-                     <div className="flex justify-between">
-                        <div className="flex items-center gap-4">
-                           <div className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center font-black text-primary border border-white/5">{u.full_name?.charAt(0)}</div>
-                           <div>
-                              <div className="font-bold text-white tracking-tight">{u.full_name}</div>
-                              <div className="text-[10px] text-muted opacity-50 uppercase font-black">{u.email}</div>
+                  <div key={u.id} className="glass-panel p-6 group hover:border-primary/50 transition-all border border-border">
+                     <div className="flex justify-between items-start gap-3">
+                        <div className="flex items-center gap-4 min-w-0">
+                           <div className="w-12 h-12 bg-elevated rounded-xl flex items-center justify-center font-black text-primary border border-border shrink-0">{u.full_name?.charAt(0)}</div>
+                           <div className="min-w-0">
+                              <div className="font-bold text-body tracking-tight break-words">{u.full_name}</div>
+                              <div className="text-[10px] text-muted opacity-50 font-black break-all">{u.email}</div>
                            </div>
                         </div>
-                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : 'bg-success/20 text-success'}`}>{u.role}</span>
+                        <span className={`self-start shrink-0 whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : 'bg-success/20 text-success'}`}>{u.role === 'employee' ? 'Beller' : u.role}</span>
                      </div>
-                     <div className="mt-6 pt-4 border-t border-white/5 flex justify-between items-center">
+                     <div className="mt-6 pt-4 border-t border-border flex justify-between items-center">
                         <div>
                            <div className="text-xs text-muted font-bold uppercase tracking-tight">Actieve Leads</div>
-                           <div className="text-2xl font-black text-white">{leads.filter(l => l.assigned_to === u.id).length}</div>
+                           <div className="text-2xl font-black text-body">{leads.filter(l => l.assigned_to === u.id).length}</div>
                         </div>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                           {u.role === 'manager' && (
-                             <button onClick={() => setManagingUser(u)} className="p-2 hover:bg-primary/20 rounded-lg text-muted hover:text-primary" title="Projecten koppelen"><Layers size={18}/></button>
-                           )}
-                           <button onClick={() => setEditingUser(u)} className="p-2 hover:bg-white/10 rounded-lg text-muted hover:text-white"><Settings size={18}/></button>
-                           {u.id !== user.id && (
-                             <button onClick={() => handleDeleteEmployee(u.id)} className="p-2 hover:bg-error/20 rounded-lg text-muted hover:text-error"><Trash2 size={18}/></button>
-                           )}
+                        <div>
+                           <div className="text-xs text-muted font-bold uppercase tracking-tight">Vandaag</div>
+                           <div className="text-sm font-black text-body">
+                              {(todayStats.perAgent[u.id]?.calls || 0)} gesprekken · {fmtBeltijd(todayStats.perAgent[u.id]?.seconds || 0)}
+                           </div>
                         </div>
+                        {u.id !== user.id && (
+                          <button
+                            onClick={() => handleDeleteEmployee(u.id)}
+                            className={`p-2 rounded-lg transition-all ${confirmDeleteUser === u.id ? 'bg-error text-white' : 'text-muted hover:bg-error/20 hover:text-error opacity-0 group-hover:opacity-100'}`}
+                            title={confirmDeleteUser === u.id ? 'Klik nogmaals om definitief te verwijderen' : 'Verwijderen'}
+                          >
+                            <Trash2 size={18}/>
+                          </button>
+                        )}
                      </div>
                      {u.role === 'manager' && (
                        <div className="mt-3">
@@ -289,7 +361,7 @@ export default function Admin() {
                               </span>
                             ) : (
                               <span className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest bg-secondary/15 text-secondary">
-                                Nog geen projecten gekoppeld — klik op "Projecten"
+                                Nog geen projecten gekoppeld - klik op "Projecten"
                               </span>
                             )
                           })()}
@@ -335,8 +407,8 @@ export default function Admin() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="modal-overlay" onClick={() => setShowAddLead(false)}>
               <motion.div initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} className="modal glass-panel p-8 max-w-xl w-full" onClick={e => e.stopPropagation()}>
                 <div className="flex justify-between items-center mb-8">
-                  <h2 className="text-2xl font-black italic tracking-tighter">LEAD HANDMATIG TOEVOEGEN</h2>
-                  <button onClick={() => setShowAddLead(false)} className="text-muted hover:text-white"><X size={24}/></button>
+                  <h2 className="text-2xl font-black tracking-tight">Lead toevoegen</h2>
+                  <button onClick={() => setShowAddLead(false)} className="text-muted hover:text-body"><X size={24}/></button>
                 </div>
                 <form onSubmit={addLead} className="grid grid-cols-1 gap-6">
                   <div className="grid grid-cols-2 gap-4">
@@ -394,7 +466,7 @@ export default function Admin() {
                     </div>
                   </div>
 
-                  <button type="submit" className="btn btn-primary btn-block py-5 text-lg font-black tracking-widest shadow-2xl shadow-primary/30 mt-4 uppercase">Opslaan & Publiceren</button>
+                  <button type="submit" className="btn btn-primary btn-block py-4 text-lg font-black mt-4">Lead opslaan</button>
                 </form>
               </motion.div>
             </motion.div>
@@ -419,12 +491,11 @@ export default function Admin() {
       <CampaignModal isOpen={showCampaign} onClose={() => setShowCampaign(false)} />
       <LeadListModal isOpen={showLeadList} onClose={() => setShowLeadList(false)} />
       <ImportLeadsModal isOpen={showImport} onClose={() => setShowImport(false)} onImported={() => { fetchData(); fetchLeadLists() }} />
+      <NewProjectWizard isOpen={showNewProject} onClose={() => setShowNewProject(false)} onCreated={() => { fetchData(); fetchLeadLists() }} />
 
       <style jsx>{`
-        .form-dark { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); padding: 12px 16px; border-radius: 12px; color: white; transition: all 0.2s; }
-        .form-dark:focus { border-color: var(--primary); outline: none; box-shadow: 0 0 0 2px rgba(var(--primary-rgb), 0.2); }
         .container-wide { max-width: 1400px; margin: 0 auto; }
-        .glass-panel { background: rgba(255,255,255,0.02); backdrop-filter: blur(20px); border-radius: 20px; }
+        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(20px); border-radius: 20px; }
       `}</style>
     </div>
   )

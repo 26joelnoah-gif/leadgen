@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LEADGEN — Stijl-preview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* ===== LAAG 2: SEMANTISCHE TOKENS — exact zoals in RESTYLE_PLAN.md ===== */
+:root, [data-theme="dark"] {
+  color-scheme: dark;
+  --bg-page: #0F1117;
+  --bg-surface: #1A1D23;
+  --bg-card: #1E2028;
+  --bg-elevated: #252A33;
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --border-subtle: #2A2D35;
+  --border-strong: #3D424D;
+  --accent: #3B82F6;
+  --accent-hover: #2F6FDE;
+  --accent-soft: rgba(59,130,246,.14);
+  --success: #34D399; --success-bg: rgba(16,185,129,.14);
+  --warning: #FBBF24; --warning-bg: rgba(245,158,11,.14);
+  --danger:  #F87171; --danger-bg:  rgba(239,68,68,.13);
+  --info:    #60A5FA; --info-bg:    rgba(59,130,246,.13);
+  --shadow-card: 0 1px 2px rgba(0,0,0,.25);
+  --shadow-modal: 0 16px 40px rgba(0,0,0,.45);
+}
+[data-theme="light"] {
+  color-scheme: light;
+  --bg-page: #F7F8FA;
+  --bg-surface: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #F1F3F6;
+  --text-primary: #0F172A;
+  --text-secondary: #64748B;
+  --border-subtle: #E2E8F0;
+  --border-strong: #CBD5E1;
+  --accent: #2563EB;
+  --accent-hover: #1D4ED8;
+  --accent-soft: rgba(37,99,235,.10);
+  --success: #047857; --success-bg: rgba(16,185,129,.12);
+  --warning: #B45309; --warning-bg: rgba(245,158,11,.14);
+  --danger:  #B91C1C; --danger-bg:  rgba(239,68,68,.10);
+  --info:    #1D4ED8; --info-bg:    rgba(59,130,246,.10);
+  --shadow-card: 0 1px 2px rgba(15,23,42,.06);
+  --shadow-modal: 0 16px 40px rgba(15,23,42,.18);
+}
+
+/* ===== Basis ===== */
+* { margin:0; padding:0; box-sizing:border-box; }
+html { scroll-behavior:smooth; }
+body {
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+  font-size:14px; line-height:1.6;
+  background:var(--bg-page); color:var(--text-primary);
+  -webkit-font-smoothing:antialiased;
+  transition: background .25s, color .25s;
+}
+h1,h2,h3,h4,.kpi-value { font-family:'Outfit','Inter',sans-serif; }
+h1 { font-size:24px; font-weight:700; letter-spacing:-.02em; }
+h2 { font-size:20px; font-weight:600; letter-spacing:-.01em; margin-bottom:4px; }
+h3 { font-size:16px; font-weight:600; }
+.muted { color:var(--text-secondary); }
+.mono-num { font-variant-numeric: tabular-nums; }
+
+.wrap { max-width:1040px; margin:0 auto; padding:32px 24px 80px; }
+section { margin-top:48px; }
+.section-tag {
+  display:inline-block; font-size:11px; font-weight:600; letter-spacing:.08em;
+  text-transform:uppercase; color:var(--accent); margin-bottom:8px;
+}
+.section-note { color:var(--text-secondary); max-width:640px; margin-bottom:20px; }
+
+/* ===== Topbar met toggle ===== */
+.topbar {
+  position:sticky; top:0; z-index:50;
+  background:color-mix(in srgb, var(--bg-page) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom:1px solid var(--border-subtle);
+}
+.topbar-inner {
+  max-width:1040px; margin:0 auto; padding:14px 24px;
+  display:flex; align-items:center; justify-content:space-between; gap:16px;
+}
+.brand { display:flex; align-items:center; gap:10px; font-family:'Outfit'; font-weight:700; font-size:16px; }
+.brand-dot { width:26px; height:26px; border-radius:8px; background:var(--accent); display:grid; place-items:center; color:#fff; font-size:13px; }
+.theme-switch {
+  display:flex; gap:4px; background:var(--bg-elevated);
+  border:1px solid var(--border-subtle); border-radius:9999px; padding:4px;
+}
+.theme-switch button {
+  font:inherit; font-size:13px; font-weight:500; cursor:pointer;
+  border:0; background:transparent; color:var(--text-secondary);
+  padding:5px 14px; border-radius:9999px; transition:.15s;
+}
+.theme-switch button.active { background:var(--bg-card); color:var(--text-primary); box-shadow:var(--shadow-card); border:1px solid var(--border-subtle); }
+
+/* ===== Kaarten / layout ===== */
+.card {
+  background:var(--bg-card); border:1px solid var(--border-subtle);
+  border-radius:12px; box-shadow:var(--shadow-card); padding:20px;
+}
+.grid { display:grid; gap:16px; }
+.grid-2 { grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); }
+.grid-4 { grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); }
+
+/* ===== Swatches ===== */
+.swatch-row { display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:12px; }
+.swatch { border:1px solid var(--border-subtle); border-radius:8px; overflow:hidden; background:var(--bg-card); }
+.swatch .chip { height:52px; }
+.swatch .lbl { padding:8px 10px; font-size:11px; }
+.swatch .lbl b { display:block; font-weight:600; font-size:12px; }
+
+/* ===== Knoppen ===== */
+.btn {
+  font:inherit; font-size:13.5px; font-weight:500; cursor:pointer;
+  display:inline-flex; align-items:center; gap:7px;
+  padding:8px 16px; border-radius:8px; border:1px solid transparent;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.btn:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+.btn-primary { background:var(--accent); color:#fff; }
+.btn-primary:hover { background:var(--accent-hover); }
+.btn-secondary { background:var(--bg-elevated); color:var(--text-primary); border-color:var(--border-subtle); }
+.btn-secondary:hover { border-color:var(--border-strong); }
+.btn-ghost { background:transparent; color:var(--text-secondary); }
+.btn-ghost:hover { background:var(--bg-elevated); color:var(--text-primary); }
+.btn-danger { background:var(--danger-bg); color:var(--danger); border-color:transparent; }
+.btn-danger:hover { border-color:var(--danger); }
+.btn-sm { padding:5px 11px; font-size:12.5px; border-radius:8px; }
+.btn-lg { padding:11px 22px; font-size:15px; }
+.btn[disabled] { opacity:.45; cursor:not-allowed; }
+
+/* Oude stijl ter vergelijking */
+.btn-old {
+  font-family:'Outfit'; font-weight:700; color:#fff; cursor:pointer; border:0;
+  padding:10px 20px; border-radius:12px;
+  background:linear-gradient(135deg,#3B82F6 0%,#60A5FA 100%);
+  box-shadow:0 4px 20px rgba(59,130,246,.45);
+}
+
+/* ===== Formulieren ===== */
+.field { display:flex; flex-direction:column; gap:6px; }
+.field label { font-size:12.5px; font-weight:500; color:var(--text-secondary); }
+.input, select.input, textarea.input {
+  font:inherit; font-size:14px; color:var(--text-primary);
+  background:var(--bg-elevated); border:1px solid var(--border-subtle);
+  border-radius:8px; padding:9px 12px; width:100%;
+  transition:border-color .15s, box-shadow .15s;
+}
+.input::placeholder { color:var(--text-secondary); }
+.input:focus { outline:none; border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+.input.invalid { border-color:var(--danger); }
+.field .hint { font-size:12px; color:var(--text-secondary); }
+.field .error { font-size:12px; color:var(--danger); }
+
+/* ===== Tabs ===== */
+.tab-bar { display:flex; gap:2px; border-bottom:1px solid var(--border-subtle); }
+.tab-btn {
+  font:inherit; font-size:13.5px; font-weight:500; cursor:pointer;
+  background:none; border:0; color:var(--text-secondary);
+  padding:9px 14px; border-bottom:2px solid transparent; margin-bottom:-1px;
+}
+.tab-btn:hover { color:var(--text-primary); }
+.tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+/* ===== Status pills ===== */
+.pill {
+  display:inline-flex; align-items:center; gap:6px;
+  font-size:12px; font-weight:500; padding:3px 10px; border-radius:9999px;
+}
+.pill::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; }
+.pill-success { color:var(--success); background:var(--success-bg); }
+.pill-warning { color:var(--warning); background:var(--warning-bg); }
+.pill-danger  { color:var(--danger);  background:var(--danger-bg); }
+.pill-info    { color:var(--info);    background:var(--info-bg); }
+.pill-neutral { color:var(--text-secondary); background:var(--bg-elevated); }
+
+/* ===== KPI ===== */
+.kpi { padding:16px 18px; }
+.kpi-label { font-size:12px; font-weight:500; color:var(--text-secondary); }
+.kpi-value { font-size:26px; font-weight:700; letter-spacing:-.02em; margin-top:2px; }
+.kpi-delta { font-size:12px; font-weight:500; margin-top:2px; }
+.kpi-delta.up { color:var(--success); } .kpi-delta.down { color:var(--danger); }
+
+/* ===== Tabel ===== */
+.table-card { padding:0; overflow:hidden; }
+table { width:100%; border-collapse:collapse; font-size:13.5px; }
+thead th {
+  text-align:left; font-size:11.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase;
+  color:var(--text-secondary); background:var(--bg-surface);
+  padding:10px 16px; border-bottom:1px solid var(--border-subtle);
+}
+tbody td { padding:11px 16px; border-bottom:1px solid var(--border-subtle); }
+tbody tr:last-child td { border-bottom:0; }
+tbody tr:hover td { background:var(--bg-elevated); }
+
+/* ===== Belscherm-mock ===== */
+.mock-app { border:1px solid var(--border-subtle); border-radius:16px; overflow:hidden; box-shadow:var(--shadow-modal); }
+.mock-header {
+  display:flex; justify-content:space-between; align-items:center; gap:12px;
+  padding:12px 20px; background:var(--bg-surface); border-bottom:1px solid var(--border-subtle);
+}
+.mock-header .left { display:flex; align-items:center; gap:10px; font-family:'Outfit'; font-weight:600; }
+.mock-body { background:var(--bg-page); padding:24px; display:grid; grid-template-columns:1.4fr 1fr; gap:16px; }
+.lead-name { font-family:'Outfit'; font-size:20px; font-weight:600; letter-spacing:-.01em; }
+.lead-phone { font-size:22px; font-weight:600; color:var(--accent); font-variant-numeric:tabular-nums; margin-top:2px; }
+.lead-meta { display:flex; flex-wrap:wrap; gap:14px; margin-top:14px; font-size:13px; color:var(--text-secondary); }
+.dispo-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:18px; }
+.progress-track { height:6px; border-radius:9999px; background:var(--bg-elevated); overflow:hidden; }
+.progress-fill { height:100%; width:64%; border-radius:9999px; background:var(--accent); }
+
+.compare { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+.compare .panel { border:1px dashed var(--border-strong); border-radius:12px; padding:18px; }
+.compare .panel h4 { font-size:12px; text-transform:uppercase; letter-spacing:.07em; color:var(--text-secondary); margin-bottom:14px; }
+
+@media (max-width:760px){ .mock-body,.compare{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<div class="topbar"><div class="topbar-inner">
+  <div class="brand"><span class="brand-dot">L</span> LEADGEN <span class="muted" style="font-weight:400;font-size:13px;">— stijl-preview</span></div>
+  <div class="theme-switch" role="group" aria-label="Thema">
+    <button id="btn-dark" class="active" onclick="setTheme('dark')">🌙 Donker</button>
+    <button id="btn-light" onclick="setTheme('light')">☀️ Licht</button>
+  </div>
+</div></div>
+
+<div class="wrap">
+
+<section style="margin-top:24px;">
+  <h1>Dit is het plan, in beeld</h1>
+  <p class="section-note" style="margin-top:8px;">Alles op deze pagina is gebouwd met de tokens en componenten uit <b>RESTYLE_PLAN.md</b>. Klik rechtsboven op ☀️ <b>Licht</b> — hetzelfde ontwerp, andere tokens. Zo gaat straks de hele app werken.</p>
+</section>
+
+<section>
+  <span class="section-tag">01 · Vergelijking</span>
+  <h2>Oud vs. nieuw</h2>
+  <p class="section-note">Zelfde knop, zelfde functie. Links de huidige stijl (gradient + glow + zwaar font), rechts de voorgestelde: vlak accent, rustige rand, strakke typografie.</p>
+  <div class="compare">
+    <div class="panel"><h4>Nu</h4>
+      <button class="btn-old">🚀 Start met bellen</button>
+      <p class="muted" style="margin-top:14px;font-size:13px;">Gradients en gloed vragen aandacht, ook als er niets gebeurt. Zes verschillende hoekrondingen en fontgewichten t/m 900 maken het onrustig.</p>
+    </div>
+    <div class="panel"><h4>Voorstel</h4>
+      <button class="btn btn-primary">Start met bellen</button>
+      <p class="muted" style="margin-top:14px;font-size:13px;">Kleur alleen waar het betekenis heeft. Diepte komt uit achtergrondlagen en 1px-randen, niet uit schaduwspektakel. Drie hoekrondingen: 8 / 12 / 16.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <span class="section-tag">02 · Fundament</span>
+  <h2>Kleuren — semantische tokens</h2>
+  <p class="section-note">Componenten kennen alleen deze namen. Het thema bepaalt de waarde — daarom is licht/donker straks geen tweede codebase maar één schakelaar.</p>
+  <div class="swatch-row">
+    <div class="swatch"><div class="chip" style="background:var(--bg-page)"></div><div class="lbl"><b>--bg-page</b>app-achtergrond</div></div>
+    <div class="swatch"><div class="chip" style="background:var(--bg-surface)"></div><div class="lbl"><b>--bg-surface</b>panelen</div></div>
+    <div class="swatch"><div class="chip" style="background:var(--bg-card)"></div><div class="lbl"><b>--bg-card</b>kaarten</div></div>
+    <div class="swatch"><div class="chip" style="background:var(--bg-elevated)"></div><div class="lbl"><b>--bg-elevated</b>inputs, hover</div></div>
+    <div class="swatch"><div class="chip" style="background:var(--accent)"></div><div class="lbl"><b>--accent</b>enige merk-kleur</div></div>
+    <div class="swatch"><div class="chip" style="background:var(--success)"></div><div class="lbl"><b>--success</b>deal, afspraak</div></div>
+    <div class="swatch"><div class="chip" style="background:var(--warning)"></div><div class="lbl"><b>--warning</b>opvolgen</div></div>
+    <div class="swatch"><div class="chip" style="background:var(--danger)"></div><div class="lbl"><b>--danger</b>geen interesse</div></div>
+  </div>
+</section>
+
+<section>
+  <span class="section-tag">03 · Fundament</span>
+  <h2>Typografie</h2>
+  <p class="section-note">Outfit alleen nog voor koppen en grote cijfers (600–700). Inter voor alles wat je leest — labels, tabellen, lopende tekst. Cijfers in tabellen krijgen vaste breedte zodat kolommen netjes uitlijnen.</p>
+  <div class="card">
+    <h1>Rapportage per project</h1>
+    <h2 style="margin-top:10px;">Beltijd deze week</h2>
+    <p style="margin-top:10px;max-width:560px;">Dit is lopende tekst in Inter 14px. Lang genoeg om te zien dat het prettig leest, ook na een dag bellen. <a href="#" style="color:var(--accent);text-decoration:none;font-weight:500;">Dit is een link.</a></p>
+    <p class="muted" style="font-size:12.5px;margin-top:8px;">Secundaire tekst — 12,5px, altijd in --text-secondary, nooit een los grijs hexje.</p>
+    <p class="mono-num" style="font-family:'Outfit';font-size:28px;font-weight:700;margin-top:12px;">4:32:18 <span class="muted" style="font-size:13px;font-family:'Inter';font-weight:400;">beltijd · tabular-nums</span></p>
+  </div>
+</section>
+
+<section>
+  <span class="section-tag">04 · Componenten</span>
+  <h2>Knoppen</h2>
+  <p class="section-note">Vier varianten, drie maten, en elke staat gedefinieerd — hover, focus (Tab-toets!), disabled. Nooit meer een los gestylede knop.</p>
+  <div class="card" style="display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+    <button class="btn btn-primary">Primair</button>
+    <button class="btn btn-secondary">Secundair</button>
+    <button class="btn btn-ghost">Ghost</button>
+    <button class="btn btn-danger">Verwijderen</button>
+    <button class="btn btn-primary" disabled>Disabled</button>
+    <span style="width:1px;height:24px;background:var(--border-subtle);"></span>
+    <button class="btn btn-primary btn-sm">Klein</button>
+    <button class="btn btn-primary btn-lg">Groot</button>
+  </div>
+</section>
+
+<section>
+  <span class="section-tag">05 · Componenten</span>
+  <h2>Formulieren</h2>
+  <p class="section-note">Eén <code>Field</code>-component met label, hint en foutmelding. Focus is altijd zichtbaar (accentrand + zachte ring), fouten zijn rood mét tekst — niet alleen een randje.</p>
+  <div class="card grid grid-2">
+    <div class="field">
+      <label>Bedrijfsnaam</label>
+      <input class="input" placeholder="Bijv. Bakkerij Jansen" />
+      <span class="hint">Zoals het in de lijst moet verschijnen.</span>
+    </div>
+    <div class="field">
+      <label>Telefoonnummer</label>
+      <input class="input invalid" value="06-123" />
+      <span class="error">Dit nummer is te kort — check de import.</span>
+    </div>
+    <div class="field">
+      <label>Project</label>
+      <select class="input"><option>Zonnepanelen Zuid</option><option>ISDE Subsidie</option></select>
+    </div>
+    <div class="field">
+      <label>Notitie</label>
+      <textarea class="input" rows="2" placeholder="Korte notitie bij dit gesprek…"></textarea>
+    </div>
+  </div>
+</section>
+
+<section>
+  <span class="section-tag">06 · Componenten</span>
+  <h2>Tabs, statussen &amp; KPI's</h2>
+  <p class="section-note">De statuskleuren komen rechtstreeks uit <code>statusUtils.js</code>, maar per thema met eigen tinten — daarom blijven pills ook op wit leesbaar (AA-contrast).</p>
+  <div class="card">
+    <div class="tab-bar" style="margin:-4px 0 18px;">
+      <button class="tab-btn active">Statistieken</button>
+      <button class="tab-btn">Gesprekken</button>
+      <button class="tab-btn">Per project</button>
+      <button class="tab-btn">Trends</button>
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;">
+      <span class="pill pill-success">Deal!</span>
+      <span class="pill pill-success">Afspraak gemaakt</span>
+      <span class="pill pill-warning">Terugbelafspraak</span>
+      <span class="pill pill-warning">Later bellen</span>
+      <span class="pill pill-info">Nieuw</span>
+      <span class="pill pill-info">Onjuiste timing</span>
+      <span class="pill pill-neutral">Geen gehoor</span>
+      <span class="pill pill-danger">Geen interesse</span>
+      <span class="pill pill-danger">Verkeerd nummer</span>
+    </div>
+  </div>
+  <div class="grid grid-4" style="margin-top:16px;">
+    <div class="card kpi"><div class="kpi-label">Belletjes vandaag</div><div class="kpi-value mono-num">142</div><div class="kpi-delta up">▲ 12% vs gisteren</div></div>
+    <div class="card kpi"><div class="kpi-label">Afspraken</div><div class="kpi-value mono-num">7</div><div class="kpi-delta up">▲ 2</div></div>
+    <div class="card kpi"><div class="kpi-label">Beltijd</div><div class="kpi-value mono-num">4:32</div><div class="kpi-delta down">▼ 8%</div></div>
+    <div class="card kpi"><div class="kpi-label">Pogingen p/u</div><div class="kpi-value mono-num">31,4</div><div class="kpi-delta up">▲ 5%</div></div>
+  </div>
+</section>
+
+<section>
+  <span class="section-tag">07 · Componenten</span>
+  <h2>Tabel</h2>
+  <div class="card table-card">
+    <table>
+      <thead><tr><th>Beller</th><th>Project</th><th>Status</th><th style="text-align:right;">Beltijd</th><th style="text-align:right;">Deals</th></tr></thead>
+      <tbody>
+        <tr><td style="font-weight:500;">Roy van Dalfsen</td><td class="muted">Zonnepanelen Zuid</td><td><span class="pill pill-success">Deal!</span></td><td class="mono-num" style="text-align:right;">1:12:04</td><td class="mono-num" style="text-align:right;">3</td></tr>
+        <tr><td style="font-weight:500;">Noah Ando</td><td class="muted">ISDE Subsidie</td><td><span class="pill pill-warning">Terugbelafspraak</span></td><td class="mono-num" style="text-align:right;">0:48:31</td><td class="mono-num" style="text-align:right;">1</td></tr>
+        <tr><td style="font-weight:500;">Nieuwe beller</td><td class="muted">Zonnepanelen Zuid</td><td><span class="pill pill-neutral">Geen gehoor</span></td><td class="mono-num" style="text-align:right;">0:22:10</td><td class="mono-num" style="text-align:right;">0</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <span class="section-tag">08 · In de praktijk</span>
+  <h2>Zo wordt het belscherm</h2>
+  <p class="section-note">Mock van de WorkInterface in de nieuwe stijl: grote naam en nummer, quick-disposities binnen handbereik (1 klik, zoals nu), rustige voortgang bovenin. Geen enkele inline style meer — alles komt uit de componenten hierboven.</p>
+  <div class="mock-app">
+    <div class="mock-header">
+      <div class="left"><span class="brand-dot">L</span> Zonnepanelen Zuid <span class="pill pill-info" style="margin-left:4px;">Belmodus</span></div>
+      <div style="display:flex;align-items:center;gap:14px;">
+        <span class="muted mono-num" style="font-size:13px;">Lead 16 van 25</span>
+        <button class="btn btn-ghost btn-sm">Stoppen</button>
+      </div>
+    </div>
+    <div style="padding:10px 20px;background:var(--bg-surface);border-bottom:1px solid var(--border-subtle);"><div class="progress-track"><div class="progress-fill"></div></div></div>
+    <div class="mock-body">
+      <div class="card">
+        <div class="lead-name">Bakkerij Jansen B.V.</div>
+        <div class="lead-phone">06 12 34 56 78</div>
+        <div class="lead-meta">
+          <span>👤 Peter Jansen</span><span>🌐 bakkerijjansen.nl</span><span>📍 Utrecht</span><span class="pill pill-neutral">2e poging</span>
+        </div>
+        <div class="field" style="margin-top:18px;">
+          <label>Notitie</label>
+          <textarea class="input" rows="3" placeholder="Wat is er besproken?"></textarea>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:4px;">Resultaat</h3>
+        <p class="muted" style="font-size:12.5px;">Quick-disposities: 1 klik, direct volgende lead.</p>
+        <div class="dispo-grid">
+          <button class="btn btn-primary" style="grid-column:1/-1;">✓ Afspraak gemaakt</button>
+          <button class="btn btn-secondary">Terugbellen…</button>
+          <button class="btn btn-secondary">Later bellen…</button>
+          <button class="btn btn-ghost">Geen gehoor</button>
+          <button class="btn btn-ghost">Onjuiste timing</button>
+          <button class="btn btn-ghost">Verkeerd nummer</button>
+          <button class="btn btn-danger">Geen interesse</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <p class="muted" style="font-size:13px;border-top:1px solid var(--border-subtle);padding-top:20px;">Deze pagina is de voorloper van de <code>/styleguide</code>-route uit fase 0 van het plan. Wat je hier goedkeurt, wordt 1-op-1 het fundament — dezelfde tokens, dezelfde componenten, beide thema's.</p>
+</section>
+
+</div>
+
+<script>
+function setTheme(t){
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('btn-dark').classList.toggle('active', t==='dark');
+  document.getElementById('btn-light').classList.toggle('active', t==='light');
+}
+</script>
+</body>
+</html>

@@ -26,7 +26,7 @@ export default function Logo({ size = 'medium', showSlogan = true }) {
           <span style={{ fontWeight: 900, fontSize: iconSize * 0.7 }}>LG</span>
         </div>
         <span style={{ 
-          background: 'linear-gradient(135deg, var(--secondary) 0%, #FFF 100%)',
+          background: 'linear-gradient(135deg, var(--secondary) 0%, var(--text-primary) 100%)',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           fontWeight: 800

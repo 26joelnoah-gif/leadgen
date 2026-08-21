@@ -148,6 +148,15 @@ export function useLeadLists() {
 
   async function permanentDeleteLeadList(listId) {
     if (isDemoMode) return { error: null }
+    // Eerst de leads van deze lijst soft-deleten. Zonder dit zou de
+    // FK (ON DELETE SET NULL) ze loskoppelen: onzichtbare "zwevende"
+    // leads die nergens meer in beeld komen maar wel meetellen.
+    const { error: leadsError } = await supabase
+      .from('leads')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('lead_list_id', listId)
+      .is('deleted_at', null)
+    if (leadsError) return { error: leadsError }
     const { error } = await supabase
       .from('lead_lists')
       .delete()

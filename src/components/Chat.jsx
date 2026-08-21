@@ -230,7 +230,7 @@ export default function Chat() {
                 {isAdmin && (
                   <button
                     onClick={() => setShowChannelModal(true)}
-                    style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '4px' }}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px' }}
                     title="Nieuw kanaal"
                   >
                     <Plus size={18} />
@@ -238,7 +238,7 @@ export default function Chat() {
                 )}
                 <button
                   onClick={() => setIsOpen(false)}
-                  style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer' }}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer' }}
                 >
                   <X size={20} />
                 </button>

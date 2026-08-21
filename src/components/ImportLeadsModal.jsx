@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Upload, ClipboardPaste, FileSpreadsheet, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, List, Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -15,7 +15,7 @@ import { useToast } from './Toast'
 // ============================================================
 
 const FIELDS = [
-  { id: 'skip', label: '— Negeren —' },
+  { id: 'skip', label: '- Negeren -' },
   { id: 'name', label: 'Bedrijfsnaam *' },
   { id: 'phone', label: 'Telefoonnummer *' },
   { id: 'contact_person', label: 'Contactpersoon' },
@@ -120,14 +120,32 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
   const [rows, setRows] = useState([])           // string[][]
   const [hasHeader, setHasHeader] = useState(true)
   const [mapping, setMapping] = useState([])     // veld-id per kolom
+  // v21: leads landen in een lijst BINNEN een project (campagne).
+  // Zonder project kan een team niet op de lijst bellen.
+  const [campaigns, setCampaigns] = useState([])
+  const [teams, setTeams] = useState([])
+  const [targetCampaignId, setTargetCampaignId] = useState('')
+  const [newCampaignName, setNewCampaignName] = useState('')
+  const [newCampaignTeamId, setNewCampaignTeamId] = useState('')
   const [targetListId, setTargetListId] = useState('')
   const [newListName, setNewListName] = useState('')
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState(null)
   const [fileName, setFileName] = useState('')
 
+  const isAdmin = profile?.role === 'admin'
+
+  useEffect(() => {
+    if (!isOpen || isDemoMode) return
+    supabase.from('campaigns').select('id, name, assigned_team_id').is('deleted_at', null).order('name')
+      .then(({ data }) => setCampaigns(data || []))
+    supabase.from('teams').select('id, name').order('name')
+      .then(({ data }) => setTeams(data || []))
+  }, [isOpen, isDemoMode])
+
   function reset() {
     setStep(1); setPasteText(''); setRows([]); setMapping([]); setResult(null)
+    setTargetCampaignId(''); setNewCampaignName(''); setNewCampaignTeamId('')
     setTargetListId(''); setNewListName(''); setFileName(''); setHasHeader(true)
   }
 
@@ -234,7 +252,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
       if (!lead.name && !lead.phone) return // volledig lege rij
       if (!lead.name) { errors.push(`Rij ${rowNr}: bedrijfsnaam ontbreekt`); return }
       if (!lead.phone || lead.phone.replace(/\D/g, '').length < 8) { errors.push(`Rij ${rowNr}: geen geldig telefoonnummer`); return }
-      if (seenPhones.has(lead.phone)) { errors.push(`Rij ${rowNr}: dubbel nummer (${lead.phone}) — overgeslagen`); return }
+      if (seenPhones.has(lead.phone)) { errors.push(`Rij ${rowNr}: dubbel nummer (${lead.phone}) - overgeslagen`); return }
       seenPhones.add(lead.phone)
       leads.push(lead)
     })
@@ -248,16 +266,47 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
   async function runImport() {
     if (isDemoMode) { toast('Import werkt niet in demo-modus', 'error'); return }
     if (!parsedLeads.leads.length) { toast('Geen geldige leads om te importeren', 'error'); return }
+    const isNewProject = targetCampaignId === '__new__'
+    if (!targetCampaignId) { toast('Kies eerst het project waar deze import bij hoort', 'error'); return }
+    if (isNewProject && !newCampaignName.trim()) { toast('Geef het nieuwe project een naam', 'error'); return }
     if (!targetListId && !newListName.trim()) { toast('Kies een lijst of geef een nieuwe lijstnaam op', 'error'); return }
 
     setImporting(true)
     try {
-      // 1. Lijst bepalen (bestaand of nieuw)
+      // 1a. Project (campagne) bepalen - bestaand of (expliciet) nieuw
+      let campaignId = targetCampaignId
+      if (isNewProject) {
+        const { data: camp, error: campErr } = await supabase
+          .from('campaigns')
+          .insert({
+            name: newCampaignName.trim(),
+            description: `Aangemaakt bij import op ${new Date().toLocaleDateString('nl-NL')}`,
+            assigned_team_id: newCampaignTeamId || null,
+            created_by: user?.id,
+            organization_id: profile?.organization_id ?? null
+          })
+          .select()
+          .single()
+        if (campErr || !camp?.id) throw new Error(campErr?.message || 'Project aanmaken mislukt')
+        campaignId = camp.id
+      }
+
+      // 1b. Lijst binnen het project bepalen (bestaand of nieuw)
       let listId = targetListId
       if (!listId) {
-        const { data, error } = await createLeadList(newListName.trim(), `Geïmporteerd op ${new Date().toLocaleDateString('nl-NL')}`)
-        if (error || !data?.id) throw new Error(error?.message || 'Lijst aanmaken mislukt')
-        listId = data.id
+        const { data: list, error: listErr } = await supabase
+          .from('lead_lists')
+          .insert({
+            name: newListName.trim(),
+            description: `Geïmporteerd op ${new Date().toLocaleDateString('nl-NL')}`,
+            campaign_id: campaignId,
+            created_by: user?.id,
+            organization_id: profile?.organization_id ?? null
+          })
+          .select()
+          .single()
+        if (listErr || !list?.id) throw new Error(listErr?.message || 'Lijst aanmaken mislukt')
+        listId = list.id
       }
 
       // 2. Bestaande nummers checken zodat je geen dubbelen importeert
@@ -333,7 +382,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
               {step === 1 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                   <div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '8px', color: 'white' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '8px', color: 'var(--text-primary)' }}>
                       <ClipboardPaste size={16} style={{ color: 'var(--primary)' }} /> Plakken uit Google Sheets of Excel
                     </label>
                     <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 10px 0' }}>
@@ -344,7 +393,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
                       onChange={e => setPasteText(e.target.value)}
                       rows={8}
                       placeholder={'Bedrijfsnaam\tTelefoon\tWebsite\nJansen BV\t0612345678\twww.jansen.nl\n...'}
-                      style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'white', fontFamily: 'monospace', fontSize: '0.85rem' }}
+                      style={{ width: '100%', padding: '14px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontFamily: 'monospace', fontSize: '0.85rem' }}
                     />
                     <button onClick={handlePaste} disabled={!pasteText.trim()} className="btn btn-primary btn-block" style={{ marginTop: '10px', padding: '13px', fontWeight: 800, opacity: pasteText.trim() ? 1 : 0.5 }}>
                       Verwerk geplakte data <ArrowRight size={16} />
@@ -358,7 +407,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
                   </div>
 
                   <div>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '8px', color: 'white' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '8px', color: 'var(--text-primary)' }}>
                       <Upload size={16} style={{ color: 'var(--secondary)' }} /> Bestand uploaden
                     </label>
                     <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 10px 0' }}>
@@ -381,7 +430,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                     <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                      <strong style={{ color: 'white' }}>{dataRows.length}</strong> rijen gevonden — kies per kolom wat het is. Ik heb alvast een voorzet gedaan.
+                      <strong style={{ color: 'var(--text-primary)' }}>{dataRows.length}</strong> rijen gevonden - kies per kolom wat het is. Ik heb alvast een voorzet gedaan.
                     </div>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
                       <input type="checkbox" checked={hasHeader} onChange={e => setHasHeader(e.target.checked)} style={{ width: '15px', height: '15px' }} />
@@ -402,7 +451,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
                                   width: '100%', padding: '8px', borderRadius: '8px', fontWeight: 700, fontSize: '0.8rem',
                                   border: field === 'skip' ? '1px solid var(--border)' : '1px solid var(--primary)',
                                   background: field === 'skip' ? 'var(--bg-dark)' : 'rgba(59,130,246,0.15)',
-                                  color: field === 'skip' ? 'var(--text-muted)' : 'white'
+                                  color: field === 'skip' ? 'var(--text-muted)' : 'var(--accent)'
                                 }}
                               >
                                 {FIELDS.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
@@ -416,7 +465,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
                         {dataRows.slice(0, 6).map((r, ri) => (
                           <tr key={ri} style={{ borderBottom: '1px solid var(--border)' }}>
                             {mapping.map((field, ci) => (
-                              <td key={ci} style={{ padding: '8px 10px', fontSize: '0.8rem', color: field === 'skip' ? 'var(--text-muted)' : 'white', borderRight: '1px solid var(--border)', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <td key={ci} style={{ padding: '8px 10px', fontSize: '0.8rem', color: field === 'skip' ? 'var(--text-muted)' : 'var(--accent)', borderRight: '1px solid var(--border)', maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {field === 'website' ? displayWebsite(r[ci]) : r[ci]}
                               </td>
                             ))}
@@ -451,32 +500,77 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
                     </div>
                   )}
 
-                  {/* Doellijst */}
-                  <div style={{ padding: '16px', borderRadius: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '10px', color: 'white', fontSize: '0.9rem' }}>
-                      <List size={15} style={{ color: 'var(--primary)' }} /> In welke lijst (project) komen deze leads?
-                    </label>
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                      <select
-                        value={targetListId}
-                        onChange={e => { setTargetListId(e.target.value); if (e.target.value) setNewListName('') }}
-                        style={{ flex: 1, minWidth: '200px', padding: '11px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'white', fontWeight: 600 }}
-                      >
-                        <option value="">— Nieuwe lijst aanmaken —</option>
-                        {leadLists.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                      </select>
-                      {!targetListId && (
-                        <div style={{ flex: 1, minWidth: '200px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Plus size={15} style={{ color: 'var(--secondary)' }} />
-                          <input
-                            type="text"
-                            value={newListName}
-                            onChange={e => setNewListName(e.target.value)}
-                            placeholder="Naam van de nieuwe lijst..."
-                            style={{ flex: 1, padding: '11px', borderRadius: '10px', border: '1px solid var(--secondary)', background: 'var(--bg-dark)', color: 'white', fontWeight: 600 }}
-                          />
-                        </div>
-                      )}
+                  {/* Doel: project (campagne) → lijst binnen dat project */}
+                  <div style={{ padding: '16px', borderRadius: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '10px', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                        <List size={15} style={{ color: 'var(--primary)' }} /> 1. Bij welk project hoort deze import?
+                      </label>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <select
+                          value={targetCampaignId}
+                          onChange={e => { setTargetCampaignId(e.target.value); setTargetListId(''); if (e.target.value !== '__new__') { setNewCampaignName(''); setNewCampaignTeamId('') } }}
+                          style={{ flex: 1, minWidth: '200px', padding: '11px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600 }}
+                        >
+                          <option value="">- Kies een project -</option>
+                          {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          {isAdmin && <option value="__new__">+ Nieuw project aanmaken...</option>}
+                        </select>
+                        {targetCampaignId === '__new__' && isAdmin && (
+                          <>
+                            <div style={{ flex: 1, minWidth: '200px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <Plus size={15} style={{ color: 'var(--secondary)' }} />
+                              <input
+                                type="text"
+                                value={newCampaignName}
+                                onChange={e => setNewCampaignName(e.target.value)}
+                                placeholder="Naam van het nieuwe project..."
+                                style={{ flex: 1, padding: '11px', borderRadius: '10px', border: '1px solid var(--secondary)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600 }}
+                              />
+                            </div>
+                            <select
+                              value={newCampaignTeamId}
+                              onChange={e => setNewCampaignTeamId(e.target.value)}
+                              title="Zonder team kan alleen een individueel toegewezen beller op dit project bellen"
+                              style={{ minWidth: '180px', padding: '11px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600 }}
+                            >
+                              <option value="">Team koppelen (optioneel)</option>
+                              {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                          </>
+                        )}
+                      </div>
+                      <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        Het team van het project mag op alle lijsten binnen dat project bellen. Een lijst zonder project is voor bellers onzichtbaar.
+                      </p>
+                    </div>
+                    <div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '10px', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                        <Plus size={15} style={{ color: 'var(--primary)' }} /> 2. In welke lijst komen de leads?
+                      </label>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <select
+                          value={targetListId}
+                          onChange={e => { setTargetListId(e.target.value); if (e.target.value) setNewListName('') }}
+                          disabled={!targetCampaignId || (targetCampaignId === '__new__' && !newCampaignName.trim())}
+                          style={{ flex: 1, minWidth: '200px', padding: '11px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600, opacity: (!targetCampaignId || (targetCampaignId === '__new__' && !newCampaignName.trim())) ? 0.5 : 1 }}
+                        >
+                          <option value="">- Nieuwe lijst aanmaken -</option>
+                          {targetCampaignId && targetCampaignId !== '__new__' && leadLists.filter(l => l.campaign_id === targetCampaignId).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                        </select>
+                        {!targetListId && (
+                          <div style={{ flex: 1, minWidth: '200px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Plus size={15} style={{ color: 'var(--secondary)' }} />
+                            <input
+                              type="text"
+                              value={newListName}
+                              onChange={e => setNewListName(e.target.value)}
+                              placeholder="Naam van de nieuwe lijst..."
+                              style={{ flex: 1, padding: '11px', borderRadius: '10px', border: '1px solid var(--secondary)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600 }}
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 
@@ -484,9 +578,9 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
                     <button onClick={() => setStep(1)} className="btn btn-outline" style={{ padding: '13px 20px' }}><ArrowLeft size={16} /> Terug</button>
                     <button
                       onClick={runImport}
-                      disabled={importing || !parsedLeads.leads.length || !mappingHasName || !mappingHasPhone || (!targetListId && !newListName.trim())}
+                      disabled={importing || !parsedLeads.leads.length || !mappingHasName || !mappingHasPhone || !targetCampaignId || (targetCampaignId === '__new__' && !newCampaignName.trim()) || (!targetListId && !newListName.trim())}
                       className="btn btn-primary"
-                      style={{ flex: 1, padding: '13px', fontWeight: 900, fontSize: '1rem', opacity: (importing || !parsedLeads.leads.length || !mappingHasName || !mappingHasPhone || (!targetListId && !newListName.trim())) ? 0.5 : 1 }}
+                      style={{ flex: 1, padding: '13px', fontWeight: 900, fontSize: '1rem', opacity: (importing || !parsedLeads.leads.length || !mappingHasName || !mappingHasPhone || !targetCampaignId || (targetCampaignId === '__new__' && !newCampaignName.trim()) || (!targetListId && !newListName.trim())) ? 0.5 : 1 }}
                     >
                       {importing ? 'Bezig met importeren...' : `Importeer ${parsedLeads.leads.length} leads`}
                     </button>
@@ -498,9 +592,9 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
               {step === 3 && result && (
                 <div style={{ textAlign: 'center', padding: '30px 10px' }}>
                   <CheckCircle2 size={54} style={{ color: 'var(--success)', marginBottom: '16px' }} />
-                  <h3 style={{ color: 'white', marginBottom: '8px', fontSize: '1.4rem' }}>Import gelukt!</h3>
+                  <h3 style={{ color: 'var(--text-primary)', marginBottom: '8px', fontSize: '1.4rem' }}>Import gelukt!</h3>
                   <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
-                    <strong style={{ color: 'var(--success)' }}>{result.inserted} leads</strong> toegevoegd aan lijst <strong style={{ color: 'white' }}>"{result.listName}"</strong>.
+                    <strong style={{ color: 'var(--success)' }}>{result.inserted} leads</strong> toegevoegd aan lijst <strong style={{ color: 'var(--text-primary)' }}>"{result.listName}"</strong>.
                     {result.duplicates > 0 && <><br />{result.duplicates} overgeslagen (telefoonnummer bestond al in het systeem).</>}
                     {result.skipped > 0 && <><br />{result.skipped} rijen overgeslagen wegens ontbrekende naam/nummer.</>}
                   </p>

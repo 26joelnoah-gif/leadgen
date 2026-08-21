@@ -19,7 +19,7 @@ export default function CopyButton({ text, label = "Kopieer" }) {
       onClick={handleCopy}
       title={label}
       style={{
-        background: copied ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+        background: copied ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-elevated)',
         color: copied ? 'var(--success)' : 'var(--text-muted)',
         border: '1px solid ' + (copied ? 'var(--success)' : 'var(--border)'),
         padding: '4px 8px',

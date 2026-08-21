@@ -32,7 +32,7 @@ export default function LeadCard({ lead, onStatusChange, onClaim, loading = fals
           top: -8,
           right: 16,
           background: 'var(--primary-gradient)',
-          color: 'white',
+          color: 'var(--text-on-accent)',
           padding: '4px 12px',
           borderRadius: 'var(--radius-full)',
           fontSize: '0.7rem',
@@ -50,7 +50,7 @@ export default function LeadCard({ lead, onStatusChange, onClaim, loading = fals
           top: -8,
           right: 16,
           background: 'linear-gradient(135deg, var(--warning) 0%, var(--secondary-light) 100%)',
-          color: 'white',
+          color: 'var(--text-on-accent)',
           padding: '4px 12px',
           borderRadius: 'var(--radius-full)',
           fontSize: '0.7rem',
@@ -88,7 +88,7 @@ export default function LeadCard({ lead, onStatusChange, onClaim, loading = fals
                   className="btn btn-sm"
                   style={{
                     background: 'var(--primary-gradient)',
-                    color: 'white',
+                    color: 'var(--text-on-accent)',
                     border: 'none',
                     borderRadius: 'var(--radius-sm)',
                     padding: '4px 12px',
@@ -117,7 +117,7 @@ export default function LeadCard({ lead, onStatusChange, onClaim, loading = fals
                   <Lock size={11} /> Bezet door collega
                 </div>
               )}
-              {/* Regular call button — disabled if locked by other, shown if available or locked by me */}
+              {/* Regular call button - disabled if locked by other, shown if available or locked by me */}
               <motion.a
                 whileHover={isLockedByOther ? {} : { scale: 1.1, boxShadow: '0 0 15px rgba(16, 185, 129, 0.4)' }}
                 whileTap={isLockedByOther ? {} : { scale: 0.9 }}
@@ -134,7 +134,7 @@ export default function LeadCard({ lead, onStatusChange, onClaim, loading = fals
                   alignItems: 'center',
                   justifyContent: 'center',
                   background: isLockedByOther ? 'var(--text-muted, #6b7280)' : 'var(--success)',
-                  color: 'white',
+                  color: 'var(--text-on-accent)',
                   border: 'none',
                   boxShadow: isLockedByOther ? 'none' : '0 4px 10px rgba(16, 185, 129, 0.2)',
                   cursor: isLockedByOther ? 'not-allowed' : 'pointer',

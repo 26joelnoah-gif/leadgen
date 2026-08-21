@@ -95,9 +95,9 @@ export default function Kanban() {
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setShowAdd(false)}>
             <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '24px', width: '400px' }} onClick={e => e.stopPropagation()}>
               <h3 style={{ marginBottom: '16px' }}>Nieuwe Taak</h3>
-              <input value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} placeholder="Titel" style={{ width: '100%', padding: '10px', marginBottom: '8px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'white' }} />
-              <textarea value={newTask.desc} onChange={e => setNewTask({...newTask, desc: e.target.value})} placeholder="Beschrijving" style={{ width: '100%', padding: '10px', marginBottom: '8px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'white' }} />
-              <select value={newTask.priority} onChange={e => setNewTask({...newTask, priority: e.target.value})} style={{ width: '100%', padding: '10px', marginBottom: '16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'white' }}>
+              <input value={newTask.title} onChange={e => setNewTask({...newTask, title: e.target.value})} placeholder="Titel" style={{ width: '100%', padding: '10px', marginBottom: '8px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }} />
+              <textarea value={newTask.desc} onChange={e => setNewTask({...newTask, desc: e.target.value})} placeholder="Beschrijving" style={{ width: '100%', padding: '10px', marginBottom: '8px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }} />
+              <select value={newTask.priority} onChange={e => setNewTask({...newTask, priority: e.target.value})} style={{ width: '100%', padding: '10px', marginBottom: '16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }}>
                 <option value="high">Hoog</option>
                 <option value="medium">Medium</option>
                 <option value="low">Laag</option>

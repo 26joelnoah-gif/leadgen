@@ -107,7 +107,7 @@ export function LeadListModal({ isOpen, onClose }) {
                   borderRadius: '8px',
                   border: '1px solid var(--border)',
                   background: 'var(--bg-dark)',
-                  color: 'white'
+                  color: 'var(--text-primary)'
                 }}
               />
               <input
@@ -121,7 +121,7 @@ export function LeadListModal({ isOpen, onClose }) {
                   borderRadius: '8px',
                   border: '1px solid var(--border)',
                   background: 'var(--bg-dark)',
-                  color: 'white'
+                  color: 'var(--text-primary)'
                 }}
               />
               <button type="submit" className="btn btn-secondary" disabled={creating || !newListName.trim()}>

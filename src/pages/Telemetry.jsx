@@ -128,7 +128,7 @@ export default function Telemetry() {
                  <Activity size={24} className="text-primary" />
               </div>
            </div>
-           <div className="stat-card glass-panel glow-hover" style={{ background: 'var(--primary)', color: 'white' }}>
+           <div className="stat-card glass-panel glow-hover" style={{ background: 'var(--primary)', color: 'var(--text-on-accent)' }}>
               <div className="flex justify-between items-start">
                  <div>
                     <div className="number" style={{ color: 'var(--secondary)' }}>#{teamStats.findIndex(s => s.full_name === profile?.full_name) + 1 || '?'}</div>
@@ -152,7 +152,7 @@ export default function Telemetry() {
                           </linearGradient>
                        </defs>
                        <XAxis dataKey="hour" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                       <Tooltip contentStyle={{ background: 'var(--primary-dark)', border: 'none', borderRadius: '8px', color: '#fff' }} />
+                       <Tooltip contentStyle={{ background: 'var(--primary-dark)', border: 'none', borderRadius: '8px', color: 'var(--text-on-accent)' }} />
                        <Area type="monotone" dataKey="calls" stroke="var(--secondary)" strokeWidth={3} fillOpacity={1} fill="url(#colorCalls)" />
                     </AreaChart>
                  </ResponsiveContainer>
@@ -165,7 +165,7 @@ export default function Telemetry() {
                  <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={dailyData}>
                        <XAxis dataKey="day" stroke="var(--text-muted)" fontSize={12} tickLine={false} axisLine={false} />
-                       <Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{ background: 'var(--primary-dark)', border: 'none', borderRadius: '8px', color: '#fff' }} />
+                       <Tooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{ background: 'var(--primary-dark)', border: 'none', borderRadius: '8px', color: 'var(--text-on-accent)' }} />
                        <Bar dataKey="calls" radius={[4, 4, 0, 0]}>
                           {dailyData.map((entry, index) => (
                              <Cell key={`cell-${index}`} fill={index === dailyData.length -1 ? 'var(--secondary)' : 'var(--primary)'} />

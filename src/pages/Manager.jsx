@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { motion } from 'framer-motion'
 import {
   Users, PhoneCall, CheckCircle, Download, Clock, Filter, Calendar,
-  TrendingUp, Phone, UserPlus, Layers, Upload, Zap
+  TrendingUp, Phone, UserPlus, Layers, Upload, Zap, Euro, BarChart3, FastForward
 } from 'lucide-react'
 import { getStatusDetails } from '../utils/statusUtils'
 import { exportToCSV } from '../utils/exportUtils'
@@ -14,6 +14,7 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import EmployeeModal from '../components/EmployeeModal'
 import ImportLeadsModal from '../components/ImportLeadsModal'
+import FlowSettingsEditor from '../components/FlowSettingsEditor'
 import { useToast } from '../components/Toast'
 
 // Seconden -> "1u 11m 22s"
@@ -25,6 +26,10 @@ function fmtDuration(totalSeconds) {
   if (h > 0) return `${h}u ${m}m ${sec}s`
   if (m > 0) return `${m}m ${sec}s`
   return `${sec}s`
+}
+
+function fmtEuro(n) {
+  return '\u20ac ' + (n || 0).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
 function todayStr(offsetDays = 0) {
@@ -53,6 +58,8 @@ export default function Manager() {
   const [activeTab, setActiveTab] = useState('overzicht') // 'overzicht' | 'gesprekken' | 'team'
   const [showEmployee, setShowEmployee] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [rules, setRules] = useState(null) // payout_rules (standaardtarieven)
+  const [granularity, setGranularity] = useState('dag') // trends: 'uur' | 'dag' | 'week' | 'maand'
   const [filterAgent, setFilterAgent] = useState('all')
   const [filterResult, setFilterResult] = useState('all')
   const [filterList, setFilterList] = useState('all')
@@ -62,7 +69,13 @@ export default function Manager() {
   const listIdsRef = useRef([])
 
   const isAdmin = profile?.role === 'admin'
+  // Rechten per manager (instelbaar door de admin, migration v20). Admin mag alles.
   const canManageLeads = isAdmin || !!profile?.can_manage_leads
+  const canViewRates = isAdmin || !!profile?.can_view_rates
+  const canManageTeam = isAdmin || profile?.can_manage_team !== false
+  const canExport = isAdmin || profile?.can_export_data !== false
+  const canEditFlows = isAdmin || !!profile?.can_edit_flows
+  const kpiOnly = !isAdmin && !!profile?.kpi_only
 
   // ===== Projectlijsten van deze manager laden =====
   async function fetchManagedLists() {
@@ -72,7 +85,7 @@ export default function Manager() {
       if (isAdmin) {
         const { data, error } = await supabase
           .from('lead_lists')
-          .select('id, name, assigned_to, deleted_at')
+          .select('id, name, assigned_to, deleted_at, rate_per_appointment, rate_per_deal, rate_per_hour')
           .is('deleted_at', null)
           .order('created_at', { ascending: false })
         if (error) throw error
@@ -80,7 +93,7 @@ export default function Manager() {
       } else {
         const { data, error } = await supabase
           .from('project_managers')
-          .select('lead_list_id, list:lead_lists(id, name, assigned_to, deleted_at)')
+          .select('lead_list_id, list:lead_lists(id, name, assigned_to, deleted_at, rate_per_appointment, rate_per_deal, rate_per_hour)')
           .eq('manager_id', user.id)
         if (error) throw error
         lists = (data || []).map(r => r.list).filter(l => l && !l.deleted_at)
@@ -93,6 +106,12 @@ export default function Manager() {
       setManagedLists([])
       return []
     }
+  }
+
+  async function fetchRules() {
+    if (isDemoMode || !canViewRates) { setRules(null); return }
+    const { data } = await supabase.from('payout_rules').select('*').limit(1)
+    setRules(data?.[0] || null)
   }
 
   async function fetchEmployees() {
@@ -136,6 +155,7 @@ export default function Manager() {
       setLoading(true)
       const lists = await fetchManagedLists()
       await fetchEmployees()
+      await fetchRules()
       await fetchCallLogs(lists.map(l => l.id))
     }
     init()
@@ -197,6 +217,16 @@ export default function Manager() {
     }
   }
 
+  // Tarief per project met fallback op de standaardtarieven (payout_rules)
+  const rateFor = (listId) => {
+    const l = managedLists.find(x => x.id === listId)
+    return {
+      appointment: Number(l?.rate_per_appointment ?? rules?.rate_per_appointment ?? 0),
+      deal: Number(l?.rate_per_deal ?? rules?.rate_per_deal ?? 0),
+      hour: Number(l?.rate_per_hour ?? rules?.rate_per_hour ?? 0)
+    }
+  }
+
   // ===== Statistieken per beller =====
   const agentStats = useMemo(() => {
     const byAgent = {}
@@ -207,7 +237,7 @@ export default function Manager() {
           id,
           name: log.agent?.full_name || 'Onbekend',
           calls: 0, seconds: 0, deals: 0, afspraken: 0, tba: 0,
-          geenInteresse: 0, geenGehoor: 0
+          geenInteresse: 0, geenGehoor: 0, cost: 0
         }
       }
       const a = byAgent[id]
@@ -218,6 +248,12 @@ export default function Manager() {
       if (log.disposition === 'terugbelafspraak') a.tba++
       if (log.disposition === 'geen_interesse') a.geenInteresse++
       if (log.disposition === 'geen_gehoor') a.geenGehoor++
+      if (canViewRates) {
+        const r = rateFor(log.lead_list_id)
+        a.cost += (log.disposition === 'deal' ? r.deal : 0)
+          + (log.disposition === 'afspraak_gemaakt' ? r.appointment : 0)
+          + ((log.duration_seconds || 0) / 3600) * r.hour
+      }
     })
     return Object.values(byAgent).map(a => ({
       ...a,
@@ -225,13 +261,46 @@ export default function Manager() {
       callsPerHour: a.seconds > 0 ? a.calls / (a.seconds / 3600) : 0,
       successRate: a.calls ? ((a.deals + a.afspraken) / a.calls) * 100 : 0
     })).sort((x, y) => y.calls - x.calls)
-  }, [callLogs])
+  }, [callLogs, managedLists, rules, canViewRates])
 
   const totals = useMemo(() => {
-    const t = { calls: 0, seconds: 0, deals: 0, afspraken: 0 }
-    agentStats.forEach(a => { t.calls += a.calls; t.seconds += a.seconds; t.deals += a.deals; t.afspraken += a.afspraken })
+    const t = { calls: 0, seconds: 0, deals: 0, afspraken: 0, cost: 0 }
+    agentStats.forEach(a => { t.calls += a.calls; t.seconds += a.seconds; t.deals += a.deals; t.afspraken += a.afspraken; t.cost += a.cost })
     return t
   }, [agentStats])
+
+  // ===== Trends: resultaten per uur / dag / week / maand =====
+  const trendRows = useMemo(() => {
+    const buckets = {}
+    const pad = (n) => String(n).padStart(2, '0')
+    callLogs.forEach(log => {
+      const d = new Date(log.disposed_at)
+      let key, label
+      if (granularity === 'uur') {
+        key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}`
+        label = `${d.toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit' })} ${pad(d.getHours())}:00\u2013${pad((d.getHours() + 1) % 24)}:00`
+      } else if (granularity === 'dag') {
+        key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+        label = d.toLocaleDateString('nl-NL', { weekday: 'short', day: '2-digit', month: '2-digit' })
+      } else if (granularity === 'week') {
+        const monday = new Date(d)
+        monday.setDate(d.getDate() - ((d.getDay() + 6) % 7))
+        key = `${monday.getFullYear()}-${pad(monday.getMonth() + 1)}-${pad(monday.getDate())}`
+        label = `Week van ${monday.toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit' })}`
+      } else {
+        key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`
+        label = d.toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })
+      }
+      if (!buckets[key]) buckets[key] = { key, label, calls: 0, seconds: 0, deals: 0, afspraken: 0, tba: 0 }
+      const b = buckets[key]
+      b.calls++
+      b.seconds += log.duration_seconds || 0
+      if (log.disposition === 'deal') b.deals++
+      if (log.disposition === 'afspraak_gemaakt') b.afspraken++
+      if (log.disposition === 'terugbelafspraak') b.tba++
+    })
+    return Object.values(buckets).sort((a, b) => b.key.localeCompare(a.key))
+  }, [callLogs, granularity])
 
   const uniqueResults = useMemo(() => {
     const r = new Set()
@@ -251,7 +320,8 @@ export default function Manager() {
       'Gem. per gesprek': fmtDuration(a.avgSeconds),
       'Pogingen per uur': a.callsPerHour.toFixed(1),
       Deals: a.deals, Afspraken: a.afspraken, "TBA's": a.tba,
-      'Slagingspercentage': `${a.successRate.toFixed(1)}%`
+      'Slagingspercentage': `${a.successRate.toFixed(1)}%`,
+      ...(canViewRates ? { 'Kosten (EUR)': a.cost.toFixed(2) } : {})
     })), `LeadGen_Manager_${startDate}_${endDate}`)
   }
 
@@ -272,25 +342,27 @@ export default function Manager() {
             <h1>Mijn Projecten</h1>
             <p>
               {managedLists.length
-                ? `Live overzicht van ${managedLists.length} project${managedLists.length === 1 ? '' : 'en'}: ${managedLists.map(l => l.name).join(', ')}`
+                ? `Live overzicht van ${managedLists.length} project${managedLists.length === 1 ? '' : 'en'}${managedLists.length <= 3 ? `: ${managedLists.map(l => l.name).join(', ')}` : ` - o.a. ${managedLists.slice(0, 3).map(l => l.name).join(', ')}`}`
                 : 'Er zijn nog geen projecten aan jou gekoppeld. Vraag de admin om je te koppelen.'}
             </p>
             <div className="flex gap-2 mt-2" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
               <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
-                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'white', fontSize: '0.8rem' }} />
+                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.8rem' }} />
               <span className="text-muted">tot</span>
               <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
-                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'white', fontSize: '0.8rem' }} />
+                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.8rem' }} />
               <button className="btn btn-sm btn-outline" onClick={() => setRange(0)}>Vandaag</button>
               <button className="btn btn-sm btn-outline" onClick={() => setRange(7)}>7 dagen</button>
               <button className="btn btn-sm btn-outline" onClick={() => setRange(30)}>30 dagen</button>
             </div>
           </div>
           <div className="flex gap-2">
-            {canManageLeads && (
+            {canManageLeads && !kpiOnly && (
               <button className="btn btn-primary btn-sm" onClick={() => setShowImport(true)}><Upload size={16} /> Leads importeren</button>
             )}
-            <button className="btn btn-outline btn-sm" onClick={handleExport}><Download size={16} /> Export CSV</button>
+            {canExport && (
+              <button className="btn btn-outline btn-sm" onClick={handleExport}><Download size={16} /> Export CSV</button>
+            )}
             <button className="btn btn-secondary btn-sm" onClick={() => fetchCallLogs()}><TrendingUp size={16} /> Verversen</button>
           </div>
         </div>
@@ -301,7 +373,8 @@ export default function Manager() {
             { label: 'Gesprekken', val: totals.calls, icon: PhoneCall, color: 'var(--primary)' },
             { label: 'Effectieve beltijd', val: fmtDuration(totals.seconds), icon: Clock, color: 'var(--secondary)' },
             { label: 'Pogingen per uur (gem.)', val: totalCallsPerHour, icon: Zap, color: 'var(--info)' },
-            { label: 'Afspraken + Deals', val: totals.afspraken + totals.deals, icon: CheckCircle, color: 'var(--success)' }
+            { label: 'Afspraken + Deals', val: totals.afspraken + totals.deals, icon: CheckCircle, color: 'var(--success)' },
+            ...(canViewRates ? [{ label: 'Kosten (indicatie)', val: fmtEuro(totals.cost), icon: Euro, color: 'var(--secondary)' }] : [])
           ].map((item, i) => (
             <motion.div key={i} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.08 }} className="stat-card glass-panel">
               <div className="flex justify-between items-start">
@@ -316,19 +389,18 @@ export default function Manager() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-4" style={{ background: 'rgba(255,255,255,0.04)', padding: '6px', borderRadius: '12px', width: 'fit-content' }}>
+        <div className="tab-bar mb-4">
           {[
             { id: 'overzicht', label: 'Statistieken per beller', icon: <Users size={15} /> },
-            { id: 'gesprekken', label: 'Alle gesprekken', icon: <Phone size={15} /> },
-            { id: 'team', label: 'Team & projecten', icon: <Layers size={15} /> }
+            { id: 'trends', label: 'Trends', icon: <BarChart3 size={15} /> },
+            ...(!kpiOnly ? [
+              { id: 'gesprekken', label: 'Alle gesprekken', icon: <Phone size={15} /> },
+              { id: 'team', label: 'Team & projecten', icon: <Layers size={15} /> }
+            ] : []),
+            ...(canEditFlows && !kpiOnly ? [{ id: 'flows', label: 'Flows', icon: <FastForward size={15} /> }] : [])
           ].map(t => (
             <button key={t.id} onClick={() => setActiveTab(t.id)}
-              className="flex items-center gap-2"
-              style={{
-                padding: '10px 20px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 800, fontSize: '0.85rem',
-                background: activeTab === t.id ? 'var(--primary)' : 'transparent',
-                color: activeTab === t.id ? 'white' : 'var(--text-muted)'
-              }}>
+              className={`tab-btn ${activeTab === t.id ? 'active' : ''}`}>
               {t.icon} {t.label}
             </button>
           ))}
@@ -358,6 +430,7 @@ export default function Manager() {
                       <th>Afspraken</th>
                       <th>TBA's</th>
                       <th>Slagings­percentage</th>
+                      {canViewRates && <th>Kosten</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -380,6 +453,7 @@ export default function Manager() {
                             {a.successRate.toFixed(1)} %
                           </span>
                         </td>
+                        {canViewRates && <td style={{ fontWeight: 800, color: 'var(--secondary)' }}>{fmtEuro(a.cost)}</td>}
                       </tr>
                     ))}
                     <tr style={{ background: 'rgba(59,130,246,0.12)', fontWeight: 800 }}>
@@ -392,9 +466,67 @@ export default function Manager() {
                       <td>{totals.afspraken}</td>
                       <td></td>
                       <td>{totals.calls ? (((totals.deals + totals.afspraken) / totals.calls) * 100).toFixed(1) : '0.0'} %</td>
+                      {canViewRates && <td style={{ color: 'var(--secondary)' }}>{fmtEuro(totals.cost)}</td>}
                     </tr>
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'trends' ? (
+          <div className="card">
+            <div className="card-header" style={{ flexWrap: 'wrap', gap: '12px' }}>
+              <span className="card-title"><BarChart3 size={20} /> Trends per periode</span>
+              <div className="tab-bar" style={{ padding: '4px' }}>
+                {[['uur', 'Per uur'], ['dag', 'Per dag'], ['week', 'Per week'], ['maand', 'Per maand']].map(([id, label]) => (
+                  <button key={id} className={`tab-btn ${granularity === id ? 'active' : ''}`}
+                    style={{ padding: '6px 14px', fontSize: '0.78rem' }}
+                    onClick={() => setGranularity(id)}>{label}</button>
+                ))}
+              </div>
+            </div>
+            {trendRows.length === 0 ? (
+              <EmptyState title="Nog geen gesprekken" message="In deze periode is er in jouw projecten niet gebeld. Pas eventueel de datums bovenaan aan." />
+            ) : (
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Periode</th>
+                      <th>Belletjes</th>
+                      <th>Beltijd</th>
+                      <th>Pogingen p/u</th>
+                      <th>Afspraken</th>
+                      <th>Deals</th>
+                      <th>TBA's</th>
+                      <th style={{ width: '30%' }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {trendRows.map(row => {
+                      const maxCalls = Math.max(...trendRows.map(r => r.calls), 1)
+                      return (
+                        <tr key={row.key}>
+                          <td style={{ whiteSpace: 'nowrap', fontWeight: 700 }}>{row.label}</td>
+                          <td style={{ fontWeight: 800 }}>{row.calls}</td>
+                          <td style={{ color: 'var(--secondary)', fontWeight: 700, whiteSpace: 'nowrap' }}>{fmtDuration(row.seconds)}</td>
+                          <td style={{ color: 'var(--info)', fontWeight: 800 }}>{row.seconds > 0 ? (row.calls / (row.seconds / 3600)).toFixed(1) : '-'}</td>
+                          <td style={{ fontWeight: 700 }}>{row.afspraken}</td>
+                          <td style={{ color: 'var(--success)', fontWeight: 700 }}>{row.deals}</td>
+                          <td>{row.tba}</td>
+                          <td>
+                            <div style={{ background: 'var(--bg-elevated)', borderRadius: '4px', height: '8px', overflow: 'hidden' }}>
+                              <div style={{ width: `${(row.calls / maxCalls) * 100}%`, height: '100%', background: 'var(--primary)', borderRadius: '4px' }} />
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+                <p className="text-muted" style={{ fontSize: '0.8rem', padding: '12px 16px' }}>
+                  De balk toont het aantal belletjes ten opzichte van de drukste periode. Kies de periode met de datums bovenaan de pagina.
+                </p>
               </div>
             )}
           </div>
@@ -405,17 +537,17 @@ export default function Manager() {
               <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
                 <Filter size={16} className="text-muted" />
                 <select value={filterAgent} onChange={e => setFilterAgent(e.target.value)}
-                  style={{ padding: '6px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'white' }}>
+                  style={{ padding: '6px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}>
                   <option value="all">Alle bellers</option>
                   {agentStats.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
                 <select value={filterList} onChange={e => setFilterList(e.target.value)}
-                  style={{ padding: '6px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'white' }}>
+                  style={{ padding: '6px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}>
                   <option value="all">Alle projecten</option>
                   {managedLists.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
                 <select value={filterResult} onChange={e => setFilterResult(e.target.value)}
-                  style={{ padding: '6px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'white' }}>
+                  style={{ padding: '6px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}>
                   <option value="all">Alle resultaten</option>
                   {uniqueResults.map(r => <option key={r} value={r}>{getStatusDetails(r).label}</option>)}
                 </select>
@@ -444,7 +576,7 @@ export default function Manager() {
                           {new Date(log.disposed_at).toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </td>
                         <td><strong>{log.agent?.full_name || 'Onbekend'}</strong></td>
-                        <td>{log.lead?.name || '— verwijderd —'}</td>
+                        <td>{log.lead?.name || '- verwijderd -'}</td>
                         <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{log.lead?.phone || ''}</td>
                         <td className="text-muted" style={{ fontSize: '0.85rem' }}>{log.list?.name || '-'}</td>
                         <td style={{ fontWeight: 700 }}>{fmtDuration(log.duration_seconds)}</td>
@@ -456,11 +588,15 @@ export default function Manager() {
               </div>
             )}
           </div>
+        ) : activeTab === 'flows' ? (
+          <FlowSettingsEditor />
         ) : (
           <div className="card">
             <div className="card-header">
               <span className="card-title"><Layers size={20} /> Mijn projecten & bellers</span>
-              <button className="btn btn-primary btn-sm" onClick={() => setShowEmployee(true)}><UserPlus size={16} /> Nieuwe beller</button>
+              {canManageTeam && (
+                <button className="btn btn-primary btn-sm" onClick={() => setShowEmployee(true)}><UserPlus size={16} /> Nieuwe beller</button>
+              )}
             </div>
             {managedLists.length === 0 ? (
               <EmptyState title="Geen projecten" message="Er zijn nog geen projecten aan jou gekoppeld. Vraag de admin om je aan een project te koppelen." />
@@ -471,7 +607,8 @@ export default function Manager() {
                     <tr>
                       <th>Project (leadlijst)</th>
                       <th>Toegewezen beller</th>
-                      <th style={{ width: '260px' }}>Beller toewijzen</th>
+                      {canViewRates && <th>Tarieven</th>}
+                      {canManageTeam && <th style={{ width: '260px' }}>Beller toewijzen</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -485,22 +622,34 @@ export default function Manager() {
                               ? <span style={{ fontWeight: 700 }}>{assigned.full_name}</span>
                               : <span className="text-muted">Niet toegewezen</span>}
                           </td>
-                          <td>
-                            <select
-                              value={list.assigned_to || ''}
-                              onChange={e => assignAgentToList(list.id, e.target.value || null)}
-                              style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'white', width: '100%' }}>
-                              <option value="">— Geen beller —</option>
-                              {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.full_name} ({emp.email})</option>)}
-                            </select>
-                          </td>
+                          {canViewRates && (() => {
+                            const r = rateFor(list.id)
+                            return (
+                              <td style={{ whiteSpace: 'nowrap', fontSize: '0.82rem' }}>
+                                <span style={{ fontWeight: 700 }}>{fmtEuro(r.appointment)}</span><span className="text-muted"> /afspraak</span><br />
+                                <span style={{ fontWeight: 700 }}>{fmtEuro(r.deal)}</span><span className="text-muted"> /deal</span>
+                                {r.hour > 0 && <><br /><span style={{ fontWeight: 700 }}>{fmtEuro(r.hour)}</span><span className="text-muted"> /uur beltijd</span></>}
+                              </td>
+                            )
+                          })()}
+                          {canManageTeam && (
+                            <td>
+                              <select
+                                value={list.assigned_to || ''}
+                                onChange={e => assignAgentToList(list.id, e.target.value || null)}
+                                style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', width: '100%' }}>
+                                <option value="">- Geen beller -</option>
+                                {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.full_name} ({emp.email})</option>)}
+                              </select>
+                            </td>
+                          )}
                         </tr>
                       )
                     })}
                   </tbody>
                 </table>
                 <p className="text-muted" style={{ fontSize: '0.8rem', padding: '12px 16px' }}>
-                  Een nieuwe beller verschijnt in de lijst zodra het account is aangemaakt. Wijs hem daarna toe aan een projectlijst — pas dan ziet hij de leads en kan hij bellen.
+                  Een nieuwe beller verschijnt in de lijst zodra het account is aangemaakt. Wijs hem daarna toe aan een projectlijst - pas dan ziet hij de leads en kan hij bellen.
                 </p>
               </div>
             )}

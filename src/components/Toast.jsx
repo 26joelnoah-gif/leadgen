@@ -23,9 +23,9 @@ export function ToastProvider({ children }) {
       <div style={{ position: 'fixed', bottom: '24px', right: '24px', zIndex: 99999, display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {toasts.map(t => (
           <div key={t.id} style={{
-            background: '#1E2028', border: `1px solid ${colors[t.type]}40`,
+            background: 'var(--bg-card)', border: `1px solid ${colors[t.type]}40`,
             borderLeft: `3px solid ${colors[t.type]}`,
-            color: 'white', padding: '12px 16px', borderRadius: '8px',
+            color: 'var(--text-primary)', padding: '12px 16px', borderRadius: '8px',
             display: 'flex', alignItems: 'center', gap: '10px',
             boxShadow: '0 8px 24px rgba(0,0,0,0.4)', minWidth: '260px', maxWidth: '380px',
             animation: 'slideIn 0.2s ease'

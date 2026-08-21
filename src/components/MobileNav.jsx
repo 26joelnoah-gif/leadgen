@@ -27,7 +27,7 @@ export default function MobileNav({ profile }) {
           display: 'none',
           background: 'transparent',
           border: 'none',
-          color: 'white',
+          color: 'var(--text-primary)',
           padding: '8px',
           cursor: 'pointer'
         }}
@@ -70,7 +70,8 @@ export default function MobileNav({ profile }) {
           top: 60px;
           left: 0;
           right: 0;
-          background: var(--primary);
+          background: var(--bg-surface);
+          border-bottom: 1px solid var(--border);
           padding: 16px;
           box-shadow: var(--shadow-lg);
           z-index: 999;
@@ -81,7 +82,7 @@ export default function MobileNav({ profile }) {
           gap: 4px;
         }
         .mobile-nav-link {
-          color: white;
+          color: var(--text-primary);
           padding: 14px 16px;
           border-radius: var(--radius-sm);
           text-decoration: none;

@@ -137,7 +137,7 @@ export default function TeamLeaderboard() {
           height: 32px;
           border-radius: 50%;
           background: var(--primary);
-          color: white;
+          color: var(--text-on-accent);
           display: flex;
           align-items: center;
           justify-content: center;

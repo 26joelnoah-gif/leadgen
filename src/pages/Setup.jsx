@@ -121,7 +121,7 @@ export default function Setup() {
             style={{
               width: '100%',
               background: loading || !name.trim() ? 'var(--bg-hover)' : 'var(--primary)',
-              color: 'white',
+              color: 'var(--text-on-accent)',
               border: 'none',
               borderRadius: '8px',
               padding: '14px',

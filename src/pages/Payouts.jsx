@@ -5,40 +5,63 @@ import { DollarSign, Zap, Users, CheckCircle, Clock, AlertCircle, Download, Edit
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { getSettings } from '../utils/settingsUtils'
-import Logo from '../components/Logo'
+import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 
+// Seconden -> "1u 11m"
+function fmtHours(totalSeconds) {
+  const s = Math.max(0, Math.round(totalSeconds || 0))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s % 3600) / 60)
+  if (h > 0) return `${h}u ${m}m`
+  return `${m}m`
+}
+
 export default function Payouts() {
-  const { profile, signOut, sessionCallCount } = useAuth()
+  const { profile } = useAuth()
   const [users, setUsers] = useState([])
   const [payouts, setPayouts] = useState({})
-  const [leadCounts, setLeadCounts] = useState({}) // { userId: { deals, appointments, pendingAppointments } }
+  const [leadCounts, setLeadCounts] = useState({}) // { userId: { [listId]: { deals, appointments, pendingAppointments } } }
+  const [callSeconds, setCallSeconds] = useState({}) // { userId: { [listId]: seconds } }
+  const [lists, setLists] = useState([]) // projecten incl. eigen tarieven
   const [pendingAppointments, setPendingAppointments] = useState([]) // afspraken die nog beoordeeld moeten worden
   const [rules, setRules] = useState(null) // payout_rules van de organisatie
-  const [monthlyCalls, setMonthlyCalls] = useState({}) // { userId: calls deze maand }
+  const [monthlyCalls, setMonthlyCalls] = useState({}) // { userId: calls in de periode }
   const [loading, setLoading] = useState(true)
-  const [editingUser, setEditingUser] = useState(null)
   const [systemSettings] = useState(getSettings)
+
+  // Periode: standaard de huidige maand (lokale datum, geen UTC-verschuiving)
+  const toLocalDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  const now = new Date()
+  const [startDate, setStartDate] = useState(() => toLocalDate(new Date(now.getFullYear(), now.getMonth(), 1)))
+  const [endDate, setEndDate] = useState(() => toLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)))
 
   useEffect(() => {
     fetchData()
-  }, [])
+  }, [startDate, endDate])
 
   async function fetchData() {
     setLoading(true)
     try {
-      const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-      const monthStartStr = `${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, '0')}-01`
+      const start = new Date(`${startDate}T00:00:00`)
+      const end = new Date(`${endDate}T23:59:59.999`)
 
-      const [usersRes, payoutsRes, leadsRes, rulesRes, statsRes] = await Promise.all([
+      const [usersRes, payoutsRes, leadsRes, rulesRes, statsRes, listsRes, logsRes] = await Promise.all([
         supabase.from('profiles').select('*').order('full_name'),
         supabase.from('payouts').select('*').order('created_at', { ascending: false }),
-        supabase.from('leads').select('id, name, assigned_to, status, appointment_approved'),
+        supabase.from('leads').select('id, name, assigned_to, status, appointment_approved, lead_list_id, created_at'),
         supabase.from('payout_rules').select('*').limit(1),
-        supabase.from('agent_daily_stats').select('agent_id, calls').gte('dag', monthStartStr)
+        supabase.from('agent_daily_stats').select('agent_id, calls').gte('dag', startDate).lte('dag', endDate),
+        supabase.from('lead_lists').select('id, name, rate_per_appointment, rate_per_deal, rate_per_hour'),
+        supabase.from('call_logs')
+          .select('agent_id, lead_list_id, duration_seconds')
+          .gte('disposed_at', start.toISOString())
+          .lte('disposed_at', end.toISOString())
+          .limit(10000)
       ])
 
       if (usersRes.data) setUsers(usersRes.data)
+      if (listsRes.data) setLists(listsRes.data)
 
       if (payoutsRes.data) {
         const payoutsByUser = {}
@@ -50,7 +73,7 @@ export default function Payouts() {
 
       if (rulesRes.data?.[0]) setRules(rulesRes.data[0])
 
-      // Calls per user deze maand (voor uitbetalings-target)
+      // Calls per user in de periode (voor uitbetalings-target)
       if (statsRes.data) {
         const callTotals = {}
         statsRes.data.forEach(row => {
@@ -59,7 +82,20 @@ export default function Payouts() {
         setMonthlyCalls(callTotals)
       }
 
-      // Tel deals en NETTO afspraken per user; verzamel afspraken die beoordeling nodig hebben
+      // Beluren per user per project in de periode
+      if (logsRes.data) {
+        const secs = {}
+        logsRes.data.forEach(log => {
+          if (!log.agent_id) return
+          const listKey = log.lead_list_id || 'none'
+          if (!secs[log.agent_id]) secs[log.agent_id] = {}
+          secs[log.agent_id][listKey] = (secs[log.agent_id][listKey] || 0) + (log.duration_seconds || 0)
+        })
+        setCallSeconds(secs)
+      }
+
+      // Deals en NETTO afspraken per user per project (binnen de periode);
+      // te beoordelen afspraken worden ALTIJD getoond, ook buiten de periode
       if (leadsRes.data) {
         const counts = {}
         const pending = []
@@ -68,13 +104,18 @@ export default function Payouts() {
             pending.push(lead)
           }
           if (!lead.assigned_to) return
-          if (!counts[lead.assigned_to]) {
-            counts[lead.assigned_to] = { deals: 0, appointments: 0, pendingAppointments: 0 }
+          const created = new Date(lead.created_at)
+          if (created < start || created > end) return
+          const listKey = lead.lead_list_id || 'none'
+          if (!counts[lead.assigned_to]) counts[lead.assigned_to] = {}
+          if (!counts[lead.assigned_to][listKey]) {
+            counts[lead.assigned_to][listKey] = { deals: 0, appointments: 0, pendingAppointments: 0 }
           }
-          if (lead.status === 'deal') counts[lead.assigned_to].deals++
+          const c = counts[lead.assigned_to][listKey]
+          if (lead.status === 'deal') c.deals++
           if (lead.status === 'afspraak_gemaakt') {
-            if (lead.appointment_approved === true) counts[lead.assigned_to].appointments++
-            else if (lead.appointment_approved === null || lead.appointment_approved === undefined) counts[lead.assigned_to].pendingAppointments++
+            if (lead.appointment_approved === true) c.appointments++
+            else if (lead.appointment_approved === null || lead.appointment_approved === undefined) c.pendingAppointments++
           }
         })
         setLeadCounts(counts)
@@ -105,16 +146,16 @@ export default function Payouts() {
     const lead = pendingAppointments.find(l => l.id === leadId)
     setPendingAppointments(prev => prev.filter(l => l.id !== leadId))
     if (lead?.assigned_to) {
+      const listKey = lead.lead_list_id || 'none'
       setLeadCounts(prev => {
-        const cur = prev[lead.assigned_to] || { deals: 0, appointments: 0, pendingAppointments: 0 }
-        return {
-          ...prev,
-          [lead.assigned_to]: {
-            ...cur,
-            appointments: cur.appointments + (approved ? 1 : 0),
-            pendingAppointments: Math.max(0, cur.pendingAppointments - 1)
-          }
+        const userCounts = { ...(prev[lead.assigned_to] || {}) }
+        const cur = userCounts[listKey] || { deals: 0, appointments: 0, pendingAppointments: 0 }
+        userCounts[listKey] = {
+          ...cur,
+          appointments: cur.appointments + (approved ? 1 : 0),
+          pendingAppointments: Math.max(0, cur.pendingAppointments - 1)
         }
+        return { ...prev, [lead.assigned_to]: userCounts }
       })
     }
   }
@@ -122,11 +163,47 @@ export default function Payouts() {
   // Vergoedingen: payout_rules van de owner is leidend, localStorage is fallback
   const defaultDealRate = rules ? Number(rules.rate_per_deal) : systemSettings.dealValue
   const defaultAppointmentRate = rules ? Number(rules.rate_per_appointment) : systemSettings.appointmentValue
+  const defaultHourRate = rules ? Number(rules.rate_per_hour ?? 0) : 0
   const minCallsForPayout = rules ? Number(rules.min_calls_for_payout) : 0
 
-  function getUserLeads(userId) {
-    // This would be fetched from leads in real implementation
-    return []
+  // Tarief per project; NULL-veld = standaardtarief
+  const listById = {}
+  lists.forEach(l => { listById[l.id] = l })
+  function ratesFor(listKey) {
+    const l = listById[listKey]
+    return {
+      appointment: l?.rate_per_appointment ?? defaultAppointmentRate,
+      deal: l?.rate_per_deal ?? defaultDealRate,
+      hour: l?.rate_per_hour ?? defaultHourRate
+    }
+  }
+
+  // Per beller: uitsplitsing per project + totaal
+  function userBreakdown(userId) {
+    const countsByList = leadCounts[userId] || {}
+    const secsByList = callSeconds[userId] || {}
+    const listKeys = [...new Set([...Object.keys(countsByList), ...Object.keys(secsByList)])]
+    const rows = listKeys.map(key => {
+      const c = countsByList[key] || { deals: 0, appointments: 0, pendingAppointments: 0 }
+      const seconds = secsByList[key] || 0
+      const r = ratesFor(key)
+      const amount = c.deals * Number(r.deal) + c.appointments * Number(r.appointment) + (seconds / 3600) * Number(r.hour)
+      return {
+        key,
+        name: listById[key]?.name || (key === 'none' ? 'Zonder project' : 'Verwijderd project'),
+        ...c, seconds, rates: r,
+        amount
+      }
+    }).filter(row => row.deals || row.appointments || row.pendingAppointments || row.seconds)
+      .sort((a, b) => b.amount - a.amount)
+    const totals = rows.reduce((t, r) => ({
+      deals: t.deals + r.deals,
+      appointments: t.appointments + r.appointments,
+      pendingAppointments: t.pendingAppointments + r.pendingAppointments,
+      seconds: t.seconds + r.seconds,
+      amount: t.amount + r.amount
+    }), { deals: 0, appointments: 0, pendingAppointments: 0, seconds: 0, amount: 0 })
+    return { rows, totals }
   }
 
   function getStatusInfo(payout) {
@@ -134,7 +211,7 @@ export default function Payouts() {
       return {
         label: 'Niet factureerbaar',
         color: 'var(--text-muted)',
-        bgColor: 'rgba(255,255,255,0.05)',
+        bgColor: 'var(--bg-elevated)',
         step: 0
       }
     }
@@ -169,7 +246,7 @@ export default function Payouts() {
     return {
       label: 'Niet factureerbaar',
       color: 'var(--text-muted)',
-      bgColor: 'rgba(255,255,255,0.05)',
+      bgColor: 'var(--bg-elevated)',
       step: 0
     }
   }
@@ -267,27 +344,7 @@ export default function Payouts() {
 
   return (
     <div className="payouts-page" style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
-      <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)' }}>
-        <div className="container header-content">
-          <Logo size="medium" />
-          <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
-            <Link to="/">Dashboard</Link>
-            <Link to="/tba">TBA's</Link>
-            <Link to="/earnings">Verdiensten</Link>
-            {profile?.role === 'admin' && <Link to="/admin/telemetry">Telemetrie</Link>}
-            {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
-            {profile?.role === 'admin' && <Link to="/admin/reports">Rapportage</Link>}
-            {profile?.role === 'admin' && <Link to="/admin/payouts" className="active">Payouts</Link>}
-          </nav>
-          <div className="header-actions">
-            <div className="flex items-center gap-2 mr-3" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 12px', borderRadius: '20px' }}>
-              <Zap size={14} style={{ color: 'var(--secondary)' }} />
-              <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span></span>
-            </div>
-            <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="container" style={{ paddingTop: '60px', paddingBottom: '60px' }}>
         <motion.div
@@ -297,18 +354,25 @@ export default function Payouts() {
         >
           <div>
             <h1>Payouts Beheer</h1>
-            <p style={{ color: 'var(--text-muted)' }}>Beheer facturatie en betalingen per medewerker - April 2026</p>
+            <p style={{ color: 'var(--text-muted)' }}>Facturatie en betalingen per medewerker, uitgesplitst per project</p>
+            <div className="flex gap-2 mt-2 items-center" style={{ flexWrap: 'wrap' }}>
+              <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
+                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.8rem' }} />
+              <span className="text-muted">tot</span>
+              <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)}
+                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.8rem' }} />
+            </div>
           </div>
           <div className="flex gap-2 items-center">
             <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-              Deal: €{defaultDealRate} | Netto afspraak: €{defaultAppointmentRate}
-              {minCallsForPayout > 0 && ` | Beltarget: ${minCallsForPayout} calls/maand`}
+              Standaard: €{defaultAppointmentRate}/afspraak · €{defaultDealRate}/deal{defaultHourRate > 0 && ` · €${defaultHourRate}/uur`}
+              {minCallsForPayout > 0 && ` · beltarget ${minCallsForPayout} calls`}
             </span>
             <Link to="/admin" style={{ fontSize: '0.8rem', color: 'var(--primary)', fontWeight: 700 }}>Tarieven aanpassen →</Link>
           </div>
         </motion.div>
 
-        {/* TE BEOORDELEN AFSPRAKEN — netto of niet? */}
+        {/* TE BEOORDELEN AFSPRAKEN - netto of niet? */}
         {pendingAppointments.length > 0 && (
           <motion.div
             initial={{ y: 20, opacity: 0 }}
@@ -321,7 +385,7 @@ export default function Payouts() {
               Te beoordelen afspraken ({pendingAppointments.length})
             </h3>
             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
-              Keur goed als de afspraak echt heeft plaatsgevonden (netto) — alleen netto afspraken tellen mee voor uitbetaling.
+              Keur goed als de afspraak echt heeft plaatsgevonden (netto) - alleen netto afspraken tellen mee voor uitbetaling.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {pendingAppointments.map(lead => {
@@ -335,7 +399,7 @@ export default function Payouts() {
                       </span>
                     </div>
                     <div className="flex gap-2">
-                      <button onClick={() => reviewAppointment(lead.id, true)} className="btn btn-sm" style={{ background: 'var(--success)', color: 'white', fontWeight: 700 }}>
+                      <button onClick={() => reviewAppointment(lead.id, true)} className="btn btn-sm" style={{ background: 'var(--success)', color: 'var(--text-on-accent)', fontWeight: 700 }}>
                         <Check size={14} /> Netto
                       </button>
                       <button onClick={() => reviewAppointment(lead.id, false)} className="btn btn-sm btn-outline" style={{ color: 'var(--danger, #EF4444)' }}>
@@ -383,12 +447,11 @@ export default function Payouts() {
           <LoadingSpinner size="large" />
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
-            {users.map((user, index) => {
+            {users.filter(u => u.role === 'employee').map((user, index) => {
               const payout = payouts[user.id]
-              const counts = leadCounts[user.id] || { deals: 0, appointments: 0, pendingAppointments: 0 }
+              const { rows, totals } = userBreakdown(user.id)
               const statusInfo = getStatusInfo(payout)
-              const totalAmount = (counts.deals || 0) * (payout?.deal_payout || defaultDealRate) +
-                (counts.appointments || 0) * (payout?.appointment_payout || defaultAppointmentRate)
+              const totalAmount = Math.round(totals.amount * 100) / 100
               const userCalls = monthlyCalls[user.id] || 0
               const belowCallTarget = minCallsForPayout > 0 && userCalls < minCallsForPayout
 
@@ -409,7 +472,7 @@ export default function Payouts() {
                         fontSize: '0.75rem',
                         padding: '4px 8px',
                         borderRadius: '4px',
-                        background: user.role === 'admin' ? 'rgba(245, 158, 11, 0.2)' : 'rgba(255,255,255,0.1)',
+                        background: user.role === 'admin' ? 'rgba(245, 158, 11, 0.2)' : 'var(--bg-elevated)',
                         color: user.role === 'admin' ? 'var(--secondary)' : 'var(--text-muted)'
                       }}>
                         {user.role}
@@ -450,97 +513,54 @@ export default function Payouts() {
                           flex: 1,
                           height: '6px',
                           borderRadius: '3px',
-                          background: step <= statusInfo.step ? statusInfo.color : 'rgba(255,255,255,0.1)'
+                          background: step <= statusInfo.step ? statusInfo.color : 'var(--bg-elevated)'
                         }}
                       />
                     ))}
                   </div>
 
-                  {/* Auto-synced counts from leads table */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                    <div>
-                      <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                        Deals
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <span style={{
-                          width: '60px',
-                          padding: '8px',
-                          borderRadius: '6px',
-                          background: 'var(--bg-dark)',
-                          color: 'white',
-                          fontWeight: 700,
-                          textAlign: 'center',
-                          display: 'inline-block'
-                        }}>{counts.deals || 0}</span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>× €{payout?.deal_payout || defaultDealRate}</span>
-                      </div>
+                  {/* Uitsplitsing per project (tarieven per project, fallback = standaard) */}
+                  {rows.length === 0 ? (
+                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '16px' }}>
+                      Geen resultaten in deze periode.
+                    </p>
+                  ) : (
+                    <div style={{ marginBottom: '16px', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
+                        <thead>
+                          <tr style={{ background: 'var(--bg-dark)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                            <th style={{ padding: '8px 10px', fontWeight: 700 }}>Project</th>
+                            <th style={{ padding: '8px 10px', fontWeight: 700 }}>Deals</th>
+                            <th style={{ padding: '8px 10px', fontWeight: 700 }}>Afspr.</th>
+                            <th style={{ padding: '8px 10px', fontWeight: 700 }}>Beltijd</th>
+                            <th style={{ padding: '8px 10px', fontWeight: 700, textAlign: 'right' }}>€</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {rows.map(row => (
+                            <tr key={row.key} style={{ borderTop: '1px solid var(--border)' }}>
+                              <td style={{ padding: '8px 10px', fontWeight: 700 }} title={`€${row.rates.appointment}/afspraak · €${row.rates.deal}/deal · €${row.rates.hour}/uur`}>
+                                {row.name}
+                              </td>
+                              <td style={{ padding: '8px 10px' }}>{row.deals} <span style={{ color: 'var(--text-muted)' }}>× €{row.rates.deal}</span></td>
+                              <td style={{ padding: '8px 10px' }}>
+                                {row.appointments} <span style={{ color: 'var(--text-muted)' }}>× €{row.rates.appointment}</span>
+                                {row.pendingAppointments > 0 && <span style={{ color: 'var(--warning)' }}> (+{row.pendingAppointments})</span>}
+                              </td>
+                              <td style={{ padding: '8px 10px' }}>
+                                {Number(row.rates.hour) > 0
+                                  ? <>{fmtHours(row.seconds)} <span style={{ color: 'var(--text-muted)' }}>× €{row.rates.hour}/u</span></>
+                                  : <span style={{ color: 'var(--text-muted)' }}>{fmtHours(row.seconds)}</span>}
+                              </td>
+                              <td style={{ padding: '8px 10px', textAlign: 'right', fontWeight: 800, color: 'var(--secondary)' }}>
+                                €{(Math.round(row.amount * 100) / 100).toLocaleString('nl-NL')}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
-                    <div>
-                      <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                        Netto afspraken{counts.pendingAppointments > 0 && <span style={{ color: 'var(--warning)' }}> (+{counts.pendingAppointments} te beoordelen)</span>}
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <span style={{
-                          width: '60px',
-                          padding: '8px',
-                          borderRadius: '6px',
-                          background: 'var(--bg-dark)',
-                          color: 'white',
-                          fontWeight: 700,
-                          textAlign: 'center',
-                          display: 'inline-block'
-                        }}>{counts.appointments || 0}</span>
-                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>× €{payout?.appointment_payout || defaultAppointmentRate}</span>
-                      </div>
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                        Per deal (€)
-                      </label>
-                      {profile?.role === 'admin' ? (
-                        <input
-                          type="number"
-                          min="0"
-                          value={payout?.deal_payout || defaultDealRate}
-                          onChange={(e) => updatePayoutField(user.id, 'deal_payout', parseFloat(e.target.value) || 0)}
-                          style={{
-                            width: '80px',
-                            padding: '8px',
-                            borderRadius: '6px',
-                            border: '1px solid var(--border)',
-                            background: 'var(--bg-dark)',
-                            color: 'white'
-                          }}
-                        />
-                      ) : (
-                        <span style={{ color: 'white', fontWeight: 600 }}>€{payout?.deal_payout || defaultDealRate}</span>
-                      )}
-                    </div>
-                    <div>
-                      <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
-                        Per afspraak (€)
-                      </label>
-                      {profile?.role === 'admin' ? (
-                        <input
-                          type="number"
-                          min="0"
-                          value={payout?.appointment_payout || defaultAppointmentRate}
-                          onChange={(e) => updatePayoutField(user.id, 'appointment_payout', parseFloat(e.target.value) || 0)}
-                          style={{
-                            width: '80px',
-                            padding: '8px',
-                            borderRadius: '6px',
-                            border: '1px solid var(--border)',
-                            background: 'var(--bg-dark)',
-                            color: 'white'
-                          }}
-                        />
-                      ) : (
-                        <span style={{ color: 'white', fontWeight: 600 }}>€{payout?.appointment_payout || defaultAppointmentRate}</span>
-                      )}
-                    </div>
-                  </div>
+                  )}
 
                   {/* Beltarget check */}
                   {minCallsForPayout > 0 && (
@@ -576,7 +596,7 @@ export default function Payouts() {
                           </>
                         ) : (
                           <>
-                            <AlertCircle size={14} /> Make Billable
+                            <AlertCircle size={14} /> Factureerbaar maken
                           </>
                         )}
                       </button>
@@ -611,7 +631,7 @@ export default function Payouts() {
                           borderRadius: '4px',
                           border: '1px solid var(--border)',
                           background: 'var(--bg-dark)',
-                          color: 'white',
+                          color: 'var(--text-primary)',
                           fontSize: '0.8rem'
                         }}
                       />
@@ -631,7 +651,7 @@ export default function Payouts() {
                           borderRadius: '4px',
                           border: '1px solid var(--border)',
                           background: 'var(--bg-dark)',
-                          color: payout.payout_status === 'paid' ? 'var(--success)' : 'white',
+                          color: payout.payout_status === 'paid' ? 'var(--success)' : 'var(--text-primary)',
                           fontSize: '0.8rem',
                           fontWeight: 600
                         }}

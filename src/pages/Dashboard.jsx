@@ -240,7 +240,7 @@ export default function Dashboard() {
             <div>
               <h2 style={{ fontSize: '1.3rem', fontWeight: 900, marginBottom: '4px' }}>Jouw projecten in één oogopslag</h2>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
-                Live beltijd, pogingen per uur en resultaten van je bellers — plus bellers toevoegen en toewijzen.
+                Live beltijd, pogingen per uur en resultaten van je bellers - plus bellers toevoegen en toewijzen.
               </p>
             </div>
             <Link to="/manager" className="btn btn-primary" style={{ padding: '14px 28px', fontWeight: 800, whiteSpace: 'nowrap' }}>
@@ -269,7 +269,7 @@ export default function Dashboard() {
                 alignItems: 'center', 
                 gap: '8px', 
                 padding: '4px 12px', 
-                background: 'rgba(255,255,255,0.05)', 
+                background: 'var(--bg-elevated)', 
                 borderRadius: '100px',
                 marginBottom: '16px'
               }}>
@@ -300,7 +300,7 @@ export default function Dashboard() {
                     <select 
                       onChange={(e) => setSelectedListId(e.target.value)}
                       value={selectedListId || ''}
-                      style={{ padding: '16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'white', fontWeight: 700, fontSize: '0.9rem', width: '100%' }}
+                      style={{ padding: '16px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-card)', color: 'var(--text-primary)', fontWeight: 700, fontSize: '0.9rem', width: '100%' }}
                     >
                       <option value="" disabled>--- KIES JE PROJECT ---</option>
                       {leadLists.map(list => (

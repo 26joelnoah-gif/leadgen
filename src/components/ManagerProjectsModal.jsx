@@ -4,18 +4,55 @@ import { X, Layers, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useToast } from './Toast'
 
-// Admin koppelt een manager aan projecten (lead_lists) en zet
-// optioneel "mag leads beheren" aan (profiles.can_manage_leads).
+// Admin koppelt een manager aan projecten (lead_lists) en bepaalt per
+// manager wat hij mag zien en doen (rechten-kolommen op profiles, v20).
+const PERMISSIONS = [
+  { key: 'can_view_rates', label: 'Tarieven & kosten zien', hint: 'Ziet de projecttarieven en wat elke beller kost in zijn dashboard.' },
+  { key: 'can_manage_leads', label: 'Leads beheren', hint: 'Mag leads importeren en bewerken binnen zijn eigen projecten.' },
+  { key: 'can_manage_team', label: 'Bellers aanmaken & toewijzen', hint: 'Mag nieuwe bellers aanmaken en aan zijn projecten koppelen.' },
+  { key: 'can_export_data', label: 'Exporteren (CSV)', hint: 'Mag statistieken en gesprekken als CSV downloaden.' },
+  { key: 'can_edit_flows', label: 'Flows aanpassen', hint: 'Mag instellen wat er na een afboeking gebeurt. Let op: flows gelden voor alle projecten.' },
+  { key: 'kpi_only', label: "Alleen KPI's & uitkomsten", hint: 'Ziet alleen totalen en trends (afspraken, belletjes per uur/dag/week/maand) - geen individuele gesprekken of leadgegevens.' }
+]
+
+function PermToggle({ on, onClick }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      onClick={onClick}
+      style={{
+        width: '44px', height: '24px', borderRadius: '12px', position: 'relative',
+        background: on ? 'var(--success)' : 'var(--border-strong)',
+        transition: 'background 0.15s', flexShrink: 0
+      }}
+    >
+      <span style={{
+        position: 'absolute', top: '3px', left: on ? '23px' : '3px',
+        width: '18px', height: '18px', borderRadius: '50%',
+        background: 'white', transition: 'left 0.15s'
+      }} />
+    </button>
+  )
+}
 export default function ManagerProjectsModal({ isOpen, onClose, manager, leadLists = [], onSaved }) {
   const toast = useToast()
   const [selected, setSelected] = useState(new Set())
-  const [canManageLeads, setCanManageLeads] = useState(false)
+  const [perms, setPerms] = useState({})
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (!isOpen || !manager) return
-    setCanManageLeads(!!manager.can_manage_leads)
+    setPerms({
+      can_manage_leads: !!manager.can_manage_leads,
+      can_view_rates: !!manager.can_view_rates,
+      can_manage_team: manager.can_manage_team !== false,
+      can_export_data: manager.can_export_data !== false,
+      can_edit_flows: !!manager.can_edit_flows,
+      kpi_only: !!manager.kpi_only
+    })
     setLoading(true)
     supabase
       .from('project_managers')
@@ -66,10 +103,16 @@ export default function ManagerProjectsModal({ isOpen, onClose, manager, leadLis
         if (error) throw error
       }
 
-      if (!!manager.can_manage_leads !== canManageLeads) {
+      const permsChanged = PERMISSIONS.some(perm => {
+        const before = perm.key === 'can_manage_team' || perm.key === 'can_export_data'
+          ? manager[perm.key] !== false
+          : !!manager[perm.key]
+        return before !== !!perms[perm.key]
+      })
+      if (permsChanged) {
         const { error } = await supabase
           .from('profiles')
-          .update({ can_manage_leads: canManageLeads })
+          .update(perms)
           .eq('id', manager.id)
         if (error) throw error
       }
@@ -120,16 +163,16 @@ export default function ManagerProjectsModal({ isOpen, onClose, manager, leadLis
                   style={{
                     display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px',
                     borderRadius: '10px', cursor: 'pointer', textAlign: 'left', width: '100%',
-                    background: checked ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.03)',
-                    border: checked ? '1px solid var(--primary)' : '1px solid rgba(255,255,255,0.08)',
-                    color: 'white', fontWeight: 600
+                    background: checked ? 'rgba(59,130,246,0.15)' : 'var(--bg-elevated)',
+                    border: checked ? '1px solid var(--primary)' : '1px solid var(--border)',
+                    color: 'var(--text-primary)', fontWeight: 600
                   }}
                 >
                   <span style={{
                     width: '20px', height: '20px', borderRadius: '6px', flexShrink: 0,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     background: checked ? 'var(--primary)' : 'transparent',
-                    border: checked ? 'none' : '1px solid rgba(255,255,255,0.25)'
+                    border: checked ? 'none' : '1px solid var(--border-strong)'
                   }}>
                     {checked && <Check size={14} />}
                   </span>
@@ -140,13 +183,29 @@ export default function ManagerProjectsModal({ isOpen, onClose, manager, leadLis
           </div>
         )}
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '12px 14px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: '10px', marginBottom: '20px' }}>
-          <input type="checkbox" checked={canManageLeads} onChange={e => setCanManageLeads(e.target.checked)} />
-          <span style={{ fontSize: '0.85rem' }}>
-            <strong>Leads beheren toestaan</strong><br />
-            <span className="text-muted">De manager mag dan ook leads importeren en bewerken binnen zijn eigen projecten.</span>
-          </span>
-        </label>
+        <div style={{ marginBottom: '20px' }}>
+          <div className="text-[10px] font-black uppercase text-muted tracking-widest" style={{ marginBottom: '8px' }}>
+            Wat mag deze manager?
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {PERMISSIONS.map(perm => (
+              <div key={perm.key} style={{
+                display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px',
+                background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+                borderRadius: '10px'
+              }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{perm.label}</div>
+                  <div className="text-muted" style={{ fontSize: '0.75rem', lineHeight: 1.4 }}>{perm.hint}</div>
+                </div>
+                <PermToggle
+                  on={!!perms[perm.key]}
+                  onClick={() => setPerms(prev => ({ ...prev, [perm.key]: !prev[perm.key] }))}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
 
         <div className="flex gap-2">
           <button type="button" className="btn btn-outline" onClick={onClose} style={{ flex: 1 }}>Annuleren</button>

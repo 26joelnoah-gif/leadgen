@@ -1,97 +1,65 @@
 import { motion } from 'framer-motion'
-import { TrendingUp, Users, ChevronRight, AlertTriangle } from 'lucide-react'
-import { DEMO_LEADS } from '../lib/demoData'
+import { TrendingUp } from 'lucide-react'
 
+// Horizontale funnel: per fase een balk waarvan de breedte de verhouding toont.
+// Leesbaar bij elke verdeling (de oude verticale variant liep visueel vast).
 export default function PipelineFunnel({ leads = [], isDemoMode = false }) {
-  const funnelLeads = isDemoMode ? DEMO_LEADS : leads
+  const count = statuses => leads.filter(l => l && statuses.includes(l.status)).length
 
-  const statuses = [
-    { key: 'new', label: 'Nieuwe Leads', color: 'var(--primary)' },
-    { key: 'contacted', label: 'In Contact', keys: ['mailen', 'voicemail', 'later_bellen', 'geen_gehoor'], color: 'var(--warning)' },
-    { key: 'terugbelafspraak', label: 'Terugbelafspraak', color: 'var(--success)' },
-    { key: 'afspraak_gemaakt', label: 'Afspraak Gemaakt', color: 'var(--secondary)' },
-    { key: 'deal', label: 'Deals Gesloten', color: 'var(--success)' }
+  const stages = [
+    { label: 'Nieuw', value: count(['new']), color: 'var(--primary)' },
+    { label: 'In behandeling', value: count(['geen_gehoor', 'mailbox', 'later_bellen', 'onjuiste_timing']), color: 'var(--info)' },
+    { label: 'Terugbelafspraak', value: count(['terugbelafspraak']), color: 'var(--secondary)' },
+    { label: 'Afspraak gemaakt', value: count(['afspraak_gemaakt']), color: 'var(--success)' },
+    { label: 'Deal', value: count(['deal']), color: 'var(--success)' }
   ]
 
-  const getCount = (statusObj) => {
-    if (statusObj.keys) {
-      return funnelLeads.filter(l => statusObj.keys.includes(l.status)).length
-    }
-    return funnelLeads.filter(l => l.status === statusObj.key).length
-  }
-
-  const data = statuses.map(s => ({
-    ...s,
-    count: getCount(s)
-  }))
-
-  const maxCount = Math.max(...data.map(d => d.count), 1)
+  const total = leads.length
+  const max = Math.max(1, ...stages.map(s => s.value))
+  const deals = stages[4].value
+  const conversie = total > 0 ? ((deals / total) * 100).toFixed(1) : '0.0'
 
   return (
-    <div className="card glass-panel mb-3">
-      <div className="card-header">
-        <span className="card-title"><TrendingUp size={18} /> Conversie Funnel</span>
+    <div className="card glass-panel" style={{ padding: '24px' }}>
+      <div className="card-header" style={{ marginBottom: '16px', paddingBottom: '12px' }}>
+        <span className="card-title"><TrendingUp size={18} /> Conversie funnel</span>
+        <span className="text-muted" style={{ fontSize: '0.8rem' }}>
+          {total} leads · conversie naar deal: <strong style={{ color: 'var(--secondary)' }}>{conversie}%</strong>
+        </span>
       </div>
 
-      <div className="funnel-container flex items-end justify-between gap-2 mt-4" style={{ height: '320px', paddingBottom: '50px' }}>
-        {data.map((step, i) => {
-          const height = (step.count / maxCount) * 100
-          const prevStep = data[i - 1]
-          const conversion = prevStep && prevStep.count > 0 ? Math.round((step.count / prevStep.count) * 100) : null
-
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {stages.map((stage, i) => {
+          const pct = total > 0 ? Math.round((stage.value / total) * 100) : 0
+          const width = Math.max(stage.value > 0 ? 6 : 2, Math.round((stage.value / max) * 100))
           return (
-            <div key={step.key} className="funnel-step flex-1 flex flex-column items-center relative h-full justify-end">
-              {conversion !== null && (
-                <div className="conversion-rate" style={{ position: 'absolute', left: '50%', bottom: '0', transform: 'translateX(-50%)', background: 'var(--bg-light)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.7rem', fontWeight: 700, zIndex: 2, border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
-                  {conversion}%
-                </div>
-              )}
-
-              <motion.div
-                initial={{ height: 0 }}
-                animate={{ height: `${height}%` }}
-                className="step-bar"
-                style={{
-                  width: '100%',
-                  background: step.color,
-                  borderRadius: '8px 8px 4px 4px',
-                  opacity: 0.85 + (i * 0.03),
-                  boxShadow: `0 4px 20px ${step.color}44`,
-                  position: 'relative',
-                  minHeight: '8px'
-                }}
-              >
-                {step.count === 0 && height === 0 && (
-                   <div style={{ position: 'absolute', top: '-20px', left: '50%', transform: 'translateX(-50%)' }}>
-                     <AlertTriangle size={14} className="text-muted" style={{ opacity: 0.4 }} />
-                   </div>
-                )}
-                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', color: 'white', fontWeight: 800, fontSize: '1.1rem', textShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>
-                  {step.count}
-                </div>
-              </motion.div>
-
-              <div className="step-name mt-3 text-center" style={{ fontSize: '0.75rem', fontWeight: 700, width: '100%', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {step.label}
+            <div key={stage.label} style={{ display: 'grid', gridTemplateColumns: '150px 1fr 90px', alignItems: 'center', gap: '14px' }}>
+              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', textAlign: 'right' }}>
+                {stage.label}
+              </span>
+              <div style={{ background: 'var(--bg-elevated)', borderRadius: '6px', height: '26px', overflow: 'hidden' }}>
+                <motion.div
+                  initial={{ width: 0 }}
+                  animate={{ width: `${width}%` }}
+                  transition={{ delay: i * 0.06, duration: 0.4 }}
+                  style={{
+                    height: '100%', borderRadius: '6px', background: stage.color,
+                    opacity: stage.value > 0 ? 0.9 : 0.15,
+                    display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: '8px'
+                  }}
+                >
+                  {stage.value > 0 && width > 12 && (
+                    <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-on-accent)' }}>{stage.value}</span>
+                  )}
+                </motion.div>
               </div>
+              <span style={{ fontSize: '0.8rem', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                {stage.value} <span className="text-muted" style={{ fontWeight: 500 }}>· {pct}%</span>
+              </span>
             </div>
           )
         })}
       </div>
-
-      <div className="funnel-meta flex justify-between mt-4 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
-         <div className="text-muted" style={{ fontSize: '0.85rem' }}>
-           Totaal Leads: <strong>{funnelLeads.length}</strong>
-         </div>
-         <div className="text-secondary" style={{ fontSize: '0.85rem', fontWeight: 700 }}>
-           Conversie: {funnelLeads.length > 0 ? Math.round((data[data.length - 1].count / funnelLeads.length) * 100) : 0}%
-         </div>
-      </div>
-
-      <style>{`
-        .funnel-step { position: relative; }
-        .step-bar { transition: height 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
-      `}</style>
     </div>
   )
 }

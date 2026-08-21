@@ -6,8 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
 import { getSettings } from '../utils/settingsUtils'
 import { supabase } from '../lib/supabase'
-import Logo from '../components/Logo'
-import MobileNav from '../components/MobileNav'
+import Header from '../components/Header'
 
 // Startmoment van een prijs-periode (dag/week/maand)
 function periodStart(period) {
@@ -23,7 +22,7 @@ function periodStart(period) {
 }
 
 export default function Earnings() {
-  const { user, profile, signOut, sessionCallCount, isDemoMode } = useAuth()
+  const { user, profile, isDemoMode } = useAuth()
   const { leads } = useLeads()
   const [copied, setCopied] = useState(false)
   const [settings] = useState(getSettings)
@@ -31,6 +30,8 @@ export default function Earnings() {
   const [todayCalls, setTodayCalls] = useState(0)
   const [prizes, setPrizes] = useState([])
   const [callCounts, setCallCounts] = useState({ day: 0, week: 0, month: 0 })
+  const [lists, setLists] = useState([]) // eigen projecten incl. tarieven per project
+  const [secondsByList, setSecondsByList] = useState({}) // beluren per project in de periode
 
   useEffect(() => {
     if (!user?.id || isDemoMode) return
@@ -57,6 +58,9 @@ export default function Earnings() {
 
         const { data: prizeRows } = await supabase.from('prizes').select('*').eq('active', true).order('created_at', { ascending: false })
         if (!cancelled) setPrizes(prizeRows || [])
+
+        const { data: listRows } = await supabase.from('lead_lists').select('id, name, rate_per_appointment, rate_per_deal, rate_per_hour')
+        if (!cancelled) setLists(listRows || [])
       } catch (err) {
         console.error('Stats laden mislukt:', err)
       }
@@ -65,16 +69,39 @@ export default function Earnings() {
     return () => { cancelled = true }
   }, [user?.id, isDemoMode])
 
-  // Date range state - default to current month
+  // Date range state - default to current month (lokale datum, geen UTC-verschuiving)
+  const toLocalDate = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   const now = new Date()
-  const [startDate, setStartDate] = useState(() => {
-    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-  })
-  const [endDate, setEndDate] = useState(() => {
-    return new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
-  })
+  const [startDate, setStartDate] = useState(() => toLocalDate(new Date(now.getFullYear(), now.getMonth(), 1)))
+  const [endDate, setEndDate] = useState(() => toLocalDate(new Date(now.getFullYear(), now.getMonth() + 1, 0)))
 
-  // Filter leads by date range — afspraken gesplitst in netto (goedgekeurd) en pending
+  // Beluren per project binnen de gekozen periode (voor projecten met een uurtarief)
+  useEffect(() => {
+    if (!user?.id || isDemoMode) return
+    let cancelled = false
+    async function fetchHours() {
+      const start = new Date(`${startDate}T00:00:00`)
+      const end = new Date(`${endDate}T23:59:59.999`)
+      const { data } = await supabase
+        .from('call_logs')
+        .select('lead_list_id, duration_seconds')
+        .eq('agent_id', user.id)
+        .gte('disposed_at', start.toISOString())
+        .lte('disposed_at', end.toISOString())
+        .limit(10000)
+      if (cancelled) return
+      const secs = {}
+      ;(data || []).forEach(log => {
+        const key = log.lead_list_id || 'none'
+        secs[key] = (secs[key] || 0) + (log.duration_seconds || 0)
+      })
+      setSecondsByList(secs)
+    }
+    fetchHours()
+    return () => { cancelled = true }
+  }, [user?.id, isDemoMode, startDate, endDate])
+
+  // Filter leads by date range - afspraken gesplitst in netto (goedgekeurd) en pending
   const { deals, appointments, pendingAppointments } = useMemo(() => {
     const start = new Date(startDate)
     start.setHours(0, 0, 0, 0)
@@ -97,14 +124,47 @@ export default function Earnings() {
   const showDeals = profile?.role === 'admin' || profile?.show_deals_in_earnings !== false
   const showAppointments = profile?.role === 'admin' || profile?.show_appointments_in_earnings !== false
 
-  // Vergoedingen van de product owner (payout_rules); localStorage als fallback
+  // Standaardtarieven van de product owner (payout_rules); localStorage als fallback
   const dealRate = rules ? Number(rules.rate_per_deal) : settings.dealValue
   const appointmentRate = rules ? Number(rules.rate_per_appointment) : settings.appointmentValue
+  const hourRate = rules ? Number(rules.rate_per_hour ?? 0) : 0
   const dailyTarget = rules ? Number(rules.min_calls_per_day) : 0
 
-  const dealAmount = showDeals ? deals.length * dealRate : 0
-  const appointmentAmount = showAppointments ? appointments.length * appointmentRate : 0
-  const totalAmount = dealAmount + appointmentAmount
+  // Uitsplitsing per project: projecttarief indien ingesteld, anders standaard
+  const round2 = n => Math.round(n * 100) / 100
+  const breakdown = useMemo(() => {
+    const listById = {}
+    lists.forEach(l => { listById[l.id] = l })
+    const rows = {}
+    const ensure = key => rows[key] || (rows[key] = { deals: 0, appointments: 0, seconds: 0 })
+    if (showDeals) deals.forEach(l => { ensure(l.lead_list_id || 'none').deals++ })
+    if (showAppointments) appointments.forEach(l => { ensure(l.lead_list_id || 'none').appointments++ })
+    Object.entries(secondsByList).forEach(([key, s]) => { ensure(key).seconds += s })
+    return Object.entries(rows).map(([key, r]) => {
+      const l = listById[key]
+      const rates = {
+        deal: Number(l?.rate_per_deal ?? dealRate),
+        appointment: Number(l?.rate_per_appointment ?? appointmentRate),
+        hour: Number(l?.rate_per_hour ?? hourRate)
+      }
+      const dealAmt = r.deals * rates.deal
+      const appAmt = r.appointments * rates.appointment
+      const hourAmt = (r.seconds / 3600) * rates.hour
+      return {
+        key,
+        name: l?.name || (key === 'none' ? 'Zonder project' : 'Overig project'),
+        ...r, rates,
+        amount: round2(dealAmt + appAmt + hourAmt)
+      }
+    }).filter(row => row.amount > 0 || row.deals || row.appointments)
+      .sort((a, b) => b.amount - a.amount)
+  }, [deals, appointments, secondsByList, lists, dealRate, appointmentRate, hourRate, showDeals, showAppointments])
+
+  const dealAmount = round2(breakdown.reduce((t, r) => t + r.deals * r.rates.deal, 0))
+  const appointmentAmount = round2(breakdown.reduce((t, r) => t + r.appointments * r.rates.appointment, 0))
+  const hoursAmount = round2(breakdown.reduce((t, r) => t + (r.seconds / 3600) * r.rates.hour, 0))
+  const totalHours = breakdown.reduce((t, r) => t + r.seconds, 0) / 3600
+  const totalAmount = round2(dealAmount + appointmentAmount + hoursAmount)
 
   // Voortgang per prijs voor deze beller
   function prizeProgress(prize) {
@@ -124,7 +184,14 @@ export default function Earnings() {
   const endFormatted = new Date(endDate).toLocaleDateString('nl-NL', { month: 'long', year: 'numeric' })
   const periodLabel = startFormatted === endFormatted ? startFormatted : `${startFormatted} - ${endFormatted}`
 
-  const invoiceText = `${profile?.full_name || 'Medewerker'}\nPeriode: ${periodLabel}\n\nDeals: ${deals.length} x €${dealRate} = €${dealAmount}\nNetto afspraken: ${appointments.length} x €${appointmentRate} = €${appointmentAmount}\n\nTotaal te factureren: €${totalAmount}`
+  const invoiceLines = breakdown.map(r => {
+    const parts = []
+    if (r.deals) parts.push(`${r.deals} deals × €${r.rates.deal}`)
+    if (r.appointments) parts.push(`${r.appointments} netto afspraken × €${r.rates.appointment}`)
+    if (r.rates.hour > 0 && r.seconds > 0) parts.push(`${(r.seconds / 3600).toFixed(1)} uur beltijd × €${r.rates.hour}`)
+    return `${r.name}: ${parts.join(' + ') || '0'} = €${r.amount}`
+  })
+  const invoiceText = `${profile?.full_name || 'Medewerker'}\nPeriode: ${periodLabel}\n\n${invoiceLines.length ? invoiceLines.join('\n') : 'Geen resultaten in deze periode'}\n\nTotaal te factureren: €${totalAmount}`
 
   function copyInvoice() {
     navigator.clipboard.writeText(invoiceText)
@@ -134,28 +201,7 @@ export default function Earnings() {
 
   return (
     <div className="earnings-page" style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
-      <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)' }}>
-        <div className="container header-content">
-          <Logo size="medium" />
-          <nav className="nav" style={{ marginLeft: '40px', flex: 1 }}>
-            <Link to="/">Dashboard</Link>
-            <Link to="/tba">TBA's</Link>
-            <Link to="/earnings" className="active">Verdiensten</Link>
-            {profile?.role === 'admin' && <Link to="/admin/telemetry">Telemetrie</Link>}
-            {profile?.role === 'admin' && <Link to="/admin">Admin</Link>}
-            {profile?.role === 'admin' && <Link to="/admin/reports">Rapportage</Link>}
-          </nav>
-          <MobileNav profile={profile} />
-          <div className="header-actions">
-            <div className="flex items-center gap-2 mr-3" style={{ background: 'rgba(232, 185, 35, 0.15)', padding: '8px 16px', borderRadius: '20px', border: '1px solid var(--secondary)' }}>
-              <Zap size={18} style={{ color: 'var(--secondary)' }} />
-              <span style={{ fontSize: '1rem', fontWeight: 800, color: 'white' }}>{sessionCallCount}</span>
-              <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>calls</span>
-            </div>
-            <button onClick={signOut} className="btn btn-sm btn-outline">Uitloggen</button>
-          </div>
-        </div>
-      </header>
+      <Header />
 
       <main className="container" style={{ paddingTop: '60px', paddingBottom: '60px' }}>
         <motion.div
@@ -181,7 +227,7 @@ export default function Earnings() {
                   borderRadius: '6px',
                   border: '1px solid var(--border)',
                   background: 'var(--bg-elevated)',
-                  color: 'white',
+                  color: 'var(--text-primary)',
                   fontSize: '0.85rem'
                 }}
               />
@@ -195,7 +241,7 @@ export default function Earnings() {
                   borderRadius: '6px',
                   border: '1px solid var(--border)',
                   background: 'var(--bg-elevated)',
-                  color: 'white',
+                  color: 'var(--text-primary)',
                   fontSize: '0.85rem'
                 }}
               />
@@ -215,11 +261,11 @@ export default function Earnings() {
               <span style={{ fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <Target size={16} style={{ color: 'var(--secondary)' }} /> DAGTARGET
               </span>
-              <span style={{ fontSize: '0.9rem', fontWeight: 800, color: todayCalls >= dailyTarget ? 'var(--success)' : 'white' }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: 800, color: todayCalls >= dailyTarget ? 'var(--success)' : 'var(--text-primary)' }}>
                 {todayCalls}/{dailyTarget} calls {todayCalls >= dailyTarget && '✅'}
               </span>
             </div>
-            <div style={{ height: '8px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+            <div style={{ height: '8px', background: 'var(--bg-elevated)', borderRadius: '4px', overflow: 'hidden' }}>
               <div style={{
                 height: '100%', borderRadius: '4px',
                 width: `${Math.min(100, Math.round((todayCalls / dailyTarget) * 100))}%`,
@@ -251,13 +297,13 @@ export default function Earnings() {
                   <div key={p.id}>
                     <div className="flex justify-between items-center" style={{ marginBottom: '6px' }}>
                       <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>
-                        🏆 {p.name}{p.reward_label && <span style={{ color: 'var(--secondary)' }}> — {p.reward_label}</span>}
+                        🏆 {p.name}{p.reward_label && <span style={{ color: 'var(--secondary)' }}> - {p.reward_label}</span>}
                       </span>
                       <span style={{ fontSize: '0.8rem', fontWeight: 800, color: done ? 'var(--success)' : 'var(--text-muted)' }}>
                         {progress}/{p.target_value} {done && '🎉'}
                       </span>
                     </div>
-                    <div style={{ height: '6px', background: 'rgba(255,255,255,0.08)', borderRadius: '3px', overflow: 'hidden' }}>
+                    <div style={{ height: '6px', background: 'var(--bg-elevated)', borderRadius: '3px', overflow: 'hidden' }}>
                       <div style={{
                         height: '100%', borderRadius: '3px',
                         width: `${Math.min(100, Math.round((progress / Math.max(1, p.target_value)) * 100))}%`,
@@ -288,7 +334,7 @@ export default function Earnings() {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '32px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: hoursAmount > 0 ? '1fr 1fr 1fr' : '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
             <div style={{ background: 'var(--bg-elevated)', padding: '20px', borderRadius: '12px' }}>
               <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--success)' }}>{deals.length}</div>
               <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>DEALS</div>
@@ -304,7 +350,27 @@ export default function Earnings() {
                 </div>
               )}
             </div>
+            {hoursAmount > 0 && (
+              <div style={{ background: 'var(--bg-elevated)', padding: '20px', borderRadius: '12px' }}>
+                <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--secondary)' }}>{totalHours.toFixed(1)}u</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: 600 }}>BELUREN</div>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', marginTop: '4px' }}>€{hoursAmount}</div>
+              </div>
+            )}
           </div>
+
+          {/* Uitsplitsing per project */}
+          {breakdown.length > 0 && (
+            <div style={{ background: 'var(--bg-elevated)', borderRadius: '12px', padding: '16px 20px', marginBottom: '24px', textAlign: 'left' }}>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '1px' }}>Per project</div>
+              {breakdown.map(r => (
+                <div key={r.key} className="flex justify-between items-center" style={{ padding: '6px 0', borderTop: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 700 }}>{r.name}</span>
+                  <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'var(--secondary)' }}>€{r.amount}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
           <button
             onClick={copyInvoice}
@@ -343,15 +409,7 @@ export default function Earnings() {
             whiteSpace: 'pre-wrap',
             margin: 0,
             lineHeight: 1.6
-          }}>
-{`${profile?.full_name || 'Medewerker'}
-Periode: April 2026
-
-Deals: ${deals.length} x €${dealRate} = €${dealAmount}
-Netto afspraken: ${appointments.length} x €${appointmentRate} = €${appointmentAmount}
-
-Totaal te factureren: €${totalAmount}`}
-          </pre>
+          }}>{invoiceText}</pre>
         </motion.div>
       </main>
     </div>

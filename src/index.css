@@ -1,80 +1,120 @@
-/* ===== LEADGEN - Dark Premium Design ===== */
+/* ===== LEADGEN - Design System (RESTYLE_PLAN.md fase 1) ===== */
 
-:root {
-  /* Primary Colors - Electric Blue Accent */
-  --primary: #3B82F6;
-  --primary-light: #60A5FA;
-  --primary-dark: #1D4ED8;
-  --primary-gradient: linear-gradient(135deg, #3B82F6 0%, #60A5FA 100%);
+/* Tailwind v4: alleen theme + utilities (GEEN preflight/reset,
+   zodat de bestaande custom styling hieronder intact blijft).
+   Hierdoor werken alle utility-classes (px-8, rounded-2xl,
+   bg-white/5, grid-cols-3, group-hover, text-[10px], enz.)
+   die in Admin, Lead Beheer, Manager en de modals gebruikt worden. */
+@layer base, theme, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+/* Alle kleuren/vormen komen uit het tokens-bestand (licht + donker) */
+@import "./styles/tokens.css";
 
-  /* Secondary / Accent - Gold */
-  --secondary: #F59E0B;
-  --secondary-light: #FBBF24;
-  --secondary-dark: #D97706;
-
-  /* Backgrounds - Dark Theme */
-  --bg-dark: #0F1117;
-  --bg-soft: #1A1D23;
-  --bg-card: #1E2028;
-  --bg-elevated: #252A33;
-  --bg-white: #1E2028;
-  --bg-light: #1A1D23;
-
-  /* Text - Light theme on dark bg */
-  --text-main: #F1F5F9;
-  --text-muted: #94A3B8;
-  --text-on-dark: #F1F5F9;
-  --text-accent: #3B82F6;
-
-  /* Status Colors */
-  --success: #10B981;
-  --success-bg: rgba(16, 185, 129, 0.15);
-  --danger: #EF4444;
-  --danger-bg: rgba(239, 68, 68, 0.15);
-  --warning: #F59E0B;
-  --warning-bg: rgba(245, 158, 11, 0.15);
-  --info: #3B82F6;
-  --info-bg: rgba(59, 130, 246, 0.15);
-
-  /* Borders */
-  --border: #2A2D35;
-  --border-strong: #3D424D;
-
-  /* Shadows */
-  --shadow-sm: 0 1px 3px rgba(0,0,0,0.3), 0 1px 2px rgba(0,0,0,0.2);
-  --shadow-md: 0 4px 12px rgba(0,0,0,0.25), 0 2px 4px rgba(0,0,0,0.2);
-  --shadow-lg: 0 12px 40px rgba(0,0,0,0.35), 0 4px 12px rgba(0,0,0,0.25);
-  --shadow-xl: 0 24px 60px rgba(0,0,0,0.4);
-  --shadow-glow: 0 0 30px rgba(59, 130, 246, 0.3);
-  --shadow-primary: 0 4px 20px rgba(59, 130, 246, 0.3);
-
-  /* Radius */
-  --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
-  --radius-full: 9999px;
-
-  /* Glass effect - Dark */
-  --glass: rgba(30, 32, 40, 0.9);
-  --glass-border: rgba(42, 45, 53, 0.8);
-  --glass-bg: rgba(30, 32, 40, 0.8);
+/* `inline` zorgt dat utilities naar de CSS-variabelen verwijzen,
+   zodat bv. bg-card en text-muted automatisch mee-themen. */
+@theme inline {
+  --color-primary: var(--accent);
+  --color-primary-light: var(--accent-hover);
+  --color-primary-dark: var(--primary-dark);
+  --color-secondary: var(--secondary);
+  --color-dark: var(--bg-page);
+  --color-dark-soft: var(--bg-surface);
+  --color-muted: var(--text-secondary);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--danger);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  /* Nieuwe semantische namen voor toekomstig gebruik */
+  --color-page: var(--bg-page);
+  --color-surface: var(--bg-surface);
+  --color-card: var(--bg-card);
+  --color-elevated: var(--bg-elevated);
+  --color-body: var(--text-primary);
+  --color-border: var(--border-subtle);
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
+/* BELANGRIJK: deze resets staan in @layer base zodat Tailwind-utilities
+   (p-6, mt-6, bg-*, enz. — die in @layer utilities zitten) er ALTIJD van
+   winnen. Ongelaagde CSS wint van gelaagde CSS, dus een kale `* { padding: 0 }`
+   zou anders elke padding/margin-utility in de hele app uitschakelen. */
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+
+  /* Basis-reset voor formulier-elementen (we laden Tailwind bewust ZONDER preflight,
+     dus dit vervangt de browser-standaard: witte knoppen/zwarte tekst op dark theme) */
+  button {
+    background-color: transparent;
+    border: 0;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+  input, select, textarea {
+    font: inherit;
+    color: var(--text-main);
+    /* Geen preflight: UA-default is een WIT invoerveld -> witte tekst onzichtbaar.
+       Daarom hier altijd een donkere basis. */
+    background-color: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+  }
+  input, textarea {
+    padding: 10px 12px;
+  }
+  input::placeholder, textarea::placeholder {
+    color: var(--text-muted);
+  }
+  select {
+    padding: 8px 10px;
+  }
+}
+
+/* Donker invoerveld voor modals/wizards (NewProjectWizard, PayoutSettings, Admin) */
+.form-dark {
+  padding: 12px 16px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.95rem;
+  background: var(--bg-elevated);
+  color: var(--text-main);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.form-dark:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 body {
-  font-family: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-  background: var(--bg-dark);
+  /* Inter voor lopende tekst; Outfit alleen voor koppen/grote cijfers (zie hieronder) */
+  font-family: var(--font-body);
+  font-size: 14px;
+  background: var(--bg-page);
   color: var(--text-main);
+  /* Lange woorden/e-mails/URL's breken i.p.v. onzichtbaar buiten hun vakje vallen */
+  overflow-wrap: break-word;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.25s, color 0.25s;
+}
+
+/* Koppen en grote cijfers in Outfit, max gewicht 700 */
+h1, h2, h3, h4,
+.page-title, .card-title, .stat-card .number, .kpi-value {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+/* Cijfers in tabellen en statistieken lijnen netjes uit */
+.table td, .stat-card .number, .kpi-value, .mono-num {
+  font-variant-numeric: tabular-nums;
 }
 
 /* Subtle Background Pattern */
@@ -85,9 +125,7 @@ body::before {
   left: 0;
   width: 100%;
   height: 100%;
-  background:
-    radial-gradient(ellipse at 0% 0%, rgba(59, 130, 246, 0.05) 0%, transparent 50%),
-    radial-gradient(ellipse at 100% 100%, rgba(245, 158, 11, 0.03) 0%, transparent 50%);
+  background: var(--page-glow);
   z-index: -1;
   pointer-events: none;
 }
@@ -100,13 +138,12 @@ body::before {
 
 /* ===== HEADER ===== */
 .header {
-  background: var(--bg-soft);
-  color: white;
+  background: var(--bg-surface);
+  color: var(--text-primary);
   padding: 12px 0;
   position: sticky;
   top: 0;
   z-index: 1000;
-  box-shadow: var(--shadow-md);
   border-bottom: 1px solid var(--border);
 }
 
@@ -118,11 +155,10 @@ body::before {
 }
 
 .logo {
+  font-family: var(--font-display);
   font-size: 1.35rem;
-  font-weight: 800;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  font-weight: 700;
+  color: var(--accent);
   letter-spacing: -0.3px;
   display: flex;
   align-items: center;
@@ -147,12 +183,12 @@ body::before {
 
 .nav a:hover {
   color: var(--text-main);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bg-elevated);
 }
 
 .nav a.active {
-  color: var(--primary);
-  background: rgba(59, 130, 246, 0.1);
+  color: var(--accent);
+  background: var(--accent-soft);
   font-weight: 600;
 }
 
@@ -168,11 +204,11 @@ body::before {
 
 /* ===== BUTTONS ===== */
 .btn {
-  padding: 10px 20px;
+  padding: 9px 18px;
   border-radius: var(--radius-sm);
-  font-weight: 600;
-  border: none;
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: 500;
+  border: 1px solid transparent;
+  transition: background-color 0.15s, border-color 0.15s, color 0.15s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -182,63 +218,59 @@ body::before {
   white-space: nowrap;
 }
 
-.btn:hover {
-  transform: translateY(-1px);
-}
-
-.btn:active {
-  transform: translateY(0);
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 
 .btn-primary {
-  background: var(--primary);
-  color: white;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  background: var(--accent);
+  color: var(--text-on-accent);
 }
 
 .btn-primary:hover {
-  background: var(--primary-light);
-  box-shadow: 0 4px 16px rgba(59, 130, 246, 0.4);
+  background: var(--accent-hover);
 }
 
 .btn-secondary {
   background: var(--bg-elevated);
   color: var(--text-main);
-  box-shadow: var(--shadow-sm);
-  border: 1px solid var(--border);
+  border-color: var(--border-subtle);
 }
 
 .btn-secondary:hover {
-  background: var(--bg-card);
-  box-shadow: var(--shadow-primary);
+  border-color: var(--border-strong);
 }
 
 .btn-success {
-  background: var(--success);
-  color: white;
-  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3);
+  background: var(--success-bg);
+  color: var(--success);
 }
 
 .btn-success:hover {
-  background: #059669;
-  box-shadow: 0 4px 16px rgba(16, 185, 129, 0.4);
+  border-color: var(--success);
 }
 
 .btn-outline {
   background: transparent;
-  border: 1.5px solid var(--border);
+  border: 1px solid var(--border-strong);
   color: var(--text-muted);
 }
 
 .btn-outline:hover {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: white;
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .btn-sm {
   padding: 6px 14px;
   font-size: 0.8rem;
+}
+
+.btn-block {
+  width: 100%;
+  display: flex;
 }
 
 .btn-lg {
@@ -250,35 +282,17 @@ body::before {
 /* ===== CARDS ===== */
 .card {
   background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
   padding: 24px;
   border: 1px solid var(--border);
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: border-color 0.2s;
   position: relative;
   overflow: visible;
 }
 
-.card::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--primary-gradient);
-  opacity: 0;
-  transition: opacity 0.3s;
-}
-
 .card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-xl);
   border-color: var(--border-strong);
-}
-
-.card:hover::before {
-  opacity: 1;
 }
 
 .card-header {
@@ -312,25 +326,25 @@ body::before {
 /* Stat Cards */
 .stat-card {
   background: var(--bg-card);
-  border-radius: var(--radius-lg);
-  padding: 24px;
+  border-radius: var(--radius-md);
+  padding: 20px 22px;
   position: relative;
   overflow: hidden;
   border: 1px solid var(--border);
-  transition: all 0.25s;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.2s;
 }
 
 .stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-lg);
+  border-color: var(--border-strong);
 }
 
 .stat-card .number {
-  font-size: 2.2rem;
-  font-weight: 800;
-  color: var(--primary);
-  line-height: 1;
-  letter-spacing: -1px;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 .stat-card .label {
@@ -356,7 +370,7 @@ body::before {
 .form-control:focus {
   outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .form-control::placeholder {
@@ -379,15 +393,14 @@ body::before {
 
 /* ===== STATUS BADGES ===== */
 .status {
-  padding: 6px 12px;
+  padding: 4px 11px;
   border-radius: var(--radius-full);
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 600;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.2px;
 }
 
 /* ===== MODAL ===== */
@@ -406,7 +419,7 @@ body::before {
 .modal {
   background: var(--bg-card);
   padding: 32px;
-  border-radius: var(--radius-xl);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-xl);
   width: 100%;
   max-width: 480px;
@@ -421,7 +434,7 @@ body::before {
   align-items: center;
   margin-bottom: 24px;
   padding-bottom: 16px;
-  border-bottom: 2px solid var(--primary);
+  border-bottom: 1px solid var(--border);
 }
 
 .modal-header h2 {
@@ -447,8 +460,8 @@ body::before {
 }
 
 .modal-close:hover {
-  background: var(--danger);
-  color: white;
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 /* ===== TABLES ===== */
@@ -464,19 +477,19 @@ body::before {
 }
 
 .table th {
-  background: var(--bg-elevated);
-  padding: 14px 16px;
-  font-weight: 700;
-  font-size: 0.75rem;
+  background: var(--bg-surface);
+  padding: 11px 16px;
+  font-weight: 600;
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1px solid var(--border);
   text-align: left;
 }
 
 .table td {
-  padding: 16px;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border);
   font-size: 0.9rem;
   color: var(--text-main);
@@ -487,7 +500,7 @@ body::before {
 }
 
 .table tr:hover {
-  background: rgba(59, 130, 246, 0.05);
+  background: var(--bg-elevated);
 }
 
 /* ===== PAGE LAYOUT ===== */
@@ -497,10 +510,10 @@ body::before {
 
 .page-header h1 {
   font-size: 1.75rem;
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text-main);
   margin-bottom: 6px;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.02em;
 }
 
 .page-header p {
@@ -521,15 +534,15 @@ body::before {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--primary-gradient);
+  background: var(--bg-page);
   padding: 20px;
 }
 
 .login-card {
   background: var(--bg-card);
   padding: 48px;
-  border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xl);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
   width: 100%;
   max-width: 420px;
   border: 1px solid var(--border);
@@ -599,7 +612,7 @@ body::before {
 
 .focus-progress {
   background: var(--primary);
-  color: white;
+  color: var(--text-on-accent);
   padding: 8px 20px;
   border-radius: var(--radius-full);
   font-size: 0.85rem;
@@ -633,9 +646,8 @@ body::before {
 }
 
 .focus-phone:hover {
-  background: var(--secondary);
-  color: var(--bg-dark);
-  transform: scale(1.02);
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
 .focus-actions {
@@ -712,7 +724,7 @@ body::before {
 }
 
 .leaderboard-item.current-user {
-  background: rgba(59, 130, 246, 0.1);
+  background: var(--accent-soft);
   border: 1px solid var(--primary);
 }
 
@@ -721,7 +733,7 @@ body::before {
   height: 36px;
   border-radius: 50%;
   background: var(--primary);
-  color: white;
+  color: var(--text-on-accent);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -756,7 +768,7 @@ body::before {
   height: 60px;
   border-radius: 50%;
   background: var(--primary);
-  color: white;
+  color: var(--text-on-accent);
   border: none;
   cursor: pointer;
   display: flex;
@@ -820,7 +832,7 @@ body::before {
 
 .chat-message.admin {
   background: var(--primary);
-  color: white;
+  color: var(--text-on-accent);
   align-self: flex-end;
   border-bottom-right-radius: var(--radius-xs);
 }
@@ -858,6 +870,9 @@ body::before {
 /* ===== MOBILE RESPONSIVE ===== */
 @media (max-width: 768px) {
   .nav { display: none !important; }
+
+  /* Knoptekst mag op smalle schermen wrappen i.p.v. afgekapt worden */
+  .btn { white-space: normal; }
 
   .stats-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -963,13 +978,13 @@ body::before {
 .text-center { text-align: center; }
 .w-full { width: 100%; }
 
-/* ===== GLOW HOVER EFFECT ===== */
+/* ===== GLOW HOVER EFFECT (vervallen in nieuw ontwerp; klasse blijft bestaan) ===== */
 .glow-hover {
-  transition: all 0.3s ease;
+  transition: border-color 0.2s;
 }
 
 .glow-hover:hover {
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+  border-color: var(--border-strong);
 }
 
 /* ===== MOBILE RESPONSIVE TUNING ===== */
@@ -1034,6 +1049,65 @@ body::before {
   }
 }
 
+/* ===== UI-CONSISTENTIE (design-pass 2026-08-21) ===== */
+/* Eén kop-stijl voor alle pagina's */
+.page-title {
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-main);
+  line-height: 1.2;
+}
+.page-subtitle {
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-top: 4px;
+}
+
+/* Eén tab-stijl voor alle pagina's (Admin, Rapportage, Manager, Projecten & Leads) */
+.tab-bar {
+  display: inline-flex;
+  gap: 4px;
+  background: var(--bg-elevated);
+  padding: 5px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  max-width: 100%;
+  overflow-x: auto;
+}
+.tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 18px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  font-family: inherit;
+  background: transparent;
+  color: var(--text-muted);
+  transition: color 0.15s, background-color 0.15s;
+  white-space: nowrap;
+}
+.tab-btn:hover {
+  color: var(--text-primary);
+}
+.tab-btn.active {
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  padding: 7px 17px;
+}
+
+/* Toetsenbord-focus overal zichtbaar */
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* ===== ANIMATIONS ===== */
 @keyframes spin {
   to { transform: rotate(360deg); }
@@ -1041,8 +1115,8 @@ body::before {
 
 .spinner-small {
   display: inline-block;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
+  border: 2px solid color-mix(in srgb, currentColor 30%, transparent);
+  border-top-color: currentColor;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }

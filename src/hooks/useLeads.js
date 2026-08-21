@@ -60,11 +60,16 @@ export function useLeads() {
         const { data: memberships } = await supabase.from('team_members').select('team_id').eq('profile_id', me)
         const teamIds = memberships?.map(m => m.team_id) || []
         
-        // 2. Get lists assigned to these teams
+        // 2. v21: team-route loopt via campagnes — een team belt alleen
+        // op lijsten die onder een campagne (project) van dat team vallen
         let teamListIds = []
         if (teamIds.length > 0) {
-          const { data: lists } = await supabase.from('lead_lists').select('id').in('assigned_team_id', teamIds)
-          teamListIds = lists?.map(l => l.id) || []
+          const { data: camps } = await supabase.from('campaigns').select('id').in('assigned_team_id', teamIds).is('deleted_at', null).eq('is_active', true)
+          const campaignIds = camps?.map(c => c.id) || []
+          if (campaignIds.length > 0) {
+            const { data: lists } = await supabase.from('lead_lists').select('id').in('campaign_id', campaignIds)
+            teamListIds = lists?.map(l => l.id) || []
+          }
         }
 
         // 3. Build OR filter: assigned to me OR in my team's lists
@@ -148,36 +153,30 @@ export function useLeads() {
     await logActivity(leadId, 'call', 'Gebeld')
   }
 
-  async function claimLead(leadId) {
-    const now = new Date().toISOString()
-    const { error } = await supabase
-      .from('leads')
-      .update({ locked_by: user.id, locked_at: now, call_status: 'calling' })
-      .eq('id', leadId)
-      .or(`locked_by.is.null,locked_at.lt.${new Date(Date.now() - 5*60000).toISOString()}`)
-
-    if (!error) {
-      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, locked_by: user.id, locked_at: now, call_status: 'calling' } : l))
-      await logActivity(leadId, 'lead_claimed', 'Lead geclaimd voor bellen')
+  // v21: atomisch de volgende belbare lead uit een lijst claimen (RPC).
+  // De database garandeert dat twee bellers nooit dezelfde lead krijgen.
+  async function claimNextLead(listId) {
+    if (isDemoMode || !listId) return null
+    const { data, error } = await supabase.rpc('claim_next_lead', { p_list_id: listId })
+    if (error) {
+      console.error('claim_next_lead mislukt:', error)
+      return null
     }
-    return error
+    const lead = Array.isArray(data) ? data[0] : data
+    return lead || null
   }
 
+  // Lock van één lead vrijgeven (bijv. bij overslaan)
   async function releaseLead(leadId) {
-    const { error } = await supabase.from('leads').update({ locked_by: null, locked_at: null, call_status: 'available' }).eq('id', leadId)
-    if (!error) {
-      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, locked_by: null, locked_at: null, call_status: 'available' } : l))
-    }
+    if (isDemoMode) return { error: null }
+    const { error } = await supabase.rpc('release_lead', { p_lead_id: leadId })
     return { error }
   }
 
-  async function getNextLead() {
-    const available = leads.find(l => l.call_status === 'available' && !l.locked_by)
-    if (available) {
-      await claimLead(available.id)
-      return available
-    }
-    return null
+  // Alle eigen locks vrijgeven (bij sluiten van de belmodus)
+  async function releaseMyLeads() {
+    if (isDemoMode) return
+    await supabase.rpc('release_my_leads')
   }
 
   async function createLead(leadData) {
@@ -249,11 +248,16 @@ export function useLeads() {
     let newNotes = currentLead.notes || ''
     if (notes) newNotes = `${newNotes}\n[${new Date().toLocaleDateString('nl-NL')}] ${notes}`
 
-    // Basis-update: status = de afboekreden zelf, lijst blijft ongewijzigd
+    // Basis-update: status = de afboekreden zelf, lijst blijft ongewijzigd.
+    // Lock wordt vrijgegeven zodat de lead (na een evt. terugbelmoment)
+    // weer voor iedereen beschikbaar is.
     const updates = {
       status: dispositionType,
       notes: newNotes,
       next_contact_date: nextDate,
+      locked_by: null,
+      locked_at: null,
+      call_status: 'available',
       updated_at: new Date().toISOString()
     }
 
@@ -290,6 +294,6 @@ export function useLeads() {
   }
 
   return {
-    leads, loading, error, fetchLeads, updateLeadStatus, assignLead, logActivity, callLead, claimLead, releaseLead, getNextLead, createLead, handleLeadDisposition
+    leads, loading, error, fetchLeads, updateLeadStatus, assignLead, logActivity, callLead, claimNextLead, releaseLead, releaseMyLeads, createLead, handleLeadDisposition
   }
 }

@@ -30,9 +30,9 @@ const CopyButton = ({ text, label }) => {
       onClick={handleCopy}
       title={label}
       style={{
-        background: 'rgba(255,255,255,0.1)',
+        background: 'var(--bg-elevated)',
         border: 'none',
-        color: copied ? 'var(--success)' : 'white',
+        color: copied ? 'var(--success)' : 'var(--text-primary)',
         padding: '6px',
         borderRadius: '4px',
         cursor: 'pointer',
@@ -49,24 +49,54 @@ const CopyButton = ({ text, label }) => {
 
 export default function WorkInterface() {
   const { isWorking, toggleWorkingMode, workingLead, workingListId, sessionCallCount, profile, user } = useAuth()
-  const { leads, updateLeadStatus, logActivity, handleLeadDisposition } = useLeads()
+  const { leads, updateLeadStatus, logActivity, handleLeadDisposition, claimNextLead, releaseMyLeads } = useLeads()
 
   // Belwachtrij: leads uit de projectlijst die nu belbaar zijn.
   // Afgeronde statussen vallen eruit, en leads met een terugbelmoment
   // in de toekomst (TBA / later bellen / geen gehoor) wachten tot hun datum.
+  // Leads die een collega op dit moment in behandeling heeft (lock < 10 min
+  // oud) tellen niet mee in de wachtrij.
   const DONE_STATUSES = ['deal', 'afspraak_gemaakt', 'geen_interesse', 'onjuiste_timing', 'verkeerd_nummer', 'cold', 'terugbelafspraak']
+  const LOCK_TTL_MS = 10 * 60 * 1000
   const listLeads = workingListId
     ? leads.filter(l =>
         l.lead_list_id === workingListId &&
         !DONE_STATUSES.includes(l.status) &&
-        (!l.next_contact_date || new Date(l.next_contact_date) <= new Date())
+        (!l.next_contact_date || new Date(l.next_contact_date) <= new Date()) &&
+        (!l.locked_by || l.locked_by === user?.id || !l.locked_at || (Date.now() - new Date(l.locked_at).getTime()) > LOCK_TTL_MS)
       )
     : []
 
-  // Afgehandelde leads verdwijnen uit de wachtrij, dus de volgende lead
-  // is altijd gewoon de eerste in de rij — geen index-gedoe.
-  const currentLead = workingLead || listLeads[0] || null
+  // v21: de volgende lead wordt ATOMISCH geclaimd in de database
+  // (claim_next_lead). Twee bellers op dezelfde lijst krijgen daardoor
+  // nooit dezelfde lead - ook niet als ze exact tegelijk klikken.
+  const [claimedLead, setClaimedLead] = useState(null)
+  const [claiming, setClaiming] = useState(false)
+  const currentLead = workingLead || claimedLead || null
   const [listDisplayName, setListDisplayName] = useState('')
+
+  // Claim de eerste lead zodra de belmodus in lijstmodus opent
+  useEffect(() => {
+    if (!isWorking || !workingListId || workingLead) return
+    let cancelled = false
+    setClaiming(true)
+    claimNextLead(workingListId).then(lead => {
+      if (cancelled) return
+      setClaimedLead(lead)
+      setClaiming(false)
+    })
+    return () => { cancelled = true }
+  }, [isWorking, workingListId])
+
+  // Bij het sluiten van de belmodus: alle eigen locks vrijgeven,
+  // zodat collega's de niet-afgehandelde lead direct kunnen oppakken
+  useEffect(() => {
+    if (!isWorking) return
+    return () => {
+      setClaimedLead(null)
+      releaseMyLeads()
+    }
+  }, [isWorking])
 
   const [editableLead, setEditableLead] = useState({})
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024)
@@ -137,6 +167,20 @@ export default function WorkInterface() {
   const isListMode = !!workingListId && !workingLead
   const progress = isListMode ? { remaining: listLeads.length } : null
 
+  // Bezig met claimen van de volgende lead
+  if (!currentLead && claiming) {
+    return (
+      <div style={{
+        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+        background: 'var(--bg-dark)', zIndex: 9999,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: 'var(--text-muted)', fontSize: '1.1rem', fontWeight: 700
+      }}>
+        Volgende lead ophalen…
+      </div>
+    )
+  }
+
   // Empty state when no leads available
   if (!currentLead) {
     return (
@@ -148,14 +192,14 @@ export default function WorkInterface() {
       }}>
         <div style={{ textAlign: 'center', maxWidth: '400px' }}>
           <div style={{ fontSize: '4rem', marginBottom: '16px', opacity: 0.5 }}>🎉</div>
-          <h2 style={{ color: 'white', marginBottom: '8px' }}>Wachtrij leeg!</h2>
+          <h2 style={{ color: 'var(--text-primary)', marginBottom: '8px' }}>Wachtrij leeg!</h2>
           <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
             Alle belbare leads in deze lijst zijn afgehandeld. Leads met een terugbelmoment komen vanzelf terug in de wachtrij.
           </p>
           <button
             onClick={toggleWorkingMode}
             style={{
-              background: 'var(--primary)', color: 'white',
+              background: 'var(--primary)', color: 'var(--text-on-accent)',
               border: 'none', padding: '12px 24px', borderRadius: '8px',
               fontWeight: 700, cursor: 'pointer'
             }}
@@ -210,10 +254,16 @@ export default function WorkInterface() {
       setNextContactDate('')
       setSelectedDisposition(null)
 
-      // In lijstmodus schuift de volgende lead vanzelf naar voren
-      // (de afgehandelde lead valt uit de wachtrij-filter).
       if (workingLead) {
         toggleWorkingMode()
+      } else {
+        // Lijstmodus: claim atomisch de volgende lead - de database
+        // slaat leads over die een collega net heeft geclaimd
+        setClaimedLead(null)
+        setClaiming(true)
+        const nextLead = await claimNextLead(workingListId)
+        setClaimedLead(nextLead)
+        setClaiming(false)
       }
     } finally {
       setIsSubmitting(false)
@@ -249,7 +299,7 @@ export default function WorkInterface() {
         >
 
           {/* Top Header */}
-          <header style={{ background: 'var(--primary-dark)', color: 'white', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <header style={{ background: 'var(--primary-dark)', color: 'var(--text-on-accent)', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div className="flex items-center gap-4">
                <h2 style={{ margin: 0, fontSize: '1.4rem', display: 'flex', gap: '8px', alignItems: 'center' }}>
                  <Phone size={20} />
@@ -268,25 +318,25 @@ export default function WorkInterface() {
                {dailyTarget > 0 && (
                  <span style={{
                    background: todayCalls >= dailyTarget ? 'var(--success)' : 'rgba(255,255,255,0.15)',
-                   color: 'white', padding: '2px 10px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold',
+                   color: 'var(--text-on-accent)', padding: '2px 10px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold',
                    display: 'flex', alignItems: 'center', gap: '4px'
                  }}>
                    <Target size={12} /> {todayCalls}/{dailyTarget}{todayCalls >= dailyTarget ? ' ✅' : ''}
                  </span>
                )}
                {progress && (
-                 <span style={{ background: 'rgba(255,255,255,0.15)', color: 'white', padding: '2px 10px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                 <span style={{ background: 'var(--bg-elevated)', color: 'var(--text-primary)', padding: '2px 10px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>
                    Nog {progress.remaining} in wachtrij
                  </span>
                )}
             </div>
-            <button onClick={toggleWorkingMode} style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.3)', color: 'white', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><X size={16} /> Sluiten</button>
+            <button onClick={toggleWorkingMode} style={{ background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--text-primary)', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><X size={16} /> Sluiten</button>
           </header>
 
           {/* Sub Header */}
           <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: isMobile ? '16px 20px' : '20px 40px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '12px' : '0', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center' }}>
             <div>
-               <h1 style={{ margin: '0 0 8px 0', fontSize: '1.4rem', color: 'white' }}>{currentLead.name}</h1>
+               <h1 style={{ margin: '0 0 8px 0', fontSize: '1.4rem', color: 'var(--text-primary)' }}>{currentLead.name}</h1>
                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                  <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary)' }}>Tel: {currentLead.phone}</p>
                  {currentLead.phone && <CopyButton text={currentLead.phone} label="Telefoonnummer Kopiëren" />}
@@ -303,8 +353,8 @@ export default function WorkInterface() {
               <div style={{ padding: '8px 0' }}>
                 <div style={{ width: '100%', background: 'var(--bg-card)', padding: '16px', borderRadius: '12px', border: '1px solid var(--border)', marginBottom: '8px' }}>
                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '8px', fontWeight: 600 }}>Notities</p>
-                   <textarea value={editableLead.notes || ''} onChange={e => setEditableLead({...editableLead, notes: e.target.value})} rows={5} style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white', fontSize: '1rem' }} placeholder="Notities en bijzonderheden..." />
-                   <button onClick={saveLeadEdits} style={{ background: 'var(--primary)', color: 'white', border: 'none', padding: '12px', borderRadius: '8px', marginTop: '12px', width: '100%', fontWeight: 700, fontSize: '1rem' }}>Sla Notities Op</button>
+                   <textarea value={editableLead.notes || ''} onChange={e => setEditableLead({...editableLead, notes: e.target.value})} rows={5} style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-on-accent)', fontSize: '1rem' }} placeholder="Notities en bijzonderheden..." />
+                   <button onClick={saveLeadEdits} style={{ background: 'var(--primary)', color: 'var(--text-on-accent)', border: 'none', padding: '12px', borderRadius: '8px', marginTop: '12px', width: '100%', fontWeight: 700, fontSize: '1rem' }}>Sla Notities Op</button>
                 </div>
               </div>
             ) : (
@@ -315,7 +365,7 @@ export default function WorkInterface() {
 
                   <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
                     <div style={{ flex: '0 1 850px', minWidth: '500px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
-                      <div style={{ background: 'linear-gradient(90deg, var(--success) 0%, #059669 100%)', color: 'white', padding: '14px 20px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.1rem' }}>
+                      <div style={{ background: 'linear-gradient(90deg, var(--success) 0%, #059669 100%)', color: 'var(--text-on-accent)', padding: '14px 20px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.1rem' }}>
                         <Users size={20} /> Adres- & Contactinformatie
                       </div>
 
@@ -325,19 +375,19 @@ export default function WorkInterface() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                           <div>
                             <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Bedrijfsnaam</label>
-                            <input type="text" value={editableLead.name || ''} onChange={e => setEditableLead({...editableLead, name: e.target.value})} style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white', fontSize: '1.1rem', fontWeight: 600 }}/>
+                            <input type="text" value={editableLead.name || ''} onChange={e => setEditableLead({...editableLead, name: e.target.value})} style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '1.1rem', fontWeight: 600 }}/>
                           </div>
                           <div>
                             <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Contactpersoon</label>
-                            <input type="text" value={editableLead.contact_person || ''} onChange={e => setEditableLead({...editableLead, contact_person: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                            <input type="text" value={editableLead.contact_person || ''} onChange={e => setEditableLead({...editableLead, contact_person: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}/>
                           </div>
                           <div>
                             <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Email</label>
-                            <input type="text" value={editableLead.email || ''} onChange={e => setEditableLead({...editableLead, email: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                            <input type="text" value={editableLead.email || ''} onChange={e => setEditableLead({...editableLead, email: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}/>
                           </div>
                           <div>
                             <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Telefoonnummer</label>
-                            <input type="text" value={editableLead.phone || ''} onChange={e => setEditableLead({...editableLead, phone: e.target.value})} style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white', fontWeight: 700, fontSize: '1.1rem' }}/>
+                            <input type="text" value={editableLead.phone || ''} onChange={e => setEditableLead({...editableLead, phone: e.target.value})} style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontWeight: 700, fontSize: '1.1rem' }}/>
                           </div>
                         </div>
 
@@ -346,37 +396,37 @@ export default function WorkInterface() {
                           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px' }}>
                             <div>
                               <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Straat</label>
-                              <input type="text" value={editableLead.address || ''} onChange={e => setEditableLead({...editableLead, address: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                              <input type="text" value={editableLead.address || ''} onChange={e => setEditableLead({...editableLead, address: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}/>
                             </div>
                             <div>
                               <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Huisnr.</label>
-                              <input type="text" value={editableLead.house_number || ''} onChange={e => setEditableLead({...editableLead, house_number: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                              <input type="text" value={editableLead.house_number || ''} onChange={e => setEditableLead({...editableLead, house_number: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}/>
                             </div>
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '12px' }}>
                             <div>
                               <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Postcode</label>
-                              <input type="text" value={editableLead.postal_code || ''} onChange={e => setEditableLead({...editableLead, postal_code: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                              <input type="text" value={editableLead.postal_code || ''} onChange={e => setEditableLead({...editableLead, postal_code: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}/>
                             </div>
                             <div>
                               <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Plaats</label>
-                              <input type="text" value={editableLead.city || ''} onChange={e => setEditableLead({...editableLead, city: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                              <input type="text" value={editableLead.city || ''} onChange={e => setEditableLead({...editableLead, city: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}/>
                             </div>
                           </div>
                           <div>
                             <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Functie</label>
-                            <input type="text" value={editableLead.function || ''} onChange={e => setEditableLead({...editableLead, function: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                            <input type="text" value={editableLead.function || ''} onChange={e => setEditableLead({...editableLead, function: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}/>
                           </div>
                           <div>
                             <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Website</label>
                             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                              <input type="text" value={editableLead.website || ''} onChange={e => setEditableLead({...editableLead, website: e.target.value})} placeholder="..." style={{ flex: 1, minWidth: 0, padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                              <input type="text" value={editableLead.website || ''} onChange={e => setEditableLead({...editableLead, website: e.target.value})} placeholder="..." style={{ flex: 1, minWidth: 0, padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}/>
                               {editableLead.website && (
                                 <a
                                   href={normalizeWebsite(editableLead.website) || editableLead.website}
                                   target="_blank" rel="noopener noreferrer"
                                   title={editableLead.website}
-                                  style={{ flexShrink: 0, padding: '10px 14px', borderRadius: '8px', background: 'var(--primary)', color: 'white', fontWeight: 700, fontSize: '0.8rem', textDecoration: 'none', whiteSpace: 'nowrap', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                  style={{ flexShrink: 0, padding: '10px 14px', borderRadius: '8px', background: 'var(--primary)', color: 'var(--text-on-accent)', fontWeight: 700, fontSize: '0.8rem', textDecoration: 'none', whiteSpace: 'nowrap', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis' }}
                                 >
                                   {displayWebsite(editableLead.website)} ↗
                                 </a>
@@ -390,7 +440,7 @@ export default function WorkInterface() {
 
                     {/* Extra info: vangnet voor niet-herkende importkolommen */}
                     <div style={{ flex: '1 1 280px', minWidth: '260px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
-                      <div style={{ background: 'linear-gradient(90deg, var(--info, #38BDF8) 0%, #0EA5E9 100%)', color: 'white', padding: '14px 20px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.05rem' }}>
+                      <div style={{ background: 'linear-gradient(90deg, var(--info, #38BDF8) 0%, #0EA5E9 100%)', color: 'var(--text-on-accent)', padding: '14px 20px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.05rem' }}>
                         <AlertCircle size={18} /> Extra Informatie
                       </div>
                       <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -402,7 +452,7 @@ export default function WorkInterface() {
                               onChange={e => setEditableLead({ ...editableLead, [field]: e.target.value })}
                               placeholder="..."
                               rows={2}
-                              style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white', fontSize: '0.9rem', resize: 'vertical', lineHeight: '1.4' }}
+                              style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem', resize: 'vertical', lineHeight: '1.4' }}
                             />
                           </div>
                         ))}
@@ -424,12 +474,12 @@ export default function WorkInterface() {
                       value={editableLead.notes || ''}
                       onChange={e => setEditableLead({...editableLead, notes: e.target.value})}
                       rows={6}
-                      style={{ width: '100%', padding: '16px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white', fontSize: '1rem', lineHeight: '1.5' }}
+                      style={{ width: '100%', padding: '16px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '1rem', lineHeight: '1.5' }}
                       placeholder="Voer hier alle relevante gespreksnotities in..."
                     />
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Contact pogingen: {currentLead.contact_attempts || 0}</span>
-                      <button onClick={saveLeadEdits} style={{ background: 'var(--primary)', color: 'white', border: 'none', padding: '10px 24px', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', transition: 'transform 0.2s' }}>
+                      <button onClick={saveLeadEdits} style={{ background: 'var(--primary)', color: 'var(--text-on-accent)', border: 'none', padding: '10px 24px', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', transition: 'transform 0.2s' }}>
                         <Save size={18} /> Wijzigingen Opslaan
                       </button>
                     </div>
@@ -503,7 +553,7 @@ export default function WorkInterface() {
                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '24px', width: '100%', maxWidth: '500px', padding: '30px', position: 'relative' }}>
                   <button onClick={() => setShowDispositionModal(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={24} /></button>
 
-                  <h2 style={{ color: 'white', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <h2 style={{ color: 'var(--text-primary)', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
                     {dispositions.find(d => d.id === selectedDisposition)?.icon}
                     {dispositions.find(d => d.id === selectedDisposition)?.label} AFHANDELEN
                   </h2>
@@ -516,7 +566,7 @@ export default function WorkInterface() {
                           type="datetime-local"
                           value={nextContactDate}
                           onChange={e => setNextContactDate(e.target.value)}
-                          style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'white' }}
+                          style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }}
                         />
                       </div>
                     )}
@@ -528,7 +578,7 @@ export default function WorkInterface() {
                         onChange={e => setDispositionNotes(e.target.value)}
                         placeholder="Wat is er besproken? Waarom deze status?"
                         rows={4}
-                        style={{ width: '100%', padding: '15px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'white' }}
+                        style={{ width: '100%', padding: '15px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }}
                       />
                     </div>
 
@@ -537,7 +587,7 @@ export default function WorkInterface() {
                       disabled={isSubmitting}
                       style={{
                         background: dispositions.find(d => d.id === selectedDisposition)?.color,
-                        color: 'white',
+                        color: 'var(--text-on-accent)',
                         padding: '15px',
                         borderRadius: '8px',
                         border: 'none',
@@ -554,7 +604,7 @@ export default function WorkInterface() {
                     >
                       {isSubmitting ? (
                         <>
-                          <div className="spinner-small" style={{ width: '18px', height: '18px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
+                          <div className="spinner-small" style={{ width: '18px', height: '18px', border: '2px solid rgba(255,255,255,0.35)', borderTopColor: 'white', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }}></div>
                           AFHANDELEN...
                         </>
                       ) : (

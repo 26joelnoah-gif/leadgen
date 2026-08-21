@@ -133,7 +133,7 @@ export default function Login() {
                   <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'center' }}>
                     {promos[promoStep].icon}
                   </div>
-                  <h2 style={{ fontSize: '2rem', fontWeight: 900, marginBottom: '16px', color: 'white', lineHeight: 1.2 }}>
+                  <h2 style={{ fontSize: '2rem', fontWeight: 900, marginBottom: '16px', color: 'var(--text-primary)', lineHeight: 1.2 }}>
                     {promos[promoStep].title}
                   </h2>
                   <p style={{ color: 'var(--text-muted)', fontSize: '1.1rem', marginBottom: '32px', lineHeight: 1.6 }}>
@@ -150,7 +150,7 @@ export default function Login() {
                       width: '12px', 
                       height: '4px', 
                       borderRadius: '2px', 
-                      background: i === promoStep ? 'var(--secondary)' : 'rgba(255,255,255,0.1)',
+                      background: i === promoStep ? 'var(--secondary)' : 'var(--border-strong)',
                       transition: 'all 0.3s'
                     }} 
                   />
@@ -180,7 +180,7 @@ export default function Login() {
         <div style={{ position: 'absolute', top: '-100px', right: '-100px', width: '200px', height: '200px', background: 'var(--secondary)', filter: 'blur(80px)', opacity: 0.1, pointerEvents: 'none' }} />
         
         <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <h1 style={{ fontSize: '3rem', fontWeight: 900, background: 'linear-gradient(135deg, var(--secondary) 0%, #FFF 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '8px', letterSpacing: '-0.05em' }}>
+          <h1 style={{ fontSize: '3rem', fontWeight: 900, background: 'linear-gradient(135deg, var(--secondary) 0%, var(--text-primary) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '8px', letterSpacing: '-0.05em' }}>
             LEADGEN
           </h1>
           <p style={{ color: 'var(--secondary)', fontSize: '1.2rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '4px' }}>SMILE & DIAL</p>
@@ -239,7 +239,7 @@ export default function Login() {
               required
               placeholder="jouw@email.nl"
               className="form-control"
-              style={{ width: '100%', padding: '12px 16px', background: 'rgba(255,255,255,0.05)' }}
+              style={{ width: '100%', padding: '12px 16px', background: 'var(--bg-elevated)' }}
             />
           </div>
           <div className="form-group" style={{ marginBottom: '32px' }}>
@@ -254,7 +254,7 @@ export default function Login() {
                 required
                 placeholder="••••••••"
                 className="form-control"
-                style={{ width: '100%', padding: '12px 16px', paddingRight: '48px', background: 'rgba(255,255,255,0.05)' }}
+                style={{ width: '100%', padding: '12px 16px', paddingRight: '48px', background: 'var(--bg-elevated)' }}
               />
               <button
                 type="button"

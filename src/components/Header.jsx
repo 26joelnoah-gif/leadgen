@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { Zap, Settings, LogOut, Phone, Menu, X } from 'lucide-react'
+import { useTheme } from '../context/ThemeContext'
+import { Zap, Settings, LogOut, Phone, Menu, X, Sun, Moon } from 'lucide-react'
 import Logo from './Logo'
 
 export default function Header({ onOpenSettings }) {
   const { profile, signOut, sessionCallCount, toggleWorkingMode, isWorking } = useAuth()
+  const { theme, toggleTheme } = useTheme()
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -32,28 +34,27 @@ export default function Header({ onOpenSettings }) {
   const isActive = (path) => location.pathname === path
 
   return (
-    <header className="header" style={{ background: 'var(--primary-dark)', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, zIndex: 100 }}>
+    <header className="header">
       <div className="container header-content">
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+        <div className="header-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Logo size="medium" />
           
           <button 
             className="mobile-menu-btn" 
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', padding: '8px' }}
+            style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: '8px' }}
           >
             {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
 
-        <nav className={`nav ${mobileMenuOpen ? 'mobile-open' : ''}`} style={{ marginLeft: '40px', flex: 1, display: 'flex', gap: '20px' }}>
+        <nav className={`nav ${mobileMenuOpen ? 'mobile-open' : ''}`} style={{ marginLeft: '24px', flex: 1, display: 'flex', gap: '4px', minWidth: 0 }}>
           {navLinks.map(link => (
             <Link
               key={link.path}
               to={link.path}
               className={isActive(link.path) ? 'active' : ''}
               onClick={() => setMobileMenuOpen(false)}
-              style={{ fontSize: '0.9rem', fontWeight: isActive(link.path) ? 700 : 500 }}
             >
               {link.label}
             </Link>
@@ -65,7 +66,6 @@ export default function Header({ onOpenSettings }) {
               to={link.path}
               className={isActive(link.path) ? 'active' : ''}
               onClick={() => setMobileMenuOpen(false)}
-              style={{ fontSize: '0.9rem', fontWeight: isActive(link.path) ? 700 : 500 }}
             >
               {link.label}
             </Link>
@@ -78,25 +78,37 @@ export default function Header({ onOpenSettings }) {
               onClick={toggleWorkingMode}
               className="btn btn-sm"
               style={{
-                background: isWorking ? 'var(--secondary)' : 'var(--primary)',
+                background: isWorking ? 'var(--warning-bg)' : 'var(--accent)',
+                color: isWorking ? 'var(--warning)' : 'var(--text-on-accent)',
                 padding: '8px 16px',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                fontWeight: 700
+                fontWeight: 600
               }}
             >
               <Phone size={14} /> {isWorking ? 'Stoppen' : 'Werk'}
             </button>
           )}
 
-          <div className="flex items-center gap-2" style={{ background: 'rgba(255,255,255,0.05)', padding: '6px 14px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.1)', whiteSpace: 'nowrap' }}>
-            <Zap size={14} className="text-secondary" />
-            <span style={{ fontSize: '0.85rem', fontWeight: 700, color: 'white' }}>
-              {sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span>
-            </span>
-          </div>
-          
+          {profile?.role === 'employee' && (
+            <div className="flex items-center gap-2" style={{ background: 'var(--bg-elevated)', padding: '6px 14px', borderRadius: '20px', border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
+              <Zap size={14} className="text-secondary" />
+              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                {sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span>
+              </span>
+            </div>
+          )}
+
+          <button
+            onClick={toggleTheme}
+            className="btn btn-sm btn-outline"
+            style={{ padding: '8px', minWidth: 'auto' }}
+            title={theme === 'dark' ? 'Lichte weergave' : 'Donkere weergave'}
+          >
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+
           {onOpenSettings && (
             <button onClick={onOpenSettings} className="btn btn-sm btn-outline" style={{ padding: '8px', minWidth: 'auto' }} title="Instellingen">
               <Settings size={16} />
@@ -109,14 +121,21 @@ export default function Header({ onOpenSettings }) {
         </div>
       </div>
       <style>{`
-        .nav a { color: var(--text-muted); text-decoration: none; transition: all 0.2s; }
-        .nav a:hover { color: white; }
-        .nav a.active { color: var(--secondary) !important; position: relative; }
-        .nav a.active::after { content: ''; position: absolute; bottom: -21px; left: 0; right: 0; height: 2px; background: var(--secondary); }
-        .nav-divider { width: 1px; align-self: stretch; background: rgba(255,255,255,0.15); margin: 2px 4px; }
+        .nav { overflow-x: auto; scrollbar-width: none; }
+        .nav::-webkit-scrollbar { display: none; }
+        .nav a {
+          color: var(--text-muted); text-decoration: none; transition: color 0.15s, background 0.15s;
+          white-space: nowrap; font-size: 0.85rem; font-weight: 600;
+          padding: 8px 12px; border-radius: 8px;
+        }
+        .nav a:hover { color: var(--text-primary); background: var(--bg-elevated); }
+        .nav a.active { color: var(--accent) !important; background: var(--accent-soft); }
+        .nav a.active::after { display: none; }
+        .nav-divider { width: 1px; align-self: stretch; background: var(--border-strong); margin: 2px 4px; }
         .mobile-menu-btn { display: none !important; }
-        @media (max-width: 900px) { 
+        @media (max-width: 900px) {
           .header-content { flex-direction: column; align-items: stretch; gap: 16px; padding: 12px 0; }
+          .header-brand { width: 100%; }
           .mobile-menu-btn { display: block !important; }
           .nav { display: none !important; flex-direction: column; gap: 12px; margin-left: 0 !important; width: 100%; }
           .nav.mobile-open { display: flex !important; }
