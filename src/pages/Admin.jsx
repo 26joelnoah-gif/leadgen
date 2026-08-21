@@ -25,7 +25,9 @@ import CampaignModal, { CampaignCard } from '../components/CampaignModal'
 import BriefingModal, { BriefingCard } from '../components/BriefingModal'
 import { LeadListModal } from '../components/LeadListModal'
 import EmployeeModal from '../components/EmployeeModal'
+import ManagerProjectsModal from '../components/ManagerProjectsModal'
 import PayoutSettings from '../components/PayoutSettings'
+import ImportLeadsModal from '../components/ImportLeadsModal'
 import LeadManagement from './LeadManagement' // IMPORT THE MANAGEMENT COMPONENT
 
 export default function Admin() {
@@ -50,7 +52,10 @@ export default function Admin() {
   const [editingUser, setEditingUser] = useState(null)
   const [showSettings, setShowSettings] = useState(false)
   const [showEmployee, setShowEmployee] = useState(false)
+  const [managingUser, setManagingUser] = useState(null) // manager wiens projecten we koppelen
+  const [managerLinks, setManagerLinks] = useState([]) // project_managers-rijen voor de projectenteller
   const [showLeadList, setShowLeadList] = useState(false)
+  const [showImport, setShowImport] = useState(false)
   const [systemSettings, setSystemSettings] = useState(getSettings)
 
   useEffect(() => {
@@ -80,18 +85,28 @@ export default function Admin() {
         import.meta.env.VITE_SUPABASE_ANON_KEY,
         { auth: { persistSession: false, autoRefreshToken: false } }
       )
-      const { error } = await tempClient.auth.signUp({
+      const { data: signUpData, error } = await tempClient.auth.signUp({
         email: employeeData.email,
         password: employeeData.password,
         options: {
           data: {
-             full_name: employeeData.name,
-             role: employeeData.role
+             full_name: employeeData.name
           }
         }
       })
       if (error) throw error
-      toast('Medewerker uitnodiging verstuurd!', 'success')
+
+      // Nieuwe accounts worden altijd als 'employee' aangemaakt (handle_new_user);
+      // een andere rol zet de admin hier expliciet via de eigen (admin-)sessie.
+      if (employeeData.role && employeeData.role !== 'employee' && signUpData?.user?.id) {
+        const { error: roleErr } = await supabase
+          .from('profiles')
+          .update({ role: employeeData.role })
+          .eq('id', signUpData.user.id)
+        if (roleErr) toast(`Account aangemaakt, maar rol instellen mislukte: ${roleErr.message}`, 'error')
+      }
+
+      toast(employeeData.role === 'manager' ? 'Manager aangemaakt! Koppel nu projecten via de knop "Projecten".' : 'Medewerker uitnodiging verstuurd!', 'success')
       fetchData()
     } catch (err) {
       toast(err.message, 'error')
@@ -107,8 +122,10 @@ export default function Admin() {
       if (lErr) throw lErr
       const { data: u, error: uErr } = await supabase.from('profiles').select('*').order('full_name')
       if (uErr) throw uErr
+      const { data: pm } = await supabase.from('project_managers').select('lead_list_id, manager_id')
       setLeads(l || [])
       setUsers(u || [])
+      setManagerLinks(pm || [])
     } catch (err) {
       toast(err.message, 'error')
     } finally {
@@ -174,16 +191,21 @@ export default function Admin() {
       <main className="container-wide py-6 px-8">
         {/* TABS MENU */}
         <div className="flex gap-4 mb-8 bg-white/5 p-2 rounded-2xl w-fit">
-           {['dashboard', 'medewerkers', 'DATA', 'verdiensten'].map(t => (
+           {[
+             { id: 'dashboard', label: 'Dashboard', Icon: Activity },
+             { id: 'medewerkers', label: 'Team', Icon: Users },
+             { id: 'data', label: 'Projecten & Leads', Icon: Layers },
+             { id: 'verdiensten', label: 'Uitbetaling', Icon: DollarSign }
+           ].map(t => (
              <button
-               key={t}
-               onClick={() => setActiveTab(t.toLowerCase())}
+               key={t.id}
+               onClick={() => setActiveTab(t.id)}
                className={`px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all ${
-                 activeTab === t.toLowerCase() ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-muted hover:text-white'
+                 activeTab === t.id ? 'bg-primary text-white shadow-xl shadow-primary/20' : 'text-muted hover:text-white'
                }`}
              >
-               {t === 'DATA' ? <Layers size={16} className="inline mr-2" /> : t === 'medewerkers' ? <Users size={16} className="inline mr-2" /> : t === 'verdiensten' ? <DollarSign size={16} className="inline mr-2" /> : <Activity size={16} className="inline mr-2" />}
-               {t}
+               <t.Icon size={16} className="inline mr-2" />
+               {t.label}
              </button>
            ))}
         </div>
@@ -196,6 +218,7 @@ export default function Admin() {
                    <p className="text-muted font-bold">Welkom terug, {profile?.full_name}. Systeem is 100% operationeel.</p>
                 </div>
                 <div className="flex gap-3">
+                   <button className="btn btn-primary px-8 py-4" onClick={() => setShowImport(true)}><Upload size={20} /> IMPORTEER LEADS</button>
                    <button className="btn btn-primary px-8 py-4" onClick={() => setShowAddLead(true)}><Plus size={20} /> NIEUWE LEAD</button>
                    <button className="btn btn-secondary px-8 py-4 text-dark font-black shadow-lg shadow-secondary/20" onClick={() => setShowCampaign(true)}><Megaphone size={20}/> CAMPAGNE</button>
                 </div>
@@ -239,7 +262,7 @@ export default function Admin() {
                               <div className="text-[10px] text-muted opacity-50 uppercase font-black">{u.email}</div>
                            </div>
                         </div>
-                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : 'bg-success/20 text-success'}`}>{u.role}</span>
+                        <span className={`px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : 'bg-success/20 text-success'}`}>{u.role}</span>
                      </div>
                      <div className="mt-6 pt-4 border-t border-white/5 flex justify-between items-center">
                         <div>
@@ -247,12 +270,49 @@ export default function Admin() {
                            <div className="text-2xl font-black text-white">{leads.filter(l => l.assigned_to === u.id).length}</div>
                         </div>
                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                           {u.role === 'manager' && (
+                             <button onClick={() => setManagingUser(u)} className="p-2 hover:bg-primary/20 rounded-lg text-muted hover:text-primary" title="Projecten koppelen"><Layers size={18}/></button>
+                           )}
                            <button onClick={() => setEditingUser(u)} className="p-2 hover:bg-white/10 rounded-lg text-muted hover:text-white"><Settings size={18}/></button>
                            {u.id !== user.id && (
                              <button onClick={() => handleDeleteEmployee(u.id)} className="p-2 hover:bg-error/20 rounded-lg text-muted hover:text-error"><Trash2 size={18}/></button>
                            )}
                         </div>
                      </div>
+                     {u.role === 'manager' && (
+                       <div className="mt-3">
+                          {(() => {
+                            const count = managerLinks.filter(pm => pm.manager_id === u.id).length
+                            return count > 0 ? (
+                              <span className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest bg-primary/15 text-primary">
+                                {count} project{count === 1 ? '' : 'en'} gekoppeld{u.can_manage_leads ? ' · mag leads beheren' : ''}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest bg-secondary/15 text-secondary">
+                                Nog geen projecten gekoppeld — klik op "Projecten"
+                              </span>
+                            )
+                          })()}
+                       </div>
+                     )}
+                     {u.id !== user.id && (
+                       <div className="mt-3 flex items-center gap-2">
+                          <span className="text-[10px] text-muted font-black uppercase tracking-widest">Rol</span>
+                          <select
+                            value={u.role}
+                            onChange={e => handleUpdateFlow(u.id, { role: e.target.value })}
+                            className="form-dark"
+                            style={{ padding: '6px 10px', fontSize: '0.75rem', flex: 1 }}
+                          >
+                             <option value="employee">Beller</option>
+                             <option value="manager">Manager</option>
+                             <option value="admin">Admin</option>
+                          </select>
+                          {u.role === 'manager' && (
+                            <button onClick={() => setManagingUser(u)} className="btn btn-outline btn-sm" style={{ whiteSpace: 'nowrap' }}><Layers size={14}/> Projecten</button>
+                          )}
+                       </div>
+                     )}
                   </div>
                 ))}
              </div>
@@ -291,7 +351,7 @@ export default function Admin() {
                   </div>
 
                   <div className="form-group p-4 bg-primary/10 rounded-2xl border border-primary/20">
-                    <label className="text-[10px] font-black uppercase text-primary tracking-widest mb-2 block">Lead Lijst (Batch Selection) *</label>
+                    <label className="text-[10px] font-black uppercase text-primary tracking-widest mb-2 block">Project (leadlijst) *</label>
                     <div className="flex gap-2">
                        <select 
                          className="form-dark w-full border-primary/30 text-secondary font-bold"
@@ -299,7 +359,7 @@ export default function Admin() {
                          onChange={e => setNewLead({...newLead, lead_list_id: e.target.value})}
                          required
                        >
-                          <option value="">-- SELECTEER EEN LIJST --</option>
+                          <option value="">-- SELECTEER EEN PROJECT --</option>
                           {leadLists.map(list => <option key={list.id} value={list.id}>{list.name}</option>)}
                        </select>
                        <button type="button" onClick={() => setShowLeadList(true)} className="p-3 bg-primary text-white rounded-xl hover:bg-primary-dark transition-all"><Plus size={18}/></button>
@@ -344,9 +404,21 @@ export default function Admin() {
       </main>
 
       <EmployeeModal isOpen={showEmployee} onClose={() => setShowEmployee(false)} onAdd={handleAddEmployee} />
+      <AnimatePresence>
+        {managingUser && (
+          <ManagerProjectsModal
+            isOpen={!!managingUser}
+            onClose={() => setManagingUser(null)}
+            manager={managingUser}
+            leadLists={leadLists}
+            onSaved={fetchData}
+          />
+        )}
+      </AnimatePresence>
       <BriefingModal isOpen={showBriefing} onClose={() => setShowBriefing(false)} />
       <CampaignModal isOpen={showCampaign} onClose={() => setShowCampaign(false)} />
       <LeadListModal isOpen={showLeadList} onClose={() => setShowLeadList(false)} />
+      <ImportLeadsModal isOpen={showImport} onClose={() => setShowImport(false)} onImported={() => { fetchData(); fetchLeadLists() }} />
 
       <style jsx>{`
         .form-dark { background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.05); padding: 12px 16px; border-radius: 12px; color: white; transition: all 0.2s; }

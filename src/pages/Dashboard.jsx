@@ -1,8 +1,9 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
-import { RefreshCw, Search, Filter, Phone, Zap, Plus, X, List, ChevronRight } from 'lucide-react'
+import { RefreshCw, Search, Filter, Phone, Zap, Plus, X, List, ChevronRight, Layers } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
 import { useLeadLists } from '../hooks/useLeadLists'
 import { STATUS_MAP } from '../utils/statusUtils'
@@ -48,6 +49,7 @@ export default function Dashboard() {
   const loadMoreRef = useRef(null)
 
   const isAdmin = profile?.role === 'admin'
+  const isManager = profile?.role === 'manager'
 
   // Single-pass stats computation - must be defined before any useEffect that uses it
   const stats = useMemo(() => {
@@ -204,8 +206,10 @@ export default function Dashboard() {
           <div>
             <h1>Welkom terug, {profile?.full_name?.split(' ')[0] || 'Sales'}</h1>
             <p>
-              {isAdmin 
+              {isAdmin
                 ? `Je hebt vandaag ${leads.filter(l => l.status === 'new').length} nieuwe leads om op te volgen.`
+                : isManager
+                ? 'Bekijk op Mijn Projecten hoe je bellers presteren.'
                 : `Je hebt ${leads.filter(l => l.status === 'terugbelafspraak').length} terugbelopdrachten voor vandaag.`
               }
             </p>
@@ -225,8 +229,28 @@ export default function Dashboard() {
           </div>
         </motion.div>
 
-        {/* Non-admin: Bellen knoppen naast header stats */}
-        {!isAdmin && leadLists.length > 0 && (
+        {/* Manager: direct door naar het eigen projectoverzicht */}
+        {isManager && (
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            className="card mb-4 flex justify-between items-center"
+            style={{ padding: '24px', border: '1px solid var(--primary)', background: 'linear-gradient(135deg, rgba(52, 152, 219, 0.08) 0%, rgba(0,0,0,0) 100%)', gap: '16px', flexWrap: 'wrap' }}
+          >
+            <div>
+              <h2 style={{ fontSize: '1.3rem', fontWeight: 900, marginBottom: '4px' }}>Jouw projecten in één oogopslag</h2>
+              <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>
+                Live beltijd, pogingen per uur en resultaten van je bellers — plus bellers toevoegen en toewijzen.
+              </p>
+            </div>
+            <Link to="/manager" className="btn btn-primary" style={{ padding: '14px 28px', fontWeight: 800, whiteSpace: 'nowrap' }}>
+              <Layers size={18} /> Naar Mijn Projecten
+            </Link>
+          </motion.div>
+        )}
+
+        {/* Bellers: Bellen knoppen naast header stats */}
+        {!isAdmin && !isManager && leadLists.length > 0 && (
           <motion.div
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}

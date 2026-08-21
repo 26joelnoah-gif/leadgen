@@ -7,6 +7,8 @@ export const STATUS_MAP = {
   geen_gehoor: { label: 'Geen gehoor', color: 'var(--text-muted)', bg: 'var(--bg-elevated)' },
   verkeerd_nummer: { label: 'Verkeerd nummer', color: 'var(--danger)', bg: 'var(--danger-bg)' },
   geen_interesse: { label: 'Geen interesse', color: 'var(--danger)', bg: 'var(--danger-bg)' },
+  onjuiste_timing: { label: 'Onjuiste timing', color: 'var(--info)', bg: 'var(--info-bg)', description: 'Nu niet relevant, later opnieuw benaderen' },
+  cold: { label: 'Cold', color: 'var(--text-muted)', bg: 'var(--bg-elevated)', description: 'Na 3 pogingen geen contact' },
   afspraak_gemaakt: { label: 'Afspraak gemaakt', color: 'var(--success)', bg: 'var(--success-bg)' },
   deal: { label: 'Deal!', color: 'var(--success)', bg: 'var(--success-bg)' },
   ptfu: { label: 'PTFU', color: 'var(--info)', bg: 'var(--info-bg)', description: 'Power Through Follow Ups' },

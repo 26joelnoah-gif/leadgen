@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { X, UserPlus, Mail, Lock, Shield } from 'lucide-react'
 
-export default function EmployeeModal({ isOpen, onClose, onAdd }) {
+// fixedRole: verberg de rolkeuze en gebruik altijd deze rol (bijv. 'employee'
+// wanneer een manager een beller toevoegt). title: kop van de modal.
+export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null, title = 'Nieuwe Medewerker' }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -15,7 +17,7 @@ export default function EmployeeModal({ isOpen, onClose, onAdd }) {
     e.preventDefault()
     if (!name || !email || !password) return
     setLoading(true)
-    await onAdd({ name, email, password, role })
+    await onAdd({ name, email, password, role: fixedRole || role })
     setName('')
     setEmail('')
     setPassword('')
@@ -41,7 +43,7 @@ export default function EmployeeModal({ isOpen, onClose, onAdd }) {
         style={{ maxWidth: '450px' }}
       >
         <div className="modal-header">
-          <h2><UserPlus size={18} /> Nieuwe Medewerker</h2>
+          <h2><UserPlus size={18} /> {title}</h2>
           <button className="modal-close" onClick={onClose}><X size={18} /></button>
         </div>
 
@@ -80,20 +82,28 @@ export default function EmployeeModal({ isOpen, onClose, onAdd }) {
             />
           </div>
 
-          <div className="form-group">
-            <label><Shield size={14} /> Rol</label>
-            <select value={role} onChange={e => setRole(e.target.value)}>
-              <option value="employee">Medewerker</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
+          {!fixedRole && (
+            <div className="form-group">
+              <label><Shield size={14} /> Rol</label>
+              <select value={role} onChange={e => setRole(e.target.value)}>
+                <option value="employee">Beller (medewerker)</option>
+                <option value="manager">Manager</option>
+                <option value="admin">Admin</option>
+              </select>
+              {role === 'manager' && (
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  Koppel de manager na het aanmaken aan projecten via de knop "Projecten" op zijn kaart.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="flex gap-2 mt-4">
             <button type="button" className="btn btn-outline" onClick={onClose} style={{ flex: 1 }}>
               Annuleren
             </button>
             <button type="submit" className="btn btn-primary" disabled={loading} style={{ flex: 1 }}>
-              {loading ? 'Toevoegen...' : 'Medewerker Toevoegen'}
+              {loading ? 'Toevoegen...' : 'Toevoegen'}
             </button>
           </div>
         </form>

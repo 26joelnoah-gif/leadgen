@@ -57,4 +57,15 @@ Twee-zijdig platform:
 - WorkInterface = globale overlay via AuthContext (niet prop-based)
 - Calling mode = WorkInterface met listId, itereert door leads
 - Disposities matchen exact met STATUS_MAP keys
-- Lijstnamen in flow_settings zijn nu bewerkbaar (geen auto-concatenatie meer)
+- **ROUTING V17 (2026-08-20):** een lead blijft ALTIJD in zijn projectlijst.
+  Een afboeking verandert alleen de status + schrijft een call_log-rij.
+  Er worden nooit automatisch lijsten aangemaakt of leads verplaatst.
+  flow_settings bepaalt alleen nog toewijzing (agent/none/keep) + notitie-tag.
+  DB-trigger tr_lead_flow_automation (v9) is verwijderd — dispositie-logica
+  leeft uitsluitend in useLeads.handleLeadDisposition.
+- Belwachtrij in WorkInterface = leads uit de lijst zonder eindstatus en
+  zonder toekomstige next_contact_date; volgende lead is altijd listLeads[0].
+- Quick-disposities (1 klik, geen modal): geen_interesse, onjuiste_timing,
+  geen_gehoor, verkeerd_nummer.
+- Rapportage (/admin/reports) draait volledig op call_logs:
+  beltijd per beller + resultaat per gesprek/lead.

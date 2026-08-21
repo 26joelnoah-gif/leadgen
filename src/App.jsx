@@ -12,9 +12,10 @@ import Kanban from './pages/Kanban'
 import Telemetry from './pages/Telemetry'
 import Payouts from './pages/Payouts'
 import LeadManagement from './pages/LeadManagement'
+import Manager from './pages/Manager'
 import WorkInterface from './components/WorkInterface'
 
-function ProtectedRoute({ children, requireAdmin = false }) {
+function ProtectedRoute({ children, requireAdmin = false, allowManager = false }) {
   const { user, profile, loading, isDemoMode } = useAuth()
 
   if (loading) return (
@@ -43,7 +44,9 @@ function ProtectedRoute({ children, requireAdmin = false }) {
 
   if (!user) return <Navigate to="/login" replace />
 
-  if (requireAdmin && profile?.role !== 'admin') {
+  const roleOk = profile?.role === 'admin' || (allowManager && profile?.role === 'manager')
+
+  if (requireAdmin && !roleOk) {
     return (
       <div className="access-denied">
         <h2>Geen toegang</h2>
@@ -125,6 +128,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute requireAdmin>
             <Telemetry />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/manager"
+        element={
+          <ProtectedRoute requireAdmin allowManager>
+            <Manager />
           </ProtectedRoute>
         }
       />

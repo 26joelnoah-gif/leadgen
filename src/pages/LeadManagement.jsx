@@ -5,7 +5,7 @@ import { useLeadLists } from '../hooks/useLeadLists'
 import Header from '../components/Header'
 import { 
   Settings, Users, Shield, Layout, List, 
-  Search, Download, Trash2, Edit, Save, Plus,
+  Search, Download, Upload, Trash2, Edit, Save, Plus,
   DollarSign, PhoneOff, AlertTriangle, UserMinus,
   CheckCircle, Briefcase, BarChart, ChevronRight,
   X, Clock, Calendar, ArrowRight, UserCheck, FastForward,
@@ -14,6 +14,8 @@ import {
 import { motion, AnimatePresence } from 'framer-motion'
 import LoadingSpinner from '../components/LoadingSpinner'
 import { useToast } from '../components/Toast'
+import { getStatusDetails } from '../utils/statusUtils'
+import ImportLeadsModal from '../components/ImportLeadsModal'
 
 function StatusBadge({ status }) {
   const configs = {
@@ -72,6 +74,9 @@ export default function LeadManagement({ standalone = true }) {
   const [bulkTargetAgentId, setBulkTargetAgentId] = useState('')
   const [bulkTargetTeamId, setBulkTargetTeamId] = useState('')
   const [processingBulk, setProcessingBulk] = useState(false)
+
+  // Import wizard
+  const [showImport, setShowImport] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -254,7 +259,14 @@ export default function LeadManagement({ standalone = true }) {
             <h1 className="text-3xl font-black text-white tracking-tight">LEAD CONTROL PANEL</h1>
             <p className="text-muted text-sm mt-1">Stuur leadflows aan, beheer teams en stel automatisering in.</p>
           </div>
-          <div className="flex gap-3">
+          <div className="flex gap-3 items-center">
+             <button
+               onClick={() => setShowImport(true)}
+               className="btn btn-primary"
+               style={{ padding: '14px 24px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}
+             >
+                <Upload size={18} /> LEADS IMPORTEREN
+             </button>
              <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '10px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Grid size={18} className="text-primary" />
                 <div>
@@ -346,7 +358,7 @@ export default function LeadManagement({ standalone = true }) {
                       {dataSubTab === 'flows' && (
                          <div className="text-center py-10">
                             <FastForward size={32} className="mx-auto mb-4 opacity-20 text-primary" />
-                            <p className="text-xs text-muted font-bold px-4 leading-relaxed">Selecteer een flow-regel aan de rechterkant om de automatisering te wijzigen.</p>
+                            <p className="text-xs text-muted font-bold px-4 leading-relaxed">Rechts zie je per afboekreden precies wat er met een lead gebeurt. Leads blijven altijd in hun eigen projectlijst.</p>
                          </div>
                       )}
                     </div>
@@ -356,78 +368,60 @@ export default function LeadManagement({ standalone = true }) {
                 <div className="col-span-12 lg:col-span-8">
                   {dataSubTab === 'flows' ? (
                     <div className="glass-panel p-8">
-                      <div className="flex items-center gap-4 mb-10">
+                      <div className="flex items-center gap-4 mb-6">
                         <div className="p-4 bg-primary/20 text-primary rounded-2xl shadow-inner"><FastForward size={28} /></div>
                         <div>
-                          <h2 className="text-2xl font-black italic tracking-tighter uppercase leading-none mb-1">AUTOMATION ENGINE</h2>
-                          <p className="text-muted text-xs font-bold tracking-widest uppercase opacity-60">Architectuur van je lead-stromen</p>
+                          <h2 className="text-2xl font-black tracking-tight leading-none mb-1">Wat gebeurt er na een afboeking?</h2>
+                          <p className="text-muted text-sm">Per afboekreden zie je hier precies wat het systeem doet.</p>
                         </div>
                       </div>
-                      
-                      <div className="grid gap-6">
+
+                      <div className="mb-8 p-5 bg-success/5 rounded-2xl border border-success/20 text-sm text-muted leading-relaxed">
+                        <strong className="text-white">De basisregel is simpel:</strong> een lead blijft altijd in zijn eigen projectlijst.
+                        Een afboeking verandert alleen de <strong className="text-white">status</strong> van de lead en wordt vastgelegd
+                        in de gesprekshistorie (zichtbaar in Rapportage). Er worden dus nooit automatisch nieuwe lijsten aangemaakt.
+                        Hieronder stel je per reden alleen nog in: <strong className="text-white">bij wie de lead komt te staan</strong> en of
+                        de naam van de beller in de notities wordt gezet.
+                      </div>
+
+                      <div className="grid gap-4">
                         {flowSettings.map(flow => (
-                          <div key={flow.id} className="p-1 bg-gradient-to-r from-primary/10 to-transparent rounded-2xl border border-white/5 group hover:border-primary/40 transition-all">
-                             <div className="bg-dark p-6 rounded-[calc(1rem-1px)] flex items-center gap-8">
-                                
-                                {/* Rule Trigger */}
-                                <div className="flex-1 min-w-[200px]">
-                                   <div className="flex items-center gap-2 mb-2">
-                                      <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
-                                      <span className="text-[10px] font-black text-muted uppercase tracking-tighter">Wanneer een beller afboekt als:</span>
-                                   </div>
-                                   <h4 className="font-black text-white text-xl tracking-tight leading-none">{flow.disposition_type.toUpperCase().replace('_', ' ')}</h4>
+                          <div key={flow.id} className="p-6 bg-dark rounded-2xl border border-white/5 hover:border-primary/30 transition-all">
+                             <div className="flex flex-wrap items-start justify-between gap-6">
+                                <div className="flex-1 min-w-[260px]">
+                                   <h4 className="font-black text-white text-lg tracking-tight mb-1">
+                                     {getStatusDetails(flow.disposition_type).label}
+                                   </h4>
+                                   <p className="text-xs text-muted leading-relaxed">{flow.description || 'Lead blijft in de projectlijst; alleen de status verandert.'}</p>
                                 </div>
 
-                                <div className="text-primary opacity-30"><ArrowRight size={24} /></div>
-
-                                {/* Rule Action */}
-                                <div className="flex-[1.5] bg-white/2 p-4 rounded-xl border border-white/5">
-                                   <div className="text-[10px] font-black text-primary uppercase tracking-tighter mb-3">Dan wordt de lead:</div>
-                                   
-                                   <div className="flex flex-wrap gap-4 items-center">
-                                      <div className="flex items-center gap-2">
-                                         <ArrowRight size={14} className="text-primary flex-shrink-0" />
-                                         <input
-                                           type="text"
-                                           value={flow.target_list_name || ''}
-                                           onChange={e => setFlowSettings(prev => prev.map(f => f.disposition_type === flow.disposition_type ? { ...f, target_list_name: e.target.value } : f))}
-                                           onBlur={e => handleUpdateFlow(flow.disposition_type, { target_list_name: e.target.value })}
-                                           className="bg-dark border border-white/10 px-3 py-1.5 rounded-lg text-xs font-bold text-white focus:border-primary/60 focus:outline-none w-[220px]"
-                                           placeholder="Naam van doellijst..."
-                                         />
-                                      </div>
-
-                                      <div className="flex items-center gap-3">
-                                         <label className="text-[9px] font-black text-muted uppercase">Toewijzing:</label>
-                                         <select 
-                                           value={flow.auto_assign_to} 
-                                           onChange={(e) => handleUpdateFlow(flow.disposition_type, { auto_assign_to: e.target.value })}
-                                           className="bg-dark p-2 rounded-lg text-[10px] font-bold border border-white/10 text-white min-w-[100px]"
-                                         >
-                                           <option value="none">Geen (Pool)</option>
-                                           <option value="agent">Huidige Beller</option>
-                                           <option value="admin">Admin Review</option>
-                                         </select>
-                                      </div>
-
-                                      <button 
-                                        onClick={() => handleUpdateFlow(flow.disposition_type, { append_agent_note: !flow.append_agent_note })}
-                                        className={`px-4 py-2 rounded-lg text-[10px] font-bold transition-all border ${flow.append_agent_note ? 'bg-primary/20 border-primary text-primary' : 'bg-dark text-muted border-white/10'}`}
+                                <div className="flex items-center gap-6">
+                                   <div>
+                                      <label className="text-[10px] font-black text-muted uppercase tracking-widest block mb-2">Lead komt te staan bij</label>
+                                      <select
+                                        value={flow.auto_assign_to}
+                                        onChange={(e) => handleUpdateFlow(flow.disposition_type, { auto_assign_to: e.target.value })}
+                                        className="bg-dark-soft p-2.5 rounded-lg text-xs font-bold border border-white/10 text-white min-w-[170px]"
                                       >
-                                        {flow.append_agent_note ? '✓ Notities getagd' : '+ Tag Beller'}
+                                        <option value="agent">De beller zelf</option>
+                                        <option value="none">Niemand (pool)</option>
+                                        <option value="keep">Niet aanpassen</option>
+                                      </select>
+                                   </div>
+
+                                   <div>
+                                      <label className="text-[10px] font-black text-muted uppercase tracking-widest block mb-2">Bellernaam in notitie</label>
+                                      <button
+                                        onClick={() => handleUpdateFlow(flow.disposition_type, { append_agent_note: !flow.append_agent_note })}
+                                        className={`px-4 py-2.5 rounded-lg text-xs font-bold transition-all border w-[90px] ${flow.append_agent_note ? 'bg-success/20 border-success text-success' : 'bg-dark-soft text-muted border-white/10'}`}
+                                      >
+                                        {flow.append_agent_note ? 'Aan' : 'Uit'}
                                       </button>
                                    </div>
                                 </div>
                              </div>
                           </div>
                         ))}
-                      </div>
-                      
-                      <div className="mt-8 p-6 bg-primary/5 rounded-2xl border border-primary/10 flex items-center gap-4">
-                         <AlertTriangle size={20} className="text-primary" />
-                         <p className="text-xs text-muted leading-relaxed">
-                            <strong className="text-white">Pro Tip:</strong> Gebruik <code className="text-primary">LATER BELLEN</code> met <code className="text-white">Huidige Beller</code> om te zorgen dat afspraken bij dezelfde beller in de lijst blijven.
-                         </p>
                       </div>
                     </div>
                   ) : selectedList ? (
@@ -483,12 +477,14 @@ export default function LeadManagement({ standalone = true }) {
                                 <th className="p-4 pl-8">Lead Contact</th>
                                 <th className="p-4">Huidige Status</th>
                                 <th className="p-4">Toegewezen aan</th>
+                                <th className="p-4">Pogingen</th>
+                                <th className="p-4">Laatste notitie</th>
                                 <th className="p-4 pr-8 text-right">Laatste Actie</th>
                               </tr>
                             </thead>
                             <tbody>
                               {(leadSearch ? leads.filter(l => l.name.toLowerCase().includes(leadSearch.toLowerCase()) || l.phone.includes(leadSearch)) : leads).length === 0 ? (
-                                <tr><td colSpan={4} className="p-20 text-center text-muted font-bold italic">Geen leads gevonden die voldoen aan je zoekopdracht...</td></tr>
+                                <tr><td colSpan={6} className="p-20 text-center text-muted font-bold italic">Geen leads gevonden die voldoen aan je zoekopdracht...</td></tr>
                               ) : (leadSearch ? leads.filter(l => l.name.toLowerCase().includes(leadSearch.toLowerCase()) || l.phone.includes(leadSearch)) : leads).map(lead => (
                                 <tr key={lead.id} className="border-b border-white/5 hover:bg-white/2 transition-all group">
                                   <td className="p-4 pl-8">
@@ -502,6 +498,12 @@ export default function LeadManagement({ standalone = true }) {
                                            {(agents.find(a => a.id === lead.assigned_to)?.full_name || '-').charAt(0)}
                                         </div>
                                         <span className="text-xs text-muted">{agents.find(a => a.id === lead.assigned_to)?.full_name || 'Geen toewijzing'}</span>
+                                     </div>
+                                  </td>
+                                  <td className="p-4 text-center font-bold text-muted">{lead.contact_attempts || 0}x</td>
+                                  <td className="p-4 text-xs text-muted" style={{ maxWidth: '260px' }} title={lead.notes || ''}>
+                                     <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {(lead.notes || '').split('\n').filter(Boolean).pop() || '—'}
                                      </div>
                                   </td>
                                   <td className="p-4 pr-8 text-right">
@@ -522,66 +524,6 @@ export default function LeadManagement({ standalone = true }) {
                        <p className="max-w-xs text-sm mt-2 font-bold text-muted">Selecteer een batch of pas de flow-automatisering aan via de menu's links.</p>
                     </div>
                   )}
-                </div>
-              </motion.div>
-            )}
-
-            {/* VIEW: AUTOMATED FLOWS */}
-            {activeTab === 'flows' && (
-              <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="max-w-4xl mx-auto">
-                <div className="glass-panel p-8">
-                  <div className="flex items-center gap-4 mb-8">
-                    <div className="p-3 bg-primary/20 text-primary rounded-2xl"><FastForward size={24} /></div>
-                    <div>
-                      <h2 className="text-2xl font-black">Post-Call Lead Flows</h2>
-                      <p className="text-muted text-sm">Stel in waar leads naartoe gaan na de afboeking door een beller.</p>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-column gap-6">
-                    {flowSettings.map(flow => (
-                      <div key={flow.id} className="p-6 bg-dark-soft rounded-2xl border border-white/5 flex items-center justify-between gap-6 group">
-                         <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-2">
-                               <span className="px-2 py-0.5 bg-white/10 rounded text-[10px] font-bold uppercase tracking-wider text-muted">Disposition</span>
-                               <h4 className="font-black text-lg text-primary">{flow.disposition_type.toUpperCase().replace('_', ' ')}</h4>
-                            </div>
-                            <div className="flex items-center gap-3 text-sm text-muted">
-                               <ArrowRight size={14} /> 
-                               Moving to: <span className="text-white font-bold">{flow.target_list_name}</span>
-                            </div>
-                         </div>
-
-                         <div className="flex items-center gap-8">
-                            <div className="text-right">
-                               <div className="text-xs text-muted uppercase font-bold mb-2">Auto-Assign to</div>
-                               <select 
-                                 value={flow.auto_assign_to} 
-                                 onChange={(e) => handleUpdateFlow(flow.disposition_type, { auto_assign_to: e.target.value })}
-                                 className="bg-dark border border-white/10 text-xs px-3 py-2 rounded-lg font-bold w-[120px]"
-                               >
-                                 <option value="none">None</option>
-                                 <option value="agent">Caller</option>
-                                 <option value="admin">Admin Only</option>
-                                 <option value="team">Team Group</option>
-                               </select>
-                            </div>
-
-                            <div className="text-right">
-                               <div className="text-xs text-muted uppercase font-bold mb-2">Notes</div>
-                               <div className="flex gap-2">
-                                  <button 
-                                    onClick={() => handleUpdateFlow(flow.disposition_type, { append_agent_note: !flow.append_agent_note })}
-                                    className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${flow.append_agent_note ? 'bg-success text-white' : 'bg-dark border border-white/10 text-muted'}`}
-                                  >
-                                    Agent Tag? {flow.append_agent_note ? 'Yes' : 'No'}
-                                  </button>
-                               </div>
-                            </div>
-                         </div>
-                      </div>
-                    ))}
-                  </div>
                 </div>
               </motion.div>
             )}
@@ -767,6 +709,12 @@ export default function LeadManagement({ standalone = true }) {
           </AnimatePresence>
         </div>
       </main>
+
+      <ImportLeadsModal
+        isOpen={showImport}
+        onClose={() => setShowImport(false)}
+        onImported={() => { fetchLeadLists(); if (selectedList) fetchLeads(selectedList.id) }}
+      />
 
       <style>{`
         .container-wide { max-width: 1400px; margin: 0 auto; }

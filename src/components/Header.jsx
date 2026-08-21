@@ -10,20 +10,23 @@ export default function Header({ onOpenSettings }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const isAdmin = profile?.role === 'admin'
+  const isManager = profile?.role === 'manager'
 
   const navLinks = [
     { path: '/', label: 'Dashboard' },
     { path: '/tba', label: 'TBA\'s' },
     { path: '/earnings', label: 'Verdiensten' },
+    ...(isManager ? [{ path: '/manager', label: 'Mijn Projecten' }] : []),
   ]
 
+  // Beheer-links in volgorde van dagelijks gebruik
   const adminLinks = [
-    { path: '/kanban', label: 'Kanban' },
-    { path: '/admin/telemetry', label: 'Telemetrie' },
-    { path: '/admin/management', label: 'Lead Beheer' },
     { path: '/admin', label: 'Admin' },
+    { path: '/admin/management', label: 'Lead Beheer' },
     { path: '/admin/reports', label: 'Rapportage' },
     { path: '/admin/payouts', label: 'Payouts' },
+    { path: '/admin/telemetry', label: 'Telemetrie' },
+    { path: '/kanban', label: 'Kanban' },
   ]
 
   const isActive = (path) => location.pathname === path
@@ -55,6 +58,7 @@ export default function Header({ onOpenSettings }) {
               {link.label}
             </Link>
           ))}
+          {isAdmin && <span className="nav-divider" aria-hidden="true" />}
           {isAdmin && adminLinks.map(link => (
             <Link
               key={link.path}
@@ -69,7 +73,7 @@ export default function Header({ onOpenSettings }) {
         </nav>
 
         <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {!isAdmin && (
+          {profile?.role === 'employee' && (
             <button
               onClick={toggleWorkingMode}
               className="btn btn-sm"
@@ -109,6 +113,7 @@ export default function Header({ onOpenSettings }) {
         .nav a:hover { color: white; }
         .nav a.active { color: var(--secondary) !important; position: relative; }
         .nav a.active::after { content: ''; position: absolute; bottom: -21px; left: 0; right: 0; height: 2px; background: var(--secondary); }
+        .nav-divider { width: 1px; align-self: stretch; background: rgba(255,255,255,0.15); margin: 2px 4px; }
         .mobile-menu-btn { display: none !important; }
         @media (max-width: 900px) { 
           .header-content { flex-direction: column; align-items: stretch; gap: 16px; padding: 12px 0; }
@@ -117,6 +122,7 @@ export default function Header({ onOpenSettings }) {
           .nav.mobile-open { display: flex !important; }
           .nav a.active::after { display: none; }
           .nav a { padding: 12px 16px; background: var(--bg-elevated); border-radius: 8px; width: 100%; text-align: center; }
+          .nav-divider { display: none; }
           .hide-mobile { display: none; } 
           .header-actions { justify-content: space-between; overflow-x: auto; padding-bottom: 8px; }
         }

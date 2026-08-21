@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
 import { supabase } from '../lib/supabase'
+import { normalizeWebsite, displayWebsite } from '../utils/urlUtils'
 
 const CopyButton = ({ text, label }) => {
   const [copied, setCopied] = useState(false)
@@ -50,13 +51,22 @@ export default function WorkInterface() {
   const { isWorking, toggleWorkingMode, workingLead, workingListId, sessionCallCount, profile, user } = useAuth()
   const { leads, updateLeadStatus, logActivity, handleLeadDisposition } = useLeads()
 
-  // List mode: leads for current list, sorted by status priority
+  // Belwachtrij: leads uit de projectlijst die nu belbaar zijn.
+  // Afgeronde statussen vallen eruit, en leads met een terugbelmoment
+  // in de toekomst (TBA / later bellen / geen gehoor) wachten tot hun datum.
+  const DONE_STATUSES = ['deal', 'afspraak_gemaakt', 'geen_interesse', 'onjuiste_timing', 'verkeerd_nummer', 'cold', 'terugbelafspraak']
   const listLeads = workingListId
-    ? leads.filter(l => l.lead_list_id === workingListId && !['deal','afspraak_gemaakt','geen_interesse','verkeerd_nummer','cold'].includes(l.status))
+    ? leads.filter(l =>
+        l.lead_list_id === workingListId &&
+        !DONE_STATUSES.includes(l.status) &&
+        (!l.next_contact_date || new Date(l.next_contact_date) <= new Date())
+      )
     : []
 
-  const [leadIndex, setLeadIndex] = useState(0)
-  const currentLead = workingLead || listLeads[leadIndex] || null
+  // Afgehandelde leads verdwijnen uit de wachtrij, dus de volgende lead
+  // is altijd gewoon de eerste in de rij — geen index-gedoe.
+  const currentLead = workingLead || listLeads[0] || null
+  const [listDisplayName, setListDisplayName] = useState('')
 
   const [editableLead, setEditableLead] = useState({})
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024)
@@ -111,17 +121,21 @@ export default function WorkInterface() {
     return () => { cancelled = true }
   }, [user?.id, isWorking])
 
-  // Reset index when list changes
+  // Haal de echte lijstnaam op (voor de projectbalk bovenin)
   useEffect(() => {
-    setLeadIndex(0)
+    if (!workingListId) { setListDisplayName(''); return }
+    let cancelled = false
+    supabase.from('lead_lists').select('name').eq('id', workingListId).maybeSingle()
+      .then(({ data }) => { if (!cancelled && data?.name) setListDisplayName(data.name) })
+    return () => { cancelled = true }
   }, [workingListId])
 
   // Don't render if not working
   if (!isWorking) return null
 
-  const listName = workingListId || 'Direct'
+  const listName = listDisplayName || (workingListId ? 'Lijst' : 'Direct')
   const isListMode = !!workingListId && !workingLead
-  const progress = isListMode ? { current: leadIndex + 1, total: listLeads.length } : null
+  const progress = isListMode ? { remaining: listLeads.length } : null
 
   // Empty state when no leads available
   if (!currentLead) {
@@ -133,10 +147,10 @@ export default function WorkInterface() {
         color: 'var(--text-main)', padding: '20px'
       }}>
         <div style={{ textAlign: 'center', maxWidth: '400px' }}>
-          <div style={{ fontSize: '4rem', marginBottom: '16px', opacity: 0.5 }}>📭</div>
-          <h2 style={{ color: 'white', marginBottom: '8px' }}>Geen leads beschikbaar</h2>
+          <div style={{ fontSize: '4rem', marginBottom: '16px', opacity: 0.5 }}>🎉</div>
+          <h2 style={{ color: 'white', marginBottom: '8px' }}>Wachtrij leeg!</h2>
           <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
-            Er zijn geen leads meer in deze lijst om te bewerken.
+            Alle belbare leads in deze lijst zijn afgehandeld. Leads met een terugbelmoment komen vanzelf terug in de wachtrij.
           </p>
           <button
             onClick={toggleWorkingMode}
@@ -154,33 +168,39 @@ export default function WorkInterface() {
   }
 
   const saveLeadEdits = async () => {
-    const error = await updateLeadStatus(currentLead.id, currentLead.status, editableLead)
+    // Website altijd opgeschoond opslaan (kort en klikbaar)
+    const cleaned = editableLead.website
+      ? { ...editableLead, website: normalizeWebsite(editableLead.website) }
+      : editableLead
+    const error = await updateLeadStatus(currentLead.id, currentLead.status, cleaned)
     if (!error) {
       logActivity(currentLead.id, 'edit', 'Lead gegevens gewijzigd')
     }
   }
 
 
+  // quick: true = direct afboeken met 1 klik, geen modal en geen verplichte notitie
   const dispositions = [
     { id: 'deal', label: 'DEAL', color: '#10B981', icon: <CheckCircle2 size={18} /> },
     { id: 'afspraak_gemaakt', label: 'AFSPRAAK', color: '#3B82F6', icon: <Calendar size={18} /> },
     { id: 'terugbelafspraak', label: 'TBA (Terugbel)', color: '#8B5CF6', icon: <Clock size={18} /> },
     { id: 'later_bellen', label: 'LATER BELLEN', color: '#F59E0B', icon: <Clock size={18} /> },
-    { id: 'geen_gehoor', label: 'GEEN GEHOOR', color: '#64748B', icon: <Phone size={18} /> },
-    { id: 'verkeerd_nummer', label: 'FOUTIEVE INFO', color: '#EF4444', icon: <AlertCircle size={18} /> },
-    { id: 'geen_interesse', label: 'GEEN INTERESSE', color: '#334155', icon: <X size={18} /> },
+    { id: 'geen_gehoor', label: 'GEEN GEHOOR', color: '#64748B', icon: <Phone size={18} />, quick: true },
+    { id: 'verkeerd_nummer', label: 'FOUTIEVE INFO', color: '#EF4444', icon: <AlertCircle size={18} />, quick: true },
+    { id: 'geen_interesse', label: 'GEEN INTERESSE', color: '#334155', icon: <X size={18} />, quick: true },
+    { id: 'onjuiste_timing', label: 'ONJUISTE TIMING', color: '#0EA5E9', icon: <Clock size={18} />, quick: true },
   ]
 
-  const handleFinalDisposition = async () => {
-    if (!selectedDisposition || isSubmitting) return
+  const submitDisposition = async (dispositionType, notes = '', nextDate = null) => {
+    if (isSubmitting) return
     setIsSubmitting(true)
     try {
       await handleLeadDisposition(
         currentLead.id,
         listName,
-        selectedDisposition,
-        dispositionNotes,
-        nextContactDate || null,
+        dispositionType,
+        notes,
+        nextDate || null,
         { startedAt: leadStartRef.current }
       )
       setTodayCalls(prev => prev + 1)
@@ -190,18 +210,19 @@ export default function WorkInterface() {
       setNextContactDate('')
       setSelectedDisposition(null)
 
+      // In lijstmodus schuift de volgende lead vanzelf naar voren
+      // (de afgehandelde lead valt uit de wachtrij-filter).
       if (workingLead) {
         toggleWorkingMode()
-      } else if (isListMode) {
-        if (leadIndex < listLeads.length - 1) {
-          setLeadIndex(prev => prev + 1)
-        } else {
-          toggleWorkingMode()
-        }
       }
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  const handleFinalDisposition = () => {
+    if (!selectedDisposition) return
+    submitDisposition(selectedDisposition, dispositionNotes, nextContactDate || null)
   }
 
   return (
@@ -255,7 +276,7 @@ export default function WorkInterface() {
                )}
                {progress && (
                  <span style={{ background: 'rgba(255,255,255,0.15)', color: 'white', padding: '2px 10px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>
-                   {progress.current} / {progress.total}
+                   Nog {progress.remaining} in wachtrij
                  </span>
                )}
             </div>
@@ -292,8 +313,8 @@ export default function WorkInterface() {
                 <div style={{ marginBottom: '24px' }}>
                   <h3 style={{ background: 'var(--bg-elevated)', color: 'var(--text-muted)', padding: '8px 12px', margin: '0 0 16px 0', borderRadius: '4px', fontSize: '1rem', border: '1px solid var(--border)' }}>&gt; Bedrijfsgegevens</h3>
 
-                  <div style={{ maxWidth: '850px' }}>
-                    <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+                  <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                    <div style={{ flex: '0 1 850px', minWidth: '500px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
                       <div style={{ background: 'linear-gradient(90deg, var(--success) 0%, #059669 100%)', color: 'white', padding: '14px 20px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.1rem' }}>
                         <Users size={20} /> Adres- & Contactinformatie
                       </div>
@@ -348,10 +369,46 @@ export default function WorkInterface() {
                           </div>
                           <div>
                             <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Website</label>
-                            <input type="text" value={editableLead.website || ''} onChange={e => setEditableLead({...editableLead, website: e.target.value})} placeholder="..." style={{ width: '100%', padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <input type="text" value={editableLead.website || ''} onChange={e => setEditableLead({...editableLead, website: e.target.value})} placeholder="..." style={{ flex: 1, minWidth: 0, padding: '12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white' }}/>
+                              {editableLead.website && (
+                                <a
+                                  href={normalizeWebsite(editableLead.website) || editableLead.website}
+                                  target="_blank" rel="noopener noreferrer"
+                                  title={editableLead.website}
+                                  style={{ flexShrink: 0, padding: '10px 14px', borderRadius: '8px', background: 'var(--primary)', color: 'white', fontWeight: 700, fontSize: '0.8rem', textDecoration: 'none', whiteSpace: 'nowrap', maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                                >
+                                  {displayWebsite(editableLead.website)} ↗
+                                </a>
+                              )}
+                            </div>
                           </div>
                         </div>
 
+                      </div>
+                    </div>
+
+                    {/* Extra info: vangnet voor niet-herkende importkolommen */}
+                    <div style={{ flex: '1 1 280px', minWidth: '260px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 10px 30px rgba(0,0,0,0.4)' }}>
+                      <div style={{ background: 'linear-gradient(90deg, var(--info, #38BDF8) 0%, #0EA5E9 100%)', color: 'white', padding: '14px 20px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.05rem' }}>
+                        <AlertCircle size={18} /> Extra Informatie
+                      </div>
+                      <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        {['extra_info1', 'extra_info2', 'extra_info3'].map((field, idx) => (
+                          <div key={field}>
+                            <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', fontWeight: 700, textTransform: 'uppercase' }}>Extra info {idx + 1}</label>
+                            <textarea
+                              value={editableLead[field] || ''}
+                              onChange={e => setEditableLead({ ...editableLead, [field]: e.target.value })}
+                              placeholder="..."
+                              rows={2}
+                              style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'white', fontSize: '0.9rem', resize: 'vertical', lineHeight: '1.4' }}
+                            />
+                          </div>
+                        ))}
+                        <p style={{ margin: 0, fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
+                          Hier komt automatisch de data uit importkolommen die niet herkend werden.
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -397,9 +454,15 @@ export default function WorkInterface() {
             {dispositions.map(d => (
               <button
                 key={d.id}
+                disabled={isSubmitting}
                 onClick={() => {
-                  setSelectedDisposition(d.id)
-                  setShowDispositionModal(true)
+                  if (d.quick) {
+                    // 1 klik = direct afgeboekt, geen notitie nodig
+                    submitDisposition(d.id)
+                  } else {
+                    setSelectedDisposition(d.id)
+                    setShowDispositionModal(true)
+                  }
                 }}
                 className="glow-hover"
                 style={{

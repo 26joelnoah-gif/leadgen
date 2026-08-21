@@ -234,57 +234,58 @@ export function useLeads() {
     }
   }
 
+  // ==========================================================
+  // DISPOSITIE-LOGICA (v17)
+  // Eén simpele regel: de lead BLIJFT in zijn projectlijst.
+  // De uitkomst is de status op de lead + een rij in call_logs.
+  // Er worden dus nooit meer automatisch lijsten aangemaakt.
+  // flow_settings bepaalt alleen nog: toewijzing + notitie-tag.
+  // ==========================================================
   async function handleLeadDisposition(leadId, currentListName, dispositionType, notes, nextDate = null, callMeta = null) {
     const currentLead = leads.find(l => l.id === leadId)
     if (!currentLead) return
     const agentName = profile?.full_name || user?.email || 'Onbekend'
 
     let newNotes = currentLead.notes || ''
-    if (notes) newNotes = `${newNotes}\n[${new Date().toLocaleDateString()}] ${notes}`
+    if (notes) newNotes = `${newNotes}\n[${new Date().toLocaleDateString('nl-NL')}] ${notes}`
+
+    // Basis-update: status = de afboekreden zelf, lijst blijft ongewijzigd
+    const updates = {
+      status: dispositionType,
+      notes: newNotes,
+      next_contact_date: nextDate,
+      updated_at: new Date().toISOString()
+    }
+
+    // Herbel-logica: geen gehoor / later bellen komen automatisch terug in de wachtrij
+    if (dispositionType === 'geen_gehoor' || dispositionType === 'later_bellen') {
+      const nextAttempt = (currentLead.contact_attempts || 0) + 1
+      updates.contact_attempts = nextAttempt
+      if (!nextDate) {
+        const daysToAdd = nextAttempt === 1 ? 2 : 3
+        const nextDateAuto = new Date()
+        nextDateAuto.setDate(nextDateAuto.getDate() + daysToAdd)
+        updates.next_contact_date = nextDateAuto.toISOString()
+      }
+    }
 
     if (isDemoMode) {
-      const updates = {
-        status: ['deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer'].includes(dispositionType) ? dispositionType : 'new',
-        notes: newNotes,
-        next_contact_date: nextDate,
-        updated_at: new Date().toISOString()
-      }
       setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updates } : l))
       return
     }
 
     await logCallToDatabase(currentLead, dispositionType, callMeta)
 
-    const { data: rule } = await supabase.from('flow_settings').select('*').eq('disposition_type', dispositionType).eq('is_active', true).maybeSingle()
-    const getOrCreateList = async (listName) => {
-      const { data: existing } = await supabase.from('lead_lists').select('id').eq('name', listName).is('deleted_at', null).limit(1)
-      if (existing?.length > 0) return existing[0].id
-      const { data: newList } = await supabase.from('lead_lists').insert({ name: listName, created_by: user?.id, organization_id: profile?.organization_id }).select().single()
-      return newList?.id
-    }
-
-    let status = currentLead.status
-
+    // Instellingen per afboekreden (alleen toewijzing + notitie-tag)
+    const { data: rule } = await supabase.from('flow_settings').select('auto_assign_to, append_agent_note').eq('disposition_type', dispositionType).eq('is_active', true).maybeSingle()
     if (rule) {
-      const targetListName = rule.target_list_name.replace('{{agent}}', agentName)
-      const listId = await getOrCreateList(targetListName)
-      let assignedTo = currentLead.assigned_to
-      if (rule.auto_assign_to === 'agent') assignedTo = user?.id
-      else if (rule.auto_assign_to === 'none') assignedTo = null
-      
-      const updates = {
-         status: ['deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer'].includes(dispositionType) ? dispositionType : 'new',
-         notes: rule.append_agent_note ? `${newNotes}\n🚨 AFBOEKING DOOR: ${agentName}` : newNotes,
-         lead_list_id: listId,
-         assigned_to: assignedTo,
-         next_contact_date: nextDate,
-         updated_at: new Date().toISOString()
-      }
-      await supabase.from('leads').update(updates).eq('id', leadId)
-      await logActivity(leadId, dispositionType, `Automated flow: ${targetListName}`)
-    } else {
-      await supabase.from('leads').update({ status: dispositionType, notes: newNotes, next_contact_date: nextDate, updated_at: new Date().toISOString() }).eq('id', leadId)
+      if (rule.auto_assign_to === 'agent') updates.assigned_to = user?.id
+      else if (rule.auto_assign_to === 'none') updates.assigned_to = null
+      if (rule.append_agent_note) updates.notes = `${updates.notes}\n— Afgeboekt door ${agentName}`
     }
+
+    await supabase.from('leads').update(updates).eq('id', leadId)
+    await logActivity(leadId, dispositionType, `Afboeking: ${dispositionType}`)
     await fetchLeads()
   }
 

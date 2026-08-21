@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Phone, Globe, MapPin, Calendar, ExternalLink, Zap, Flame, Clock, PhoneCall, Lock } from 'lucide-react';
 import { getStatusDetails } from '../utils/statusUtils';
 import { formatDate } from '../utils/dateUtils';
+import { normalizeWebsite, displayWebsite } from '../utils/urlUtils';
 import StatusSelector from './StatusSelector';
 import CopyButton from './CopyButton';
 import { useAuth } from '../context/AuthContext';
@@ -157,8 +158,14 @@ export default function LeadCard({ lead, onStatusChange, onClaim, loading = fals
         <div className="flex items-center gap-2 text-muted">
           <Globe size={16} />
           {lead.website ? (
-            <a href={lead.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-primary transition-colors">
-              Website <ExternalLink size={12} />
+            <a
+              href={normalizeWebsite(lead.website) || lead.website}
+              target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1 hover:text-primary transition-colors"
+              title={lead.website}
+              style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            >
+              {displayWebsite(lead.website)} <ExternalLink size={12} style={{ flexShrink: 0 }} />
             </a>
           ) : (
             <span>Geen website</span>
