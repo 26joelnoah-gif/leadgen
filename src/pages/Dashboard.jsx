@@ -1,17 +1,14 @@
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
-import { RefreshCw, Search, Filter, Phone, Zap, Plus, X, List, ChevronRight, Layers } from 'lucide-react'
+import { RefreshCw, Phone, Zap, Plus, X, Layers } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
 import { levelInfo } from '../utils/xpUtils'
 import { effectiveSeconds } from '../utils/callTimeUtils'
 import { useLeadLists } from '../hooks/useLeadLists'
 import { STATUS_MAP } from '../utils/statusUtils'
-import LeadCard from '../components/LeadCard'
-import LoadingSpinner from '../components/LoadingSpinner'
-import EmptyState from '../components/EmptyState'
 import TeamLeaderboard from '../components/TeamLeaderboard'
 import Chat from '../components/Chat'
 import ActivityFeed from '../components/ActivityFeed'
@@ -27,14 +24,9 @@ function fmtSecs(totalSeconds) {
 export default function Dashboard() {
   const { user, profile, signOut, isWorking, toggleWorkingMode, startWorkingWithList, isDemoMode, sessionCallCount } = useAuth()
   const toast = useToast()
-  const { leads, loading, fetchLeads, updateLeadStatus, createLead } = useLeads()
-  const { leadLists, loading: leadListsLoading, getLeadsInList } = useLeadLists()
-  const [filter, setFilter] = useState('all')
-  const [searchTerm, setSearchTerm] = useState('')
+  const { leads, fetchLeads, createLead } = useLeads()
+  const { leadLists, loading: leadListsLoading } = useLeadLists()
   const [showNewLeadModal, setShowNewLeadModal] = useState(false)
-  const [showLeadLists, setShowLeadLists] = useState(false)
-  const [expandedListId, setExpandedListId] = useState(null)
-  const [listLeads, setListLeads] = useState({})
   const [newLead, setNewLead] = useState({
     name: '',
     phone: '',
@@ -48,13 +40,6 @@ export default function Dashboard() {
   const [users, setUsers] = useState([])
 
 
-  // Pagination state for infinite scroll
-  const LEAD_PAGE_SIZE = 50
-  const [displayedLeads, setDisplayedLeads] = useState([])
-  const [hasMoreLeads, setHasMoreLeads] = useState(true)
-  const [loadingMore, setLoadingMore] = useState(false)
-  const [selectedListId, setSelectedListId] = useState(null)
-  const loadMoreRef = useRef(null)
 
   const isAdmin = profile?.role === 'admin'
   const isManager = profile?.role === 'manager'
@@ -100,69 +85,7 @@ export default function Dashboard() {
     return { nieuweLeads, terugbelacties, hotLeads, afspraken, deals }
   }, [leads])
 
-  // Memoized filtered + sorted leads - must be defined before useEffects that reference it
-  const filteredLeads = useMemo(() => {
-    const search = searchTerm.toLowerCase()
-    const filtered = (leads || []).filter(lead => {
-      if (!lead) return false
-      // Hide closed statuses from dashboard for everyone
-      if (['deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer', 'cold'].includes(lead.status)) return false
 
-      let matchesFilter = true
-      const status = lead.status || 'new'
-      if (filter === 'hot') matchesFilter = ['new', 'terugbelafspraak', 'later_bellen'].includes(status)
-      else if (filter === 'new') matchesFilter = status === 'new'
-      else if (filter !== 'all') matchesFilter = status === filter
-
-      const name = (lead.name || '').toLowerCase()
-      const phone = lead.phone || ''
-      const matchesSearch = name.includes(search) || phone.includes(search)
-      return matchesFilter && matchesSearch
-    })
-
-    const priority = { terugbelafspraak: 0, new: 1, afspraak_gemaakt: 2, later_bellen: 3, mailbox: 4, geen_interesse: 5, deal: 6, verkeerd_nummer: 7 }
-    return filtered.sort((a, b) => {
-      if (!a || !b) return 0
-      const aP = priority[a.status] ?? 9
-      const bP = priority[b.status] ?? 9
-      if (aP !== bP) return aP - bP
-      const dateA = a.created_at || ''
-      const dateB = b.created_at || ''
-      return dateB.localeCompare(dateA)
-    })
-  }, [leads, filter, searchTerm, isAdmin])
-
-  // loadMoreLeads must be defined before the IntersectionObserver useEffect
-  const loadMoreLeads = useCallback(() => {
-    if (loadingMore || !hasMoreLeads) return
-    setLoadingMore(true)
-    const currentLength = displayedLeads.length
-    const nextBatch = filteredLeads.slice(currentLength, currentLength + LEAD_PAGE_SIZE)
-    setDisplayedLeads(prev => [...prev, ...nextBatch])
-    setHasMoreLeads(currentLength + LEAD_PAGE_SIZE < filteredLeads.length)
-    setLoadingMore(false)
-  }, [loadingMore, hasMoreLeads, displayedLeads.length, filteredLeads])
-
-  // Reset displayed leads when filteredLeads changes
-  useEffect(() => {
-    setDisplayedLeads(filteredLeads.slice(0, LEAD_PAGE_SIZE))
-    setHasMoreLeads(filteredLeads.length > LEAD_PAGE_SIZE)
-  }, [filteredLeads])
-
-  // Intersection Observer for infinite scroll
-  useEffect(() => {
-    if (!loadMoreRef.current) return
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMoreLeads && !loadingMore) {
-          loadMoreLeads()
-        }
-      },
-      { threshold: 0.1 }
-    )
-    observer.observe(loadMoreRef.current)
-    return () => observer.disconnect()
-  }, [hasMoreLeads, loadingMore, displayedLeads.length, loadMoreLeads])
 
   useEffect(() => {
     async function fetchUsers() {
@@ -206,15 +129,6 @@ export default function Dashboard() {
     }
   }
 
-  async function toggleExpandList(listId) {
-    if (expandedListId === listId) {
-      setExpandedListId(null)
-    } else {
-      setExpandedListId(listId)
-      const leadsInList = await getLeadsInList(listId)
-      setListLeads(prev => ({ ...prev, [listId]: leadsInList }))
-    }
-  }
 
   return (
     <motion.div
@@ -402,40 +316,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {!isBeller && (
-        <div className="filter-bar glass-panel flex justify-between items-center" style={{ gap: '20px' }}>
-          <div className="search-input" style={{ flex: 1, position: 'relative' }}>
-            <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            <input
-              type="text"
-              placeholder="Zoek op naam..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="form-control"
-              style={{ paddingLeft: '40px', width: '100%', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 10px 10px 40px' }}
-            />
-          </div>
-
-          {isAdmin && (
-            <div className="flex items-center gap-2">
-              <Filter size={18} className="text-muted" />
-              <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                style={{ padding: '10px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}
-              >
-                <option value="all">Alle leads</option>
-                <option value="hot">🔥 Hot Leads</option>
-                <option value="new">Nieuwe leads</option>
-                {Object.entries(STATUS_MAP).map(([key, details]) => (
-                  <option key={key} value={key}>{details.label}</option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-        )}
-
         {/* Quick Stats */}
         <div className="stats-grid mb-4" style={{ marginTop: '24px' }}>
           {[
@@ -469,108 +349,14 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {!isBeller && (loading ? (
-          <div style={{ padding: '100px 0' }}>
-            <LoadingSpinner size="large" />
+        {/* v27: geen leadoverzicht meer op het dashboard - ook niet voor
+            admin/manager. Leads bekijk en beheer je in Lead Beheer. */}
+        {!isBeller && (
+          <div className="dashboard-content" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'start' }}>
+            <TeamLeaderboard />
+            <ActivityFeed />
           </div>
-        ) : (
-          <div className="dashboard-content" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '24px', alignItems: 'start' }}>
-            <div className="leads-list">
-              <AnimatePresence>
-                {displayedLeads.length === 0 && filteredLeads.length === 0 ? (
-                  <EmptyState key="empty" title="Geen leads gevonden" />
-                ) : (
-                  displayedLeads.map((lead, i) => (
-                    <motion.div
-                      key={lead.id}
-                      initial={{ scale: 0.95, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.95, opacity: 0 }}
-                      transition={{ delay: Math.min(i * 0.02, 0.5) }}
-                    >
-                      <LeadCard
-                        lead={lead}
-                        onStatusChange={updateLeadStatus}
-                      />
-                    </motion.div>
-                  ))
-                )}
-              </AnimatePresence>
-
-              {/* Load More Trigger / Indicator */}
-              {hasMoreLeads && (
-                <div 
-                  ref={loadMoreRef} 
-                  style={{ 
-                    padding: '24px', 
-                    textAlign: 'center', 
-                    display: 'flex', 
-                    justifyContent: 'center',
-                    opacity: loadingMore ? 1 : 0.4,
-                    transition: 'opacity 0.3s'
-                  }}
-                >
-                  <LoadingSpinner size="small" />
-                </div>
-              )}
-
-              {!hasMoreLeads && displayedLeads.length > 0 && (
-                <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                  Alle {displayedLeads.length} leads geladen
-                </div>
-              )}
-            </div>
-            <div className="dashboard-sidebar">
-              <TeamLeaderboard />
-
-              {/* Agent Lead Lists */}
-              {leadLists.length > 0 && (
-                <div className="card" style={{ padding: '16px' }}>
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className="card-title" style={{ fontSize: '1rem' }}><List size={16} /> LEADS</h3>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--secondary)', fontWeight: 600 }}>{leadLists.length}</span>
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {leadLists.map(list => (
-                      <div key={list.id}>
-                        <div
-                          className="flex items-center gap-2 p-2"
-                          style={{
-                            background: 'var(--bg-elevated)',
-                            borderRadius: '8px',
-                            cursor: 'pointer'
-                          }}
-                          onClick={() => toggleExpandList(list.id)}
-                        >
-                          <span style={{ fontWeight: 600, fontSize: '0.9rem', flex: 1 }}>{list.name}</span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                            {listLeads[list.id] ? listLeads[list.id].length : '...'} leads
-                          </span>
-                        </div>
-                        {expandedListId === list.id && listLeads[list.id] && (
-                          <div style={{ padding: '8px 0 8px 16px' }}>
-                            {listLeads[list.id].length > 0 ? (
-                              listLeads[list.id].map(lead => (
-                                <div key={lead.id} className="flex justify-between items-center p-2" style={{ fontSize: '0.85rem' }}>
-                                  <span style={{ fontWeight: 600 }}>{lead.name}</span>
-                                  <span style={{ color: 'var(--text-muted)' }}>{lead.phone}</span>
-                                </div>
-                              ))
-                            ) : (
-                              <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Geen leads in deze lijst</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <ActivityFeed />
-            </div>
-          </div>
-        ))}
+        )}
       </main>
 
       <AnimatePresence>
