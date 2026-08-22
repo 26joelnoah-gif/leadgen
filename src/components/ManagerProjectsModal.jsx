@@ -13,6 +13,7 @@ const PERMISSIONS = [
   { key: 'can_manage_team', label: 'Bellers aanmaken & toewijzen', hint: 'Mag nieuwe bellers aanmaken en aan zijn projecten koppelen.' },
   { key: 'can_export_data', label: 'Exporteren (CSV)', hint: 'Mag statistieken en gesprekken als CSV downloaden.' },
   { key: 'can_edit_flows', label: 'Flows aanpassen', hint: 'Mag instellen wat er na een afboeking gebeurt. Let op: flows gelden voor alle projecten.' },
+  { key: 'can_manage_queue', label: 'Wachtrij-volgorde aanpassen', hint: 'Mag per project kiezen of de wachtrij op import-volgorde staat of warme leads en beslissers eerst aanbiedt.' },
   { key: 'kpi_only', label: "Alleen KPI's & uitkomsten", hint: 'Ziet alleen totalen en trends (afspraken, belletjes per uur/dag/week/maand) - geen individuele gesprekken of leadgegevens.' }
 ]
 
@@ -53,6 +54,7 @@ export default function ManagerProjectsModal({ isOpen, onClose, manager, onSaved
       can_manage_team: manager.can_manage_team !== false,
       can_export_data: manager.can_export_data !== false,
       can_edit_flows: !!manager.can_edit_flows,
+      can_manage_queue: !!manager.can_manage_queue,
       kpi_only: !!manager.kpi_only
     })
     setLoading(true)

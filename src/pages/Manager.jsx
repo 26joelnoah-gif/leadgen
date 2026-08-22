@@ -5,7 +5,8 @@ import { useAuth } from '../context/AuthContext'
 import { motion } from 'framer-motion'
 import {
   Users, PhoneCall, CheckCircle, Download, Clock, Filter, Calendar,
-  TrendingUp, Phone, UserPlus, Layers, Upload, Zap, Euro, BarChart3, FastForward
+  TrendingUp, Phone, UserPlus, Layers, Upload, Zap, Euro, BarChart3, FastForward,
+  BookOpen
 } from 'lucide-react'
 import { getStatusDetails } from '../utils/statusUtils'
 import { effectiveSeconds, isCapped } from '../utils/callTimeUtils'
@@ -15,6 +16,7 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import EmployeeModal from '../components/EmployeeModal'
 import ImportLeadsModal from '../components/ImportLeadsModal'
+import CampaignBriefingModal from '../components/CampaignBriefingModal'
 import FlowSettingsEditor from '../components/FlowSettingsEditor'
 import { useToast } from '../components/Toast'
 
@@ -76,7 +78,31 @@ export default function Manager() {
   const canManageTeam = isAdmin || profile?.can_manage_team !== false
   const canExport = isAdmin || profile?.can_export_data !== false
   const canEditFlows = isAdmin || !!profile?.can_edit_flows
+  const canManageQueue = isAdmin || !!profile?.can_manage_queue // v29
   const kpiOnly = !isAdmin && !!profile?.kpi_only
+
+  // v29: campagnes van deze manager (RLS filtert op wat hij mag zien) -
+  // voor de briefing-editor en de wachtrij-instelling per project
+  const [campaigns, setCampaigns] = useState([])
+  const [briefingCampaign, setBriefingCampaign] = useState(null)
+  async function fetchCampaigns() {
+    if (isDemoMode) { setCampaigns([]); return }
+    const { data } = await supabase
+      .from('campaigns')
+      .select('id, name, queue_mode, is_active')
+      .is('deleted_at', null)
+      .order('name')
+    setCampaigns(data || [])
+  }
+
+  async function setQueueMode(campaign, mode) {
+    const { error } = await supabase.rpc('set_campaign_queue_mode', { p_campaign_id: campaign.id, p_mode: mode })
+    if (error) { toast(error.message, 'error'); return }
+    setCampaigns(prev => prev.map(c => c.id === campaign.id ? { ...c, queue_mode: mode } : c))
+    toast(mode === 'score'
+      ? 'Wachtrij aangepast: warme leads en beslissers eerst'
+      : 'Wachtrij aangepast: volgorde van import', 'success')
+  }
 
   // v27: resultaten-overzicht (deals, afspraken, geen interesse, blacklist)
   const [resultLeads, setResultLeads] = useState([])
@@ -196,6 +222,7 @@ export default function Manager() {
       const lists = await fetchManagedLists()
       await fetchEmployees()
       await fetchRules()
+      await fetchCampaigns()
       await fetchCallLogs(lists.map(l => l.id))
     }
     init()
@@ -706,6 +733,54 @@ export default function Manager() {
         ) : activeTab === 'flows' ? (
           <FlowSettingsEditor />
         ) : (
+          <>
+          {campaigns.length > 0 && (
+            <div className="card mb-4">
+              <div className="card-header">
+                <span className="card-title"><BookOpen size={20} /> Briefing & wachtrij per project</span>
+                <span className="text-muted" style={{ fontSize: '0.8rem' }}>De briefing ziet de beller als tabs in het belscherm</span>
+              </div>
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Project</th>
+                      <th>Briefing</th>
+                      <th>Wachtrij-volgorde</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {campaigns.map(c => (
+                      <tr key={c.id} style={c.is_active === false ? { opacity: 0.55 } : undefined}>
+                        <td><strong>{c.name}</strong>{c.is_active === false && <span className="text-muted" style={{ fontSize: '0.75rem' }}> (gepauzeerd)</span>}</td>
+                        <td>
+                          <button className="btn btn-outline btn-sm" onClick={() => setBriefingCampaign(c)}>
+                            <BookOpen size={14} /> Belscript & projectinfo
+                          </button>
+                        </td>
+                        <td>
+                          {canManageQueue ? (
+                            <select
+                              value={c.queue_mode || 'fifo'}
+                              onChange={e => setQueueMode(c, e.target.value)}
+                              style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}
+                            >
+                              <option value="fifo">Volgorde van import</option>
+                              <option value="score">Beste leads eerst (warm + beslisser)</option>
+                            </select>
+                          ) : (
+                            <span className="text-muted" style={{ fontSize: '0.85rem' }}>
+                              {(c.queue_mode || 'fifo') === 'score' ? 'Beste leads eerst' : 'Volgorde van import'}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           <div className="card">
             <div className="card-header">
               <span className="card-title"><Layers size={20} /> Mijn projecten & bellers</span>
@@ -769,11 +844,13 @@ export default function Manager() {
               </div>
             )}
           </div>
+          </>
         )}
       </main>
 
       <EmployeeModal isOpen={showEmployee} onClose={() => setShowEmployee(false)} onAdd={handleAddEmployee} fixedRole="employee" title="Nieuwe Beller" />
       <ImportLeadsModal isOpen={showImport} onClose={() => setShowImport(false)} onImported={() => fetchCallLogs()} />
+      <CampaignBriefingModal isOpen={!!briefingCampaign} campaign={briefingCampaign} onClose={() => setBriefingCampaign(null)} />
     </motion.div>
   )
 }

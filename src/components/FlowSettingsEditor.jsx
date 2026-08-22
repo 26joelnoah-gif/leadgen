@@ -93,10 +93,11 @@ export default function FlowSettingsEditor() {
       </div>
 
       {/* Eén legenda voor alle rijen */}
-      <div className="grid items-center gap-4 px-4 py-2 mb-1" style={{ gridTemplateColumns: 'minmax(0,1fr) 190px 150px' }}>
+      <div className="grid items-center gap-4 px-4 py-2 mb-1" style={{ gridTemplateColumns: 'minmax(0,1fr) 190px 150px 80px' }}>
         <span className="text-[10px] font-black text-muted uppercase tracking-widest">Afboekreden</span>
         <span className="text-[10px] font-black text-muted uppercase tracking-widest">Lead komt te staan bij</span>
         <span className="text-[10px] font-black text-muted uppercase tracking-widest" style={{ textAlign: 'center' }}>Naam beller in notitie</span>
+        <span className="text-[10px] font-black text-muted uppercase tracking-widest" style={{ textAlign: 'center' }}>Actief</span>
       </div>
 
       {loading ? (
@@ -118,7 +119,7 @@ export default function FlowSettingsEditor() {
                 <div
                   key={flow.id}
                   className="grid items-center gap-4 px-4 py-3 bg-dark hover:bg-elevated transition-all"
-                  style={{ gridTemplateColumns: 'minmax(0,1fr) 190px 150px', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}
+                  style={{ gridTemplateColumns: 'minmax(0,1fr) 190px 150px 80px', borderTop: i > 0 ? '1px solid var(--border)' : 'none', opacity: flow.is_active === false ? 0.45 : 1 }}
                 >
                   <div className="min-w-0">
                     <div className="font-bold text-body text-sm">{getStatusDetails(flow.disposition_type).label}</div>
@@ -167,6 +168,26 @@ export default function FlowSettingsEditor() {
                       }} />
                     </button>
                   </div>
+                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                    <button
+                      role="switch"
+                      aria-checked={flow.is_active !== false}
+                      onClick={() => handleUpdateFlow(flow.disposition_type, { is_active: flow.is_active === false })}
+                      title={flow.is_active === false ? 'Uitgezet: bellers zien deze afboekknop niet. Klik om aan te zetten.' : 'Actief: bellers kunnen op deze reden afboeken. Klik om uit te zetten.'}
+                      style={{
+                        width: '44px', height: '24px', borderRadius: '12px', position: 'relative',
+                        background: flow.is_active !== false ? 'var(--primary)' : 'var(--border-strong)',
+                        transition: 'background 0.15s', flexShrink: 0
+                      }}
+                    >
+                      <span style={{
+                        position: 'absolute', top: '3px',
+                        left: flow.is_active !== false ? '23px' : '3px',
+                        width: '18px', height: '18px', borderRadius: '50%',
+                        background: 'white', transition: 'left 0.15s'
+                      }} />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -177,6 +198,7 @@ export default function FlowSettingsEditor() {
       <p className="text-[11px] text-muted px-4">
         Wijzigingen worden direct opgeslagen en gelden voor alle projecten.
         "Terug naar de pool" betekent: de lead is niet meer aan een beller gekoppeld en kan opnieuw verdeeld worden.
+        Zet je een reden uit, dan verdwijnt de afboekknop direct uit de belmodus van alle bellers.
       </p>
     </div>
   )

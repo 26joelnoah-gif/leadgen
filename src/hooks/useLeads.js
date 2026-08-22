@@ -106,15 +106,25 @@ export function useLeads() {
     }
   }
 
+  // v29: herbelpogingen op het ANDERE dagdeel plannen. Wie 's ochtends niet
+  // opneemt, neemt 's ochtends vaak weer niet op - dus de volgende poging
+  // komt 's middags rond 15:00, en andersom rond 10:00.
+  function nextContactOnOtherDaypart(daysAhead) {
+    const d = new Date()
+    const calledInMorning = d.getHours() < 13
+    d.setDate(d.getDate() + daysAhead)
+    d.setHours(calledInMorning ? 15 : 10, 0, 0, 0)
+    return d.toISOString()
+  }
+
   async function updateLeadStatus(leadId, status, additionalFields = {}) {
     const currentLead = leads.find(l => l.id === leadId)
     let updates = { status, ...additionalFields, updated_at: new Date().toISOString() }
 
     // v27: later bellen = morgen opnieuw; geen gehoor = max 2 pogingen
+    // v29: herkansing op het andere dagdeel
     if (status === 'later_bellen') {
-      const d = new Date()
-      d.setDate(d.getDate() + 1)
-      updates.next_contact_date = d.toISOString()
+      updates.next_contact_date = nextContactOnOtherDaypart(1)
     }
     if (status === 'geen_gehoor') {
       const nextAttempt = (currentLead?.contact_attempts || 0) + 1
@@ -123,9 +133,7 @@ export function useLeads() {
         updates.status = 'cold'
         updates.next_contact_date = null
       } else {
-        const d = new Date()
-        d.setDate(d.getDate() + 2)
-        updates.next_contact_date = d.toISOString()
+        updates.next_contact_date = nextContactOnOtherDaypart(2)
       }
     }
 
@@ -220,7 +228,8 @@ export function useLeads() {
   }, [isDemoMode, profile?.role, user?.id])
 
   // Schrijft één rij per behandelde lead naar call_logs (basis voor telemetrie, targets en payouts)
-  async function logCallToDatabase(currentLead, dispositionType, callMeta) {
+  // v29: de gespreksnotitie gaat mee, zodat collega's de historie van een lead kunnen zien
+  async function logCallToDatabase(currentLead, dispositionType, callMeta, notes = '') {
     if (isDemoMode || !user?.id) return
     try {
       const disposedAt = new Date().toISOString()
@@ -234,7 +243,8 @@ export function useLeads() {
         disposition: dispositionType,
         started_at: startedAt,
         disposed_at: disposedAt,
-        duration_seconds: duration
+        duration_seconds: duration,
+        notes: notes || null
       })
     } catch (err) {
       // Call logging mag de dispositie-flow nooit blokkeren
@@ -274,10 +284,9 @@ export function useLeads() {
     // - later bellen: het kwam gewoon niet uit -> morgen opnieuw proberen
     //   (tenzij de beller zelf een datum koos)
     // - geen gehoor: maximaal 2 pogingen, daarna gaat de lead uit de wachtrij (cold)
+    // v29: de automatische herkansing valt op het andere dagdeel
     if (dispositionType === 'later_bellen' && !nextDate) {
-      const d = new Date()
-      d.setDate(d.getDate() + 1)
-      updates.next_contact_date = d.toISOString()
+      updates.next_contact_date = nextContactOnOtherDaypart(1)
     }
     if (dispositionType === 'geen_gehoor') {
       const nextAttempt = (currentLead.contact_attempts || 0) + 1
@@ -286,9 +295,7 @@ export function useLeads() {
         updates.status = 'cold'
         updates.next_contact_date = null
       } else if (!nextDate) {
-        const d = new Date()
-        d.setDate(d.getDate() + 2)
-        updates.next_contact_date = d.toISOString()
+        updates.next_contact_date = nextContactOnOtherDaypart(2)
       }
     }
 
@@ -297,7 +304,7 @@ export function useLeads() {
       return
     }
 
-    await logCallToDatabase(currentLead, dispositionType, callMeta)
+    await logCallToDatabase(currentLead, dispositionType, callMeta, notes)
 
     // Instellingen per afboekreden (alleen toewijzing + notitie-tag)
     const { data: rule } = await supabase.from('flow_settings').select('auto_assign_to, append_agent_note, cooldown_days').eq('disposition_type', dispositionType).eq('is_active', true).maybeSingle()

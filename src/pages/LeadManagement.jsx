@@ -18,6 +18,7 @@ import FlowSettingsEditor from '../components/FlowSettingsEditor'
 import { getStatusDetails } from '../utils/statusUtils'
 import ImportLeadsModal from '../components/ImportLeadsModal'
 import NewProjectWizard from '../components/NewProjectWizard'
+import CampaignBriefingModal from '../components/CampaignBriefingModal'
 
 function StatusBadge({ status }) {
   const configs = {
@@ -64,6 +65,7 @@ export default function LeadManagement({ standalone = true }) {
   // Team State
   const [teams, setTeams] = useState([])
   const [campaignTeams, setCampaignTeams] = useState([]) // v23: {campaign_id, team_id}-rijen
+  const [campaignManagers, setCampaignManagers] = useState([]) // v28: {campaign_id, manager_id}-rijen
   const [campaigns, setCampaigns] = useState([])
   const [agents, setAgents] = useState([])
   const [showAddTeam, setShowAddTeam] = useState(false)
@@ -80,6 +82,9 @@ export default function LeadManagement({ standalone = true }) {
   // Import wizard
   const [showImport, setShowImport] = useState(false)
   const [showNewProject, setShowNewProject] = useState(false)
+
+  // v29: briefing (belscript + projectinfo) per project
+  const [briefingCampaign, setBriefingCampaign] = useState(null)
 
   useEffect(() => {
     fetchData()
@@ -113,6 +118,11 @@ export default function LeadManagement({ standalone = true }) {
       const { data: ctRes, error: ctErr } = await supabase.from('campaign_teams').select('campaign_id, team_id')
       if (ctErr) throw ctErr
       setCampaignTeams(ctRes || [])
+
+      // v28: managers per project (meerdere per project)
+      const { data: cmRes, error: cmErr } = await supabase.from('campaign_managers').select('campaign_id, manager_id')
+      if (cmErr) throw cmErr
+      setCampaignManagers(cmRes || [])
     } catch (err) {
       toast(err.message, 'error')
     }
@@ -196,11 +206,35 @@ export default function LeadManagement({ standalone = true }) {
     fetchData()
   }
 
+  async function addProjectManager(campaignId, managerId) {
+    const { error } = await supabase.from('campaign_managers').insert({ campaign_id: campaignId, manager_id: managerId })
+    if (error) { toast(error.message, 'error'); return }
+    toast('Manager gekoppeld aan dit project - hij ziet alle lijsten en bellers ervan', 'success')
+    fetchData()
+  }
+
+  async function removeProjectManager(campaignId, managerId) {
+    const { error } = await supabase.from('campaign_managers').delete().eq('campaign_id', campaignId).eq('manager_id', managerId)
+    if (error) { toast(error.message, 'error'); return }
+    toast('Manager losgekoppeld van dit project', 'success')
+    fetchData()
+  }
+
   async function removeProjectTeam(campaignId, teamId) {
     const { error } = await supabase.from('campaign_teams').delete().eq('campaign_id', campaignId).eq('team_id', teamId)
     if (error) { toast(error.message, 'error'); return }
     toast('Team losgekoppeld van dit project', 'success')
     fetchData()
+  }
+
+  // v29: wachtrij-modus per project (fifo = import-volgorde, score = beste leads eerst)
+  async function setQueueMode(campaign, mode) {
+    const { error } = await supabase.rpc('set_campaign_queue_mode', { p_campaign_id: campaign.id, p_mode: mode })
+    if (error) { toast(error.message, 'error'); return }
+    setCampaigns(prev => prev.map(c => c.id === campaign.id ? { ...c, queue_mode: mode } : c))
+    toast(mode === 'score'
+      ? 'Wachtrij aangepast: warme leads en beslissers worden nu als eerste aangeboden'
+      : 'Wachtrij aangepast: leads komen in volgorde van import', 'success')
   }
 
   async function toggleProjectActive(campaign) {
@@ -386,6 +420,9 @@ export default function LeadManagement({ standalone = true }) {
                           {campaigns.map(c => {
                             const linkedTeamIds = campaignTeams.filter(ct => ct.campaign_id === c.id).map(ct => ct.team_id)
                             const availableTeams = teams.filter(t => !linkedTeamIds.includes(t.id))
+                            const linkedManagerIds = campaignManagers.filter(cm => cm.campaign_id === c.id).map(cm => cm.manager_id)
+                            const allManagers = agents.filter(a => a.role === 'manager')
+                            const availableManagers = allManagers.filter(m => !linkedManagerIds.includes(m.id))
                             const lists = leadLists.filter(l => l.campaign_id === c.id)
                             return (
                               <div key={c.id} className={`mb-2 ${c.is_active === false ? 'opacity-60' : ''}`}>
@@ -429,6 +466,48 @@ export default function LeadManagement({ standalone = true }) {
                                       className={`p-1 rounded transition-all ${confirmDeleteProject === c.id ? 'text-error bg-error/10' : 'text-muted hover:text-error hover:bg-elevated'}`}
                                     ><Trash2 size={12} /></button>
                                   </div>
+                                </div>
+                                {allManagers.length > 0 && (
+                                  <div className="flex items-center gap-1 px-2 pb-1" style={{ flexWrap: 'wrap' }}>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-muted">managers:</span>
+                                    {linkedManagerIds.map(mid => (
+                                      <button
+                                        key={mid}
+                                        onClick={() => removeProjectManager(c.id, mid)}
+                                        title="Klik om deze manager los te koppelen van het project"
+                                        className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-primary/15 text-primary hover:bg-error/15 hover:text-error transition-all"
+                                      >{agents.find(a => a.id === mid)?.full_name || 'manager'} ×</button>
+                                    ))}
+                                    {availableManagers.length > 0 && (
+                                      <select
+                                        value=""
+                                        onChange={e => e.target.value && addProjectManager(c.id, e.target.value)}
+                                        title="Manager toevoegen - meerdere managers per project kan. Nieuwe manager-accounts maak je aan via Admin of de project-wizard."
+                                        className="text-[9px] font-black uppercase tracking-widest px-1 py-1 rounded-lg cursor-pointer bg-elevated text-muted"
+                                        style={{ maxWidth: '120px', border: 'none' }}
+                                      >
+                                        <option value="">{linkedManagerIds.length ? '+ manager' : 'geen manager'}</option>
+                                        {availableManagers.map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)}
+                                      </select>
+                                    )}
+                                  </div>
+                                )}
+                                <div className="flex items-center gap-1 px-2 pb-1" style={{ flexWrap: 'wrap' }}>
+                                  <button
+                                    onClick={() => setBriefingCampaign(c)}
+                                    title="Belscript en projectinfo die de beller in het belscherm ziet"
+                                    className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-secondary/15 text-secondary hover:bg-secondary/30 transition-all"
+                                  >briefing</button>
+                                  <select
+                                    value={c.queue_mode || 'fifo'}
+                                    onChange={e => setQueueMode(c, e.target.value)}
+                                    title="Volgorde waarin de wachtrij leads aanbiedt aan bellers"
+                                    className="text-[9px] font-black uppercase tracking-widest px-1 py-1 rounded-lg cursor-pointer bg-elevated text-muted"
+                                    style={{ maxWidth: '170px', border: 'none' }}
+                                  >
+                                    <option value="fifo">wachtrij: import-volgorde</option>
+                                    <option value="score">wachtrij: beste leads eerst</option>
+                                  </select>
                                 </div>
                                 {lists.length === 0 ? (
                                   <p className="text-[10px] text-muted px-2 py-1">Nog geen lijsten - importeer leads in dit project.</p>
@@ -803,6 +882,12 @@ export default function LeadManagement({ standalone = true }) {
         isOpen={showNewProject}
         onClose={() => setShowNewProject(false)}
         onCreated={(list) => { fetchData(); fetchLeadLists(); setDataSubTab('active'); setSelectedList(list) }}
+      />
+
+      <CampaignBriefingModal
+        isOpen={!!briefingCampaign}
+        campaign={briefingCampaign}
+        onClose={() => setBriefingCampaign(null)}
       />
 
       <style>{`
