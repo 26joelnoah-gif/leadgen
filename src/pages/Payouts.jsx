@@ -5,6 +5,7 @@ import { DollarSign, Zap, Users, CheckCircle, Clock, AlertCircle, Download, Edit
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { getSettings } from '../utils/settingsUtils'
+import { effectiveSeconds } from '../utils/callTimeUtils'
 import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 
@@ -54,7 +55,7 @@ export default function Payouts() {
         supabase.from('agent_daily_stats').select('agent_id, calls').gte('dag', startDate).lte('dag', endDate),
         supabase.from('lead_lists').select('id, name, rate_per_appointment, rate_per_deal, rate_per_hour'),
         supabase.from('call_logs')
-          .select('agent_id, lead_list_id, duration_seconds')
+          .select('agent_id, lead_list_id, duration_seconds, disposition')
           .gte('disposed_at', start.toISOString())
           .lte('disposed_at', end.toISOString())
           .limit(10000)
@@ -82,14 +83,16 @@ export default function Payouts() {
         setMonthlyCalls(callTotals)
       }
 
-      // Beluren per user per project in de periode
+      // Beluren per user per project in de periode.
+      // v24: EFFECTIEVE beltijd - per afboeking geldt een maximum
+      // (zie callTimeUtils), zodat te lange gesprekken niet vol uitbetalen
       if (logsRes.data) {
         const secs = {}
         logsRes.data.forEach(log => {
           if (!log.agent_id) return
           const listKey = log.lead_list_id || 'none'
           if (!secs[log.agent_id]) secs[log.agent_id] = {}
-          secs[log.agent_id][listKey] = (secs[log.agent_id][listKey] || 0) + (log.duration_seconds || 0)
+          secs[log.agent_id][listKey] = (secs[log.agent_id][listKey] || 0) + effectiveSeconds(log.disposition, log.duration_seconds)
         })
         setCallSeconds(secs)
       }

@@ -26,23 +26,23 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
   const [description, setDescription] = useState('')
   const [rates, setRates] = useState({ appointment: '', deal: '', hour: '' })
 
-  // Stap 2: manager
+  // Stap 2: manager(s) - v23: meerdere managers per project mogelijk
   const [managerMode, setManagerMode] = useState('none') // 'none' | 'existing' | 'new'
-  const [managerId, setManagerId] = useState('')
+  const [managerIds, setManagerIds] = useState([])
   const [newManager, setNewManager] = useState({ name: '', email: '', password: '' })
 
   // Stap 3: team of beller
   const [bellerMode, setBellerMode] = useState('none') // 'none' | 'team' | 'existing' | 'new'
   const [bellerId, setBellerId] = useState('')
-  const [teamId, setTeamId] = useState('')
+  const [teamIds, setTeamIds] = useState([]) // v23: meerdere teams per project
   const [newBeller, setNewBeller] = useState({ name: '', email: '', password: '' })
 
   useEffect(() => {
     if (!isOpen) return
     setStep(1); setBusy(false)
     setName(''); setDescription(''); setRates({ appointment: '', deal: '', hour: '' })
-    setManagerMode('none'); setManagerId(''); setNewManager({ name: '', email: '', password: '' })
-    setBellerMode('none'); setBellerId(''); setTeamId(''); setNewBeller({ name: '', email: '', password: '' })
+    setManagerMode('none'); setManagerIds([]); setNewManager({ name: '', email: '', password: '' })
+    setBellerMode('none'); setBellerId(''); setTeamIds([]); setNewBeller({ name: '', email: '', password: '' })
     supabase.from('profiles').select('id, full_name, email, role').order('full_name').then(({ data }) => {
       setManagers((data || []).filter(p => p.role === 'manager'))
       setBellers((data || []).filter(p => p.role === 'employee'))
@@ -53,9 +53,9 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
   if (!isOpen) return null
 
   const canNext1 = name.trim().length > 0
-  const canNext2 = managerMode === 'none' || (managerMode === 'existing' && managerId) ||
+  const canNext2 = managerMode === 'none' || (managerMode === 'existing' && managerIds.length > 0) ||
     (managerMode === 'new' && newManager.name && newManager.email && newManager.password.length >= 6)
-  const canFinish = bellerMode === 'none' || (bellerMode === 'team' && teamId) ||
+  const canFinish = bellerMode === 'none' || (bellerMode === 'team' && teamIds.length > 0) ||
     (bellerMode === 'existing' && bellerId) ||
     (bellerMode === 'new' && newBeller.name && newBeller.email && newBeller.password.length >= 6)
 
@@ -115,19 +115,20 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
         .single()
       if (listErr) throw listErr
 
-      // 2. Manager koppelen (bestaand of nieuw)
+      // 2. Manager(s) koppelen aan het PROJECT (v23: campaign_managers,
+      // geldt dus ook voor lijsten die later binnen dit project komen)
       let managerName = null
       if (managerMode !== 'none') {
-        let mId = managerId
+        let mIds = managerIds
         if (managerMode === 'new') {
-          mId = await createAccount(newManager, 'manager')
+          mIds = [await createAccount(newManager, 'manager')]
           managerName = newManager.name
         } else {
-          managerName = managers.find(m => m.id === mId)?.full_name
+          managerName = managers.filter(m => mIds.includes(m.id)).map(m => m.full_name).join(', ')
         }
         const { error: pmErr } = await supabase
-          .from('project_managers')
-          .insert({ lead_list_id: list.id, manager_id: mId })
+          .from('campaign_managers')
+          .insert(mIds.map(id => ({ campaign_id: campaign.id, manager_id: id })))
         if (pmErr) throw pmErr
       }
 
@@ -135,12 +136,12 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
       let bellerName = null
       let teamName = null
       if (bellerMode === 'team') {
+        // v23: meerdere teams per project via campaign_teams
         const { error: teamErr } = await supabase
-          .from('campaigns')
-          .update({ assigned_team_id: teamId })
-          .eq('id', campaign.id)
+          .from('campaign_teams')
+          .insert(teamIds.map(id => ({ campaign_id: campaign.id, team_id: id })))
         if (teamErr) throw teamErr
-        teamName = teams.find(t => t.id === teamId)?.name
+        teamName = teams.filter(t => teamIds.includes(t.id)).map(t => t.name).join(', ')
       } else if (bellerMode !== 'none') {
         let bId = bellerId
         if (bellerMode === 'new') {
@@ -158,7 +159,7 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
 
       const parts = [`Project "${campaign.name}" aangemaakt`]
       if (managerName) parts.push(`manager ${managerName} gekoppeld`)
-      if (teamName) parts.push(`team ${teamName} gekoppeld`)
+      if (teamName) parts.push(`team(s) ${teamName} gekoppeld`)
       if (bellerName) parts.push(`beller ${bellerName} toegewezen`)
       toast(parts.join(', ') + '. Importeer nu leads in dit project!', 'success')
       onCreated?.(list)
@@ -192,6 +193,27 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
             {mode === key && <Check size={14} />} {label}
           </button>
         ))}
+      </div>
+    )
+  }
+
+  function CheckList({ items, selected, onToggle }) {
+    return (
+      <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {items.map(it => {
+          const checked = selected.includes(it.id)
+          return (
+            <button
+              key={it.id}
+              type="button"
+              onClick={() => onToggle(it.id)}
+              className={`btn btn-sm ${checked ? 'btn-primary' : 'btn-outline'}`}
+              style={{ justifyContent: 'flex-start' }}
+            >
+              {checked && <Check size={14} />} {it.label}
+            </button>
+          )
+        })}
       </div>
     )
   }
@@ -285,21 +307,22 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
         {step === 2 && (
           <div>
             <p className="text-muted mb-4" style={{ fontSize: '0.85rem' }}>
-              De manager ziet alleen dít project: de bellers, gesprekken en resultaten. Hij kan zelf bellers toevoegen en toewijzen.
+              Managers zien alleen dít project: de bellers, gesprekken en resultaten. Je kunt er meerdere koppelen - vink ze aan.
             </p>
             <ModeButtons
               mode={managerMode}
               setMode={setManagerMode}
-              labels={{ none: 'Geen manager (later)', existing: 'Bestaande manager', new: 'Nieuwe manager aanmaken' }}
+              labels={{ none: 'Geen manager (later)', existing: 'Bestaande manager(s)', new: 'Nieuwe manager aanmaken' }}
             />
             {managerMode === 'existing' && (
               managers.length === 0 ? (
                 <p className="text-muted" style={{ fontSize: '0.85rem' }}>Er zijn nog geen managers - kies "Nieuwe manager aanmaken".</p>
               ) : (
-                <select className={inputStyle} value={managerId} onChange={e => setManagerId(e.target.value)}>
-                  <option value="">- Kies een manager -</option>
-                  {managers.map(m => <option key={m.id} value={m.id}>{m.full_name} ({m.email})</option>)}
-                </select>
+                <CheckList
+                  items={managers.map(m => ({ id: m.id, label: `${m.full_name} (${m.email})` }))}
+                  selected={managerIds}
+                  onToggle={id => setManagerIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])}
+                />
               )
             )}
             {managerMode === 'new' && <AccountFields value={newManager} onChange={setNewManager} />}
@@ -310,21 +333,22 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
         {step === 3 && (
           <div>
             <p className="text-muted mb-4" style={{ fontSize: '0.85rem' }}>
-              Koppel een team aan dit project: alle bellers in dat team kunnen dan op de lijsten van dit project bellen. Zonder project kan een team nergens op bellen. Je kunt ook één individuele beller toewijzen.
+              Koppel één of meer teams aan dit project: alle bellers in die teams kunnen dan op de lijsten van dit project bellen. Zonder project kan een team nergens op bellen. Je kunt ook één individuele beller toewijzen.
             </p>
             <ModeButtons
               mode={bellerMode}
               setMode={setBellerMode}
-              labels={{ none: 'Later koppelen', team: 'Team koppelen', existing: 'Eén beller', new: 'Nieuwe beller aanmaken' }}
+              labels={{ none: 'Later koppelen', team: 'Team(s) koppelen', existing: 'Eén beller', new: 'Nieuwe beller aanmaken' }}
             />
             {bellerMode === 'team' && (
               teams.length === 0 ? (
                 <p className="text-muted" style={{ fontSize: '0.85rem' }}>Er zijn nog geen teams - maak eerst een team aan via Team, of wijs één beller toe.</p>
               ) : (
-                <select className={inputStyle} value={teamId} onChange={e => setTeamId(e.target.value)}>
-                  <option value="">- Kies een team -</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
+                <CheckList
+                  items={teams.map(t => ({ id: t.id, label: t.name }))}
+                  selected={teamIds}
+                  onToggle={id => setTeamIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])}
+                />
               )
             )}
             {bellerMode === 'existing' && (

@@ -8,6 +8,7 @@ import {
   TrendingUp, Phone, UserPlus, Layers, Upload, Zap, Euro, BarChart3, FastForward
 } from 'lucide-react'
 import { getStatusDetails } from '../utils/statusUtils'
+import { effectiveSeconds, isCapped } from '../utils/callTimeUtils'
 import { exportToCSV } from '../utils/exportUtils'
 import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -77,6 +78,10 @@ export default function Manager() {
   const canEditFlows = isAdmin || !!profile?.can_edit_flows
   const kpiOnly = !isAdmin && !!profile?.kpi_only
 
+  // v27: resultaten-overzicht (deals, afspraken, geen interesse, blacklist)
+  const [resultLeads, setResultLeads] = useState([])
+  const [resultFilter, setResultFilter] = useState('afspraak_gemaakt')
+
   // ===== Projectlijsten van deze manager laden =====
   async function fetchManagedLists() {
     if (isDemoMode) { setManagedLists([]); return [] }
@@ -91,12 +96,22 @@ export default function Manager() {
         if (error) throw error
         lists = data || []
       } else {
-        const { data, error } = await supabase
-          .from('project_managers')
-          .select('lead_list_id, list:lead_lists(id, name, assigned_to, deleted_at, rate_per_appointment, rate_per_deal, rate_per_hour)')
-          .eq('manager_id', user.id)
-        if (error) throw error
-        lists = (data || []).map(r => r.list).filter(l => l && !l.deleted_at)
+        // v23: koppeling loopt via campagnes (campaign_managers) + legacy
+        // lijst-koppelingen; my_managed_list_ids() dekt allebei
+        const { data: ids, error: idErr } = await supabase.rpc('my_managed_list_ids')
+        if (idErr) throw idErr
+        if (!ids || ids.length === 0) {
+          lists = []
+        } else {
+          const { data, error } = await supabase
+            .from('lead_lists')
+            .select('id, name, assigned_to, deleted_at, rate_per_appointment, rate_per_deal, rate_per_hour')
+            .in('id', ids)
+            .is('deleted_at', null)
+            .order('created_at', { ascending: false })
+          if (error) throw error
+          lists = data || []
+        }
       }
       setManagedLists(lists)
       listIdsRef.current = lists.map(l => l.id)
@@ -112,6 +127,31 @@ export default function Manager() {
     if (isDemoMode || !canViewRates) { setRules(null); return }
     const { data } = await supabase.from('payout_rules').select('*').limit(1)
     setRules(data?.[0] || null)
+  }
+
+  useEffect(() => {
+    if (isDemoMode || kpiOnly || managedLists.length === 0) { setResultLeads([]); return }
+    supabase
+      .from('leads')
+      .select('id, name, phone, status, lead_list_id, updated_at, assigned:profiles!leads_assigned_to_fkey(full_name)')
+      .in('lead_list_id', managedLists.map(l => l.id))
+      .in('status', ['afspraak_gemaakt', 'deal', 'geen_interesse', 'blacklist'])
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
+      .limit(500)
+      .then(({ data }) => setResultLeads(data || []))
+  }, [managedLists, isDemoMode, kpiOnly])
+
+  // v27: manager (met leadbeheer-recht) of admin zet een geen-interesse-lead
+  // terug in de belwachtrij voor een nieuwe poging
+  async function reactivateLead(lead) {
+    const { error } = await supabase
+      .from('leads')
+      .update({ status: 'new', next_contact_date: null, contact_attempts: 0, assigned_to: null, updated_at: new Date().toISOString() })
+      .eq('id', lead.id)
+    if (error) { toast(error.message, 'error'); return }
+    toast(`${lead.name} staat weer in de belwachtrij`, 'success')
+    setResultLeads(prev => prev.filter(l => l.id !== lead.id))
   }
 
   async function fetchEmployees() {
@@ -242,7 +282,8 @@ export default function Manager() {
       }
       const a = byAgent[id]
       a.calls++
-      a.seconds += log.duration_seconds || 0
+      // v24: effectieve beltijd (gemaximeerd per afboeking) is leidend
+      a.seconds += effectiveSeconds(log.disposition, log.duration_seconds)
       if (log.disposition === 'deal') a.deals++
       if (log.disposition === 'afspraak_gemaakt') a.afspraken++
       if (log.disposition === 'terugbelafspraak') a.tba++
@@ -252,7 +293,7 @@ export default function Manager() {
         const r = rateFor(log.lead_list_id)
         a.cost += (log.disposition === 'deal' ? r.deal : 0)
           + (log.disposition === 'afspraak_gemaakt' ? r.appointment : 0)
-          + ((log.duration_seconds || 0) / 3600) * r.hour
+          + (effectiveSeconds(log.disposition, log.duration_seconds) / 3600) * r.hour
       }
     })
     return Object.values(byAgent).map(a => ({
@@ -294,7 +335,7 @@ export default function Manager() {
       if (!buckets[key]) buckets[key] = { key, label, calls: 0, seconds: 0, deals: 0, afspraken: 0, tba: 0 }
       const b = buckets[key]
       b.calls++
-      b.seconds += log.duration_seconds || 0
+      b.seconds += effectiveSeconds(log.disposition, log.duration_seconds)
       if (log.disposition === 'deal') b.deals++
       if (log.disposition === 'afspraak_gemaakt') b.afspraken++
       if (log.disposition === 'terugbelafspraak') b.tba++
@@ -395,6 +436,7 @@ export default function Manager() {
             { id: 'trends', label: 'Trends', icon: <BarChart3 size={15} /> },
             ...(!kpiOnly ? [
               { id: 'gesprekken', label: 'Alle gesprekken', icon: <Phone size={15} /> },
+              { id: 'resultaten', label: 'Resultaten', icon: <CheckCircle size={15} /> },
               { id: 'team', label: 'Team & projecten', icon: <Layers size={15} /> }
             ] : []),
             ...(canEditFlows && !kpiOnly ? [{ id: 'flows', label: 'Flows', icon: <FastForward size={15} /> }] : [])
@@ -579,13 +621,86 @@ export default function Manager() {
                         <td>{log.lead?.name || '- verwijderd -'}</td>
                         <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{log.lead?.phone || ''}</td>
                         <td className="text-muted" style={{ fontSize: '0.85rem' }}>{log.list?.name || '-'}</td>
-                        <td style={{ fontWeight: 700 }}>{fmtDuration(log.duration_seconds)}</td>
+                        <td style={{ fontWeight: 700 }}>
+                          {fmtDuration(effectiveSeconds(log.disposition, log.duration_seconds))}
+                          {isCapped(log.disposition, log.duration_seconds) && (
+                            <span className="text-muted" style={{ fontWeight: 400, fontSize: '0.75rem' }} title="Kloktijd lag boven het maximum voor deze afboeking; alleen de effectieve tijd telt mee voor uren en uitbetaling">
+                              {' '}(klok {fmtDuration(log.duration_seconds)})
+                            </span>
+                          )}
+                        </td>
                         <td><ResultBadge status={log.disposition} /></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
+            )}
+          </div>
+        ) : activeTab === 'resultaten' ? (
+          <div className="card">
+            <div className="card-header" style={{ flexWrap: 'wrap', gap: '12px' }}>
+              <span className="card-title"><CheckCircle size={20} /> Resultaten per project</span>
+              <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+                {[
+                  { id: 'afspraak_gemaakt', label: 'Afspraken' },
+                  { id: 'deal', label: 'Deals' },
+                  { id: 'geen_interesse', label: 'Geen interesse' },
+                  { id: 'blacklist', label: 'Blacklist' }
+                ].map(f => {
+                  const count = resultLeads.filter(l => l.status === f.id).length
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => setResultFilter(f.id)}
+                      className={`btn btn-sm ${resultFilter === f.id ? 'btn-primary' : 'btn-outline'}`}
+                    >{f.label} ({count})</button>
+                  )
+                })}
+              </div>
+            </div>
+            {resultLeads.filter(l => l.status === resultFilter).length === 0 ? (
+              <p className="text-muted" style={{ padding: '24px' }}>Nog niets met deze status in jouw projecten.</p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table className="data-table" style={{ width: '100%' }}>
+                  <thead>
+                    <tr>
+                      <th>Lead</th>
+                      <th>Telefoon</th>
+                      <th>Project / lijst</th>
+                      <th>Beller</th>
+                      <th>Laatst bijgewerkt</th>
+                      {resultFilter === 'geen_interesse' && canManageLeads && <th></th>}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resultLeads.filter(l => l.status === resultFilter).map(lead => (
+                      <tr key={lead.id}>
+                        <td><strong>{lead.name}</strong></td>
+                        <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{lead.phone}</td>
+                        <td className="text-muted" style={{ fontSize: '0.85rem' }}>{managedLists.find(l => l.id === lead.lead_list_id)?.name || '-'}</td>
+                        <td>{lead.assigned?.full_name || '-'}</td>
+                        <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
+                          {new Date(lead.updated_at).toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        </td>
+                        {resultFilter === 'geen_interesse' && canManageLeads && (
+                          <td>
+                            <button className="btn btn-sm btn-outline" onClick={() => reactivateLead(lead)} title="Zet deze lead terug in de belwachtrij voor een nieuwe poging">
+                              Opnieuw bellen
+                            </button>
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {resultFilter === 'geen_interesse' && !canManageLeads && (
+              <p className="text-muted" style={{ padding: '0 24px 16px', fontSize: '0.8rem' }}>
+                Terugzetten in de wachtrij vereist het recht "Leads beheren" - vraag de admin.
+              </p>
             )}
           </div>
         ) : activeTab === 'flows' ? (

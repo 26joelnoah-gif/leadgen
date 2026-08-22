@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
 import { getSettings } from '../utils/settingsUtils'
 import { supabase } from '../lib/supabase'
+import { effectiveSeconds } from '../utils/callTimeUtils'
 import Header from '../components/Header'
 
 // Startmoment van een prijs-periode (dag/week/maand)
@@ -84,16 +85,17 @@ export default function Earnings() {
       const end = new Date(`${endDate}T23:59:59.999`)
       const { data } = await supabase
         .from('call_logs')
-        .select('lead_list_id, duration_seconds')
+        .select('lead_list_id, duration_seconds, disposition')
         .eq('agent_id', user.id)
         .gte('disposed_at', start.toISOString())
         .lte('disposed_at', end.toISOString())
         .limit(10000)
       if (cancelled) return
+      // v24: effectieve beltijd - per afboeking geldt een maximum
       const secs = {}
       ;(data || []).forEach(log => {
         const key = log.lead_list_id || 'none'
-        secs[key] = (secs[key] || 0) + (log.duration_seconds || 0)
+        secs[key] = (secs[key] || 0) + effectiveSeconds(log.disposition, log.duration_seconds)
       })
       setSecondsByList(secs)
     }

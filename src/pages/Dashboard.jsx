@@ -5,6 +5,8 @@ import { useAuth } from '../context/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
 import { RefreshCw, Search, Filter, Phone, Zap, Plus, X, List, ChevronRight, Layers } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
+import { levelInfo } from '../utils/xpUtils'
+import { effectiveSeconds } from '../utils/callTimeUtils'
 import { useLeadLists } from '../hooks/useLeadLists'
 import { STATUS_MAP } from '../utils/statusUtils'
 import LeadCard from '../components/LeadCard'
@@ -15,6 +17,12 @@ import Chat from '../components/Chat'
 import ActivityFeed from '../components/ActivityFeed'
 import Header from '../components/Header'
 import { useToast } from '../components/Toast'
+
+function fmtSecs(totalSeconds) {
+  const s = Math.max(0, Math.round(totalSeconds || 0))
+  const m = Math.floor(s / 60)
+  return m > 0 ? `${m}m ${s % 60}s` : `${s}s`
+}
 
 export default function Dashboard() {
   const { user, profile, signOut, isWorking, toggleWorkingMode, startWorkingWithList, isDemoMode, sessionCallCount } = useAuth()
@@ -50,6 +58,25 @@ export default function Dashboard() {
 
   const isAdmin = profile?.role === 'admin'
   const isManager = profile?.role === 'manager'
+  const isBeller = !isAdmin && !isManager
+
+  // v26: level/XP + eigen gespreksgeschiedenis voor de beller
+  const [myXp, setMyXp] = useState(null)
+  const [myHistory, setMyHistory] = useState([])
+  useEffect(() => {
+    if (!user?.id || isDemoMode || !isBeller) return
+    supabase.rpc('xp_leaderboard').then(({ data }) => {
+      const row = (data || []).find(r => r.agent_id === user.id)
+      setMyXp(levelInfo(Number(row?.xp || 0)))
+    })
+    supabase
+      .from('call_logs')
+      .select('id, disposition, disposed_at, duration_seconds, lead:leads(name)')
+      .eq('agent_id', user.id)
+      .order('disposed_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => setMyHistory(data || []))
+  }, [user?.id, isDemoMode, isBeller])
 
   // Single-pass stats computation - must be defined before any useEffect that uses it
   const stats = useMemo(() => {
@@ -220,12 +247,16 @@ export default function Dashboard() {
                 DEMO DATA
               </span>
             )}
-            <button className="btn btn-secondary btn-sm" onClick={() => setShowNewLeadModal(true)}>
-              <Plus size={16} /> Nieuwe Lead
-            </button>
-            <button className="btn btn-outline btn-sm" onClick={fetchLeads}>
-              <RefreshCw size={16} /> Vernieuwen
-            </button>
+            {!isBeller && (
+              <>
+                <button className="btn btn-secondary btn-sm" onClick={() => setShowNewLeadModal(true)}>
+                  <Plus size={16} /> Nieuwe Lead
+                </button>
+                <button className="btn btn-outline btn-sm" onClick={fetchLeads}>
+                  <RefreshCw size={16} /> Vernieuwen
+                </button>
+              </>
+            )}
           </div>
         </motion.div>
 
@@ -284,6 +315,22 @@ export default function Dashboard() {
               <p style={{ color: 'var(--text-muted)', fontWeight: 500 }}>Selecteer je batch en start direct met bellen.</p>
             </div>
 
+            {myXp && (
+              <div style={{ maxWidth: '420px', margin: '0 auto 28px' }}>
+                <div className="flex justify-between items-center" style={{ marginBottom: '6px', gap: '12px' }}>
+                  <span style={{ fontWeight: 900, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--secondary)' }}>
+                    ⚡ Level {myXp.level} · {myXp.title}
+                  </span>
+                  <span className="text-muted" style={{ fontSize: '0.75rem', fontWeight: 700 }}>
+                    {myXp.xp} XP · nog {myXp.toNext} naar level {myXp.level + 1}
+                  </span>
+                </div>
+                <div style={{ height: '8px', borderRadius: '4px', background: 'var(--bg-elevated)', overflow: 'hidden' }}>
+                  <div style={{ width: `${Math.round(myXp.progress * 100)}%`, height: '100%', background: 'var(--secondary)', borderRadius: '4px', transition: 'width 0.4s' }} />
+                </div>
+              </div>
+            )}
+
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
               {leadLists.length === 1 ? (
                 <button
@@ -323,6 +370,39 @@ export default function Dashboard() {
           </motion.div>
         )}
 
+        {isBeller && leadLists.length === 0 && !leadListsLoading && (
+          <div className="card mb-4" style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-muted)' }}>
+            Er is nog geen project aan jou toegewezen. Vraag je manager om je aan een project te koppelen.
+          </div>
+        )}
+
+        {isBeller && myHistory.length > 0 && (
+          <div className="card mb-4" style={{ padding: '20px' }}>
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="card-title" style={{ fontSize: '1rem', margin: 0 }}>Jouw gesprekken</h3>
+              <span className="text-muted" style={{ fontSize: '0.75rem', fontWeight: 700 }}>laatste {myHistory.length}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '340px', overflowY: 'auto' }}>
+              {myHistory.map(log => {
+                const d = STATUS_MAP[log.disposition] || { label: log.disposition, color: 'var(--text-muted)', bg: 'var(--bg-elevated)' }
+                return (
+                  <div key={log.id} className="flex justify-between items-center" style={{ padding: '8px 10px', background: 'var(--bg-elevated)', borderRadius: '8px', gap: '10px' }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.85rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{log.lead?.name || 'Lead'}</div>
+                      <div className="text-muted" style={{ fontSize: '0.72rem' }}>
+                        {new Date(log.disposed_at).toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                        {' · '}{fmtSecs(effectiveSeconds(log.disposition, log.duration_seconds))}
+                      </div>
+                    </div>
+                    <span style={{ background: d.bg, color: d.color, padding: '3px 8px', borderRadius: '6px', fontSize: '0.68rem', fontWeight: 800, whiteSpace: 'nowrap' }}>{d.label}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {!isBeller && (
         <div className="filter-bar glass-panel flex justify-between items-center" style={{ gap: '20px' }}>
           <div className="search-input" style={{ flex: 1, position: 'relative' }}>
             <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
@@ -354,6 +434,7 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+        )}
 
         {/* Quick Stats */}
         <div className="stats-grid mb-4" style={{ marginTop: '24px' }}>
@@ -388,7 +469,7 @@ export default function Dashboard() {
           ))}
         </div>
 
-        {loading ? (
+        {!isBeller && (loading ? (
           <div style={{ padding: '100px 0' }}>
             <LoadingSpinner size="large" />
           </div>
@@ -489,7 +570,7 @@ export default function Dashboard() {
               <ActivityFeed />
             </div>
           </div>
-        )}
+        ))}
       </main>
 
       <AnimatePresence>

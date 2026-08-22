@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { Trophy, Zap, TrendingUp } from 'lucide-react'
+import { Trophy, Zap } from 'lucide-react'
+import { levelInfo } from '../utils/xpUtils'
 
 export default function TeamLeaderboard() {
   const { user, profile, isDemoMode } = useAuth()
@@ -16,36 +17,25 @@ export default function TeamLeaderboard() {
     setLoading(true)
 
     if (isDemoMode) {
-      // Demo data - simulate team members
       setTeamStats([
-        { full_name: 'Jan de Vries', call_count: 12, avatar: 'J' },
-        { full_name: 'Maria Admin', call_count: 8, avatar: 'M' },
-        { full_name: 'Pieter Janssen', call_count: 5, avatar: 'P' },
+        { user_id: 'demo1', full_name: 'Jan de Vries', avatar: 'J', ...levelInfo(320) },
+        { user_id: 'demo2', full_name: 'Maria Admin', avatar: 'M', ...levelInfo(180) },
+        { user_id: 'demo3', full_name: 'Pieter Janssen', avatar: 'P', ...levelInfo(60) },
       ])
       setLoading(false)
       return
     }
 
     try {
-      const { data: activities } = await supabase
-        .from('activities')
-        .select('user_id, profiles(full_name)')
-        .eq('action', 'call')
-
-      const counts = {}
-      ;(activities || []).forEach(a => {
-        counts[a.user_id] = (counts[a.user_id] || 0) + 1
-      })
-
-      const userStats = Object.entries(counts).map(([userId, call_count]) => {
-        const activity = activities.find(a => a.user_id === userId)
-        return {
-          user_id: userId,
-          full_name: activity?.profiles?.full_name || 'Onbekend',
-          call_count,
-          avatar: (activity?.profiles?.full_name || 'U').charAt(0)
-        }
-      }).sort((a, b) => b.call_count - a.call_count)
+      // v26: ranglijst op ervaringspunten (XP) uit de database
+      const { data, error } = await supabase.rpc('xp_leaderboard')
+      if (error) throw error
+      const userStats = (data || []).map(r => ({
+        user_id: r.agent_id,
+        full_name: r.full_name || 'Onbekend',
+        avatar: (r.full_name || 'U').charAt(0),
+        ...levelInfo(Number(r.xp || 0))
+      }))
 
       setTeamStats(userStats)
     } catch (err) {
@@ -61,7 +51,7 @@ export default function TeamLeaderboard() {
     <div className="team-leaderboard">
       <div className="leaderboard-header">
         <Trophy size={18} style={{ color: 'var(--secondary)' }} />
-        <span>Team Calls Vandaag</span>
+        <span>Ervaring & Levels</span>
       </div>
       <div className="leaderboard-list">
         {teamStats.map((member, i) => (
@@ -76,17 +66,20 @@ export default function TeamLeaderboard() {
               {member.avatar}
             </div>
             <div className="leaderboard-name">
-              {member.full_name}
-              {member.user_id === user?.id && <span className="you-badge">Jij</span>}
+              <div>
+                {member.full_name}
+                {member.user_id === user?.id && <span className="you-badge">Jij</span>}
+                <div className="leaderboard-title">{member.title}</div>
+              </div>
             </div>
-            <div className="leaderboard-count">
+            <div className="leaderboard-count" title={`${member.xp} XP`}>
               <Zap size={14} style={{ color: 'var(--secondary)' }} />
-              <span>{member.call_count}</span>
+              <span>Lv {member.level} · {member.xp} XP</span>
             </div>
           </div>
         ))}
         {teamStats.length === 0 && (
-          <div className="leaderboard-empty">Nog geen belletjes deze sessie</div>
+          <div className="leaderboard-empty">Nog geen ervaringspunten - de eerste gesprekken tellen direct mee</div>
         )}
       </div>
 
@@ -151,6 +144,11 @@ export default function TeamLeaderboard() {
           display: flex;
           align-items: center;
           gap: 8px;
+        }
+        .leaderboard-title {
+          font-size: 0.7rem;
+          color: var(--text-muted);
+          font-weight: 600;
         }
         .you-badge {
           font-size: 0.7rem;

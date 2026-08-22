@@ -16,15 +16,17 @@ export default function TBAs() {
 
   const tbaLeads = leads.filter(l => l.status === 'terugbelafspraak')
 
+  // v27: een terugbelafspraak is PRIVE voor de beller die hem maakte.
+  // Wordt hij 24 uur na het terugbelmoment niet nagekomen, dan wordt hij
+  // openbaar: zichtbaar (en belbaar) voor manager en alle teamleden.
+  const OVERDUE_MS = 24 * 60 * 60 * 1000
   const now = new Date()
-  const upcomingTBAs = tbaLeads.filter(l => {
-    const tbaTime = new Date(l.next_contact_date || l.updated_at)
-    return tbaTime >= now || !l.next_contact_date
-  })
-  const pastTBAs = tbaLeads.filter(l => {
-    const tbaTime = new Date(l.next_contact_date || l.updated_at)
-    return tbaTime < now
-  })
+  const isStaff = profile?.role === 'admin' || profile?.role === 'manager'
+  const isPublicOverdue = (l) => l.next_contact_date && (now - new Date(l.next_contact_date)) > OVERDUE_MS
+  const upcomingTBAs = tbaLeads.filter(l =>
+    !isPublicOverdue(l) && (isStaff || l.assigned_to === user?.id)
+  )
+  const pastTBAs = tbaLeads.filter(isPublicOverdue)
 
   let displayLeads = filter === 'upcoming' ? upcomingTBAs : pastTBAs
   
@@ -54,7 +56,7 @@ export default function TBAs() {
         <div className="page-header flex justify-between items-end">
           <div>
             <h1>Terugbelafspraken</h1>
-            <p>Alle geplande callbacks - bel op het juiste moment!</p>
+            <p>Jouw terugbelafspraken zijn privé. Niet nagekomen? Dan worden ze na 24 uur openbaar voor het hele team.</p>
           </div>
           <div className="flex gap-2">
             <button
@@ -62,14 +64,14 @@ export default function TBAs() {
               onClick={() => setFilter('upcoming')}
               style={{ borderRadius: '20px' }}
             >
-              <Clock size={16} /> Te bellen ({upcomingTBAs.length})
+              <Clock size={16} /> Mijn TBA's ({upcomingTBAs.length})
             </button>
             <button
               className={`btn btn-sm ${filter === 'past' ? 'btn-secondary' : 'btn-outline'}`}
               onClick={() => setFilter('past')}
               style={{ borderRadius: '20px' }}
             >
-              <AlertCircle size={16} /> Gemist ({pastTBAs.length})
+              <AlertCircle size={16} /> Openbaar - niet nagekomen ({pastTBAs.length})
             </button>
           </div>
         </div>
@@ -91,10 +93,10 @@ export default function TBAs() {
         {displayLeads.length === 0 ? (
           <EmptyState
             icon="calendar"
-            title={filter === 'upcoming' ? 'Geen geplande callbacks' : 'Geen gemiste callbacks'}
+            title={filter === 'upcoming' ? 'Geen geplande callbacks' : 'Geen openbare callbacks'}
             message={filter === 'upcoming'
               ? 'Er zijn geen geplande terugbelafspraken.'
-              : 'Alle callbacks zijn op tijd gebeld.'}
+              : 'Top - alle terugbelafspraken worden op tijd nagekomen.'}
           />
         ) : (
           <div className="tba-list">

@@ -6,6 +6,7 @@ export const STATUS_MAP = {
   terugbelafspraak: { label: 'Terugbelafspraak', color: 'var(--success)', bg: 'var(--success-bg)' },
   geen_gehoor: { label: 'Geen gehoor', color: 'var(--text-muted)', bg: 'var(--bg-elevated)' },
   verkeerd_nummer: { label: 'Verkeerd nummer', color: 'var(--danger)', bg: 'var(--danger-bg)' },
+  blacklist: { label: 'Blacklist', color: 'var(--danger)', bg: 'var(--danger-bg)', description: 'Dit nummer mag niet meer benaderd worden binnen het project' },
   geen_interesse: { label: 'Geen interesse', color: 'var(--danger)', bg: 'var(--danger-bg)' },
   onjuiste_timing: { label: 'Onjuiste timing', color: 'var(--info)', bg: 'var(--info-bg)', description: 'Nu niet relevant, later opnieuw benaderen' },
   cold: { label: 'Cold', color: 'var(--text-muted)', bg: 'var(--bg-elevated)', description: 'Na 3 pogingen geen contact' },

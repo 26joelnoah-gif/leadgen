@@ -137,7 +137,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
 
   useEffect(() => {
     if (!isOpen || isDemoMode) return
-    supabase.from('campaigns').select('id, name, assigned_team_id').is('deleted_at', null).order('name')
+    supabase.from('campaigns').select('id, name').is('deleted_at', null).order('name')
       .then(({ data }) => setCampaigns(data || []))
     supabase.from('teams').select('id, name').order('name')
       .then(({ data }) => setTeams(data || []))
@@ -281,7 +281,6 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
           .insert({
             name: newCampaignName.trim(),
             description: `Aangemaakt bij import op ${new Date().toLocaleDateString('nl-NL')}`,
-            assigned_team_id: newCampaignTeamId || null,
             created_by: user?.id,
             organization_id: profile?.organization_id ?? null
           })
@@ -289,6 +288,13 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
           .single()
         if (campErr || !camp?.id) throw new Error(campErr?.message || 'Project aanmaken mislukt')
         campaignId = camp.id
+        // v23: team-koppeling via campaign_teams (meerdere teams mogelijk)
+        if (newCampaignTeamId) {
+          const { error: ctErr } = await supabase
+            .from('campaign_teams')
+            .insert({ campaign_id: campaignId, team_id: newCampaignTeamId })
+          if (ctErr) throw ctErr
+        }
       }
 
       // 1b. Lijst binnen het project bepalen (bestaand of nieuw)

@@ -70,7 +70,7 @@ export default function Admin() {
   const [showEmployee, setShowEmployee] = useState(false)
   const [managingUser, setManagingUser] = useState(null) // manager wiens projecten we koppelen
   const [showNewProject, setShowNewProject] = useState(false)
-  const [managerLinks, setManagerLinks] = useState([]) // project_managers-rijen voor de projectenteller
+  const [managerLinks, setManagerLinks] = useState([]) // campaign_managers-rijen voor de projectenteller (v23)
   const [showLeadList, setShowLeadList] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [systemSettings, setSystemSettings] = useState(getSettings)
@@ -139,7 +139,7 @@ export default function Admin() {
       if (lErr) throw lErr
       const { data: u, error: uErr } = await supabase.from('profiles').select('*').order('full_name')
       if (uErr) throw uErr
-      const { data: pm } = await supabase.from('project_managers').select('lead_list_id, manager_id')
+      const { data: pm } = await supabase.from('campaign_managers').select('campaign_id, manager_id')
       setLeads(l || [])
       setUsers(u || [])
       setManagerLinks(pm || [])

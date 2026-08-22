@@ -103,7 +103,7 @@ function AppRoutes() {
       <Route
         path="/admin/reports"
         element={
-          <ProtectedRoute requireAdmin>
+          <ProtectedRoute requireAdmin allowManager>
             <Reports />
           </ProtectedRoute>
         }

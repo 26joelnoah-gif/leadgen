@@ -60,12 +60,18 @@ export function useLeads() {
         const { data: memberships } = await supabase.from('team_members').select('team_id').eq('profile_id', me)
         const teamIds = memberships?.map(m => m.team_id) || []
         
-        // 2. v21: team-route loopt via campagnes — een team belt alleen
-        // op lijsten die onder een campagne (project) van dat team vallen
+        // 2. v23: team-route loopt via campaign_teams — een campagne kan
+        // meerdere teams hebben; een team belt alleen op lijsten van
+        // actieve campagnes waar het aan gekoppeld is
         let teamListIds = []
         if (teamIds.length > 0) {
-          const { data: camps } = await supabase.from('campaigns').select('id').in('assigned_team_id', teamIds).is('deleted_at', null).eq('is_active', true)
-          const campaignIds = camps?.map(c => c.id) || []
+          const { data: ctRows } = await supabase.from('campaign_teams').select('campaign_id').in('team_id', teamIds)
+          const linkedIds = [...new Set((ctRows || []).map(r => r.campaign_id))]
+          let campaignIds = []
+          if (linkedIds.length > 0) {
+            const { data: camps } = await supabase.from('campaigns').select('id').in('id', linkedIds).is('deleted_at', null).eq('is_active', true)
+            campaignIds = camps?.map(c => c.id) || []
+          }
           if (campaignIds.length > 0) {
             const { data: lists } = await supabase.from('lead_lists').select('id').in('campaign_id', campaignIds)
             teamListIds = lists?.map(l => l.id) || []
@@ -104,20 +110,23 @@ export function useLeads() {
     const currentLead = leads.find(l => l.id === leadId)
     let updates = { status, ...additionalFields, updated_at: new Date().toISOString() }
 
-    if (status === 'later_bellen' || status === 'geen_gehoor') {
+    // v27: later bellen = morgen opnieuw; geen gehoor = max 2 pogingen
+    if (status === 'later_bellen') {
+      const d = new Date()
+      d.setDate(d.getDate() + 1)
+      updates.next_contact_date = d.toISOString()
+    }
+    if (status === 'geen_gehoor') {
       const nextAttempt = (currentLead?.contact_attempts || 0) + 1
       updates.contact_attempts = nextAttempt
-      if (nextAttempt >= 3) {
+      if (nextAttempt >= 2) {
         updates.status = 'cold'
         updates.next_contact_date = null
       } else {
-        const daysToAdd = nextAttempt === 1 ? 2 : 3
-        const nextDate = new Date()
-        nextDate.setDate(nextDate.getDate() + daysToAdd)
-        updates.next_contact_date = nextDate.toISOString()
+        const d = new Date()
+        d.setDate(d.getDate() + 2)
+        updates.next_contact_date = d.toISOString()
       }
-    } else if (['deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer'].includes(status)) {
-      updates.next_contact_date = null
     }
 
     if (isDemoMode) {
@@ -261,15 +270,25 @@ export function useLeads() {
       updated_at: new Date().toISOString()
     }
 
-    // Herbel-logica: geen gehoor / later bellen komen automatisch terug in de wachtrij
-    if (dispositionType === 'geen_gehoor' || dispositionType === 'later_bellen') {
+    // Herbel-logica (v27):
+    // - later bellen: het kwam gewoon niet uit -> morgen opnieuw proberen
+    //   (tenzij de beller zelf een datum koos)
+    // - geen gehoor: maximaal 2 pogingen, daarna gaat de lead uit de wachtrij (cold)
+    if (dispositionType === 'later_bellen' && !nextDate) {
+      const d = new Date()
+      d.setDate(d.getDate() + 1)
+      updates.next_contact_date = d.toISOString()
+    }
+    if (dispositionType === 'geen_gehoor') {
       const nextAttempt = (currentLead.contact_attempts || 0) + 1
       updates.contact_attempts = nextAttempt
-      if (!nextDate) {
-        const daysToAdd = nextAttempt === 1 ? 2 : 3
-        const nextDateAuto = new Date()
-        nextDateAuto.setDate(nextDateAuto.getDate() + daysToAdd)
-        updates.next_contact_date = nextDateAuto.toISOString()
+      if (nextAttempt >= 2) {
+        updates.status = 'cold'
+        updates.next_contact_date = null
+      } else if (!nextDate) {
+        const d = new Date()
+        d.setDate(d.getDate() + 2)
+        updates.next_contact_date = d.toISOString()
       }
     }
 
@@ -281,11 +300,20 @@ export function useLeads() {
     await logCallToDatabase(currentLead, dispositionType, callMeta)
 
     // Instellingen per afboekreden (alleen toewijzing + notitie-tag)
-    const { data: rule } = await supabase.from('flow_settings').select('auto_assign_to, append_agent_note').eq('disposition_type', dispositionType).eq('is_active', true).maybeSingle()
+    const { data: rule } = await supabase.from('flow_settings').select('auto_assign_to, append_agent_note, cooldown_days').eq('disposition_type', dispositionType).eq('is_active', true).maybeSingle()
     if (rule) {
       if (rule.auto_assign_to === 'agent') updates.assigned_to = user?.id
       else if (rule.auto_assign_to === 'none') updates.assigned_to = null
       if (rule.append_agent_note) updates.notes = `${updates.notes}\n— Afgeboekt door ${agentName}`
+    }
+
+    // v27: onjuiste timing krijgt een instelbare cooldown; daarna komt de
+    // lead automatisch terug in de belwachtrij
+    if (dispositionType === 'onjuiste_timing' && !updates.next_contact_date) {
+      const days = Math.max(1, Number(rule?.cooldown_days) || 30)
+      const d = new Date()
+      d.setDate(d.getDate() + days)
+      updates.next_contact_date = d.toISOString()
     }
 
     await supabase.from('leads').update(updates).eq('id', leadId)

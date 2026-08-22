@@ -12,16 +12,16 @@ export const FLOW_RECOMMENDED = {
   terugbelafspraak: { auto_assign_to: 'agent', append_agent_note: false },
   later_bellen: { auto_assign_to: 'agent', append_agent_note: false },
   geen_gehoor: { auto_assign_to: 'keep', append_agent_note: false },
-  mailbox: { auto_assign_to: 'keep', append_agent_note: false },
   onjuiste_timing: { auto_assign_to: 'none', append_agent_note: false },
   geen_interesse: { auto_assign_to: 'none', append_agent_note: false },
-  verkeerd_nummer: { auto_assign_to: 'none', append_agent_note: false }
+  verkeerd_nummer: { auto_assign_to: 'none', append_agent_note: false },
+  blacklist: { auto_assign_to: 'none', append_agent_note: false }
 }
 
 export const FLOW_GROUPS = [
   { title: 'Resultaat', hint: 'De lead blijft bij de beller - zo tellen verdiensten goed mee.', color: 'var(--success)', types: ['deal', 'afspraak_gemaakt'] },
   { title: 'Opvolgen', hint: 'De beller houdt de lead vast en krijgt hem terug in zijn wachtrij of TBA-lijst.', color: 'var(--secondary)', types: ['terugbelafspraak', 'later_bellen'] },
-  { title: 'Geen succes', hint: 'Kies of de lead blijft staan of terug naar de pool gaat voor een volgende poging.', color: 'var(--danger)', types: ['geen_gehoor', 'mailbox', 'onjuiste_timing', 'geen_interesse', 'verkeerd_nummer'] }
+  { title: 'Geen succes', hint: 'Kies of de lead blijft staan of terug naar de pool gaat voor een volgende poging.', color: 'var(--danger)', types: ['geen_gehoor', 'onjuiste_timing', 'geen_interesse', 'verkeerd_nummer', 'blacklist'] }
 ]
 
 // Gedeelde flows-editor: gebruikt door Projecten & Leads (admin) en het
@@ -123,6 +123,19 @@ export default function FlowSettingsEditor() {
                   <div className="min-w-0">
                     <div className="font-bold text-body text-sm">{getStatusDetails(flow.disposition_type).label}</div>
                     <div className="text-[11px] text-muted leading-snug">{flow.description || 'Lead blijft in de projectlijst; alleen de status verandert.'}</div>
+                    {flow.disposition_type === 'onjuiste_timing' && (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[11px] text-muted">Cooldown:</span>
+                        <input
+                          type="number" min="1" max="365"
+                          value={flow.cooldown_days ?? 30}
+                          onChange={e => handleUpdateFlow('onjuiste_timing', { cooldown_days: Math.min(365, Math.max(1, parseInt(e.target.value) || 30)) })}
+                          className="text-xs font-bold"
+                          style={{ width: '64px', padding: '4px 6px' }}
+                        />
+                        <span className="text-[11px] text-muted">dagen - daarna komt de lead terug in de belwachtrij</span>
+                      </div>
+                    )}
                   </div>
                   <select
                     value={flow.auto_assign_to}

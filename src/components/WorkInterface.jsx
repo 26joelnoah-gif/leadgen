@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   X, Phone, Mail, MapPin, User, Building2,
   Calendar, Clock, AlertCircle, CheckCircle2,
-  ChevronRight, Copy, Save, Users, Target
+  ChevronRight, Copy, Save, Users, Target, Ban
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
@@ -233,6 +233,7 @@ export default function WorkInterface() {
     { id: 'verkeerd_nummer', label: 'FOUTIEVE INFO', color: '#EF4444', icon: <AlertCircle size={18} />, quick: true },
     { id: 'geen_interesse', label: 'GEEN INTERESSE', color: '#334155', icon: <X size={18} />, quick: true },
     { id: 'onjuiste_timing', label: 'ONJUISTE TIMING', color: '#0EA5E9', icon: <Clock size={18} />, quick: true },
+    { id: 'blacklist', label: 'BLACKLIST', color: '#991B1B', icon: <Ban size={18} />, quick: true },
   ]
 
   const submitDisposition = async (dispositionType, notes = '', nextDate = null) => {

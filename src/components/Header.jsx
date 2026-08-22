@@ -18,7 +18,10 @@ export default function Header({ onOpenSettings }) {
     { path: '/', label: 'Dashboard' },
     { path: '/tba', label: 'TBA\'s' },
     { path: '/earnings', label: 'Verdiensten' },
-    ...(isManager ? [{ path: '/manager', label: 'Mijn Projecten' }] : []),
+    ...(isManager ? [
+      { path: '/manager', label: 'Mijn Projecten' },
+      { path: '/admin/reports', label: 'Rapportage' }
+    ] : []),
   ]
 
   // Beheer-links in volgorde van dagelijks gebruik

@@ -4,8 +4,9 @@ import { X, Layers, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useToast } from './Toast'
 
-// Admin koppelt een manager aan projecten (lead_lists) en bepaalt per
-// manager wat hij mag zien en doen (rechten-kolommen op profiles, v20).
+// Admin koppelt een manager aan projecten (campagnes, v23: campaign_managers -
+// meerdere managers per project kan) en bepaalt per manager wat hij mag
+// zien en doen (rechten-kolommen op profiles, v20).
 const PERMISSIONS = [
   { key: 'can_view_rates', label: 'Tarieven & kosten zien', hint: 'Ziet de projecttarieven en wat elke beller kost in zijn dashboard.' },
   { key: 'can_manage_leads', label: 'Leads beheren', hint: 'Mag leads importeren en bewerken binnen zijn eigen projecten.' },
@@ -36,8 +37,9 @@ function PermToggle({ on, onClick }) {
     </button>
   )
 }
-export default function ManagerProjectsModal({ isOpen, onClose, manager, leadLists = [], onSaved }) {
+export default function ManagerProjectsModal({ isOpen, onClose, manager, onSaved }) {
   const toast = useToast()
+  const [projects, setProjects] = useState([]) // campagnes
   const [selected, setSelected] = useState(new Set())
   const [perms, setPerms] = useState({})
   const [loading, setLoading] = useState(false)
@@ -54,14 +56,14 @@ export default function ManagerProjectsModal({ isOpen, onClose, manager, leadLis
       kpi_only: !!manager.kpi_only
     })
     setLoading(true)
-    supabase
-      .from('project_managers')
-      .select('lead_list_id')
-      .eq('manager_id', manager.id)
-      .then(({ data, error }) => {
-        if (!error) setSelected(new Set((data || []).map(r => r.lead_list_id)))
-        setLoading(false)
-      })
+    Promise.all([
+      supabase.from('campaigns').select('id, name').is('deleted_at', null).order('name'),
+      supabase.from('campaign_managers').select('campaign_id').eq('manager_id', manager.id)
+    ]).then(([campRes, linkRes]) => {
+      setProjects(campRes.data || [])
+      if (!linkRes.error) setSelected(new Set((linkRes.data || []).map(r => r.campaign_id)))
+      setLoading(false)
+    })
   }, [isOpen, manager?.id])
 
   if (!isOpen || !manager) return null
@@ -77,30 +79,44 @@ export default function ManagerProjectsModal({ isOpen, onClose, manager, leadLis
   async function handleSave() {
     setSaving(true)
     try {
-      // Bestaande koppelingen ophalen en het verschil wegschrijven
+      // Bestaande koppelingen ophalen en het verschil wegschrijven (v23: per campagne)
       const { data: current, error: curErr } = await supabase
-        .from('project_managers')
-        .select('lead_list_id')
+        .from('campaign_managers')
+        .select('campaign_id')
         .eq('manager_id', manager.id)
       if (curErr) throw curErr
 
-      const currentIds = new Set((current || []).map(r => r.lead_list_id))
+      const currentIds = new Set((current || []).map(r => r.campaign_id))
       const toAdd = [...selected].filter(id => !currentIds.has(id))
       const toRemove = [...currentIds].filter(id => !selected.has(id))
 
       if (toAdd.length) {
         const { error } = await supabase
-          .from('project_managers')
-          .insert(toAdd.map(id => ({ lead_list_id: id, manager_id: manager.id })))
+          .from('campaign_managers')
+          .insert(toAdd.map(id => ({ campaign_id: id, manager_id: manager.id })))
         if (error) throw error
       }
       if (toRemove.length) {
         const { error } = await supabase
-          .from('project_managers')
+          .from('campaign_managers')
           .delete()
           .eq('manager_id', manager.id)
-          .in('lead_list_id', toRemove)
+          .in('campaign_id', toRemove)
         if (error) throw error
+        // Legacy: ook oude lijst-koppelingen van deze campagnes opruimen,
+        // anders houdt de manager via project_managers alsnog toegang
+        const { data: oldLists } = await supabase
+          .from('lead_lists')
+          .select('id')
+          .in('campaign_id', toRemove)
+        const oldIds = (oldLists || []).map(l => l.id)
+        if (oldIds.length) {
+          await supabase
+            .from('project_managers')
+            .delete()
+            .eq('manager_id', manager.id)
+            .in('lead_list_id', oldIds)
+        }
       }
 
       const permsChanged = PERMISSIONS.some(perm => {
@@ -143,17 +159,18 @@ export default function ManagerProjectsModal({ isOpen, onClose, manager, leadLis
         </div>
 
         <p className="text-muted" style={{ fontSize: '0.85rem', marginBottom: '16px' }}>
-          Vink aan welke projecten (leadlijsten) deze manager mag zien en beheren.
-          De manager ziet alleen de bellers en gesprekken van deze projecten.
+          Vink aan welke projecten deze manager mag zien en beheren - inclusief alle
+          lijsten die later binnen zo'n project worden aangemaakt. Meerdere managers
+          per project kan gewoon.
         </p>
 
         {loading ? (
           <p className="text-muted" style={{ padding: '20px 0' }}>Laden...</p>
-        ) : leadLists.length === 0 ? (
-          <p className="text-muted" style={{ padding: '20px 0' }}>Er zijn nog geen projecten. Maak eerst een leadlijst aan.</p>
+        ) : projects.length === 0 ? (
+          <p className="text-muted" style={{ padding: '20px 0' }}>Er zijn nog geen projecten. Maak eerst een project aan.</p>
         ) : (
           <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
-            {leadLists.map(list => {
+            {projects.map(list => {
               const checked = selected.has(list.id)
               return (
                 <button

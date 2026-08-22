@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { motion } from 'framer-motion'
 import { Users, PhoneCall, CheckCircle, Download, Clock, Filter, Calendar, TrendingUp, Phone, Briefcase } from 'lucide-react'
 import { getStatusDetails } from '../utils/statusUtils'
+import { effectiveSeconds, isCapped } from '../utils/callTimeUtils'
 import { exportToCSV } from '../utils/exportUtils'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
@@ -36,14 +37,27 @@ function ResultBadge({ status }) {
 }
 
 export default function Reports() {
-  const { isDemoMode } = useAuth()
+  const { isDemoMode, profile } = useAuth()
+  // v25: ook managers mogen hierheen - de admin bepaalt per manager wat
+  // hij ziet (v20-rechten) en RLS beperkt de data tot zijn eigen projecten
+  const isManager = profile?.role === 'manager'
+  const kpiOnly = isManager && !!profile?.kpi_only
+  const canExport = !isManager || profile?.can_export_data !== false
   const [callLogs, setCallLogs] = useState([])
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('bellers') // 'bellers' | 'projecten' | 'gesprekken'
+  useEffect(() => {
+    if (kpiOnly && activeTab === 'gesprekken') setActiveTab('bellers')
+  }, [kpiOnly, activeTab])
   const [filterAgent, setFilterAgent] = useState('all')
   const [filterResult, setFilterResult] = useState('all')
-  const [filterProject, setFilterProject] = useState('all') // lead_list_id of 'all'
+  const [filterProject, setFilterProject] = useState('all') // campagne-id of 'all'
+  const [filterTeam, setFilterTeam] = useState('all') // team-id of 'all'
+  const [selectedAgents, setSelectedAgents] = useState(() => new Set()) // leeg = alle bellers
+  const [showAgentPicker, setShowAgentPicker] = useState(false)
+  const [agentSearch, setAgentSearch] = useState('')
+  const [teams, setTeams] = useState([])
 
   const [startDate, setStartDate] = useState(() => todayStr())
   const [endDate, setEndDate] = useState(() => todayStr())
@@ -66,6 +80,11 @@ export default function Reports() {
       .from('lead_lists')
       .select('id, campaign_id')
       .then(({ data }) => setListsMeta(data || []))
+    supabase
+      .from('teams')
+      .select('id, name, team_members(profile_id)')
+      .order('name')
+      .then(({ data }) => setTeams(data || []))
   }, [isDemoMode])
 
   const listToCampaign = useMemo(() => {
@@ -73,6 +92,19 @@ export default function Reports() {
     listsMeta.forEach(l => { m[l.id] = l.campaign_id })
     return m
   }, [listsMeta])
+
+  const teamMemberIds = useMemo(() => {
+    const m = {}
+    teams.forEach(t => { m[t.id] = new Set((t.team_members || []).map(tm => tm.profile_id)) })
+    return m
+  }, [teams])
+
+  // Alle bellers die in de gekozen periode voorkomen (voor de multi-select)
+  const uniqueAgents = useMemo(() => {
+    const m = new Map()
+    callLogs.forEach(l => { if (l.agent_id && !m.has(l.agent_id)) m.set(l.agent_id, l.agent?.full_name || 'Onbekend') })
+    return [...m.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+  }, [callLogs])
 
   async function fetchCallLogs() {
     setLoading(true)
@@ -100,10 +132,16 @@ export default function Reports() {
     }
   }
 
-  // Globale projectfilter: alles op deze pagina rekent op projectLogs
+  // Globale filters (project, team, geselecteerde bellers):
+  // alle KPI's, tabbladen en de export rekenen op projectLogs
   const projectLogs = useMemo(() => (
-    filterProject === 'all' ? callLogs : callLogs.filter(l => listToCampaign[l.lead_list_id] === filterProject)
-  ), [callLogs, filterProject, listToCampaign])
+    callLogs.filter(l => {
+      if (filterProject !== 'all' && listToCampaign[l.lead_list_id] !== filterProject) return false
+      if (filterTeam !== 'all' && !teamMemberIds[filterTeam]?.has(l.agent_id)) return false
+      if (selectedAgents.size > 0 && !selectedAgents.has(l.agent_id)) return false
+      return true
+    })
+  ), [callLogs, filterProject, listToCampaign, filterTeam, teamMemberIds, selectedAgents])
 
   // ===== Statistieken per beller =====
   const agentStats = useMemo(() => {
@@ -121,7 +159,9 @@ export default function Reports() {
       }
       const a = byAgent[id]
       a.calls++
-      a.seconds += log.duration_seconds || 0
+      // v24: effectieve beltijd (gemaximeerd per afboeking) is leidend
+      a.seconds += effectiveSeconds(log.disposition, log.duration_seconds)
+      a.rawSeconds = (a.rawSeconds || 0) + (log.duration_seconds || 0)
       if (log.disposition === 'deal') a.deals++
       if (log.disposition === 'afspraak_gemaakt') a.afspraken++
       if (log.disposition === 'terugbelafspraak') a.tba++
@@ -154,7 +194,7 @@ export default function Reports() {
       }
       const p = byList[id]
       p.calls++
-      p.seconds += log.duration_seconds || 0
+      p.seconds += effectiveSeconds(log.disposition, log.duration_seconds)
       p.agents.add(log.agent_id)
       if (log.disposition === 'deal') p.deals++
       if (log.disposition === 'afspraak_gemaakt') p.afspraken++
@@ -212,6 +252,7 @@ export default function Reports() {
         'Datum en tijd': new Date(l.disposed_at).toLocaleString('nl-NL'),
         Beller: l.agent?.full_name || '', Lead: l.lead?.name || '', Telefoon: l.lead?.phone || '',
         Lijst: l.list?.name || '', Duur: fmtDuration(l.duration_seconds),
+        'Effectief (telt mee)': fmtDuration(effectiveSeconds(l.disposition, l.duration_seconds)),
         Resultaat: getStatusDetails(l.disposition).label
       })), `LeadGen_Gesprekken_${startDate}_${endDate}${projectSuffix}`)
     }
@@ -230,7 +271,7 @@ export default function Reports() {
         <div className="page-header flex justify-between items-end" style={{ flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <h1>Rapportage</h1>
-            <p>Beltijd per beller en de uitkomst van elk gesprek</p>
+            <p>{isManager ? 'Beltijd en resultaten van de bellers op jouw projecten' : 'Beltijd per beller en de uitkomst van elk gesprek'}</p>
             <div className="flex gap-2 mt-2" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
               <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)}
                 style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.8rem' }} />
@@ -246,10 +287,68 @@ export default function Reports() {
                 <option value="all">Alle projecten</option>
                 {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
+              <select value={filterTeam} onChange={e => setFilterTeam(e.target.value)}
+                title="Alleen de bellers van dit team tonen"
+                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.8rem', maxWidth: '180px' }}>
+                <option value="all">Alle teams</option>
+                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+              <div style={{ position: 'relative' }}>
+                <button
+                  className={`btn btn-sm ${selectedAgents.size > 0 ? 'btn-primary' : 'btn-outline'}`}
+                  onClick={() => setShowAgentPicker(v => !v)}
+                  title="Selecteer één of meer bellers"
+                >
+                  <Users size={14} /> {selectedAgents.size === 0 ? 'Alle bellers' : `${selectedAgents.size} beller${selectedAgents.size === 1 ? '' : 's'}`}
+                </button>
+                {showAgentPicker && (
+                  <div style={{
+                    position: 'absolute', top: 'calc(100% + 6px)', left: 0, zIndex: 50, width: '280px',
+                    background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '10px',
+                    padding: '10px', boxShadow: '0 12px 32px rgba(0,0,0,0.35)'
+                  }}>
+                    <input
+                      value={agentSearch}
+                      onChange={e => setAgentSearch(e.target.value)}
+                      placeholder="Zoek beller..."
+                      autoFocus
+                      style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.8rem', marginBottom: '8px' }}
+                    />
+                    <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      {uniqueAgents.filter(a => a.name.toLowerCase().includes(agentSearch.toLowerCase())).map(a => (
+                        <label key={a.id} className="flex items-center gap-2" style={{ padding: '7px 8px', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 600, background: selectedAgents.has(a.id) ? 'rgba(59,130,246,0.12)' : 'transparent' }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedAgents.has(a.id)}
+                            onChange={() => setSelectedAgents(prev => {
+                              const next = new Set(prev)
+                              next.has(a.id) ? next.delete(a.id) : next.add(a.id)
+                              return next
+                            })}
+                            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                          />
+                          {a.name}
+                        </label>
+                      ))}
+                      {uniqueAgents.length === 0 && (
+                        <p className="text-muted" style={{ fontSize: '0.8rem', padding: '8px' }}>Geen bellers met gesprekken in deze periode.</p>
+                      )}
+                    </div>
+                    <div className="flex justify-between items-center" style={{ marginTop: '8px', gap: '8px' }}>
+                      <button className="btn btn-sm btn-outline" onClick={() => setSelectedAgents(new Set())} disabled={selectedAgents.size === 0} style={{ opacity: selectedAgents.size === 0 ? 0.4 : 1 }}>
+                        Wis selectie
+                      </button>
+                      <button className="btn btn-sm btn-primary" onClick={() => setShowAgentPicker(false)}>Klaar</button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <div className="flex gap-2">
-            <button className="btn btn-outline btn-sm" onClick={handleExport}><Download size={16} /> Export CSV</button>
+            {canExport && (
+              <button className="btn btn-outline btn-sm" onClick={handleExport}><Download size={16} /> Export CSV</button>
+            )}
             <button className="btn btn-secondary btn-sm" onClick={fetchCallLogs}><TrendingUp size={16} /> Verversen</button>
           </div>
         </div>
@@ -279,7 +378,8 @@ export default function Reports() {
           {[
             { id: 'bellers', label: 'Statistieken per beller', icon: <Users size={15} /> },
             { id: 'projecten', label: 'Per project', icon: <Briefcase size={15} /> },
-            { id: 'gesprekken', label: 'Alle gesprekken', icon: <Phone size={15} /> }
+            // KPI-only managers zien geen individuele gesprekken of leadgegevens
+            ...(kpiOnly ? [] : [{ id: 'gesprekken', label: 'Alle gesprekken', icon: <Phone size={15} /> }])
           ].map(t => (
             <button key={t.id} onClick={() => setActiveTab(t.id)}
               className={`tab-btn ${activeTab === t.id ? 'active' : ''}`}>
@@ -465,7 +565,14 @@ export default function Reports() {
                         <td>{log.lead?.name || '- verwijderd -'}</td>
                         <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{log.lead?.phone || ''}</td>
                         <td className="text-muted" style={{ fontSize: '0.85rem' }}>{log.list?.name || '-'}</td>
-                        <td style={{ fontWeight: 700 }}>{fmtDuration(log.duration_seconds)}</td>
+                        <td style={{ fontWeight: 700 }}>
+                          {fmtDuration(effectiveSeconds(log.disposition, log.duration_seconds))}
+                          {isCapped(log.disposition, log.duration_seconds) && (
+                            <span className="text-muted" style={{ fontWeight: 400, fontSize: '0.75rem' }} title="Kloktijd lag boven het maximum voor deze afboeking; alleen de effectieve tijd telt mee voor uren en uitbetaling">
+                              {' '}(klok {fmtDuration(log.duration_seconds)})
+                            </span>
+                          )}
+                        </td>
                         <td><ResultBadge status={log.disposition} /></td>
                       </tr>
                     ))}
