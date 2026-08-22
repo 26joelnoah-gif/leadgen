@@ -156,14 +156,15 @@ export default function ManagerProjectsModal({ isOpen, onClose, manager, onSaved
         style={{ maxWidth: '480px' }}
       >
         <div className="modal-header">
-          <h2><Layers size={18} /> Projecten van {manager.full_name}</h2>
+          <h2><Layers size={18} /> Projecten &amp; rechten - {manager.full_name}</h2>
           <button className="modal-close" onClick={onClose}><X size={18} /></button>
         </div>
 
         <p className="text-muted" style={{ fontSize: '0.85rem', marginBottom: '16px' }}>
           Vink aan welke projecten deze manager mag zien en beheren - inclusief alle
           lijsten die later binnen zo'n project worden aangemaakt. Meerdere managers
-          per project kan gewoon.
+          per project kan gewoon. Onderaan stel je in wat deze manager precies mag
+          (tarieven, team, export, flows, wachtrij) - dit kun je altijd achteraf wijzigen.
         </p>
 
         {loading ? (

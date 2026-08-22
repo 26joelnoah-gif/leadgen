@@ -361,7 +361,7 @@ export default function Admin() {
                               </span>
                             ) : (
                               <span className="px-2 py-1 rounded text-[10px] font-black uppercase tracking-widest bg-secondary/15 text-secondary">
-                                Nog geen projecten gekoppeld - klik op "Projecten"
+                                Nog geen projecten gekoppeld - klik op "Projecten &amp; rechten"
                               </span>
                             )
                           })()}
@@ -381,7 +381,7 @@ export default function Admin() {
                              <option value="admin">Admin</option>
                           </select>
                           {u.role === 'manager' && (
-                            <button onClick={() => setManagingUser(u)} className="btn btn-outline btn-sm" style={{ whiteSpace: 'nowrap' }}><Layers size={14}/> Projecten</button>
+                            <button onClick={() => setManagingUser(u)} className="btn btn-outline btn-sm" style={{ whiteSpace: 'nowrap' }}><Shield size={14}/> Projecten &amp; rechten</button>
                           )}
                        </div>
                      )}
