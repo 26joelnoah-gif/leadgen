@@ -105,8 +105,8 @@ export default function Telemetry() {
 
       <main className="container">
         <div className="page-header">
-           <h1>VIBE CHECK & Live Insights</h1>
-           <p className="text-secondary" style={{ fontWeight: 700 }}>"Smile & Dial" - De motor van LeadGen.</p>
+           <h1>Live Telemetrie</h1>
+           <p className="text-secondary" style={{ fontWeight: 700 }}>Live inzicht in de belactiviteit.</p>
         </div>
 
         <div className="stats-grid mb-4">

@@ -1,55 +1,33 @@
-import { motion } from 'framer-motion'
-import { Phone, Check } from 'lucide-react'
-
-export default function Logo({ size = 'medium', showSlogan = true }) {
+// Strak, zakelijk logo: LG-monogram met het woordmerk LEADGEN.
+// Geen slogan, geen gradients - rustig en professioneel.
+export default function Logo({ size = 'medium', showWordmark = true }) {
   const iconSize = size === 'large' ? 32 : size === 'small' ? 18 : 24
-  const fontSize = size === 'large' ? '1.8rem' : size === 'small' ? '1.1rem' : '1.4rem'
+  const fontSize = size === 'large' ? '1.6rem' : size === 'small' ? '1rem' : '1.25rem'
 
   return (
-    <div className="logo-container" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-      <motion.div 
-        className="logo" 
-        style={{ fontSize, gap: '8px' }}
-        whileHover={{ scale: 1.02 }}
-      >
-        <div style={{ 
-          background: 'var(--secondary)', 
-          color: 'var(--primary-dark)', 
-          width: iconSize + 8, 
-          height: iconSize + 8, 
-          borderRadius: '8px', 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'center',
-          boxShadow: 'var(--shadow-glow)'
-        }}>
-          <span style={{ fontWeight: 900, fontSize: iconSize * 0.7 }}>LG</span>
-        </div>
-        <span style={{ 
-          background: 'linear-gradient(135deg, var(--secondary) 0%, var(--text-primary) 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
-          fontWeight: 800
+    <div className="logo" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+      <div style={{
+        background: 'var(--primary)',
+        color: 'var(--text-on-accent)',
+        width: iconSize + 12,
+        height: iconSize + 12,
+        borderRadius: '10px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0
+      }}>
+        <span style={{ fontWeight: 800, fontSize: iconSize * 0.62, letterSpacing: '0.5px' }}>LG</span>
+      </div>
+      {showWordmark && (
+        <span style={{
+          color: 'var(--text-primary)',
+          fontWeight: 700,
+          fontSize,
+          letterSpacing: '0.02em'
         }}>
           LEADGEN
         </span>
-      </motion.div>
-      {showSlogan && (
-        <motion.span 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 0.8 }}
-          style={{ 
-            fontSize: size === 'small' ? '0.6rem' : '0.75rem', 
-            color: 'var(--secondary)', 
-            fontWeight: 600, 
-            letterSpacing: '2px',
-            textTransform: 'uppercase',
-            marginLeft: '40px',
-            marginTop: '-4px'
-          }}
-        >
-          Smile & Dial
-        </motion.span>
       )}
     </div>
   )

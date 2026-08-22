@@ -237,8 +237,8 @@ export default function WorkInterface() {
         color: 'var(--text-main)', padding: '20px'
       }}>
         <div style={{ textAlign: 'center', maxWidth: '400px' }}>
-          <div style={{ fontSize: '4rem', marginBottom: '16px', opacity: 0.5 }}>🎉</div>
-          <h2 style={{ color: 'var(--text-primary)', marginBottom: '8px' }}>Wachtrij leeg!</h2>
+          <CheckCircle2 size={56} style={{ color: 'var(--success)', marginBottom: '16px', opacity: 0.7 }} />
+          <h2 style={{ color: 'var(--text-primary)', marginBottom: '8px' }}>Wachtrij leeg</h2>
           <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
             Alle belbare leads in deze lijst zijn afgehandeld. Leads met een terugbelmoment komen vanzelf terug in de wachtrij.
           </p>
@@ -381,20 +381,11 @@ export default function WorkInterface() {
           {/* Top Header */}
           <header style={{ background: 'var(--primary-dark)', color: 'var(--text-on-accent)', padding: isMobile ? '8px 12px' : '8px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <div className="flex items-center gap-4">
-               <h2 style={{ margin: 0, fontSize: '1.4rem', display: 'flex', gap: '8px', alignItems: 'center' }}>
-                 <Phone size={20} />
-                 <span style={{
-                   background: 'linear-gradient(135deg, var(--secondary) 0%, #FFF 100%)',
-                   WebkitBackgroundClip: 'text',
-                   WebkitTextFillColor: 'transparent',
-                   fontWeight: 900,
-                   letterSpacing: '1px',
-                   fontStyle: 'italic'
-                 }}>
-                   DOORTIKKEN
-                 </span>
+               <h2 style={{ margin: 0, fontSize: '1.2rem', display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 700 }}>
+                 <Phone size={18} />
+                 Belmodus
                </h2>
-               <span style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>📞 Vandaag: {todayCalls}</span>
+               <span style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>Vandaag: {todayCalls}</span>
                {dailyTarget > 0 && (
                  <span style={{
                    background: todayCalls >= dailyTarget ? 'var(--success)' : 'rgba(255,255,255,0.15)',

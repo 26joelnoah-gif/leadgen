@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { AlertCircle, Info, Lock, Mail, ChevronRight, Eye, EyeOff } from 'lucide-react'
+import Logo from '../components/Logo'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -46,14 +47,11 @@ export default function Login() {
         className="login-card glass-panel"
         style={{ position: 'relative', overflow: 'hidden' }}
       >
-        {/* Aesthetic background glow */}
-        <div style={{ position: 'absolute', top: '-100px', right: '-100px', width: '200px', height: '200px', background: 'var(--secondary)', filter: 'blur(80px)', opacity: 0.1, pointerEvents: 'none' }} />
-        
-        <div style={{ textAlign: 'center', marginBottom: '40px' }}>
-          <h1 style={{ fontSize: '3rem', fontWeight: 900, background: 'linear-gradient(135deg, var(--secondary) 0%, var(--text-primary) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', marginBottom: '8px', letterSpacing: '-0.05em' }}>
-            LEADGEN
-          </h1>
-          <p style={{ color: 'var(--secondary)', fontSize: '1.2rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '4px' }}>SMILE & DIAL</p>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', marginBottom: '36px' }}>
+          <Logo size="large" />
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 500, margin: 0 }}>
+            Log in om verder te gaan
+          </p>
         </div>
 
         {isDemoMode && (
@@ -155,8 +153,6 @@ export default function Login() {
       <style dangerouslySetInnerHTML={{ __html: `
         .login-page {
           background: var(--bg-dark);
-          background-image: radial-gradient(circle at 20% 20%, rgba(15, 76, 54, 0.4) 0%, transparent 40%),
-                            radial-gradient(circle at 80% 80%, rgba(212, 175, 55, 0.1) 0%, transparent 40%);
         }
         .btn-block { width: 100%; display: flex; justify-content: center; }
       `}} />
