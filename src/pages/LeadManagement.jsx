@@ -86,6 +86,7 @@ export default function LeadManagement({ standalone = true }) {
 
   // Import wizard
   const [showImport, setShowImport] = useState(false)
+  const [importMode, setImportMode] = useState('import') // v32.1: 'import' of 'enrich'
   const [showNewProject, setShowNewProject] = useState(false)
 
   // v29: briefing (belscript + projectinfo) per project
@@ -399,11 +400,19 @@ export default function LeadManagement({ standalone = true }) {
                 <Plus size={18} /> Nieuw project
              </button>
              <button
-               onClick={() => setShowImport(true)}
+               onClick={() => { setImportMode('import'); setShowImport(true) }}
                className="btn btn-primary"
                style={{ padding: '14px 24px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}
              >
                 <Upload size={18} /> Leads importeren
+             </button>
+             <button
+               onClick={() => { setImportMode('enrich'); setShowImport(true) }}
+               className="btn btn-primary"
+               title="Plak nieuwe info (beslissers, contactpersonen, e-mails...) en die wordt bij de juiste bestaande leads gezet"
+               style={{ padding: '14px 24px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}
+             >
+                <Sparkles size={18} /> Leads verrijken
              </button>
              <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '10px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <Grid size={18} className="text-primary" />
@@ -952,6 +961,7 @@ export default function LeadManagement({ standalone = true }) {
 
       <ImportLeadsModal
         isOpen={showImport}
+        initialMode={importMode}
         onClose={() => setShowImport(false)}
         onImported={() => { fetchData(); fetchLeadLists(); if (selectedList) fetchLeads(selectedList.id) }}
       />

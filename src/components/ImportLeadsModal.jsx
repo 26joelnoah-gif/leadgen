@@ -118,7 +118,7 @@ function guessFieldForColumn(values) {
   return 'skip'
 }
 
-export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
+export default function ImportLeadsModal({ isOpen, onClose, onImported, initialMode = 'import' }) {
   const { user, profile, isDemoMode } = useAuth()
   const { leadLists, createLeadList, fetchLeadLists } = useLeadLists()
   const toast = useToast()
@@ -163,7 +163,13 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
     setExcludedRows(new Set())
   }
 
-  function close() { reset(); setMode('import'); onClose() }
+  function close() { reset(); onClose() }
+
+  // v32.1: open de wizard direct in de gevraagde modus (aparte knoppen
+  // "Importeren" en "Verrijken" in plaats van een verstopte keuze in stap 1)
+  useEffect(() => {
+    if (isOpen) setMode(initialMode)
+  }, [isOpen, initialMode])
 
   // v31: bij verrijken hebben we de bestaande leads nodig om op te matchen
   useEffect(() => {

@@ -61,6 +61,7 @@ export default function Manager() {
   const [activeTab, setActiveTab] = useState('overzicht') // 'overzicht' | 'gesprekken' | 'team'
   const [showEmployee, setShowEmployee] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [importMode, setImportMode] = useState('import') // v32.1: 'import' of 'enrich'
   const [rules, setRules] = useState(null) // payout_rules (standaardtarieven)
   const [granularity, setGranularity] = useState('dag') // trends: 'uur' | 'dag' | 'week' | 'maand'
   const [filterAgent, setFilterAgent] = useState('all')
@@ -477,7 +478,10 @@ export default function Manager() {
           </div>
           <div className="flex gap-2">
             {canManageLeads && !kpiOnly && (
-              <button className="btn btn-primary btn-sm" onClick={() => setShowImport(true)}><Upload size={16} /> Leads importeren</button>
+              <>
+                <button className="btn btn-primary btn-sm" onClick={() => { setImportMode('import'); setShowImport(true) }}><Upload size={16} /> Leads importeren</button>
+                <button className="btn btn-primary btn-sm" onClick={() => { setImportMode('enrich'); setShowImport(true) }} title="Plak nieuwe info en die wordt bij de juiste bestaande leads gezet"><Sparkles size={16} /> Leads verrijken</button>
+              </>
             )}
             {canExport && (
               <button className="btn btn-outline btn-sm" onClick={handleExport}><Download size={16} /> Export CSV</button>
@@ -914,7 +918,7 @@ export default function Manager() {
       </main>
 
       <EmployeeModal isOpen={showEmployee} onClose={() => setShowEmployee(false)} onAdd={handleAddEmployee} fixedRole="employee" title="Nieuwe Beller" />
-      <ImportLeadsModal isOpen={showImport} onClose={() => setShowImport(false)} onImported={() => fetchCallLogs()} />
+      <ImportLeadsModal isOpen={showImport} initialMode={importMode} onClose={() => setShowImport(false)} onImported={() => fetchCallLogs()} />
       <CampaignBriefingModal isOpen={!!briefingCampaign} campaign={briefingCampaign} onClose={() => setBriefingCampaign(null)} />
     </motion.div>
   )

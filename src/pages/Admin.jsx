@@ -73,6 +73,7 @@ export default function Admin() {
   const [managerLinks, setManagerLinks] = useState([]) // campaign_managers-rijen voor de projectenteller (v23)
   const [showLeadList, setShowLeadList] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [importMode, setImportMode] = useState('import') // v32.1: 'import' of 'enrich'
   const [systemSettings, setSystemSettings] = useState(getSettings)
   // v31: organisaties (fundament voor klant-omgevingen) + org-beheerpaneel
   const [orgs, setOrgs] = useState([])
@@ -328,7 +329,8 @@ export default function Admin() {
                 </div>
                 <div className="flex gap-3" style={{ flexWrap: 'wrap' }}>
                    <button className="btn btn-secondary" onClick={() => setShowNewProject(true)}><Layers size={18} /> Nieuw project</button>
-                   <button className="btn btn-primary" onClick={() => setShowImport(true)}><Upload size={18} /> Importeren / verrijken</button>
+                   <button className="btn btn-primary" onClick={() => { setImportMode('import'); setShowImport(true) }}><Upload size={18} /> Leads importeren</button>
+                   <button className="btn btn-primary" onClick={() => { setImportMode('enrich'); setShowImport(true) }}><Zap size={18} /> Leads verrijken</button>
                    <button className="btn btn-outline" onClick={() => setShowAddLead(true)}><Plus size={18} /> Nieuwe lead</button>
                    <button className="btn btn-outline" onClick={() => setShowCampaign(true)}><Megaphone size={18}/> Campagne</button>
                 </div>
@@ -633,7 +635,7 @@ export default function Admin() {
       <BriefingModal isOpen={showBriefing} onClose={() => setShowBriefing(false)} />
       <CampaignModal isOpen={showCampaign} onClose={() => setShowCampaign(false)} />
       <LeadListModal isOpen={showLeadList} onClose={() => setShowLeadList(false)} />
-      <ImportLeadsModal isOpen={showImport} onClose={() => setShowImport(false)} onImported={() => { fetchData(); fetchLeadLists() }} />
+      <ImportLeadsModal isOpen={showImport} initialMode={importMode} onClose={() => setShowImport(false)} onImported={() => { fetchData(); fetchLeadLists() }} />
       <NewProjectWizard isOpen={showNewProject} onClose={() => setShowNewProject(false)} onCreated={() => { fetchData(); fetchLeadLists() }} />
 
       <style jsx>{`
