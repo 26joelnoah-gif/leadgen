@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
@@ -17,6 +17,7 @@ import { useToast } from '../components/Toast'
 import FlowSettingsEditor from '../components/FlowSettingsEditor'
 import { getStatusDetails } from '../utils/statusUtils'
 import ImportLeadsModal from '../components/ImportLeadsModal'
+import EnrichResultsModal from '../components/EnrichResultsModal'
 import NewProjectWizard from '../components/NewProjectWizard'
 import CampaignBriefingModal from '../components/CampaignBriefingModal'
 
@@ -74,9 +75,13 @@ export default function LeadManagement({ standalone = true }) {
   const [confirmDeleteProject, setConfirmDeleteProject] = useState(null)
   const [memberSearch, setMemberSearch] = useState({}) // v31: zoekterm per teamkaart
 
-  // v32: AI-verrijking (Perplexity via Edge Function enrich-lead)
+  // v32/v33: AI-verrijking (Perplexity via Edge Function enrich-lead) -
+  // werkt in blokken van 10 door de hele lijst, met voortgang en stopknop
   const [aiConfirm, setAiConfirm] = useState(false)
   const [aiRunning, setAiRunning] = useState(false)
+  const [aiProgress, setAiProgress] = useState(null) // { done, total }
+  const [aiResults, setAiResults] = useState(null)   // resultaten-overzicht na afloop
+  const aiStopRef = useRef(false)
 
   // Bulk State
   const [bulkListId, setBulkListId] = useState('')
@@ -153,42 +158,49 @@ export default function LeadManagement({ standalone = true }) {
     }
   }
 
-  // v32: AI-verrijken - max 10 leads per keer (leads zonder contactpersoon of e-mail eerst)
-  const aiCandidates = leads.filter(l => !(l.contact_person || '').trim() || !(l.email || '').trim()).slice(0, 10)
+  // v33: AI-verrijken over de hele lijst, in blokken van 10 (max 100 per run)
+  const aiCandidates = leads.filter(l => !(l.contact_person || '').trim() || !(l.email || '').trim()).slice(0, 100)
 
   async function runAiEnrich() {
     if (!aiConfirm) {
       setAiConfirm(true)
-      toast(`Klik nogmaals om ${aiCandidates.length} lead(s) via AI te verrijken (alleen lege velden worden gevuld, bron komt in de notities)`, 'info')
+      toast(`Klik nogmaals om ${aiCandidates.length} lead(s) via AI te verrijken. Gaat in blokken van 10; alleen lege velden worden gevuld en de bron komt in de notities. Stoppen kan tussendoor.`, 'info')
       setTimeout(() => setAiConfirm(false), 6000)
       return
     }
     setAiConfirm(false)
     setAiRunning(true)
+    aiStopRef.current = false
+    const all = []
     try {
-      const { data, error } = await supabase.functions.invoke('enrich-lead', {
-        body: { leadIds: aiCandidates.map(l => l.id) }
-      })
-      if (error) {
-        // Edge Functions geven de echte foutmelding in de response-body mee
-        let msg = error.message
-        try {
-          const body = await error.context?.json?.()
-          if (body?.error) msg = body.error
-        } catch { /* geen json */ }
-        throw new Error(msg)
+      for (let i = 0; i < aiCandidates.length; i += 10) {
+        if (aiStopRef.current) break
+        setAiProgress({ done: i, total: aiCandidates.length })
+        const chunk = aiCandidates.slice(i, i + 10)
+        const { data, error } = await supabase.functions.invoke('enrich-lead', {
+          body: { leadIds: chunk.map(l => l.id) }
+        })
+        if (error) {
+          // Edge Functions geven de echte foutmelding in de response-body mee
+          let msg = error.message
+          try {
+            const body = await error.context?.json?.()
+            if (body?.error) msg = body.error
+          } catch { /* geen json */ }
+          throw new Error(msg)
+        }
+        if (data?.error) throw new Error(data.error)
+        all.push(...(data?.results || []))
+        setAiProgress({ done: Math.min(i + 10, aiCandidates.length), total: aiCandidates.length })
       }
-      if (data?.error) throw new Error(data.error)
-      const res = data?.results || []
-      const ok = res.filter(r => r.status === 'ok').length
-      const nodata = res.filter(r => r.status === 'no_data').length
-      const errs = res.filter(r => r.status === 'error').length
-      toast(`AI-verrijking klaar: ${ok} lead(s) aangevuld${nodata ? `, ${nodata} zonder nieuwe info` : ''}${errs ? `, ${errs} fout(en)` : ''}`, errs ? 'error' : 'success')
-      if (selectedList) fetchLeads(selectedList.id)
+      setAiResults(all)
     } catch (err) {
       toast(err.message, 'error')
+      if (all.length) setAiResults(all)
     } finally {
+      setAiProgress(null)
       setAiRunning(false)
+      if (selectedList) fetchLeads(selectedList.id)
     }
   }
 
@@ -651,13 +663,13 @@ export default function LeadManagement({ standalone = true }) {
                              />
                           </div>
                           <button
-                            className={`btn btn-sm ${aiConfirm ? 'btn-primary' : 'btn-outline'}`}
-                            disabled={aiRunning || aiCandidates.length === 0}
-                            onClick={runAiEnrich}
-                            title="Zoekt via AI (Perplexity) openbare info op: contactpersoon, functie, e-mail, website, branche. Alleen lege velden worden gevuld; bronnen komen in de notities."
-                            style={{ opacity: (aiRunning || aiCandidates.length === 0) ? 0.5 : 1, whiteSpace: 'nowrap' }}
+                            className={`btn btn-sm ${aiConfirm || aiRunning ? 'btn-primary' : 'btn-outline'}`}
+                            disabled={!aiRunning && aiCandidates.length === 0}
+                            onClick={() => { if (aiRunning) { aiStopRef.current = true } else runAiEnrich() }}
+                            title={aiRunning ? 'Klik om te stoppen na het huidige blok' : 'Zoekt via AI (Perplexity) openbare info op: contactpersoon, functie, e-mail, website, branche. Alleen lege velden worden gevuld; bronnen komen in de notities.'}
+                            style={{ opacity: (!aiRunning && aiCandidates.length === 0) ? 0.5 : 1, whiteSpace: 'nowrap' }}
                           >
-                            <Sparkles size={14} /> {aiRunning ? 'AI bezig...' : aiConfirm ? `Bevestig (${aiCandidates.length})` : 'AI-verrijken'}
+                            <Sparkles size={14} /> {aiRunning ? `Stop (${aiProgress ? `${aiProgress.done}/${aiProgress.total}` : '...'})` : aiConfirm ? `Bevestig (${aiCandidates.length})` : 'AI-verrijken'}
                           </button>
                           <button
                             className="btn btn-sm btn-outline text-error hover:bg-error/10"
@@ -965,6 +977,8 @@ export default function LeadManagement({ standalone = true }) {
         onClose={() => setShowImport(false)}
         onImported={() => { fetchData(); fetchLeadLists(); if (selectedList) fetchLeads(selectedList.id) }}
       />
+
+      {aiResults && <EnrichResultsModal results={aiResults} onClose={() => setAiResults(null)} />}
 
       <NewProjectWizard
         isOpen={showNewProject}

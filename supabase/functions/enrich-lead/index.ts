@@ -1,10 +1,11 @@
-// LEADGEN v32 — AI-verrijking via Perplexity Sonar
-// GEDEPLOYED als Edge Function "enrich-lead" (versie 2) op zboyxwwrbtpjnlgquhzs.
-// Vult ALLEEN lege velden van bestaande leads (contactpersoon, functie,
-// e-mail, website, branche) en zet de bronnen in de notities.
-// Toegang: admin, of manager met can_manage_leads. Alle database-acties
-// lopen via de JWT van de gebruiker, dus RLS bepaalt welke leads mogen.
-// Vereist secret: PERPLEXITY_API_KEY (Supabase -> Project Settings -> Edge Functions -> Secrets)
+// LEADGEN v33 — verrijking, goedkoopste-eerst:
+//   Stap 1 (GRATIS): website-scan - de eigen site van de lead (home + /contact)
+//     wordt gelezen en e-mailadressen/LinkedIn worden eruit gehaald.
+//   Stap 2 (centen, alleen indien nodig én PERPLEXITY_API_KEY gezet): Perplexity
+//     zoekt contactpersoon/functie/branche op voor wat nog ontbreekt.
+// Vult ALLEEN lege velden; bronnen komen in de notities; alles wordt gelogd
+// in enrichment_logs. Toegang: admin of manager met can_manage_leads.
+// GEDEPLOYED als Edge Function "enrich-lead" (versie 3) op zboyxwwrbtpjnlgquhzs.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -27,10 +28,56 @@ function cleanWebsite(raw: string): string {
 const isEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(String(v || "").trim());
 const empty = (v: unknown) => !String(v ?? "").trim();
 
-Deno.serve(async (req: Request) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+// ---------- GRATIS: website-scan ----------
+async function fetchPage(url: string): Promise<string> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 6000);
+  try {
+    const res = await fetch(url, {
+      signal: ctrl.signal,
+      redirect: "follow",
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; LeadGenBot/1.0)" },
+    });
+    if (!res.ok) return "";
+    const type = res.headers.get("content-type") || "";
+    if (!type.includes("text/html")) return "";
+    return (await res.text()).slice(0, 400000);
+  } catch {
+    return "";
+  } finally {
+    clearTimeout(t);
   }
+}
+
+const EMAIL_NOISE = /\.(png|jpg|jpeg|gif|webp|svg|css|js)$|example\.|sentry|wixpress|@2x|@3x|schema\.org/i;
+
+async function scanWebsite(domain: string): Promise<{ emails: string[]; linkedin: string | null }> {
+  const emails = new Set<string>();
+  let linkedin: string | null = null;
+  for (const path of ["", "/contact", "/contact/"]) {
+    if (emails.size > 0 && linkedin) break;
+    for (const prefix of [`https://${domain}`, `https://www.${domain}`]) {
+      const html = await fetchPage(`${prefix}${path}`);
+      if (!html) continue;
+      for (const m of html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || []) {
+        const e = m.toLowerCase();
+        if (!EMAIL_NOISE.test(e) && e.length < 60) emails.add(e);
+      }
+      if (!linkedin) {
+        const lm = html.match(/https?:\/\/(?:[a-z]{2,3}\.)?linkedin\.com\/company\/[a-zA-Z0-9-_.%]+/);
+        if (lm) linkedin = lm[0];
+      }
+      if (html) break; // prefix werkte, andere prefix niet meer proberen
+    }
+  }
+  // Voorkeur voor adressen op het eigen domein, daarna de rest
+  const own = [...emails].filter((e) => e.endsWith(`@${domain}`) || e.includes(domain.split(".")[0]));
+  const rest = [...emails].filter((e) => !own.includes(e));
+  return { emails: [...own, ...rest].slice(0, 4), linkedin };
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), {
       status,
@@ -38,17 +85,13 @@ Deno.serve(async (req: Request) => {
     });
 
   try {
-    const apiKey = Deno.env.get("PERPLEXITY_API_KEY");
-    if (!apiKey) {
-      return json({ error: "PERPLEXITY_API_KEY ontbreekt. Voeg deze toe in Supabase: Project Settings -> Edge Functions -> Secrets." }, 500);
-    }
+    const apiKey = Deno.env.get("PERPLEXITY_API_KEY") || null;
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: req.headers.get("Authorization")! } } },
     );
-
     const { data: userData, error: userErr } = await supabase.auth.getUser();
     if (userErr || !userData?.user) return json({ error: "Niet ingelogd" }, 401);
     const uid = userData.user.id;
@@ -75,87 +118,126 @@ Deno.serve(async (req: Request) => {
 
     const results: Array<Record<string, unknown>> = [];
 
+    const log = (lead: { id: string; organization_id: string | null }, source: string, status: string, fields_added: Record<string, unknown>, detail: string | null) =>
+      supabase.from("enrichment_logs").insert({
+        lead_id: lead.id,
+        organization_id: lead.organization_id ?? profile.organization_id ?? null,
+        requested_by: uid,
+        source,
+        status,
+        fields_added,
+        detail,
+      });
+
     for (const lead of leads ?? []) {
-      const targets = ["contact_person", "function", "email", "website"] as const;
-      const missing = targets.filter((f) => empty((lead as Record<string, unknown>)[f]));
-      // Alles al gevuld (incl. branche in extra_info1)? Dan niets opzoeken.
-      if (!missing.length && !empty(lead.extra_info1)) {
-        results.push({ leadId: lead.id, name: lead.name, status: "no_data", detail: "alles al ingevuld" });
-        continue;
-      }
-
       try {
-        const vraag = [
-          `Bedrijf: ${lead.name}`,
-          lead.city ? `Plaats: ${lead.city}` : null,
-          lead.website ? `Website: ${lead.website}` : null,
-          lead.phone ? `Telefoon: ${lead.phone}` : null,
-        ].filter(Boolean).join("\n");
+        const updates: Record<string, unknown> = {};
+        const noteLines: string[] = [];
+        const sources: string[] = [];
+        const datum = new Date().toLocaleDateString("nl-NL");
 
-        const pplx = await fetch("https://api.perplexity.ai/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-          body: JSON.stringify({
-            model: "sonar",
-            messages: [
-              {
-                role: "system",
-                content:
-                  "Je bent een B2B-leadonderzoeker voor de Nederlandse markt. Zoek openbare informatie over het opgegeven bedrijf. Geef UITSLUITEND feiten die je daadwerkelijk in bronnen vindt; weet je iets niet zeker, gebruik dan null. Verzin nooit namen, e-mailadressen of websites.",
-              },
-              {
-                role: "user",
-                content:
-                  `${vraag}\n\nGeef JSON met: contact_person (naam van eigenaar/DGA/beslisser of null), function (functietitel of null), email (algemeen of persoonlijk zakelijk e-mailadres of null), website (domein of null), branche (korte NL-omschrijving of null), samenvatting (max 1 zin over het bedrijf of null).`,
-              },
-            ],
-            response_format: {
-              type: "json_schema",
-              json_schema: {
-                schema: {
-                  type: "object",
-                  properties: {
-                    contact_person: { type: ["string", "null"] },
-                    function: { type: ["string", "null"] },
-                    email: { type: ["string", "null"] },
-                    website: { type: ["string", "null"] },
-                    branche: { type: ["string", "null"] },
-                    samenvatting: { type: ["string", "null"] },
+        // ---------- STAP 1: GRATIS website-scan ----------
+        const domain = cleanWebsite(lead.website || "");
+        if (domain && domain.includes(".")) {
+          const scan = await scanWebsite(domain);
+          if (scan.emails.length && empty(lead.email)) updates.email = scan.emails[0];
+          const extraMail = scan.emails.filter((e) => e !== updates.email).slice(0, 3);
+          if (extraMail.length || scan.linkedin) {
+            const parts = [];
+            if (extraMail.length) parts.push(`e-mail: ${extraMail.join(", ")}`);
+            if (scan.linkedin) parts.push(`linkedin: ${scan.linkedin}`);
+            noteLines.push(`Website-scan (${datum}): ${parts.join(" | ")}`);
+          }
+          if (scan.emails.length || scan.linkedin) sources.push("website");
+        }
+
+        // ---------- STAP 2: Perplexity, alleen voor wat nog ontbreekt ----------
+        const stillMissing = ["contact_person", "function"].filter((f) => empty((lead as Record<string, unknown>)[f]))
+          .concat(empty(lead.email) && !updates.email ? ["email"] : [])
+          .concat(empty(lead.extra_info1) ? ["branche"] : []);
+
+        if (apiKey && stillMissing.length > 0) {
+          const vraag = [
+            `Bedrijf: ${lead.name}`,
+            lead.city ? `Plaats: ${lead.city}` : null,
+            domain ? `Website: ${domain}` : null,
+            lead.phone ? `Telefoon: ${lead.phone}` : null,
+          ].filter(Boolean).join("\n");
+
+          const pplx = await fetch("https://api.perplexity.ai/chat/completions", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+            body: JSON.stringify({
+              model: "sonar",
+              messages: [
+                {
+                  role: "system",
+                  content:
+                    "Je bent een B2B-leadonderzoeker voor de Nederlandse markt. Zoek openbare informatie over het opgegeven bedrijf. Geef UITSLUITEND feiten die je daadwerkelijk in bronnen vindt; weet je iets niet zeker, gebruik dan null. Verzin nooit namen, e-mailadressen of websites.",
+                },
+                {
+                  role: "user",
+                  content:
+                    `${vraag}\n\nGeef JSON met: contact_person (naam van eigenaar/DGA/beslisser of null), function (functietitel of null), email (zakelijk e-mailadres of null), website (domein of null), branche (korte NL-omschrijving of null), samenvatting (max 1 zin of null).`,
+                },
+              ],
+              response_format: {
+                type: "json_schema",
+                json_schema: {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      contact_person: { type: ["string", "null"] },
+                      function: { type: ["string", "null"] },
+                      email: { type: ["string", "null"] },
+                      website: { type: ["string", "null"] },
+                      branche: { type: ["string", "null"] },
+                      samenvatting: { type: ["string", "null"] },
+                    },
+                    required: ["contact_person", "function", "email", "website", "branche", "samenvatting"],
                   },
-                  required: ["contact_person", "function", "email", "website", "branche", "samenvatting"],
                 },
               },
-            },
-          }),
-        });
+            }),
+          });
 
-        if (!pplx.ok) {
-          const t = await pplx.text();
-          throw new Error(`Perplexity ${pplx.status}: ${t.slice(0, 200)}`);
+          if (!pplx.ok) {
+            const t = await pplx.text();
+            throw new Error(`Perplexity ${pplx.status}: ${t.slice(0, 200)}`);
+          }
+          const pj = await pplx.json();
+          const content = pj?.choices?.[0]?.message?.content ?? "{}";
+          const citations: string[] = Array.isArray(pj?.citations) ? pj.citations : (pj?.search_results?.map((s: { url?: string }) => s.url).filter(Boolean) ?? []);
+          let found: Record<string, string | null> = {};
+          try { found = JSON.parse(content); } catch { /* geen json */ }
+
+          if (found.contact_person && empty(lead.contact_person)) updates.contact_person = String(found.contact_person).slice(0, 120);
+          if (found.function && empty(lead.function)) updates.function = String(found.function).slice(0, 120);
+          if (found.email && empty(lead.email) && !updates.email && isEmail(found.email)) updates.email = String(found.email).trim().toLowerCase();
+          if (found.website && empty(lead.website)) {
+            const w = cleanWebsite(found.website);
+            if (w.includes(".")) updates.website = w;
+          }
+          if (found.branche && empty(lead.extra_info1)) updates.extra_info1 = `Branche: ${String(found.branche).slice(0, 120)}`;
+          if (Object.keys(updates).length > 0 || found.samenvatting) {
+            const bronnen = citations.slice(0, 2).join(", ");
+            noteLines.push(`AI-verrijkt (Perplexity, ${datum})${found.samenvatting ? `: ${String(found.samenvatting).slice(0, 160)}` : ""}${bronnen ? ` | bron: ${bronnen}` : ""}`);
+            sources.push("perplexity");
+          }
         }
-        const pj = await pplx.json();
-        const content = pj?.choices?.[0]?.message?.content ?? "{}";
-        const citations: string[] = Array.isArray(pj?.citations) ? pj.citations : (pj?.search_results?.map((s: { url?: string }) => s.url).filter(Boolean) ?? []);
-        let found: Record<string, string | null> = {};
-        try { found = JSON.parse(content); } catch { /* geen json */ }
 
-        // Alleen LEGE velden vullen - bestaande data blijft altijd staan
-        const updates: Record<string, unknown> = {};
-        if (found.contact_person && empty(lead.contact_person)) updates.contact_person = String(found.contact_person).slice(0, 120);
-        if (found.function && empty(lead.function)) updates.function = String(found.function).slice(0, 120);
-        if (found.email && empty(lead.email) && isEmail(found.email)) updates.email = String(found.email).trim().toLowerCase();
-        if (found.website && empty(lead.website)) {
-          const w = cleanWebsite(found.website);
-          if (w.includes(".")) updates.website = w;
-        }
-        if (found.branche && empty(lead.extra_info1)) updates.extra_info1 = `Branche: ${String(found.branche).slice(0, 120)}`;
-
-        if (Object.keys(updates).length > 0) {
-          const bronnen = citations.slice(0, 2).join(", ");
-          const datum = new Date().toLocaleDateString("nl-NL");
-          const noteLine = `AI-verrijkt (Perplexity, ${datum})${found.samenvatting ? `: ${String(found.samenvatting).slice(0, 160)}` : ""}${bronnen ? ` | bron: ${bronnen}` : ""}`;
-          updates.notes = empty(lead.notes) ? noteLine : `${lead.notes}\n${noteLine}`;
-
+        // ---------- Wegschrijven ----------
+        if (Object.keys(updates).length > 0 || noteLines.length > 0) {
+          const freshNotes = String(lead.notes || "");
+          const toAppend = noteLines.filter((l) => !freshNotes.includes(l));
+          if (toAppend.length) {
+            updates.notes = freshNotes.trim() ? `${freshNotes}\n${toAppend.join("\n")}` : toAppend.join("\n");
+          }
+          if (Object.keys(updates).length === 0) {
+            await log(lead, sources.join("+") || "website", "no_data", {}, "niets nieuws");
+            results.push({ leadId: lead.id, name: lead.name, status: "no_data" });
+            continue;
+          }
           const { data: upd, error: updErr } = await supabase
             .from("leads")
             .update(updates)
@@ -165,44 +247,23 @@ Deno.serve(async (req: Request) => {
 
           const added = { ...updates };
           delete added.notes;
-          await supabase.from("enrichment_logs").insert({
-            lead_id: lead.id,
-            organization_id: lead.organization_id ?? profile.organization_id ?? null,
-            requested_by: uid,
-            source: "perplexity",
-            status: "ok",
-            fields_added: added,
-            detail: citations.slice(0, 3).join(", ") || null,
-          });
-          results.push({ leadId: lead.id, name: lead.name, status: "ok", added });
+          await log(lead, sources.join("+") || "website", "ok", added, noteLines.join(" || ").slice(0, 300) || null);
+          results.push({ leadId: lead.id, name: lead.name, status: "ok", added, sources });
         } else {
-          await supabase.from("enrichment_logs").insert({
-            lead_id: lead.id,
-            organization_id: lead.organization_id ?? profile.organization_id ?? null,
-            requested_by: uid,
-            source: "perplexity",
-            status: "no_data",
-            fields_added: {},
-            detail: "niets gevonden of alles stond er al",
-          });
-          results.push({ leadId: lead.id, name: lead.name, status: "no_data" });
+          const reden = !apiKey && !domain
+            ? "geen website om te scannen en geen AI-sleutel ingesteld"
+            : "niets gevonden of alles stond er al";
+          await log(lead, apiKey ? "website+perplexity" : "website", "no_data", {}, reden);
+          results.push({ leadId: lead.id, name: lead.name, status: "no_data", detail: reden });
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        await supabase.from("enrichment_logs").insert({
-          lead_id: lead.id,
-          organization_id: lead.organization_id ?? profile.organization_id ?? null,
-          requested_by: uid,
-          source: "perplexity",
-          status: "error",
-          fields_added: {},
-          detail: msg.slice(0, 300),
-        }).then(() => {});
+        await log(lead, "perplexity", "error", {}, msg.slice(0, 300)).then(() => {});
         results.push({ leadId: lead.id, name: lead.name, status: "error", detail: msg });
       }
     }
 
-    return json({ results });
+    return json({ results, aiEnabled: !!apiKey });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return json({ error: msg }, 500);

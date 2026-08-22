@@ -8,6 +8,7 @@ import {
   TrendingUp, Phone, UserPlus, Layers, Upload, Zap, Euro, BarChart3, FastForward,
   BookOpen, Sparkles
 } from 'lucide-react'
+import EnrichResultsModal from '../components/EnrichResultsModal'
 import { getStatusDetails } from '../utils/statusUtils'
 import { effectiveSeconds, isCapped } from '../utils/callTimeUtils'
 import { exportToCSV } from '../utils/exportUtils'
@@ -273,19 +274,23 @@ export default function Manager() {
     }
   }
 
-  // v32: AI-verrijken per project (alleen met recht 'Leads beheren') -
-  // vult via de Edge Function enrich-lead alleen lege velden, max 10 per keer.
+  // v33: AI-verrijken per project (alleen met recht 'Leads beheren') -
+  // werkt in blokken van 10 door de lijst (max 100), gratis website-scan
+  // eerst en daarna pas AI; toont na afloop per lead wat er gevonden is.
   const [aiBusyId, setAiBusyId] = useState(null)
   const [aiConfirmId, setAiConfirmId] = useState(null)
+  const [aiProgress, setAiProgress] = useState(null) // { listId, done, total }
+  const [aiResults, setAiResults] = useState(null)
   async function aiEnrichList(listId) {
     if (aiConfirmId !== listId) {
       setAiConfirmId(listId)
-      toast('Klik nogmaals om max 10 leads van dit project via AI te verrijken (alleen lege velden, bron in de notities)', 'info')
+      toast('Klik nogmaals om de leads van dit project te verrijken (gratis website-scan + AI, alleen lege velden, bron in de notities)', 'info')
       setTimeout(() => setAiConfirmId(c => (c === listId ? null : c)), 6000)
       return
     }
     setAiConfirmId(null)
     setAiBusyId(listId)
+    const all = []
     try {
       const { data: listLeads, error: lErr } = await supabase
         .from('leads')
@@ -296,28 +301,32 @@ export default function Manager() {
       if (lErr) throw lErr
       const candidates = (listLeads || [])
         .filter(l => !(l.contact_person || '').trim() || !(l.email || '').trim())
-        .slice(0, 10)
+        .slice(0, 100)
       if (!candidates.length) { toast('Alle leads in dit project hebben al een contactpersoon en e-mailadres', 'info'); return }
 
-      const { data, error } = await supabase.functions.invoke('enrich-lead', {
-        body: { leadIds: candidates.map(l => l.id) }
-      })
-      if (error) {
-        let msg = error.message
-        try {
-          const body = await error.context?.json?.()
-          if (body?.error) msg = body.error
-        } catch { /* geen json */ }
-        throw new Error(msg)
+      for (let i = 0; i < candidates.length; i += 10) {
+        setAiProgress({ listId, done: i, total: candidates.length })
+        const chunk = candidates.slice(i, i + 10)
+        const { data, error } = await supabase.functions.invoke('enrich-lead', {
+          body: { leadIds: chunk.map(l => l.id) }
+        })
+        if (error) {
+          let msg = error.message
+          try {
+            const body = await error.context?.json?.()
+            if (body?.error) msg = body.error
+          } catch { /* geen json */ }
+          throw new Error(msg)
+        }
+        if (data?.error) throw new Error(data.error)
+        all.push(...(data?.results || []))
       }
-      if (data?.error) throw new Error(data.error)
-      const res = data?.results || []
-      const ok = res.filter(r => r.status === 'ok').length
-      const errs = res.filter(r => r.status === 'error').length
-      toast(`AI-verrijking klaar: ${ok} lead(s) aangevuld${errs ? `, ${errs} fout(en)` : ''}`, errs ? 'error' : 'success')
+      setAiResults(all)
     } catch (err) {
       toast(err.message, 'error')
+      if (all.length) setAiResults(all)
     } finally {
+      setAiProgress(null)
       setAiBusyId(null)
     }
   }
@@ -895,10 +904,12 @@ export default function Manager() {
                                 className={`btn btn-sm ${aiConfirmId === list.id ? 'btn-primary' : 'btn-outline'}`}
                                 disabled={aiBusyId === list.id}
                                 onClick={() => aiEnrichList(list.id)}
-                                title="Zoekt via AI openbare info op (contactpersoon, functie, e-mail, website, branche). Alleen lege velden worden gevuld."
+                                title="Gratis website-scan + AI: contactpersoon, functie, e-mail, branche. Alleen lege velden worden gevuld."
                                 style={{ whiteSpace: 'nowrap' }}
                               >
-                                <Sparkles size={14} /> {aiBusyId === list.id ? 'Bezig...' : aiConfirmId === list.id ? 'Bevestig' : 'AI-verrijken'}
+                                <Sparkles size={14} /> {aiBusyId === list.id
+                                  ? (aiProgress?.listId === list.id ? `Bezig ${aiProgress.done}/${aiProgress.total}` : 'Bezig...')
+                                  : aiConfirmId === list.id ? 'Bevestig' : 'Verrijken'}
                               </button>
                             </td>
                           )}
@@ -919,6 +930,7 @@ export default function Manager() {
 
       <EmployeeModal isOpen={showEmployee} onClose={() => setShowEmployee(false)} onAdd={handleAddEmployee} fixedRole="employee" title="Nieuwe Beller" />
       <ImportLeadsModal isOpen={showImport} initialMode={importMode} onClose={() => setShowImport(false)} onImported={() => fetchCallLogs()} />
+      {aiResults && <EnrichResultsModal results={aiResults} onClose={() => setAiResults(null)} />}
       <CampaignBriefingModal isOpen={!!briefingCampaign} campaign={briefingCampaign} onClose={() => setBriefingCampaign(null)} />
     </motion.div>
   )

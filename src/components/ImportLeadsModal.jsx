@@ -1,6 +1,6 @@
 import { useState, useRef, useMemo, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { X, Upload, ClipboardPaste, FileSpreadsheet, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, List, Plus } from 'lucide-react'
+import { X, Upload, ClipboardPaste, FileSpreadsheet, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, List, Plus, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
@@ -311,6 +311,42 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
   function handlePaste() {
     if (!pasteText.trim()) { toast('Plak eerst je data in het veld', 'error'); return }
     loadRows(parseDelimited(pasteText))
+  }
+
+  // v33: "Herken met AI" - losse tekst (AI-proza, e-mails, notities) door de
+  // Edge Function parse-paste laten structureren tot nette rijen
+  const [aiParsing, setAiParsing] = useState(false)
+  async function handleAiParse() {
+    if (!pasteText.trim()) { toast('Plak eerst je tekst in het veld', 'error'); return }
+    setAiParsing(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('parse-paste', { body: { text: pasteText } })
+      if (error) {
+        let msg = error.message
+        try {
+          const body = await error.context?.json?.()
+          if (body?.error) msg = body.error
+        } catch { /* geen json */ }
+        throw new Error(msg)
+      }
+      if (data?.error) throw new Error(data.error)
+      const aiRows = data?.rows || []
+      if (!aiRows.length) { toast('De AI kon geen bedrijven herkennen in deze tekst', 'error'); return }
+      const COLS = [
+        ['name', 'Bedrijfsnaam'], ['contact_person', 'Contactpersoon'], ['function', 'Functie'],
+        ['email', 'E-mail'], ['phone', 'Telefoon'], ['website', 'Website'], ['city', 'Plaats'], ['notes', 'Notities']
+      ].filter(([key]) => aiRows.some(r => (r[key] || '').toString().trim()))
+      setRows([COLS.map(c => c[1]), ...aiRows.map(r => COLS.map(([key]) => (r[key] || '').toString()))])
+      setMapping(COLS.map(([key]) => key))
+      setHasHeader(true)
+      setExcludedRows(new Set())
+      setStep(2)
+      toast(`${aiRows.length} bedrijven herkend - controleer het overzicht en bevestig`, 'success')
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setAiParsing(false)
+    }
   }
 
   async function handleFile(e) {
@@ -696,6 +732,15 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                     />
                     <button onClick={handlePaste} disabled={!pasteText.trim()} className="btn btn-primary btn-block" style={{ marginTop: '10px', padding: '13px', fontWeight: 800, opacity: pasteText.trim() ? 1 : 0.5 }}>
                       Verwerk geplakte data <ArrowRight size={16} />
+                    </button>
+                    <button
+                      onClick={handleAiParse}
+                      disabled={!pasteText.trim() || aiParsing}
+                      className="btn btn-outline btn-block"
+                      title="Voor tekst zonder nette kolommen: een AI haalt de bedrijven en contactgegevens eruit. Alleen wat er letterlijk in de tekst staat wordt gebruikt."
+                      style={{ marginTop: '8px', padding: '11px', fontWeight: 800, opacity: (pasteText.trim() && !aiParsing) ? 1 : 0.5 }}
+                    >
+                      <Sparkles size={15} /> {aiParsing ? 'AI leest je tekst...' : 'Geen nette tabel? Herken met AI'}
                     </button>
                   </div>
 
