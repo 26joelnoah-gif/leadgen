@@ -12,6 +12,9 @@ import { useToast } from './Toast'
 // .csv/.xlsx bestand. Kolommen worden automatisch herkend en
 // zijn daarna zelf aan te passen. Website-links worden
 // opgeschoond zodat ze kort en klikbaar blijven.
+// v31: naast importeren ook VERRIJKEN - plak nieuwe info (bijv.
+// beslissers of contactpersonen per bedrijf) en die wordt bij de
+// juiste bestaande lead gezet. Kolommen op "Negeren" doen nooit mee.
 // ============================================================
 
 const FIELDS = [
@@ -27,10 +30,16 @@ const FIELDS = [
   { id: 'postal_code', label: 'Postcode' },
   { id: 'city', label: 'Plaats' },
   { id: 'notes', label: 'Notities' },
+  { id: 'decision_maker', label: 'Beslisser (ja/nee)' },
   { id: 'extra_info1', label: 'Extra info 1' },
   { id: 'extra_info2', label: 'Extra info 2' },
   { id: 'extra_info3', label: 'Extra info 3' },
 ]
+
+// Velden die bij verrijken aangevuld mogen worden (alleen als ze nu leeg zijn)
+const ENRICHABLE = ['contact_person', 'function', 'email', 'website', 'address', 'house_number', 'postal_code', 'city', 'notes', 'extra_info1', 'extra_info2', 'extra_info3']
+
+const parseDecisionMaker = (v) => /^(ja|j|yes|y|x|true|1|beslisser|dmu?)$/i.test(String(v || '').trim())
 
 // Robuuste parser voor geplakte/gelezen tekst (tab, ; of , met quotes)
 function parseDelimited(text) {
@@ -116,6 +125,10 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
   const fileRef = useRef(null)
 
   const [step, setStep] = useState(1)           // 1 = data, 2 = kolommen & preview, 3 = klaar
+  const [mode, setMode] = useState('import')    // v31: 'import' (nieuwe leads) of 'enrich' (bestaande leads verrijken)
+  const [existingLeads, setExistingLeads] = useState([])
+  const [loadingExisting, setLoadingExisting] = useState(false)
+  const [excludedRows, setExcludedRows] = useState(new Set()) // v31: rijen die je in het overzicht uitzet
   const [pasteText, setPasteText] = useState('')
   const [rows, setRows] = useState([])           // string[][]
   const [hasHeader, setHasHeader] = useState(true)
@@ -147,9 +160,35 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
     setStep(1); setPasteText(''); setRows([]); setMapping([]); setResult(null)
     setTargetCampaignId(''); setNewCampaignName(''); setNewCampaignTeamId('')
     setTargetListId(''); setNewListName(''); setFileName(''); setHasHeader(true)
+    setExcludedRows(new Set())
   }
 
-  function close() { reset(); onClose() }
+  function close() { reset(); setMode('import'); onClose() }
+
+  // v31: bij verrijken hebben we de bestaande leads nodig om op te matchen
+  useEffect(() => {
+    if (!isOpen || isDemoMode || mode !== 'enrich' || step !== 2) return
+    let cancelled = false
+    async function fetchAll() {
+      setLoadingExisting(true)
+      const all = []
+      const PAGE = 1000
+      for (let from = 0; from < 20000; from += PAGE) {
+        const { data, error } = await supabase
+          .from('leads')
+          .select('id, name, phone, website, email, contact_person, function, address, house_number, postal_code, city, notes, extra_info1, extra_info2, extra_info3, decision_maker')
+          .is('deleted_at', null)
+          .order('created_at', { ascending: true })
+          .range(from, from + PAGE - 1)
+        if (error || !data) break
+        all.push(...data)
+        if (data.length < PAGE) break
+      }
+      if (!cancelled) { setExistingLeads(all); setLoadingExisting(false) }
+    }
+    fetchAll()
+    return () => { cancelled = true }
+  }, [isOpen, isDemoMode, mode, step])
 
   // ---------- Stap 1: data binnenhalen ----------
   function loadRows(parsedRows) {
@@ -194,6 +233,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
 
     setRows(normalized)
     setMapping(finalMapping)
+    setExcludedRows(new Set())
     setStep(2)
   }
 
@@ -241,6 +281,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
         if (field === 'notes') lead.notes = lead.notes ? `${lead.notes} | ${value}` : value
         else if (field === 'website') lead.website = normalizeWebsite(value)
         else if (field === 'phone') lead.phone = cleanPhone(value)
+        else if (field === 'decision_maker') lead.decision_maker = parseDecisionMaker(value)
         else if (field.startsWith('extra_info')) {
           // Kopregel meenemen zodat je in de belmodus ziet wát dit was (bijv. "Branche: Bouw")
           const header = hasHeader ? (rows[0]?.[i] || '').trim() : ''
@@ -261,6 +302,120 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
 
   const mappingHasName = mapping.includes('name')
   const mappingHasPhone = mapping.includes('phone')
+
+  // ===== v31: VERRIJKEN - geplakte rijen matchen aan bestaande leads =====
+  // Kolommen op "Negeren" doen hier bewust NIET mee: negeren = negeren.
+  const enrichPlan = useMemo(() => {
+    if (mode !== 'enrich') return { matches: [], unmatched: [], noNews: 0 }
+
+    // Lookup-tabellen over de bestaande leads
+    const byPhone = new Map(), byWeb = new Map(), byName = new Map()
+    const nameCount = {}
+    existingLeads.forEach(l => {
+      const p = cleanPhone(l.phone)
+      if (p && !byPhone.has(p)) byPhone.set(p, l)
+      const w = (normalizeWebsite(l.website || '') || '').toLowerCase()
+      if (w && !byWeb.has(w)) byWeb.set(w, l)
+      const n = (l.name || '').trim().toLowerCase()
+      if (n) {
+        nameCount[n] = (nameCount[n] || 0) + 1
+        if (!byName.has(n)) byName.set(n, l)
+      }
+    })
+
+    const matches = []
+    const unmatched = []
+    let noNews = 0
+    const seenLeadIds = new Set()
+
+    dataRows.forEach((r, idx) => {
+      // Rij -> object volgens de kolomtoewijzing (skip = overslaan)
+      const row = {}
+      mapping.forEach((field, i) => {
+        if (field === 'skip') return
+        const value = (r[i] || '').trim()
+        if (!value) return
+        if (field === 'notes') row.notes = row.notes ? `${row.notes} | ${value}` : value
+        else if (field === 'website') row.website = normalizeWebsite(value)
+        else if (field === 'phone') row.phone = cleanPhone(value)
+        else if (field === 'decision_maker') row.decision_maker = parseDecisionMaker(value)
+        else if (field.startsWith('extra_info')) {
+          const header = hasHeader ? (rows[0]?.[i] || '').trim() : ''
+          row[field] = header ? `${header}: ${value}` : value
+        }
+        else row[field] = value
+      })
+      if (Object.keys(row).length === 0) return // lege rij
+      const rowNr = idx + (hasHeader ? 2 : 1)
+
+      // Matchen: telefoonnummer > website > bedrijfsnaam
+      let lead = null, via = null
+      if (row.phone && byPhone.has(row.phone)) { lead = byPhone.get(row.phone); via = 'telefoon' }
+      if (!lead && row.website) {
+        const w = String(row.website).toLowerCase()
+        if (byWeb.has(w)) { lead = byWeb.get(w); via = 'website' }
+      }
+      if (!lead && row.name) {
+        const n = row.name.trim().toLowerCase()
+        if (nameCount[n] > 1) { unmatched.push({ rowNr, name: row.name, reason: 'meerdere leads met deze naam - niet eenduidig' }); return }
+        if (byName.has(n)) { lead = byName.get(n); via = 'naam' }
+      }
+      if (!lead) { unmatched.push({ rowNr, name: row.name || row.phone || row.website || `rij ${rowNr}`, reason: 'geen bestaande lead gevonden' }); return }
+      if (seenLeadIds.has(lead.id)) { unmatched.push({ rowNr, name: row.name || lead.name, reason: 'lead komt al eerder in je plak-data voor' }); return }
+
+      // Alleen LEGE velden aanvullen - bestaande data blijft altijd staan
+      const additions = {}
+      ENRICHABLE.forEach(f => {
+        if (row[f] && !(lead[f] || '').toString().trim()) additions[f] = row[f]
+      })
+      if (row.decision_maker === true && lead.decision_maker !== true) additions.decision_maker = true
+
+      if (Object.keys(additions).length === 0) { noNews++; return }
+      seenLeadIds.add(lead.id)
+      matches.push({ rowNr, lead, via, additions })
+    })
+
+    return { matches, unmatched, noNews }
+  }, [mode, existingLeads, dataRows, mapping, hasHeader, rows])
+
+  const enrichHasKeyColumn = mappingHasPhone || mappingHasName || mapping.includes('website')
+  const activeEnrichCount = enrichPlan.matches.filter(m => !excludedRows.has(m.rowNr)).length
+
+  async function runEnrich() {
+    if (isDemoMode) { toast('Verrijken werkt niet in demo-modus', 'error'); return }
+    const todo = enrichPlan.matches.filter(m => !excludedRows.has(m.rowNr))
+    if (!todo.length) { toast('Geen leads om te verrijken', 'error'); return }
+    setImporting(true)
+    try {
+      let enriched = 0
+      const failures = []
+      for (let i = 0; i < todo.length; i += 10) {
+        const chunk = todo.slice(i, i + 10)
+        const results = await Promise.all(chunk.map(m =>
+          supabase.from('leads').update(m.additions).eq('id', m.lead.id).select('id')
+        ))
+        results.forEach((res, j) => {
+          if (res.error || !res.data?.length) failures.push(chunk[j].lead.name)
+          else enriched++
+        })
+      }
+      setResult({
+        mode: 'enrich',
+        enriched,
+        failures: failures.length,
+        unmatched: enrichPlan.unmatched.length,
+        noNews: enrichPlan.noNews,
+        deselected: enrichPlan.matches.length - todo.length
+      })
+      setStep(3)
+      onImported?.()
+    } catch (err) {
+      console.error('Verrijken mislukt:', err)
+      toast(`Verrijken mislukt: ${err.message}`, 'error')
+    } finally {
+      setImporting(false)
+    }
+  }
 
   // ---------- Stap 3: importeren ----------
   async function runImport() {
@@ -375,7 +530,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
             <div style={{ padding: '20px 24px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem' }}>
                 <FileSpreadsheet size={20} style={{ color: 'var(--secondary)' }} />
-                Leads importeren
+                {mode === 'enrich' ? 'Leads verrijken' : 'Leads importeren'}
                 <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', background: 'var(--bg-elevated)', padding: '3px 10px', borderRadius: '10px' }}>
                   Stap {step} van 3
                 </span>
@@ -387,12 +542,35 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
               {/* ===== STAP 1: DATA ===== */}
               {step === 1 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {/* v31: wat wil je doen - nieuwe leads erbij, of bestaande aanvullen? */}
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    {[
+                      { id: 'import', title: 'Nieuwe leads importeren', sub: 'Rijen worden als nieuwe leads aan een project toegevoegd.' },
+                      { id: 'enrich', title: 'Bestaande leads verrijken', sub: 'Nieuwe info (beslissers, contactpersonen, e-mail...) wordt bij de juiste bestaande lead gezet.' }
+                    ].map(m => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setMode(m.id)}
+                        style={{
+                          flex: 1, padding: '14px', borderRadius: '12px', cursor: 'pointer', textAlign: 'left',
+                          border: mode === m.id ? '1px solid var(--primary)' : '1px solid var(--border)',
+                          background: mode === m.id ? 'rgba(59,130,246,0.12)' : 'var(--bg-elevated)'
+                        }}
+                      >
+                        <div style={{ fontWeight: 900, fontSize: '0.9rem', color: mode === m.id ? 'var(--primary)' : 'var(--text-primary)' }}>{m.title}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.4 }}>{m.sub}</div>
+                      </button>
+                    ))}
+                  </div>
                   <div>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '8px', color: 'var(--text-primary)' }}>
                       <ClipboardPaste size={16} style={{ color: 'var(--primary)' }} /> Plakken uit Google Sheets of Excel
                     </label>
                     <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 10px 0' }}>
-                      Selecteer je rijen in Google Sheets of Excel (inclusief kopregel), kopieer ze (Cmd+C) en plak ze hieronder (Cmd+V).
+                      {mode === 'enrich'
+                        ? 'Plak rijen met minimaal een bedrijfsnaam, telefoonnummer of website (om te matchen) plus de nieuwe info. Alleen lege velden worden aangevuld - bestaande gegevens blijven staan.'
+                        : 'Selecteer je rijen in Google Sheets of Excel (inclusief kopregel), kopieer ze (Cmd+C) en plak ze hieronder (Cmd+V).'}
                     </p>
                     <textarea
                       value={pasteText}
@@ -482,31 +660,116 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
                   </div>
                   {dataRows.length > 6 && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center' }}>… en nog {dataRows.length - 6} rijen</div>}
 
-                  {/* Validatie-samenvatting */}
-                  <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-                    <div style={{ flex: 1, minWidth: '200px', padding: '14px', borderRadius: '12px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)' }}>
-                      <div style={{ fontWeight: 900, fontSize: '1.3rem', color: 'var(--success)' }}>{parsedLeads.leads.length}</div>
-                      <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>leads klaar voor import</div>
-                    </div>
-                    {parsedLeads.errors.length > 0 && (
-                      <div style={{ flex: 2, minWidth: '260px', padding: '14px', borderRadius: '12px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
-                        <div style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <AlertTriangle size={14} /> {parsedLeads.errors.length} rijen worden overgeslagen
+                  {/* Validatie-samenvatting (import) */}
+                  {mode === 'import' && (
+                    <>
+                      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: '200px', padding: '14px', borderRadius: '12px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                          <div style={{ fontWeight: 900, fontSize: '1.3rem', color: 'var(--success)' }}>{parsedLeads.leads.length}</div>
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>leads klaar voor import</div>
                         </div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '6px', maxHeight: '70px', overflowY: 'auto' }}>
-                          {parsedLeads.errors.slice(0, 8).map((e, i) => <div key={i}>{e}</div>)}
-                          {parsedLeads.errors.length > 8 && <div>… en {parsedLeads.errors.length - 8} meer</div>}
-                        </div>
+                        {parsedLeads.errors.length > 0 && (
+                          <div style={{ flex: 2, minWidth: '260px', padding: '14px', borderRadius: '12px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                            <div style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <AlertTriangle size={14} /> {parsedLeads.errors.length} rijen worden overgeslagen
+                            </div>
+                            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '6px', maxHeight: '70px', overflowY: 'auto' }}>
+                              {parsedLeads.errors.slice(0, 8).map((e, i) => <div key={i}>{e}</div>)}
+                              {parsedLeads.errors.length > 8 && <div>… en {parsedLeads.errors.length - 8} meer</div>}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  {(!mappingHasName || !mappingHasPhone) && (
-                    <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#FCA5A5', fontSize: '0.82rem', fontWeight: 700 }}>
-                      Wijs minimaal een kolom toe aan {!mappingHasName && '"Bedrijfsnaam"'}{!mappingHasName && !mappingHasPhone && ' en '}{!mappingHasPhone && '"Telefoonnummer"'}.
-                    </div>
+                      {(!mappingHasName || !mappingHasPhone) && (
+                        <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#FCA5A5', fontSize: '0.82rem', fontWeight: 700 }}>
+                          Wijs minimaal een kolom toe aan {!mappingHasName && '"Bedrijfsnaam"'}{!mappingHasName && !mappingHasPhone && ' en '}{!mappingHasPhone && '"Telefoonnummer"'}.
+                        </div>
+                      )}
+                    </>
                   )}
 
-                  {/* Doel: project (campagne) → lijst binnen dat project */}
+                  {/* v31: verrijk-overzicht - precies zien wat er bij welke lead bijkomt */}
+                  {mode === 'enrich' && (
+                    <>
+                      {!enrichHasKeyColumn && (
+                        <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#FCA5A5', fontSize: '0.82rem', fontWeight: 700 }}>
+                          Wijs minimaal een kolom toe aan "Bedrijfsnaam", "Telefoonnummer" of "Website" - daarmee zoek ik de juiste bestaande lead erbij.
+                        </div>
+                      )}
+                      {loadingExisting ? (
+                        <div style={{ padding: '16px', color: 'var(--text-muted)', fontWeight: 700, fontSize: '0.85rem' }}>Bestaande leads laden om op te matchen...</div>
+                      ) : enrichHasKeyColumn && (
+                        <>
+                          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                            <div style={{ flex: 1, minWidth: '160px', padding: '14px', borderRadius: '12px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                              <div style={{ fontWeight: 900, fontSize: '1.3rem', color: 'var(--success)' }}>{activeEnrichCount}</div>
+                              <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>leads krijgen nieuwe info</div>
+                            </div>
+                            {enrichPlan.noNews > 0 && (
+                              <div style={{ flex: 1, minWidth: '160px', padding: '14px', borderRadius: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                                <div style={{ fontWeight: 900, fontSize: '1.3rem', color: 'var(--text-muted)' }}>{enrichPlan.noNews}</div>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>rijen zonder nieuwe info (alles stond er al)</div>
+                              </div>
+                            )}
+                            {enrichPlan.unmatched.length > 0 && (
+                              <div style={{ flex: 2, minWidth: '240px', padding: '14px', borderRadius: '12px', background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                                <div style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <AlertTriangle size={14} /> {enrichPlan.unmatched.length} rijen niet gematcht
+                                </div>
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '6px', maxHeight: '70px', overflowY: 'auto' }}>
+                                  {enrichPlan.unmatched.slice(0, 8).map((u, i) => <div key={i}>Rij {u.rowNr}: {u.name} - {u.reason}</div>)}
+                                  {enrichPlan.unmatched.length > 8 && <div>… en {enrichPlan.unmatched.length - 8} meer</div>}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {enrichPlan.matches.length > 0 && (
+                            <div style={{ border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
+                              <div style={{ padding: '10px 14px', background: 'var(--bg-elevated)', fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                Dit komt erbij - vink uit wat je niet wilt
+                              </div>
+                              <div style={{ maxHeight: '260px', overflowY: 'auto' }}>
+                                {enrichPlan.matches.map(m => {
+                                  const off = excludedRows.has(m.rowNr)
+                                  return (
+                                    <div key={m.rowNr} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 14px', borderTop: '1px solid var(--border)', opacity: off ? 0.45 : 1 }}>
+                                      <input
+                                        type="checkbox"
+                                        checked={!off}
+                                        onChange={() => setExcludedRows(prev => {
+                                          const next = new Set(prev)
+                                          next.has(m.rowNr) ? next.delete(m.rowNr) : next.add(m.rowNr)
+                                          return next
+                                        })}
+                                        style={{ width: '16px', height: '16px', marginTop: '3px', cursor: 'pointer', flexShrink: 0 }}
+                                      />
+                                      <div style={{ minWidth: 0, flex: 1 }}>
+                                        <div style={{ fontWeight: 800, fontSize: '0.85rem', color: 'var(--text-primary)' }}>
+                                          {m.lead.name}
+                                          <span style={{ marginLeft: '8px', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--primary)', background: 'rgba(59,130,246,0.12)', padding: '2px 7px', borderRadius: '6px' }}>match op {m.via}</span>
+                                        </div>
+                                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                                          {Object.entries(m.additions).map(([f, v]) => (
+                                            <span key={f} style={{ fontSize: '0.72rem', fontWeight: 700, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: 'var(--success)', padding: '3px 8px', borderRadius: '8px', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                              + {(FIELDS.find(x => x.id === f)?.label || f).replace(' (ja/nee)', '')}: {f === 'decision_maker' ? 'ja' : (f === 'website' ? displayWebsite(v) : String(v))}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </>
+                  )}
+
+                  {/* Doel: project (campagne) → lijst binnen dat project - alleen bij import */}
+                  {mode === 'import' && (
                   <div style={{ padding: '16px', borderRadius: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
                     <div>
                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '10px', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
@@ -580,22 +843,53 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported }) {
                     </div>
                   </div>
 
+                  )}
+
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button onClick={() => setStep(1)} className="btn btn-outline" style={{ padding: '13px 20px' }}><ArrowLeft size={16} /> Terug</button>
-                    <button
-                      onClick={runImport}
-                      disabled={importing || !parsedLeads.leads.length || !mappingHasName || !mappingHasPhone || !targetCampaignId || (targetCampaignId === '__new__' && !newCampaignName.trim()) || (!targetListId && !newListName.trim())}
-                      className="btn btn-primary"
-                      style={{ flex: 1, padding: '13px', fontWeight: 900, fontSize: '1rem', opacity: (importing || !parsedLeads.leads.length || !mappingHasName || !mappingHasPhone || !targetCampaignId || (targetCampaignId === '__new__' && !newCampaignName.trim()) || (!targetListId && !newListName.trim())) ? 0.5 : 1 }}
-                    >
-                      {importing ? 'Bezig met importeren...' : `Importeer ${parsedLeads.leads.length} leads`}
-                    </button>
+                    {mode === 'import' ? (
+                      <button
+                        onClick={runImport}
+                        disabled={importing || !parsedLeads.leads.length || !mappingHasName || !mappingHasPhone || !targetCampaignId || (targetCampaignId === '__new__' && !newCampaignName.trim()) || (!targetListId && !newListName.trim())}
+                        className="btn btn-primary"
+                        style={{ flex: 1, padding: '13px', fontWeight: 900, fontSize: '1rem', opacity: (importing || !parsedLeads.leads.length || !mappingHasName || !mappingHasPhone || !targetCampaignId || (targetCampaignId === '__new__' && !newCampaignName.trim()) || (!targetListId && !newListName.trim())) ? 0.5 : 1 }}
+                      >
+                        {importing ? 'Bezig met importeren...' : `Importeer ${parsedLeads.leads.length} leads`}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={runEnrich}
+                        disabled={importing || loadingExisting || !enrichHasKeyColumn || activeEnrichCount === 0}
+                        className="btn btn-primary"
+                        style={{ flex: 1, padding: '13px', fontWeight: 900, fontSize: '1rem', opacity: (importing || loadingExisting || !enrichHasKeyColumn || activeEnrichCount === 0) ? 0.5 : 1 }}
+                      >
+                        {importing ? 'Bezig met verrijken...' : `Verrijk ${activeEnrichCount} lead${activeEnrichCount === 1 ? '' : 's'}`}
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
 
               {/* ===== STAP 3: RESULTAAT ===== */}
-              {step === 3 && result && (
+              {step === 3 && result && result.mode === 'enrich' && (
+                <div style={{ textAlign: 'center', padding: '30px 10px' }}>
+                  <CheckCircle2 size={54} style={{ color: 'var(--success)', marginBottom: '16px' }} />
+                  <h3 style={{ color: 'var(--text-primary)', marginBottom: '8px', fontSize: '1.4rem' }}>Verrijken gelukt!</h3>
+                  <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
+                    <strong style={{ color: 'var(--success)' }}>{result.enriched} leads</strong> aangevuld met nieuwe info. Bestaande gegevens zijn niet overschreven.
+                    {result.noNews > 0 && <><br />{result.noNews} rijen hadden niets nieuws (alles stond er al).</>}
+                    {result.unmatched > 0 && <><br />{result.unmatched} rijen konden niet aan een bestaande lead gekoppeld worden.</>}
+                    {result.deselected > 0 && <><br />{result.deselected} rijen door jou uitgevinkt en overgeslagen.</>}
+                    {result.failures > 0 && <><br /><span style={{ color: 'var(--warning)' }}>{result.failures} leads konden niet bijgewerkt worden (geen rechten of inmiddels verwijderd).</span></>}
+                  </p>
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                    <button onClick={() => { setStep(1); setPasteText(''); setRows([]); setResult(null); setExcludedRows(new Set()) }} className="btn btn-outline">Nog een keer verrijken</button>
+                    <button onClick={close} className="btn btn-primary" style={{ fontWeight: 800 }}>Klaar</button>
+                  </div>
+                </div>
+              )}
+
+              {step === 3 && result && result.mode !== 'enrich' && (
                 <div style={{ textAlign: 'center', padding: '30px 10px' }}>
                   <CheckCircle2 size={54} style={{ color: 'var(--success)', marginBottom: '16px' }} />
                   <h3 style={{ color: 'var(--text-primary)', marginBottom: '8px', fontSize: '1.4rem' }}>Import gelukt!</h3>

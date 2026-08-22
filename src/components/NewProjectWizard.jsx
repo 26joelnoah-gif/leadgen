@@ -218,20 +218,23 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
     )
   }
 
+  // v30: autoComplete uit - deze velden maken een account aan voor iemand
+  // anders; de browser mag hier nooit de eigen (opgeslagen) inloggegevens
+  // van de ingelogde gebruiker invullen.
   function AccountFields({ value, onChange }) {
     return (
       <div className="grid grid-cols-1 gap-4">
         <div>
           <label className={labelStyle}>Naam</label>
-          <input className={inputStyle} value={value.name} onChange={e => onChange({ ...value, name: e.target.value })} placeholder="Volledige naam" />
+          <input className={inputStyle} name="nieuw-account-naam" autoComplete="off" value={value.name} onChange={e => onChange({ ...value, name: e.target.value })} placeholder="Volledige naam" />
         </div>
         <div>
           <label className={labelStyle}>E-mail</label>
-          <input className={inputStyle} type="email" value={value.email} onChange={e => onChange({ ...value, email: e.target.value })} placeholder="email@voorbeeld.nl" />
+          <input className={inputStyle} type="email" name="nieuw-account-email" autoComplete="off" value={value.email} onChange={e => onChange({ ...value, email: e.target.value })} placeholder="email@voorbeeld.nl" />
         </div>
         <div>
           <label className={labelStyle}>Wachtwoord (min. 6 tekens)</label>
-          <input className={inputStyle} type="password" value={value.password} onChange={e => onChange({ ...value, password: e.target.value })} placeholder="••••••" />
+          <input className={inputStyle} type="password" name="nieuw-account-wachtwoord" autoComplete="new-password" value={value.password} onChange={e => onChange({ ...value, password: e.target.value })} placeholder="••••••" />
         </div>
       </div>
     )

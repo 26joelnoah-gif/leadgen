@@ -17,6 +17,30 @@ const PERMISSIONS = [
   { key: 'kpi_only', label: "Alleen KPI's & uitkomsten", hint: 'Ziet alleen totalen en trends (afspraken, belletjes per uur/dag/week/maand) - geen individuele gesprekken of leadgegevens.' }
 ]
 
+// v31: presets - één klik zet alle toggles goed, daarna nog per recht bij te stellen.
+const PRESETS = [
+  {
+    id: 'meekijken',
+    label: 'Alleen meekijken',
+    hint: "Klant die alleen resultaten wil zien: KPI's en trends, verder niets.",
+    perms: { can_view_rates: false, can_manage_leads: false, can_manage_team: false, can_export_data: false, can_edit_flows: false, can_manage_queue: false, kpi_only: true }
+  },
+  {
+    id: 'standaard',
+    label: 'Standaard manager',
+    hint: 'Ziet gesprekken en bellers, mag bellers aanmaken/toewijzen en exporteren. Geen tarieven of flows.',
+    perms: { can_view_rates: false, can_manage_leads: false, can_manage_team: true, can_export_data: true, can_edit_flows: false, can_manage_queue: false, kpi_only: false }
+  },
+  {
+    id: 'volledig',
+    label: 'Volledig beheer',
+    hint: 'Alles: tarieven, leads, team, export, flows en wachtrij.',
+    perms: { can_view_rates: true, can_manage_leads: true, can_manage_team: true, can_export_data: true, can_edit_flows: true, can_manage_queue: true, kpi_only: false }
+  }
+]
+
+const presetMatches = (perms, preset) => PERMISSIONS.every(p => !!perms[p.key] === !!preset.perms[p.key])
+
 function PermToggle({ on, onClick }) {
   return (
     <button
@@ -206,6 +230,30 @@ export default function ManagerProjectsModal({ isOpen, onClose, manager, onSaved
         <div style={{ marginBottom: '20px' }}>
           <div className="text-[10px] font-black uppercase text-muted tracking-widest" style={{ marginBottom: '8px' }}>
             Wat mag deze manager?
+          </div>
+          {/* v31: presets - kies een profiel, stel daarna eventueel per recht bij */}
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+            {PRESETS.map(preset => {
+              const active = presetMatches(perms, preset)
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => setPerms({ ...preset.perms })}
+                  title={preset.hint}
+                  style={{
+                    flex: '1 1 130px', padding: '10px 12px', borderRadius: '10px', cursor: 'pointer',
+                    border: active ? '1px solid var(--primary)' : '1px solid var(--border)',
+                    background: active ? 'rgba(59,130,246,0.15)' : 'var(--bg-elevated)',
+                    color: active ? 'var(--primary)' : 'var(--text-primary)',
+                    fontWeight: 800, fontSize: '0.8rem', textAlign: 'center'
+                  }}
+                >
+                  {preset.label}
+                  <div style={{ fontWeight: 600, fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.35 }}>{preset.hint}</div>
+                </button>
+              )
+            })}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {PERMISSIONS.map(perm => (

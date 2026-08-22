@@ -9,7 +9,7 @@ import {
   DollarSign, PhoneOff, AlertTriangle, UserMinus,
   CheckCircle, Briefcase, BarChart, ChevronRight,
   X, Clock, Calendar, ArrowRight, UserCheck, FastForward,
-  Filter, Layers, RotateCcw, Share2, Grid, Zap, Pause, Play
+  Filter, Layers, RotateCcw, Share2, Grid, Zap, Pause, Play, Sparkles
 } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -72,6 +72,11 @@ export default function LeadManagement({ standalone = true }) {
   const [newTeamName, setNewTeamName] = useState('')
   const [confirmDeleteTeam, setConfirmDeleteTeam] = useState(null)
   const [confirmDeleteProject, setConfirmDeleteProject] = useState(null)
+  const [memberSearch, setMemberSearch] = useState({}) // v31: zoekterm per teamkaart
+
+  // v32: AI-verrijking (Perplexity via Edge Function enrich-lead)
+  const [aiConfirm, setAiConfirm] = useState(false)
+  const [aiRunning, setAiRunning] = useState(false)
 
   // Bulk State
   const [bulkListId, setBulkListId] = useState('')
@@ -144,6 +149,45 @@ export default function LeadManagement({ standalone = true }) {
       toast(err.message, 'error')
     } finally {
       setLoadingLeads(false)
+    }
+  }
+
+  // v32: AI-verrijken - max 10 leads per keer (leads zonder contactpersoon of e-mail eerst)
+  const aiCandidates = leads.filter(l => !(l.contact_person || '').trim() || !(l.email || '').trim()).slice(0, 10)
+
+  async function runAiEnrich() {
+    if (!aiConfirm) {
+      setAiConfirm(true)
+      toast(`Klik nogmaals om ${aiCandidates.length} lead(s) via AI te verrijken (alleen lege velden worden gevuld, bron komt in de notities)`, 'info')
+      setTimeout(() => setAiConfirm(false), 6000)
+      return
+    }
+    setAiConfirm(false)
+    setAiRunning(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('enrich-lead', {
+        body: { leadIds: aiCandidates.map(l => l.id) }
+      })
+      if (error) {
+        // Edge Functions geven de echte foutmelding in de response-body mee
+        let msg = error.message
+        try {
+          const body = await error.context?.json?.()
+          if (body?.error) msg = body.error
+        } catch { /* geen json */ }
+        throw new Error(msg)
+      }
+      if (data?.error) throw new Error(data.error)
+      const res = data?.results || []
+      const ok = res.filter(r => r.status === 'ok').length
+      const nodata = res.filter(r => r.status === 'no_data').length
+      const errs = res.filter(r => r.status === 'error').length
+      toast(`AI-verrijking klaar: ${ok} lead(s) aangevuld${nodata ? `, ${nodata} zonder nieuwe info` : ''}${errs ? `, ${errs} fout(en)` : ''}`, errs ? 'error' : 'success')
+      if (selectedList) fetchLeads(selectedList.id)
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setAiRunning(false)
     }
   }
 
@@ -597,7 +641,16 @@ export default function LeadManagement({ standalone = true }) {
                                style={{ padding: '8px 14px 8px 34px' }}
                              />
                           </div>
-                          <button 
+                          <button
+                            className={`btn btn-sm ${aiConfirm ? 'btn-primary' : 'btn-outline'}`}
+                            disabled={aiRunning || aiCandidates.length === 0}
+                            onClick={runAiEnrich}
+                            title="Zoekt via AI (Perplexity) openbare info op: contactpersoon, functie, e-mail, website, branche. Alleen lege velden worden gevuld; bronnen komen in de notities."
+                            style={{ opacity: (aiRunning || aiCandidates.length === 0) ? 0.5 : 1, whiteSpace: 'nowrap' }}
+                          >
+                            <Sparkles size={14} /> {aiRunning ? 'AI bezig...' : aiConfirm ? `Bevestig (${aiCandidates.length})` : 'AI-verrijken'}
+                          </button>
+                          <button
                             className="btn btn-sm btn-outline text-error hover:bg-error/10"
                             onClick={async () => { await deleteLeadList(selectedList.id); setSelectedList(null); fetchLeadLists(); }}
                           ><Trash2 size={14} /> Verwijderen</button>
@@ -706,21 +759,46 @@ export default function LeadManagement({ standalone = true }) {
 
                     <div className="flex flex-column gap-2">
                        <div className="text-xs text-muted uppercase font-black tracking-widest mb-1">Members</div>
+                       {/* v31: typen i.p.v. scrollen - zoek op naam of e-mail */}
+                       <input
+                         type="text"
+                         value={memberSearch[team.id] || ''}
+                         onChange={e => setMemberSearch(prev => ({ ...prev, [team.id]: e.target.value }))}
+                         placeholder="Typ een naam om te zoeken..."
+                         className="form-dark w-full"
+                         style={{ padding: '9px 12px', fontSize: '0.85rem', marginBottom: '4px' }}
+                       />
                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto' }}>
-                          {agents.map(a => {
-                            const isMember = team.team_members?.some(m => m.profile_id === a.id)
-                            return (
-                              <div key={a.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-elevated transition-all text-sm group">
-                                 <span className={isMember ? 'text-body font-bold' : 'text-muted'}>{a.full_name}</span>
-                                 <button 
-                                   onClick={() => toggleTeamMember(team.id, a.id, isMember)}
-                                   className={`w-6 h-6 rounded flex items-center justify-center transition-all ${isMember ? 'bg-primary text-white' : 'bg-elevated text-transparent group-hover:text-muted'}`}
-                                 >
-                                    <CheckCircle size={14} />
-                                 </button>
-                              </div>
-                            )
-                          })}
+                          {(() => {
+                            const q = (memberSearch[team.id] || '').toLowerCase().trim()
+                            const list = agents
+                              .filter(a => a.is_active !== false)
+                              .filter(a => !q
+                                || (a.full_name || '').toLowerCase().includes(q)
+                                || (a.email || '').toLowerCase().includes(q))
+                              .sort((a, b) => {
+                                const am = team.team_members?.some(m => m.profile_id === a.id) ? 0 : 1
+                                const bm = team.team_members?.some(m => m.profile_id === b.id) ? 0 : 1
+                                return am - bm || (a.full_name || '').localeCompare(b.full_name || '')
+                              })
+                            if (list.length === 0) {
+                              return <div className="text-muted text-sm p-2">Geen medewerkers gevonden voor "{memberSearch[team.id]}"</div>
+                            }
+                            return list.map(a => {
+                              const isMember = team.team_members?.some(m => m.profile_id === a.id)
+                              return (
+                                <div key={a.id} className="flex items-center justify-between p-2 rounded-lg hover:bg-elevated transition-all text-sm group">
+                                   <span className={isMember ? 'text-body font-bold' : 'text-muted'}>{a.full_name}</span>
+                                   <button
+                                     onClick={() => toggleTeamMember(team.id, a.id, isMember)}
+                                     className={`w-6 h-6 rounded flex items-center justify-center transition-all ${isMember ? 'bg-primary text-white' : 'bg-elevated text-transparent group-hover:text-muted'}`}
+                                   >
+                                      <CheckCircle size={14} />
+                                   </button>
+                                </div>
+                              )
+                            })
+                          })()}
                        </div>
                     </div>
 
@@ -801,7 +879,7 @@ export default function LeadManagement({ standalone = true }) {
                                      onChange={e => { setBulkTargetAgentId(e.target.value); if(e.target.value) setBulkTargetTeamId(''); }}
                                    >
                                       <option value="">-- Geen beller --</option>
-                                      {agents.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+                                      {agents.filter(a => a.is_active !== false).map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
                                    </select>
                                 </div>
 

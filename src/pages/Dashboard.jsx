@@ -350,8 +350,10 @@ export default function Dashboard() {
         </div>
 
         {/* v27: geen leadoverzicht meer op het dashboard - ook niet voor
-            admin/manager. Leads bekijk en beheer je in Lead Beheer. */}
-        {!isBeller && (
+            admin/manager. Leads bekijk en beheer je in Lead Beheer.
+            v30: Ervaring & Levels + Live Feed alleen voor admin - managers
+            horen geen XP/levels van (andere) werknemers te zien. */}
+        {isAdmin && (
           <div className="dashboard-content" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', alignItems: 'start' }}>
             <TeamLeaderboard />
             <ActivityFeed />
@@ -437,7 +439,7 @@ export default function Dashboard() {
                     <label>Toewijzen aan</label>
                     <select value={newLead.assigned_to} onChange={e => setNewLead({...newLead, assigned_to: e.target.value})} style={{ padding: '14px 16px', fontSize: '1rem' }}>
                       <option value="">Niet toegewezen</option>
-                      {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                      {users.filter(u => u.is_active !== false).map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
                     </select>
                   </div>
                   <div className="form-group flex justify-between items-center mb-3" style={{ background: 'var(--bg-elevated)', padding: '14px', borderRadius: '8px', border: '1px solid var(--border)' }}>

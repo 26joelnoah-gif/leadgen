@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { X, UserPlus, Mail, Lock, Shield } from 'lucide-react'
 
@@ -10,6 +10,17 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
   const [password, setPassword] = useState('')
   const [role, setRole] = useState('employee')
   const [loading, setLoading] = useState(false)
+
+  // v30: leeg de velden bij elk openen, zodat er nooit gegevens van een
+  // vorige (mislukte) poging of van de ingelogde gebruiker blijven staan.
+  useEffect(() => {
+    if (isOpen) {
+      setName('')
+      setEmail('')
+      setPassword('')
+      setRole('employee')
+    }
+  }, [isOpen])
 
   if (!isOpen) return null
 
@@ -47,11 +58,16 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
           <button className="modal-close" onClick={onClose}><X size={18} /></button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        {/* v30: autoComplete uit - dit formulier maakt een account aan voor
+            iemand anders; de browser mag hier nooit de eigen inloggegevens
+            van de ingelogde gebruiker invullen. */}
+        <form onSubmit={handleSubmit} autoComplete="off">
           <div className="form-group">
             <label><Mail size={14} /> Naam</label>
             <input
               type="text"
+              name="nieuwe-beller-naam"
+              autoComplete="off"
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="Volledige naam"
@@ -63,6 +79,8 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
             <label><Mail size={14} /> Email</label>
             <input
               type="email"
+              name="nieuwe-beller-email"
+              autoComplete="off"
               value={email}
               onChange={e => setEmail(e.target.value)}
               placeholder="email@voorbeeld.nl"
@@ -74,6 +92,8 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
             <label><Lock size={14} /> Wachtwoord</label>
             <input
               type="password"
+              name="nieuwe-beller-wachtwoord"
+              autoComplete="new-password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               placeholder="Minimaal 6 tekens"

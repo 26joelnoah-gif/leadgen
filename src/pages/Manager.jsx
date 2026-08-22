@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import {
   Users, PhoneCall, CheckCircle, Download, Clock, Filter, Calendar,
   TrendingUp, Phone, UserPlus, Layers, Upload, Zap, Euro, BarChart3, FastForward,
-  BookOpen
+  BookOpen, Sparkles
 } from 'lucide-react'
 import { getStatusDetails } from '../utils/statusUtils'
 import { effectiveSeconds, isCapped } from '../utils/callTimeUtils'
@@ -182,10 +182,12 @@ export default function Manager() {
 
   async function fetchEmployees() {
     if (isDemoMode) { setEmployees([]); return }
+    // v31: inactieve bellers horen niet meer in de toewijzen-lijsten
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, full_name, email, role')
+      .select('id, full_name, email, role, is_active')
       .in('role', ['employee'])
+      .eq('is_active', true)
       .order('full_name')
     if (!error) setEmployees(data || [])
   }
@@ -267,6 +269,55 @@ export default function Manager() {
       fetchEmployees()
     } catch (err) {
       toast(err.message, 'error')
+    }
+  }
+
+  // v32: AI-verrijken per project (alleen met recht 'Leads beheren') -
+  // vult via de Edge Function enrich-lead alleen lege velden, max 10 per keer.
+  const [aiBusyId, setAiBusyId] = useState(null)
+  const [aiConfirmId, setAiConfirmId] = useState(null)
+  async function aiEnrichList(listId) {
+    if (aiConfirmId !== listId) {
+      setAiConfirmId(listId)
+      toast('Klik nogmaals om max 10 leads van dit project via AI te verrijken (alleen lege velden, bron in de notities)', 'info')
+      setTimeout(() => setAiConfirmId(c => (c === listId ? null : c)), 6000)
+      return
+    }
+    setAiConfirmId(null)
+    setAiBusyId(listId)
+    try {
+      const { data: listLeads, error: lErr } = await supabase
+        .from('leads')
+        .select('id, contact_person, email')
+        .eq('lead_list_id', listId)
+        .is('deleted_at', null)
+        .limit(500)
+      if (lErr) throw lErr
+      const candidates = (listLeads || [])
+        .filter(l => !(l.contact_person || '').trim() || !(l.email || '').trim())
+        .slice(0, 10)
+      if (!candidates.length) { toast('Alle leads in dit project hebben al een contactpersoon en e-mailadres', 'info'); return }
+
+      const { data, error } = await supabase.functions.invoke('enrich-lead', {
+        body: { leadIds: candidates.map(l => l.id) }
+      })
+      if (error) {
+        let msg = error.message
+        try {
+          const body = await error.context?.json?.()
+          if (body?.error) msg = body.error
+        } catch { /* geen json */ }
+        throw new Error(msg)
+      }
+      if (data?.error) throw new Error(data.error)
+      const res = data?.results || []
+      const ok = res.filter(r => r.status === 'ok').length
+      const errs = res.filter(r => r.status === 'error').length
+      toast(`AI-verrijking klaar: ${ok} lead(s) aangevuld${errs ? `, ${errs} fout(en)` : ''}`, errs ? 'error' : 'success')
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setAiBusyId(null)
     }
   }
 
@@ -799,6 +850,7 @@ export default function Manager() {
                       <th>Toegewezen beller</th>
                       {canViewRates && <th>Tarieven</th>}
                       {canManageTeam && <th style={{ width: '260px' }}>Beller toewijzen</th>}
+                      {canManageLeads && <th style={{ width: '150px' }}>Verrijken</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -831,6 +883,19 @@ export default function Manager() {
                                 <option value="">- Geen beller -</option>
                                 {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.full_name} ({emp.email})</option>)}
                               </select>
+                            </td>
+                          )}
+                          {canManageLeads && (
+                            <td>
+                              <button
+                                className={`btn btn-sm ${aiConfirmId === list.id ? 'btn-primary' : 'btn-outline'}`}
+                                disabled={aiBusyId === list.id}
+                                onClick={() => aiEnrichList(list.id)}
+                                title="Zoekt via AI openbare info op (contactpersoon, functie, e-mail, website, branche). Alleen lege velden worden gevuld."
+                                style={{ whiteSpace: 'nowrap' }}
+                              >
+                                <Sparkles size={14} /> {aiBusyId === list.id ? 'Bezig...' : aiConfirmId === list.id ? 'Bevestig' : 'AI-verrijken'}
+                              </button>
                             </td>
                           )}
                         </tr>

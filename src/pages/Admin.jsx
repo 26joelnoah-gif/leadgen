@@ -74,6 +74,11 @@ export default function Admin() {
   const [showLeadList, setShowLeadList] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [systemSettings, setSystemSettings] = useState(getSettings)
+  // v31: organisaties (fundament voor klant-omgevingen) + org-beheerpaneel
+  const [orgs, setOrgs] = useState([])
+  const [showOrgs, setShowOrgs] = useState(false)
+  const [newOrgName, setNewOrgName] = useState('')
+  const [creatingOrg, setCreatingOrg] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -115,12 +120,19 @@ export default function Admin() {
 
       // Nieuwe accounts worden altijd als 'employee' aangemaakt (handle_new_user);
       // een andere rol zet de admin hier expliciet via de eigen (admin-)sessie.
-      if (employeeData.role && employeeData.role !== 'employee' && signUpData?.user?.id) {
-        const { error: roleErr } = await supabase
-          .from('profiles')
-          .update({ role: employeeData.role })
-          .eq('id', signUpData.user.id)
-        if (roleErr) toast(`Account aangemaakt, maar rol instellen mislukte: ${roleErr.message}`, 'error')
+      // v31: nieuwe accounts erven de organisatie van hun maker (nu meestal
+      // leeg = jouw eigen omgeving; belangrijk zodra klanten eigen orgs hebben).
+      if (signUpData?.user?.id) {
+        const updates = {}
+        if (employeeData.role && employeeData.role !== 'employee') updates.role = employeeData.role
+        if (profile?.organization_id) updates.organization_id = profile.organization_id
+        if (Object.keys(updates).length > 0) {
+          const { error: updErr } = await supabase
+            .from('profiles')
+            .update(updates)
+            .eq('id', signUpData.user.id)
+          if (updErr) toast(`Account aangemaakt, maar instellen van rol/organisatie mislukte: ${updErr.message}`, 'error')
+        }
       }
 
       toast(employeeData.role === 'manager' ? 'Manager aangemaakt! Koppel nu projecten via de knop "Projecten".' : 'Medewerker uitnodiging verstuurd!', 'success')
@@ -140,9 +152,11 @@ export default function Admin() {
       const { data: u, error: uErr } = await supabase.from('profiles').select('*').order('full_name')
       if (uErr) throw uErr
       const { data: pm } = await supabase.from('campaign_managers').select('campaign_id, manager_id')
+      const { data: o } = await supabase.from('organizations').select('id, name, slug, owner_id').order('name')
       setLeads(l || [])
       setUsers(u || [])
       setManagerLinks(pm || [])
+      setOrgs(o || [])
 
       // Vandaag: gesprekken, beltijd en resultaten uit call_logs (voor KPI-rij + teamkaarten)
       const todayStart = new Date()
@@ -176,15 +190,66 @@ export default function Admin() {
     // Twee keer klikken = bevestigen (voorkomt per ongeluk verwijderen)
     if (confirmDeleteUser !== userId) {
       setConfirmDeleteUser(userId)
-      toast('Klik nogmaals op de prullenbak om definitief te verwijderen', 'error')
+      toast('Klik nogmaals op de prullenbak om definitief te verwijderen. Tip: inactief zetten bewaart alles en is omkeerbaar.', 'error')
       return
     }
     setConfirmDeleteUser(null)
     try {
-      const { error } = await supabase.from('profiles').delete().eq('id', userId)
+      // v31: .select() erbij zodat we ZIEN of er echt iets verwijderd is -
+      // vroeger blokkeerde de database dit stilletjes en kwam de medewerker
+      // na verversen gewoon terug.
+      const { data, error } = await supabase.from('profiles').delete().eq('id', userId).select('id')
       if (error) throw error
+      if (!data || data.length === 0) throw new Error('Verwijderen is geweigerd door de database. Ververs de pagina en probeer opnieuw.')
       setUsers(prev => prev.filter(u => u.id !== userId))
-      toast('Medewerker verwijderd', 'success')
+      toast('Medewerker verwijderd. Gesprekshistorie blijft bewaard in de rapportage.', 'success')
+    } catch (err) {
+      toast(err.message, 'error')
+    }
+  }
+
+  // v31: inactief zetten = niet meer kunnen inloggen en uit alle lijsten,
+  // maar alle historie en instellingen blijven staan. Omkeerbaar.
+  async function handleToggleActive(u) {
+    const nowActive = u.is_active !== false
+    try {
+      const { error } = await supabase.from('profiles').update({ is_active: !nowActive }).eq('id', u.id)
+      if (error) throw error
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, is_active: !nowActive } : x))
+      toast(nowActive ? `${u.full_name} is inactief gezet en kan niet meer inloggen` : `${u.full_name} is weer actief`, 'success')
+    } catch (err) {
+      toast(err.message, 'error')
+    }
+  }
+
+  // v31: organisatie aanmaken (fundament voor eigen klant-omgevingen)
+  async function handleCreateOrg(e) {
+    e.preventDefault()
+    const name = newOrgName.trim()
+    if (!name) return
+    setCreatingOrg(true)
+    try {
+      const slugBase = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'org'
+      const slug = `${slugBase}-${Math.random().toString(36).slice(2, 6)}`
+      const { error } = await supabase.from('organizations').insert({ name, slug, owner_id: user.id })
+      if (error) throw error
+      setNewOrgName('')
+      toast(`Organisatie "${name}" aangemaakt. Deel medewerkers in via het dropdown-menu op hun kaart.`, 'success')
+      fetchData()
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setCreatingOrg(false)
+    }
+  }
+
+  // v31: medewerker in een organisatie plaatsen (of terug naar jouw omgeving)
+  async function handleSetUserOrg(u, orgId) {
+    try {
+      const { error } = await supabase.from('profiles').update({ organization_id: orgId || null }).eq('id', u.id)
+      if (error) throw error
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, organization_id: orgId || null } : x))
+      toast(orgId ? `${u.full_name} ingedeeld bij ${orgs.find(o => o.id === orgId)?.name || 'organisatie'}` : `${u.full_name} staat weer in jouw eigen omgeving`, 'success')
     } catch (err) {
       toast(err.message, 'error')
     }
@@ -263,7 +328,7 @@ export default function Admin() {
                 </div>
                 <div className="flex gap-3" style={{ flexWrap: 'wrap' }}>
                    <button className="btn btn-secondary" onClick={() => setShowNewProject(true)}><Layers size={18} /> Nieuw project</button>
-                   <button className="btn btn-primary" onClick={() => setShowImport(true)}><Upload size={18} /> Leads importeren</button>
+                   <button className="btn btn-primary" onClick={() => setShowImport(true)}><Upload size={18} /> Importeren / verrijken</button>
                    <button className="btn btn-outline" onClick={() => setShowAddLead(true)}><Plus size={18} /> Nieuwe lead</button>
                    <button className="btn btn-outline" onClick={() => setShowCampaign(true)}><Megaphone size={18}/> Campagne</button>
                 </div>
@@ -315,20 +380,75 @@ export default function Admin() {
                    <h2 className="page-title">Team</h2>
                    <p className="page-subtitle">Bellers, managers en admins - met hun activiteit van vandaag.</p>
                 </div>
-                <button onClick={() => setShowEmployee(true)} className="btn btn-primary"><UserPlus size={18} /> Nieuwe medewerker</button>
+                <div className="flex gap-3" style={{ flexWrap: 'wrap' }}>
+                   <button onClick={() => setShowOrgs(v => !v)} className="btn btn-outline"><Shield size={18} /> Organisaties {orgs.length > 0 && `(${orgs.length})`}</button>
+                   <button onClick={() => setShowEmployee(true)} className="btn btn-primary"><UserPlus size={18} /> Nieuwe medewerker</button>
+                </div>
              </div>
+
+             {/* v31: organisaties - elke klant kan straks zijn eigen omgeving krijgen
+                 met eigen admin, leadlijsten en team. Een admin/manager binnen een
+                 organisatie ziet alleen de mensen van die organisatie. Jij blijft
+                 als eigenaar alles zien. */}
+             {showOrgs && (
+               <div className="glass-panel p-6 mb-8 border border-border">
+                  <h3 className="font-black text-sm uppercase tracking-widest mb-2 text-primary">Organisaties</h3>
+                  <p className="text-muted text-sm mb-4" style={{ maxWidth: '720px' }}>
+                    Maak per klant een organisatie aan en deel hun mensen in via het organisatie-menu op de medewerkerskaart.
+                    Iedereen binnen een organisatie ziet alleen elkaar; jij blijft als eigenaar alles zien.
+                    Medewerkers zonder organisatie horen bij jouw eigen omgeving.
+                  </p>
+                  <form onSubmit={handleCreateOrg} className="flex gap-2 mb-4" style={{ flexWrap: 'wrap' }}>
+                     <input
+                       className="form-dark"
+                       style={{ flex: 1, minWidth: '220px', padding: '11px 14px' }}
+                       value={newOrgName}
+                       onChange={e => setNewOrgName(e.target.value)}
+                       placeholder="Naam van de nieuwe organisatie (bijv. Jobfuel)"
+                     />
+                     <button type="submit" className="btn btn-primary" disabled={creatingOrg || !newOrgName.trim()}>
+                       <Plus size={16} /> {creatingOrg ? 'Aanmaken...' : 'Organisatie aanmaken'}
+                     </button>
+                  </form>
+                  {orgs.length === 0 ? (
+                    <p className="text-muted text-sm italic">Nog geen organisaties - iedereen staat nu in jouw eigen omgeving.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                       {orgs.map(o => (
+                         <div key={o.id} className="p-4 rounded-xl border border-border bg-elevated">
+                            <div className="font-bold text-body break-words">{o.name}</div>
+                            <div className="text-xs text-muted mt-1">
+                              {users.filter(u2 => u2.organization_id === o.id).length} medewerker(s)
+                              {o.owner_id === user.id ? ' · eigenaar: jij' : ''}
+                            </div>
+                         </div>
+                       ))}
+                    </div>
+                  )}
+               </div>
+             )}
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {users.map(u => (
-                  <div key={u.id} className="glass-panel p-6 group hover:border-primary/50 transition-all border border-border">
+                {[...users].sort((a, b) => (a.is_active === false ? 1 : 0) - (b.is_active === false ? 1 : 0)).map(u => (
+                  <div key={u.id} className="glass-panel p-6 group hover:border-primary/50 transition-all border border-border" style={u.is_active === false ? { opacity: 0.55 } : undefined}>
                      <div className="flex justify-between items-start gap-3">
                         <div className="flex items-center gap-4 min-w-0">
                            <div className="w-12 h-12 bg-elevated rounded-xl flex items-center justify-center font-black text-primary border border-border shrink-0">{u.full_name?.charAt(0)}</div>
                            <div className="min-w-0">
                               <div className="font-bold text-body tracking-tight break-words">{u.full_name}</div>
                               <div className="text-[10px] text-muted opacity-50 font-black break-all">{u.email}</div>
+                              {u.organization_id && (
+                                <div className="text-[10px] font-black uppercase tracking-widest text-secondary mt-1 break-words">
+                                  {orgs.find(o => o.id === u.organization_id)?.name || 'Organisatie'}
+                                </div>
+                              )}
                            </div>
                         </div>
-                        <span className={`self-start shrink-0 whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : 'bg-success/20 text-success'}`}>{u.role === 'employee' ? 'Beller' : u.role}</span>
+                        <div className="flex flex-col items-end gap-1 shrink-0">
+                           <span className={`self-start shrink-0 whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : 'bg-success/20 text-success'}`}>{u.role === 'employee' ? 'Beller' : u.role}</span>
+                           {u.is_active === false && (
+                             <span className="whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-error/20 text-error">Inactief</span>
+                           )}
+                        </div>
                      </div>
                      <div className="mt-6 pt-4 border-t border-border flex justify-between items-center">
                         <div>
@@ -342,13 +462,22 @@ export default function Admin() {
                            </div>
                         </div>
                         {u.id !== user.id && (
-                          <button
-                            onClick={() => handleDeleteEmployee(u.id)}
-                            className={`p-2 rounded-lg transition-all ${confirmDeleteUser === u.id ? 'bg-error text-white' : 'text-muted hover:bg-error/20 hover:text-error opacity-0 group-hover:opacity-100'}`}
-                            title={confirmDeleteUser === u.id ? 'Klik nogmaals om definitief te verwijderen' : 'Verwijderen'}
-                          >
-                            <Trash2 size={18}/>
-                          </button>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleToggleActive(u)}
+                              className={`p-2 rounded-lg transition-all ${u.is_active === false ? 'text-success hover:bg-success/20' : 'text-muted hover:bg-secondary/20 hover:text-secondary opacity-0 group-hover:opacity-100'}`}
+                              title={u.is_active === false ? 'Weer activeren (kan dan weer inloggen)' : 'Inactief zetten - kan niet meer inloggen, historie blijft bewaard'}
+                            >
+                              {u.is_active === false ? <Play size={18}/> : <PhoneOff size={18}/>}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteEmployee(u.id)}
+                              className={`p-2 rounded-lg transition-all ${confirmDeleteUser === u.id ? 'bg-error text-white' : 'text-muted hover:bg-error/20 hover:text-error opacity-0 group-hover:opacity-100'}`}
+                              title={confirmDeleteUser === u.id ? 'Klik nogmaals om definitief te verwijderen' : 'Definitief verwijderen (gesprekshistorie blijft, zonder naam)'}
+                            >
+                              <Trash2 size={18}/>
+                            </button>
+                          </div>
                         )}
                      </div>
                      {u.role === 'manager' && (
@@ -383,6 +512,20 @@ export default function Admin() {
                           {u.role === 'manager' && (
                             <button onClick={() => setManagingUser(u)} className="btn btn-outline btn-sm" style={{ whiteSpace: 'nowrap' }}><Shield size={14}/> Projecten &amp; rechten</button>
                           )}
+                       </div>
+                     )}
+                     {u.id !== user.id && orgs.length > 0 && (
+                       <div className="mt-2 flex items-center gap-2">
+                          <span className="text-[10px] text-muted font-black uppercase tracking-widest">Org</span>
+                          <select
+                            value={u.organization_id || ''}
+                            onChange={e => handleSetUserOrg(u, e.target.value)}
+                            className="form-dark"
+                            style={{ padding: '6px 10px', fontSize: '0.75rem', flex: 1 }}
+                          >
+                             <option value="">Mijn eigen omgeving</option>
+                             {orgs.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                          </select>
                        </div>
                      )}
                   </div>
@@ -461,7 +604,7 @@ export default function Admin() {
                        <label className="text-[10px] font-black uppercase text-muted tracking-widest mb-2 block">Beller (Optioneel)</label>
                        <select className="form-dark w-full" value={newLead.assigned_to} onChange={e => setNewLead({...newLead, assigned_to: e.target.value})}>
                           <option value="">Niet toewijzen (Pool)</option>
-                          {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                          {users.filter(u => u.is_active !== false).map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
                        </select>
                     </div>
                   </div>

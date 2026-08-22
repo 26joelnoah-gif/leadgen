@@ -63,6 +63,13 @@ export function AuthProvider({ children }) {
       if (error) {
         console.error('fetchProfile error:', error.message)
       }
+      // v31: inactieve accounts komen er niet in - sessie direct beëindigen
+      if (data && data.is_active === false) {
+        await supabase.auth.signOut()
+        setUser(null)
+        setProfile(null)
+        return
+      }
       setProfile(data || null)
     } catch (err) {
       console.error('fetchProfile catch:', err)
@@ -86,6 +93,20 @@ export function AuthProvider({ children }) {
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw error
+    // v31: inactief gezette accounts mogen niet meer inloggen
+    if (data?.user?.id) {
+      const { data: prof } = await supabase
+        .from('profiles')
+        .select('is_active')
+        .eq('id', data.user.id)
+        .single()
+      if (prof && prof.is_active === false) {
+        await supabase.auth.signOut()
+        setUser(null)
+        setProfile(null)
+        throw new Error('Dit account is inactief gezet. Vraag je beheerder om je weer te activeren.')
+      }
+    }
     return data
   }
 
