@@ -17,6 +17,12 @@ export function useLeads() {
 
     if (lead.decision_maker) score += 20
 
+    // v34: verrijkte data telt mee - zelfde weging als claim_next_lead in de
+    // database, zodat het bliksem-badge en "Beste leads eerst" hetzelfde zeggen
+    if ((lead.contact_person || '').trim()) score += 15
+    if ((lead.function || '').trim()) score += 5
+    if ((lead.email || '').trim()) score += 5
+
     if (lead.company_size === '51+') score += 20
     else if (lead.company_size === '11-50') score += 10
     else if (lead.company_size === '1-10') score += 5
