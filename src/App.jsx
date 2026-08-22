@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
@@ -15,6 +16,52 @@ import Payouts from './pages/Payouts'
 import LeadManagement from './pages/LeadManagement'
 import Manager from './pages/Manager'
 import WorkInterface from './components/WorkInterface'
+
+// v33: waarschuw open tabbladen zodra er een nieuwe versie live staat.
+// Zonder dit draaien gebruikers dagenlang oude code omdat een webapp
+// nieuwe code pas na een verversing laadt.
+function UpdateChecker() {
+  const [updateReady, setUpdateReady] = useState(false)
+
+  useEffect(() => {
+    let stopped = false
+    async function check() {
+      try {
+        const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' })
+        if (!res.ok) return
+        const data = await res.json()
+        if (!stopped && data?.build && data.build !== __BUILD_ID__) setUpdateReady(true)
+      } catch { /* offline of dev-modus - stil houden */ }
+    }
+    check()
+    const interval = setInterval(check, 3 * 60 * 1000) // elke 3 minuten
+    const onFocus = () => check() // en meteen als je terugkomt naar het tabblad
+    window.addEventListener('focus', onFocus)
+    return () => { stopped = true; clearInterval(interval); window.removeEventListener('focus', onFocus) }
+  }, [])
+
+  if (!updateReady) return null
+  return (
+    <div style={{
+      position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)',
+      zIndex: 20000, display: 'flex', alignItems: 'center', gap: '14px',
+      background: 'var(--bg-card, #1a1d27)', border: '1px solid var(--primary, #3B82F6)',
+      borderRadius: '14px', padding: '12px 18px', boxShadow: '0 8px 30px rgba(0,0,0,0.45)',
+      maxWidth: 'calc(100vw - 32px)'
+    }}>
+      <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary, #fff)' }}>
+        Er staat een nieuwe versie van LeadGen klaar
+      </span>
+      <button
+        onClick={() => window.location.reload()}
+        className="btn btn-primary btn-sm"
+        style={{ whiteSpace: 'nowrap', fontWeight: 800 }}
+      >
+        Nu vernieuwen
+      </button>
+    </div>
+  )
+}
 
 function ProtectedRoute({ children, requireAdmin = false, allowManager = false }) {
   const { user, profile, loading, isDemoMode } = useAuth()
@@ -161,6 +208,7 @@ export default function App() {
         <AuthProvider>
           <ToastProvider>
             <AppRoutes />
+            <UpdateChecker />
           </ToastProvider>
         </AuthProvider>
       </ThemeProvider>
