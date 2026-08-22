@@ -30,6 +30,7 @@ const FIELDS = [
   { id: 'postal_code', label: 'Postcode' },
   { id: 'city', label: 'Plaats' },
   { id: 'notes', label: 'Notities' },
+  { id: 'verrijking', label: 'Verrijking (altijd toevoegen)' },
   { id: 'decision_maker', label: 'Beslisser (ja/nee)' },
   { id: 'extra_info1', label: 'Extra info 1' },
   { id: 'extra_info2', label: 'Extra info 2' },
@@ -40,6 +41,32 @@ const FIELDS = [
 const ENRICHABLE = ['contact_person', 'function', 'email', 'website', 'address', 'house_number', 'postal_code', 'city', 'notes', 'extra_info1', 'extra_info2', 'extra_info3']
 
 const parseDecisionMaker = (v) => /^(ja|j|yes|y|x|true|1|beslisser|dmu?)$/i.test(String(v || '').trim())
+
+// v32.2: bedrijfsnaam normaliseren voor het matchen - rechtsvorm (B.V., VOF...)
+// en leestekens tellen niet mee, zodat "Verdel Logistiek B.V." ook matcht
+// met "Verdel Logistiek".
+function normCompanyName(s) {
+  return String(s || '')
+    .toLowerCase()
+    .replace(/\b(b\.?\s?v\.?|n\.?\s?v\.?|v\.?o\.?f\.?|c\.?v\.?|holding|beheer|groep|group|international|internationaal|int\.?|& ?zn\.?|en ?zonen|& ?co\.?)(?=\s|$|\.)/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+// v32.2: "Martine Lafeber (HR/personeel), Jan Jansen (Inkoop)" ->
+// eerste naam als contactpersoon, tekst tussen haakjes als functie,
+// en onthoud of er meerdere personen in de cel stonden.
+function parseContactCell(raw) {
+  const value = String(raw || '').trim()
+  const first = value.split(/,(?![^(]*\))/)[0].trim()
+  const m = first.match(/^(.+?)\s*\(([^)]+)\)\s*$/)
+  return {
+    name: (m ? m[1] : first).trim(),
+    func: m ? m[2].trim() : '',
+    multiple: value.length > first.length
+  }
+}
 
 // Robuuste parser voor geplakte/gelezen tekst (tab, ; of , met quotes)
 function parseDelimited(text) {
@@ -115,6 +142,8 @@ function guessFieldForColumn(values) {
   if (share(v => /@/.test(v)) > 0.6) return 'email'
   if (share(v => /(https?:\/\/|www\.|\.(nl|com|be|net|org|io|eu)(\/|$))/i.test(v)) > 0.6) return 'website'
   if (share(v => /^\d{4}\s?[a-z]{2}$/i.test(v)) > 0.6) return 'postal_code'
+  // v32.2: "Naam (Functie)" of "Naam (Functie), Naam (Functie)" = contactpersonen
+  if (share(v => /^[^,()]{2,60}\([^)]{2,60}\)/.test(v)) > 0.5) return 'contact_person'
   return 'skip'
 }
 
@@ -284,7 +313,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         if (field === 'skip') return
         const value = (r[i] || '').trim()
         if (!value) return
-        if (field === 'notes') lead.notes = lead.notes ? `${lead.notes} | ${value}` : value
+        if (field === 'notes' || field === 'verrijking') lead.notes = lead.notes ? `${lead.notes} | ${value}` : value
         else if (field === 'website') lead.website = normalizeWebsite(value)
         else if (field === 'phone') lead.phone = cleanPhone(value)
         else if (field === 'decision_maker') lead.decision_maker = parseDecisionMaker(value)
@@ -322,7 +351,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
       if (p && !byPhone.has(p)) byPhone.set(p, l)
       const w = (normalizeWebsite(l.website || '') || '').toLowerCase()
       if (w && !byWeb.has(w)) byWeb.set(w, l)
-      const n = (l.name || '').trim().toLowerCase()
+      const n = normCompanyName(l.name)
       if (n) {
         nameCount[n] = (nameCount[n] || 0) + 1
         if (!byName.has(n)) byName.set(n, l)
@@ -345,6 +374,20 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         else if (field === 'website') row.website = normalizeWebsite(value)
         else if (field === 'phone') row.phone = cleanPhone(value)
         else if (field === 'decision_maker') row.decision_maker = parseDecisionMaker(value)
+        else if (field === 'contact_person') {
+          // v32.2: "Naam (Functie), ..." netjes uit elkaar halen
+          const parsed = parseContactCell(value)
+          if (parsed.name) row.contact_person = parsed.name
+          if (parsed.func && !row.function) row.function = parsed.func
+          if (parsed.multiple) row.__alle_contacten = value
+        }
+        else if (field === 'verrijking') {
+          // v32.2: "Verrijking" wordt ALTIJD toegevoegd (gelabelde notitieregel),
+          // ook als alle andere velden van de lead al gevuld zijn
+          const header = hasHeader ? (rows[0]?.[i] || '').trim() : ''
+          const line = header && !/^verrijking$/i.test(header) ? `${header}: ${value}` : value
+          row.__verrijking = row.__verrijking ? [...row.__verrijking, line] : [line]
+        }
         else if (field.startsWith('extra_info')) {
           const header = hasHeader ? (rows[0]?.[i] || '').trim() : ''
           row[field] = header ? `${header}: ${value}` : value
@@ -362,7 +405,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         if (byWeb.has(w)) { lead = byWeb.get(w); via = 'website' }
       }
       if (!lead && row.name) {
-        const n = row.name.trim().toLowerCase()
+        const n = normCompanyName(row.name)
         if (nameCount[n] > 1) { unmatched.push({ rowNr, name: row.name, reason: 'meerdere leads met deze naam - niet eenduidig' }); return }
         if (byName.has(n)) { lead = byName.get(n); via = 'naam' }
       }
@@ -371,10 +414,27 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
 
       // Alleen LEGE velden aanvullen - bestaande data blijft altijd staan
       const additions = {}
-      ENRICHABLE.forEach(f => {
+      ENRICHABLE.filter(f => f !== 'notes').forEach(f => {
         if (row[f] && !(lead[f] || '').toString().trim()) additions[f] = row[f]
       })
       if (row.decision_maker === true && lead.decision_maker !== true) additions.decision_maker = true
+
+      // Notities: geplakte notitie alleen als het veld leeg is; stonden er
+      // meerdere contactpersonen in één cel, dan komen die er als gelabelde
+      // regel bij (overschrijft niets, dubbele regels worden overgeslagen)
+      let newNotes = null
+      if (row.notes && !(lead.notes || '').toString().trim()) newNotes = row.notes
+      const alwaysLines = [
+        ...(row.__alle_contacten ? [`Contactpersonen: ${row.__alle_contacten}`] : []),
+        ...(row.__verrijking || [])
+      ]
+      for (const line of alwaysLines) {
+        const current = newNotes ?? String(lead.notes || '')
+        if (current.includes(line)) continue // niet twee keer dezelfde regel
+        const base = newNotes ?? ((lead.notes || '').toString().trim() ? lead.notes : null)
+        newNotes = base ? `${base}\n${line}` : line
+      }
+      if (newNotes !== null) additions.notes = newNotes
 
       if (Object.keys(additions).length === 0) { noNews++; return }
       seenLeadIds.add(lead.id)
@@ -714,7 +774,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                             {enrichPlan.noNews > 0 && (
                               <div style={{ flex: 1, minWidth: '160px', padding: '14px', borderRadius: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
                                 <div style={{ fontWeight: 900, fontSize: '1.3rem', color: 'var(--text-muted)' }}>{enrichPlan.noNews}</div>
-                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>rijen zonder nieuwe info (alles stond er al)</div>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>rijen zonder nieuwe info - de gekozen velden zijn bij die leads al gevuld (bestaande data wordt nooit overschreven)</div>
                               </div>
                             )}
                             {enrichPlan.unmatched.length > 0 && (
@@ -729,6 +789,12 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                               </div>
                             )}
                           </div>
+
+                          {activeEnrichCount === 0 && (enrichPlan.noNews > 0 || enrichPlan.unmatched.length > 0) && (
+                            <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.25)', color: 'var(--text-muted)', fontSize: '0.82rem', lineHeight: 1.5 }}>
+                              <strong style={{ color: 'var(--primary)' }}>Tip:</strong> controleer de kolom-toewijzing bovenaan. Staat een kolom met namen op "Extra info 1"? Kies dan <strong>"Contactpersoon"</strong> - naam en functie worden er automatisch uit gehaald. Wil je dat de info er hoe dan ook bijkomt, ook als de velden al gevuld zijn? Kies dan <strong>"Verrijking (altijd toevoegen)"</strong> - die komt als extra regel bij de notities van de lead.
+                            </div>
+                          )}
 
                           {enrichPlan.matches.length > 0 && (
                             <div style={{ border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
@@ -756,11 +822,20 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                                           <span style={{ marginLeft: '8px', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--primary)', background: 'rgba(59,130,246,0.12)', padding: '2px 7px', borderRadius: '6px' }}>match op {m.via}</span>
                                         </div>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
-                                          {Object.entries(m.additions).map(([f, v]) => (
-                                            <span key={f} style={{ fontSize: '0.72rem', fontWeight: 700, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: 'var(--success)', padding: '3px 8px', borderRadius: '8px', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                              + {(FIELDS.find(x => x.id === f)?.label || f).replace(' (ja/nee)', '')}: {f === 'decision_maker' ? 'ja' : (f === 'website' ? displayWebsite(v) : String(v))}
-                                            </span>
-                                          ))}
+                                          {Object.entries(m.additions).map(([f, v]) => {
+                                            // Bij notities alleen tonen wat er NIEUW bijkomt, niet de bestaande notities
+                                            let disp = String(v)
+                                            if (f === 'decision_maker') disp = 'ja'
+                                            else if (f === 'website') disp = displayWebsite(v)
+                                            else if (f === 'notes' && m.lead?.notes && disp.startsWith(m.lead.notes)) {
+                                              disp = disp.slice(m.lead.notes.length).replace(/^\n+/, '')
+                                            }
+                                            return (
+                                              <span key={f} style={{ fontSize: '0.72rem', fontWeight: 700, background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)', color: 'var(--success)', padding: '3px 8px', borderRadius: '8px', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                + {(FIELDS.find(x => x.id === f)?.label || f).replace(' (ja/nee)', '').replace(' (altijd toevoegen)', '')}: {disp}
+                                              </span>
+                                            )
+                                          })}
                                         </div>
                                       </div>
                                     </div>
