@@ -54,22 +54,58 @@ function normCompanyName(s) {
     .trim()
 }
 
-// v32.2: "Martine Lafeber (HR/personeel), Jan Jansen (Inkoop)" ->
-// eerste naam als contactpersoon, tekst tussen haakjes als functie,
-// en onthoud of er meerdere personen in de cel stonden.
+// v32.3: contactpersoon-cellen zoals Perplexity/AI ze aanlevert netjes uit
+// elkaar halen. Kan overweg met: "Naam (Functie)", meerdere personen
+// gescheiden door , of /, markdown-links, bronkruimels aan het eind
+// ("stagemarkt+1", "dnb"), e-mailadressen in de cel, en "geen naam
+// gevonden"-teksten (die tellen als leeg).
 function parseContactCell(raw) {
-  const value = String(raw || '').trim()
-  const first = value.split(/,(?![^(]*\))/)[0].trim()
-  const m = first.match(/^(.+?)\s*\(([^)]+)\)\s*$/)
-  return {
-    name: (m ? m[1] : first).trim(),
-    func: m ? m[2].trim() : '',
-    multiple: value.length > first.length
+  let value = String(raw || '').trim()
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // markdown-links -> alleen de tekst
+
+  // Bronkruimels van AI-output aan het eind weghalen: losse woorden die
+  // volledig uit kleine letters/cijfers bestaan (bijv. "vanthiel", "stl+1")
+  const tokens = value.split(/\s+/)
+  while (tokens.length > 1 && /^[a-z][a-z0-9.+-]{3,}$/.test(tokens[tokens.length - 1])) {
+    tokens.pop()
   }
+  value = tokens.join(' ').trim()
+
+  const emails = value.match(/[^\s(),/]+@[^\s(),/]+\.[a-z]{2,}/gi) || []
+  const noName = /geen\s+(specifieke\s+|persoonlijke\s+)?(naam|inkoop\S*|hr\S*)|niet\s+gevonden|^n\.?\s?a\.?$/i.test(value)
+
+  // Personen splitsen op komma of / buiten haakjes ("HR/personeel" blijft heel)
+  const parts = value.split(/\s*[,/]\s*(?![^(]*\))/).map(s => s.trim()).filter(Boolean)
+  const first = parts[0] || ''
+  const m = first.match(/^(.+?)\s*\(([^)]+)\)/)
+  let name = (m ? m[1] : first).trim()
+  const func = m ? m[2].trim() : ''
+  // Geen echte naam? (leeg, "geen ... gevonden", alleen een e-mailadres of
+  // een cel die met haakjes begint)
+  if (noName || !name || /@/.test(name) || name.startsWith('(')) name = ''
+
+  return { name, func, emails, multiple: parts.length > 1, cleaned: value }
 }
 
-// Robuuste parser voor geplakte/gelezen tekst (tab, ; of , met quotes)
+// Robuuste parser voor geplakte/gelezen tekst (tab, ; of , met quotes).
+// v32.3: herkent ook markdown-tabellen (| kolom | kolom |) zoals
+// Perplexity en ChatGPT ze geven - scheidingsrijen (|---|) worden
+// overgeslagen en markdown-links in cellen worden platte tekst.
 function parseDelimited(text) {
+  const rawLines = text.split(/\r?\n/).filter(l => l.trim() !== '')
+  const pipey = rawLines.filter(l => (l.match(/\|/g) || []).length >= 2)
+  if (rawLines.length > 0 && pipey.length >= rawLines.length * 0.8) {
+    return rawLines
+      .filter(l => !/^[\s|:-]+$/.test(l)) // |----|----| scheidingsrijen
+      .map(l => l
+        .replace(/^\s*\|/, '')
+        .replace(/\|\s*$/, '')
+        .split('|')
+        .map(c => c.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').trim())
+      )
+      .filter(r => r.some(v => v !== ''))
+  }
+
   const firstLines = text.split(/\r?\n/).slice(0, 5).join('\n')
   const counts = {
     '\t': (firstLines.match(/\t/g) || []).length,
@@ -317,6 +353,14 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         else if (field === 'website') lead.website = normalizeWebsite(value)
         else if (field === 'phone') lead.phone = cleanPhone(value)
         else if (field === 'decision_maker') lead.decision_maker = parseDecisionMaker(value)
+        else if (field === 'contact_person') {
+          // v32.3: ook bij import de contactpersoon-cel netjes uit elkaar halen
+          const parsed = parseContactCell(value)
+          if (parsed.name) lead.contact_person = parsed.name
+          if (parsed.func && !lead.function) lead.function = parsed.func
+          if (parsed.emails.length && !lead.email) lead.email = parsed.emails[0].toLowerCase()
+          if (parsed.multiple && parsed.name) lead.notes = lead.notes ? `${lead.notes} | Contactpersonen: ${parsed.cleaned}` : `Contactpersonen: ${parsed.cleaned}`
+        }
         else if (field.startsWith('extra_info')) {
           // Kopregel meenemen zodat je in de belmodus ziet wát dit was (bijv. "Branche: Bouw")
           const header = hasHeader ? (rows[0]?.[i] || '').trim() : ''
@@ -375,11 +419,13 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         else if (field === 'phone') row.phone = cleanPhone(value)
         else if (field === 'decision_maker') row.decision_maker = parseDecisionMaker(value)
         else if (field === 'contact_person') {
-          // v32.2: "Naam (Functie), ..." netjes uit elkaar halen
+          // v32.3: "Naam (Functie) / Naam (Functie) bronkruimel" netjes uit
+          // elkaar halen; e-mailadressen in de cel gaan naar het e-mailveld
           const parsed = parseContactCell(value)
           if (parsed.name) row.contact_person = parsed.name
           if (parsed.func && !row.function) row.function = parsed.func
-          if (parsed.multiple) row.__alle_contacten = value
+          if (parsed.emails.length && !row.email) row.email = parsed.emails[0].toLowerCase()
+          if (parsed.multiple && (parsed.name || parsed.emails.length)) row.__alle_contacten = parsed.cleaned
         }
         else if (field === 'verrijking') {
           // v32.2: "Verrijking" wordt ALTIJD toegevoegd (gelabelde notitieregel),
@@ -405,9 +451,12 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         if (byWeb.has(w)) { lead = byWeb.get(w); via = 'website' }
       }
       if (!lead && row.name) {
-        const n = normCompanyName(row.name)
-        if (nameCount[n] > 1) { unmatched.push({ rowNr, name: row.name, reason: 'meerdere leads met deze naam - niet eenduidig' }); return }
-        if (byName.has(n)) { lead = byName.get(n); via = 'naam' }
+        // v32.3: "Naam A / Naam B" - probeer de hele naam én beide varianten
+        const variants = [...new Set([row.name, ...row.name.split('/')].map(normCompanyName).filter(Boolean))]
+        for (const n of variants) {
+          if (nameCount[n] > 1) { unmatched.push({ rowNr, name: row.name, reason: 'meerdere leads met deze naam - niet eenduidig' }); return }
+          if (byName.has(n)) { lead = byName.get(n); via = 'naam'; break }
+        }
       }
       if (!lead) { unmatched.push({ rowNr, name: row.name || row.phone || row.website || `rij ${rowNr}`, reason: 'geen bestaande lead gevonden' }); return }
       if (seenLeadIds.has(lead.id)) { unmatched.push({ rowNr, name: row.name || lead.name, reason: 'lead komt al eerder in je plak-data voor' }); return }
@@ -635,8 +684,8 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                     </label>
                     <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0 0 10px 0' }}>
                       {mode === 'enrich'
-                        ? 'Plak rijen met minimaal een bedrijfsnaam, telefoonnummer of website (om te matchen) plus de nieuwe info. Alleen lege velden worden aangevuld - bestaande gegevens blijven staan.'
-                        : 'Selecteer je rijen in Google Sheets of Excel (inclusief kopregel), kopieer ze (Cmd+C) en plak ze hieronder (Cmd+V).'}
+                        ? 'Plak rijen met minimaal een bedrijfsnaam, telefoonnummer of website (om te matchen) plus de nieuwe info. Tabellen uit Perplexity of ChatGPT (met | strepen) kun je direct plakken - bronverwijzingen en "geen naam gevonden" worden automatisch opgeruimd. Alleen lege velden worden aangevuld.'
+                        : 'Selecteer je rijen in Google Sheets of Excel (inclusief kopregel), kopieer ze (Cmd+C) en plak ze hieronder (Cmd+V). Tabellen uit Perplexity of ChatGPT (met | strepen) kunnen ook direct.'}
                     </p>
                     <textarea
                       value={pasteText}
