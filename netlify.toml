@@ -10,3 +10,13 @@
 
 [build.environment]
   NODE_VERSION = "20"
+
+# App verborgen houden: niet indexeren, geen referrer lekken, basis security headers
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow, noarchive"
+    Referrer-Policy = "no-referrer"
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"

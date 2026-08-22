@@ -494,7 +494,7 @@ export default function WorkInterface() {
                 </div>
 
                 {editableLead.website && (
-                  <a href={normalizeWebsite(editableLead.website) || editableLead.website} target="_blank" rel="noopener noreferrer" style={{ padding: '10px', borderRadius: '10px', background: 'var(--primary)', color: 'var(--text-on-accent)', fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none', textAlign: 'center' }}>
+                  <a href={normalizeWebsite(editableLead.website) || editableLead.website} target="_blank" rel="nofollow noopener noreferrer" referrerPolicy="no-referrer" style={{ padding: '10px', borderRadius: '10px', background: 'var(--primary)', color: 'var(--text-on-accent)', fontWeight: 700, fontSize: '0.85rem', textDecoration: 'none', textAlign: 'center' }}>
                     {displayWebsite(editableLead.website)} openen ↗
                   </a>
                 )}
@@ -580,7 +580,7 @@ export default function WorkInterface() {
                         {editableLead.website && (
                           <a
                             href={normalizeWebsite(editableLead.website) || editableLead.website}
-                            target="_blank" rel="noopener noreferrer"
+                            target="_blank" rel="nofollow noopener noreferrer" referrerPolicy="no-referrer"
                             title={editableLead.website}
                             style={{ flexShrink: 0, padding: '7px 12px', borderRadius: '8px', background: 'var(--primary)', color: 'var(--text-on-accent)', fontWeight: 700, fontSize: '0.75rem', textDecoration: 'none', whiteSpace: 'nowrap', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis' }}
                           >

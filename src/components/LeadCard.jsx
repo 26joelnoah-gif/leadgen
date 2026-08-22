@@ -160,7 +160,7 @@ export default function LeadCard({ lead, onStatusChange, onClaim, loading = fals
           {lead.website ? (
             <a
               href={normalizeWebsite(lead.website) || lead.website}
-              target="_blank" rel="noopener noreferrer"
+              target="_blank" rel="nofollow noopener noreferrer" referrerPolicy="no-referrer"
               className="flex items-center gap-1 hover:text-primary transition-colors"
               title={lead.website}
               style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
