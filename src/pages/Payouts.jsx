@@ -450,7 +450,7 @@ export default function Payouts() {
           <LoadingSpinner size="large" />
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
-            {users.filter(u => u.role === 'employee').map((user, index) => {
+            {users.filter(u => u.role === 'employee' && u.is_active !== false).map((user, index) => {
               const payout = payouts[user.id]
               const { rows, totals } = userBreakdown(user.id)
               const statusInfo = getStatusInfo(payout)
