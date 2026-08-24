@@ -10,7 +10,27 @@ import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
 import { supabase } from '../lib/supabase'
 import { normalizeWebsite, displayWebsite } from '../utils/urlUtils'
-import { getStatusDetails } from '../utils/statusUtils'
+import { getStatusDetails, RECRUITMENT_LABELS } from '../utils/statusUtils'
+
+// v36: labels van de dispositie-knoppen (footer) voor recruitment-projecten.
+// Zelfde status-keys/logica als sales, alleen de tekst op de knop wijkt af.
+const RECRUITMENT_BUTTON_LABELS = {
+  deal: 'AANGENOMEN',
+  afspraak_gemaakt: 'GESPREK GEPLAND',
+  geen_interesse: 'AFGEWEZEN',
+  blacklist: 'NIET MEER BENADEREN'
+}
+
+// v36: veldlabels in de contactkaart die voor sollicitanten anders heten
+// (bv. het 'name'-veld heet in sales "Bedrijfsnaam", voor recruitment "Naam sollicitant")
+const RECRUITMENT_FIELD_LABELS = {
+  Bedrijfsnaam: 'Naam sollicitant',
+  Contactpersoon: 'Referentie / contactpersoon',
+  Functie: 'Functie / vacature',
+  'Extra info 1': 'CV / LinkedIn-link',
+  'Extra info 2': 'Ervaring',
+  'Extra info 3': 'Beschikbaarheid'
+}
 
 const CopyButton = ({ text, label }) => {
   const [copied, setCopied] = useState(false)
@@ -167,13 +187,18 @@ export default function WorkInterface() {
   // De open/dicht-stand blijft staan tijdens de hele belsessie.
   const [briefing, setBriefing] = useState(null)
   const [briefingTab, setBriefingTab] = useState(null) // null | 'script' | 'info'
+  // v36: type van de campagne ('sales' | 'recruitment') - bepaalt of de
+  // dispositie-knoppen en veldlabels als sollicitant-tekst getoond worden.
+  const [isRecruitmentCampaign, setIsRecruitmentCampaign] = useState(false)
   useEffect(() => {
     const listId = workingListId || workingLead?.lead_list_id
-    if (!isWorking || !listId) { setBriefing(null); return }
+    if (!isWorking || !listId) { setBriefing(null); setIsRecruitmentCampaign(false); return }
     let cancelled = false
-    supabase.from('lead_lists').select('campaign_id').eq('id', listId).maybeSingle()
+    supabase.from('lead_lists').select('campaign_id, campaigns(type)').eq('id', listId).maybeSingle()
       .then(({ data }) => {
-        if (cancelled || !data?.campaign_id) { if (!cancelled) setBriefing(null); return }
+        if (cancelled) return
+        setIsRecruitmentCampaign(data?.campaigns?.type === 'recruitment')
+        if (!data?.campaign_id) { setBriefing(null); return }
         supabase.from('campaign_briefings')
           .select('call_script, project_info')
           .eq('campaign_id', data.campaign_id)
@@ -270,16 +295,18 @@ export default function WorkInterface() {
 
 
   // quick: true = direct afboeken met 1 klik, geen modal en geen verplichte notitie
+  // v36: label wijkt af voor recruitment-projecten (zelfde id/logica, andere tekst)
+  const dLabel = (id, fallback) => (isRecruitmentCampaign && RECRUITMENT_BUTTON_LABELS[id]) || fallback
   const dispositions = [
-    { id: 'deal', label: 'DEAL', color: '#10B981', icon: <CheckCircle2 size={18} /> },
-    { id: 'afspraak_gemaakt', label: 'AFSPRAAK', color: '#3B82F6', icon: <Calendar size={18} /> },
+    { id: 'deal', label: dLabel('deal', 'DEAL'), color: '#10B981', icon: <CheckCircle2 size={18} /> },
+    { id: 'afspraak_gemaakt', label: dLabel('afspraak_gemaakt', 'AFSPRAAK'), color: '#3B82F6', icon: <Calendar size={18} /> },
     { id: 'terugbelafspraak', label: 'TBA (Terugbel)', color: '#8B5CF6', icon: <Clock size={18} /> },
     { id: 'later_bellen', label: 'LATER BELLEN', color: '#F59E0B', icon: <Clock size={18} /> },
     { id: 'geen_gehoor', label: 'GEEN GEHOOR', color: '#64748B', icon: <Phone size={18} />, quick: true },
     { id: 'verkeerd_nummer', label: 'FOUTIEVE INFO', color: '#EF4444', icon: <AlertCircle size={18} />, quick: true },
-    { id: 'geen_interesse', label: 'GEEN INTERESSE', color: '#334155', icon: <X size={18} />, quick: true },
+    { id: 'geen_interesse', label: dLabel('geen_interesse', 'GEEN INTERESSE'), color: '#334155', icon: <X size={18} />, quick: true },
     { id: 'onjuiste_timing', label: 'ONJUISTE TIMING', color: '#0EA5E9', icon: <Clock size={18} />, quick: true },
-    { id: 'blacklist', label: 'BLACKLIST', color: '#991B1B', icon: <Ban size={18} />, quick: true },
+    { id: 'blacklist', label: dLabel('blacklist', 'BLACKLIST'), color: '#991B1B', icon: <Ban size={18} />, quick: true },
   ]
 
   // Veiligheidsklep: als alles uitgezet zou zijn, toon dan toch alle knoppen
@@ -516,7 +543,7 @@ export default function WorkInterface() {
                       ['Extra info 1', 'extra_info1'], ['Extra info 2', 'extra_info2'], ['Extra info 3', 'extra_info3']
                     ].map(([label, field]) => (
                       <div key={field}>
-                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{label}</label>
+                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{isRecruitmentCampaign ? (RECRUITMENT_FIELD_LABELS[label] || label) : label}</label>
                         <input type="text" value={editableLead[field] || ''} onChange={e => setEditableLead({ ...editableLead, [field]: e.target.value })} placeholder="..." style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
                       </div>
                     ))}
@@ -534,7 +561,7 @@ export default function WorkInterface() {
                   </div>
                   <div style={{ padding: '14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 14px', alignContent: 'start' }}>
                     <div>
-                      <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Bedrijfsnaam</label>
+                      <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{isRecruitmentCampaign ? RECRUITMENT_FIELD_LABELS.Bedrijfsnaam : 'Bedrijfsnaam'}</label>
                       <input type="text" value={editableLead.name || ''} onChange={e => setEditableLead({...editableLead, name: e.target.value})} style={{ ...{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem' }, fontWeight: 600 }}/>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
@@ -548,7 +575,7 @@ export default function WorkInterface() {
                       </div>
                     </div>
                     <div>
-                      <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Contactpersoon</label>
+                      <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{isRecruitmentCampaign ? RECRUITMENT_FIELD_LABELS.Contactpersoon : 'Contactpersoon'}</label>
                       <input type="text" value={editableLead.contact_person || ''} onChange={e => setEditableLead({...editableLead, contact_person: e.target.value})} placeholder="..." style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem' }}/>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px' }}>
@@ -566,7 +593,7 @@ export default function WorkInterface() {
                       <input type="text" value={editableLead.email || ''} onChange={e => setEditableLead({...editableLead, email: e.target.value})} placeholder="..." style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem' }}/>
                     </div>
                     <div>
-                      <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Functie</label>
+                      <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{isRecruitmentCampaign ? RECRUITMENT_FIELD_LABELS.Functie : 'Functie'}</label>
                       <input type="text" value={editableLead.function || ''} onChange={e => setEditableLead({...editableLead, function: e.target.value})} placeholder="..." style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem' }}/>
                     </div>
                     <div>
@@ -624,7 +651,9 @@ export default function WorkInterface() {
                           type="text"
                           value={editableLead[field] || ''}
                           onChange={e => setEditableLead({ ...editableLead, [field]: e.target.value })}
-                          placeholder={`Extra info ${idx + 1} (uit niet-herkende importkolommen)`}
+                          placeholder={isRecruitmentCampaign
+                            ? (RECRUITMENT_FIELD_LABELS[`Extra info ${idx + 1}`] || `Extra info ${idx + 1}`)
+                            : `Extra info ${idx + 1} (uit niet-herkende importkolommen)`}
                           style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
                         />
                       ))}

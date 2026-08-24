@@ -17,16 +17,23 @@ export default function Header({ onOpenSettings }) {
 
   const isAdmin = profile?.role === 'admin'
   const isManager = profile?.role === 'manager'
+  const isRecruiter = profile?.role === 'recruiter'
 
-  const navLinks = [
-    { path: '/', label: 'Dashboard' },
-    { path: '/tba', label: 'TBA\'s' },
-    { path: '/earnings', label: 'Verdiensten' },
-    ...(isManager ? [
-      { path: '/manager', label: 'Mijn Projecten' },
-      { path: '/admin/reports', label: 'Rapportage' }
-    ] : []),
-  ]
+  // v36: recruiter krijgt een eigen, kleine nav - geen sales-dashboard/verdiensten
+  const navLinks = isRecruiter
+    ? [
+        { path: '/recruitment', label: 'Sollicitanten' },
+        { path: '/tba', label: 'TBA\'s' }
+      ]
+    : [
+        { path: '/', label: 'Dashboard' },
+        { path: '/tba', label: 'TBA\'s' },
+        { path: '/earnings', label: 'Verdiensten' },
+        ...(isManager ? [
+          { path: '/manager', label: 'Mijn Projecten' },
+          { path: '/admin/reports', label: 'Rapportage' }
+        ] : []),
+      ]
 
   // Beheer-links in volgorde van dagelijks gebruik
   const adminLinks = [
@@ -80,7 +87,7 @@ export default function Header({ onOpenSettings }) {
         </nav>
 
         <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {profile?.role === 'employee' && (
+          {(profile?.role === 'employee' || isRecruiter) && (
             <button
               onClick={toggleWorkingMode}
               className="btn btn-sm"

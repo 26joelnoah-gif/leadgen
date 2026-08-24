@@ -15,6 +15,7 @@ import Telemetry from './pages/Telemetry'
 import Payouts from './pages/Payouts'
 import LeadManagement from './pages/LeadManagement'
 import Manager from './pages/Manager'
+import Recruitment from './pages/Recruitment'
 import WorkInterface from './components/WorkInterface'
 
 // v33: waarschuw open tabbladen zodra er een nieuwe versie live staat.
@@ -106,6 +107,14 @@ function ProtectedRoute({ children, requireAdmin = false, allowManager = false }
   return children
 }
 
+// v36: recruiters landen niet op het sales-dashboard maar meteen op hun
+// eigen sollicitanten-scherm (zelfde route "/", geen aparte diepe link nodig).
+function HomeRoute() {
+  const { profile } = useAuth()
+  if (profile?.role === 'recruiter') return <Navigate to="/recruitment" replace />
+  return <Dashboard />
+}
+
 function AppRoutes() {
   const { user } = useAuth()
 
@@ -119,7 +128,15 @@ function AppRoutes() {
         path="/"
         element={
           <ProtectedRoute>
-            <Dashboard />
+            <HomeRoute />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/recruitment"
+        element={
+          <ProtectedRoute>
+            <Recruitment />
           </ProtectedRoute>
         }
       />

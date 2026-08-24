@@ -135,9 +135,45 @@ export default function Admin() {
             .eq('id', signUpData.user.id)
           if (updErr) toast(`Account aangemaakt, maar instellen van rol/organisatie mislukte: ${updErr.message}`, 'error')
         }
+
+        // v36: recruiter krijgt meteen een eigen sollicitatieproject (campagne
+        // type='recruitment' + lijst "Sollicitanten", assigned_to = de recruiter)
+        // zodat hij/zij direct zelf sollicitanten kan toevoegen en bellen.
+        if (employeeData.role === 'recruiter') {
+          const { data: campaign, error: campErr } = await supabase
+            .from('campaigns')
+            .insert({
+              name: `Sollicitaties — ${employeeData.name}`,
+              type: 'recruitment',
+              organization_id: profile?.organization_id || null,
+              created_by: user.id
+            })
+            .select()
+            .single()
+          if (campErr) {
+            toast(`Recruiter aangemaakt, maar het sollicitatieproject kon niet worden opgezet: ${campErr.message}`, 'error')
+          } else {
+            await supabase.from('campaign_managers').insert({ campaign_id: campaign.id, manager_id: signUpData.user.id })
+            const { error: listErr } = await supabase.from('lead_lists').insert({
+              name: 'Sollicitanten',
+              campaign_id: campaign.id,
+              assigned_to: signUpData.user.id,
+              created_by: user.id,
+              organization_id: profile?.organization_id || null
+            })
+            if (listErr) toast(`Project aangemaakt, maar de lijst kon niet worden opgezet: ${listErr.message}`, 'error')
+          }
+        }
       }
 
-      toast(employeeData.role === 'manager' ? 'Manager aangemaakt! Koppel nu projecten via de knop "Projecten".' : 'Medewerker uitnodiging verstuurd!', 'success')
+      toast(
+        employeeData.role === 'manager'
+          ? 'Manager aangemaakt! Koppel nu projecten via de knop "Projecten".'
+          : employeeData.role === 'recruiter'
+          ? 'Recruiter aangemaakt! Het sollicitatieproject "Sollicitanten" staat klaar.'
+          : 'Medewerker uitnodiging verstuurd!',
+        'success'
+      )
       fetchData()
     } catch (err) {
       toast(err.message, 'error')
@@ -447,7 +483,7 @@ export default function Admin() {
                            </div>
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
-                           <span className={`self-start shrink-0 whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : 'bg-success/20 text-success'}`}>{u.role === 'employee' ? 'Beller' : u.role}</span>
+                           <span className={`self-start shrink-0 whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : u.role === 'recruiter' ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}`}>{u.role === 'employee' ? 'Beller' : u.role === 'recruiter' ? 'Recruiter' : u.role}</span>
                            {u.is_active === false && (
                              <span className="whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-error/20 text-error">Inactief</span>
                            )}
@@ -517,6 +553,7 @@ export default function Admin() {
                           >
                              <option value="employee">Beller</option>
                              <option value="manager">Manager</option>
+                             <option value="recruiter">Recruiter</option>
                              <option value="admin">Admin</option>
                           </select>
                           {u.role === 'manager' && (

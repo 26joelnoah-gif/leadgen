@@ -17,6 +17,22 @@ export const STATUS_MAP = {
   verbetering_nodig: { label: 'Verbetering Nodig', color: 'var(--warning)', bg: 'var(--warning-bg)', description: 'Moet beter' }
 };
 
-export const getStatusDetails = (status) => {
-  return STATUS_MAP[status] || { label: status, color: 'var(--text-muted)', bg: 'var(--bg-elevated)' };
+// v36: recruitment-projecten gebruiken dezelfde statussen/dispositie-flow
+// (TBA, wachtrij, rapportage) als sales - alleen de LABELS lezen anders.
+// De onderliggende status-key (bv. 'deal') blijft overal hetzelfde.
+export const RECRUITMENT_LABELS = {
+  afspraak_gemaakt: 'Gesprek gepland',
+  deal: 'Aangenomen',
+  geen_interesse: 'Afgewezen',
+  terugbelafspraak: 'Terugbelafspraak (TBA)',
+  onjuiste_timing: 'Nu niet, later opnieuw',
+  blacklist: 'Niet meer benaderen'
+};
+
+export const getStatusDetails = (status, isRecruitment = false) => {
+  const base = STATUS_MAP[status] || { label: status, color: 'var(--text-muted)', bg: 'var(--bg-elevated)' };
+  if (isRecruitment && RECRUITMENT_LABELS[status]) {
+    return { ...base, label: RECRUITMENT_LABELS[status] };
+  }
+  return base;
 };

@@ -108,11 +108,17 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
               <select value={role} onChange={e => setRole(e.target.value)}>
                 <option value="employee">Beller (medewerker)</option>
                 <option value="manager">Manager</option>
+                <option value="recruiter">Recruiter</option>
                 <option value="admin">Admin</option>
               </select>
               {role === 'manager' && (
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
                   Koppel de manager na het aanmaken aan projecten via de knop "Projecten" op zijn kaart.
+                </p>
+              )}
+              {role === 'recruiter' && (
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  Er wordt automatisch een sollicitatieproject "Sollicitanten" voor deze recruiter aangemaakt.
                 </p>
               )}
             </div>
