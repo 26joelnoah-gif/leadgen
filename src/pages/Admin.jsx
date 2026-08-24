@@ -201,15 +201,21 @@ export default function Admin() {
       todayStart.setHours(0, 0, 0, 0)
       const { data: logs } = await supabase
         .from('call_logs')
-        .select('agent_id, duration_seconds, disposition')
+        .select('agent_id, lead_id, duration_seconds, disposition')
         .gte('disposed_at', todayStart.toISOString())
         .limit(5000)
+      // Statuskaart per lead, zodat een teruggedraaide afboeking (bv. "Terug in wachtrij"
+      // bij Manager > Resultaten) niet als afspraak/deal blijft meetellen als de lead
+      // inmiddels een andere status heeft.
+      const leadStatusById = {}
+      ;(l || []).forEach(lead => { leadStatusById[lead.id] = lead.status })
       const stats = { calls: 0, seconds: 0, afspraken: 0, deals: 0, perAgent: {} }
       ;(logs || []).forEach(log => {
         stats.calls++
         stats.seconds += log.duration_seconds || 0
-        if (log.disposition === 'afspraak_gemaakt') stats.afspraken++
-        if (log.disposition === 'deal') stats.deals++
+        const nogSteedsActueel = leadStatusById[log.lead_id] === log.disposition
+        if (log.disposition === 'afspraak_gemaakt' && nogSteedsActueel) stats.afspraken++
+        if (log.disposition === 'deal' && nogSteedsActueel) stats.deals++
         if (log.agent_id) {
           if (!stats.perAgent[log.agent_id]) stats.perAgent[log.agent_id] = { calls: 0, seconds: 0 }
           stats.perAgent[log.agent_id].calls++
