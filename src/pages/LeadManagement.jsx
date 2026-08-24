@@ -20,6 +20,7 @@ import ImportLeadsModal from '../components/ImportLeadsModal'
 import EnrichResultsModal from '../components/EnrichResultsModal'
 import NewProjectWizard from '../components/NewProjectWizard'
 import CampaignBriefingModal from '../components/CampaignBriefingModal'
+import LeadDetailModal from '../components/LeadDetailModal'
 
 function StatusBadge({ status }) {
   const configs = {
@@ -96,6 +97,9 @@ export default function LeadManagement({ standalone = true }) {
 
   // v29: briefing (belscript + projectinfo) per project
   const [briefingCampaign, setBriefingCampaign] = useState(null)
+
+  // v36: contactkaart - klik op een lead in de leadlijst
+  const [detailLead, setDetailLead] = useState(null)
 
   useEffect(() => {
     fetchData()
@@ -395,7 +399,7 @@ export default function LeadManagement({ standalone = true }) {
       {standalone && <Header />}
 
       <main className="container-wide py-8">
-        <div className="flex justify-between items-center mb-10 px-6">
+        <div className="flex justify-between items-center mb-10 px-6" style={{ flexWrap: 'wrap', gap: '16px' }}>
           <div>
             <div className="flex items-center gap-2 text-secondary mb-1">
                <Shield size={14} /> <span className="text-xs font-bold uppercase tracking-widest">Administrator</span>
@@ -403,7 +407,7 @@ export default function LeadManagement({ standalone = true }) {
             <h1 className="page-title">Projecten & Leads</h1>
             <p className="text-muted text-sm mt-1">Beheer je projecten (leadlijsten), teams en wat er na een afboeking gebeurt.</p>
           </div>
-          <div className="flex gap-3 items-center">
+          <div className="flex gap-3 items-center" style={{ flexWrap: 'wrap' }}>
              <button
                onClick={() => setShowNewProject(true)}
                className="btn btn-secondary"
@@ -645,21 +649,21 @@ export default function LeadManagement({ standalone = true }) {
                     <FlowSettingsEditor />
                   ) : selectedList ? (
                     <div className="glass-panel p-0 overflow-hidden min-h-[600px] flex flex-col">
-                      <div className="p-6 border-b border-border flex justify-between items-center bg-elevated">
-                        <div>
-                           <h2 className="text-xl font-black text-body leading-none mb-1">{selectedList.name}</h2>
+                      <div className="p-6 border-b border-border flex justify-between items-center bg-elevated" style={{ flexWrap: 'wrap', gap: '12px' }}>
+                        <div style={{ minWidth: 0 }}>
+                           <h2 className="text-xl font-black text-body leading-none mb-1" style={{ overflowWrap: 'break-word' }}>{selectedList.name}</h2>
                            <p className="text-[10px] text-muted font-bold uppercase tracking-widest">{leads.length} leads in dit project</p>
                         </div>
-                        <div className="flex gap-2">
-                          <div style={{ position: 'relative' }}>
+                        <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+                          <div style={{ position: 'relative', minWidth: 0 }}>
                              <Search size={14} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                              <input
                                type="text"
                                value={leadSearch}
                                onChange={e => setLeadSearch(e.target.value)}
                                placeholder="Zoeken..."
-                               className="bg-dark border border-border rounded-lg text-xs w-[200px] focus:w-[300px] transition-all focus:border-primary/50"
-                               style={{ padding: '8px 14px 8px 34px' }}
+                               className="bg-dark border border-border rounded-lg text-xs w-[160px] focus:w-[220px] transition-all focus:border-primary/50"
+                               style={{ padding: '8px 14px 8px 34px', maxWidth: '100%' }}
                              />
                           </div>
                           <button
@@ -715,7 +719,12 @@ export default function LeadManagement({ standalone = true }) {
                               {(leadSearch ? leads.filter(l => l.name.toLowerCase().includes(leadSearch.toLowerCase()) || l.phone.includes(leadSearch)) : leads).length === 0 ? (
                                 <tr><td colSpan={6} className="p-20 text-center text-muted font-bold italic">Geen leads gevonden die voldoen aan je zoekopdracht...</td></tr>
                               ) : (leadSearch ? leads.filter(l => l.name.toLowerCase().includes(leadSearch.toLowerCase()) || l.phone.includes(leadSearch)) : leads).map(lead => (
-                                <tr key={lead.id} className="border-b border-border hover:bg-elevated transition-all group">
+                                <tr
+                                  key={lead.id}
+                                  className="border-b border-border hover:bg-elevated transition-all group cursor-pointer"
+                                  onClick={() => setDetailLead(lead)}
+                                  title="Klik voor de contactkaart, afboek-geschiedenis en notities"
+                                >
                                   <td className="p-4 pl-8">
                                      <div className="font-bold text-body group-hover:text-primary transition-colors">{lead.name}</div>
                                      <div className="text-[10px] text-muted font-mono">{lead.phone}</div>
@@ -979,6 +988,13 @@ export default function LeadManagement({ standalone = true }) {
       />
 
       {aiResults && <EnrichResultsModal results={aiResults} onClose={() => setAiResults(null)} />}
+
+      <LeadDetailModal
+        isOpen={!!detailLead}
+        onClose={() => setDetailLead(null)}
+        lead={detailLead}
+        assignedName={agents.find(a => a.id === detailLead?.assigned_to)?.full_name}
+      />
 
       <NewProjectWizard
         isOpen={showNewProject}

@@ -91,10 +91,21 @@
   box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
+/* v36: veiligheidsnet tegen horizontale overflow - een enkel element dat
+   net iets te breed is (een knoppenrij zonder wrap, een vaste breedte)
+   trok voorheen de HELE pagina breder dan het scherm, op mobiel en op een
+   niet-gemaximaliseerd laptopvenster. html/body scrollen nu nooit meer
+   zijwaarts; scrollbare tabellen/modals hebben hun eigen overflow-x. */
+html {
+  overflow-x: hidden;
+}
+
 body {
   /* Inter voor lopende tekst; Outfit alleen voor koppen/grote cijfers (zie hieronder) */
   font-family: var(--font-body);
   font-size: 14px;
+  max-width: 100vw;
+  overflow-x: hidden;
   background: var(--bg-page);
   color: var(--text-main);
   /* Lange woorden/e-mails/URL's breken i.p.v. onzichtbaar buiten hun vakje vallen */
