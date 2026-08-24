@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import {
   Users, PhoneCall, CheckCircle, Download, Clock, Filter, Calendar,
   TrendingUp, Phone, UserPlus, Layers, Upload, Zap, Euro, BarChart3, FastForward,
-  BookOpen, Sparkles
+  BookOpen, Sparkles, KeyRound
 } from 'lucide-react'
 import EnrichResultsModal from '../components/EnrichResultsModal'
 import { getStatusDetails } from '../utils/statusUtils'
@@ -16,6 +16,7 @@ import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import EmployeeModal from '../components/EmployeeModal'
+import ResetPasswordModal from '../components/ResetPasswordModal'
 import ImportLeadsModal from '../components/ImportLeadsModal'
 import CampaignBriefingModal from '../components/CampaignBriefingModal'
 import FlowSettingsEditor from '../components/FlowSettingsEditor'
@@ -61,6 +62,7 @@ export default function Manager() {
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overzicht') // 'overzicht' | 'gesprekken' | 'team'
   const [showEmployee, setShowEmployee] = useState(false)
+  const [resettingUser, setResettingUser] = useState(null) // v35: wachtwoord resetten voor deze beller
   const [showImport, setShowImport] = useState(false)
   const [importMode, setImportMode] = useState('import') // v32.1: 'import' of 'enrich'
   const [rules, setRules] = useState(null) // payout_rules (standaardtarieven)
@@ -873,9 +875,24 @@ export default function Manager() {
                         <tr key={list.id}>
                           <td><strong>{list.name}</strong></td>
                           <td>
-                            {assigned
-                              ? <span style={{ fontWeight: 700 }}>{assigned.full_name}</span>
-                              : <span className="text-muted">Niet toegewezen</span>}
+                            {assigned ? (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <span style={{ fontWeight: 700 }}>{assigned.full_name}</span>
+                                {canManageTeam && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline"
+                                    style={{ padding: '4px 8px' }}
+                                    onClick={() => setResettingUser(assigned)}
+                                    title="Wachtwoord van deze beller resetten"
+                                  >
+                                    <KeyRound size={13}/>
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-muted">Niet toegewezen</span>
+                            )}
                           </td>
                           {canViewRates && (() => {
                             const r = rateFor(list.id)
@@ -929,6 +946,7 @@ export default function Manager() {
       </main>
 
       <EmployeeModal isOpen={showEmployee} onClose={() => setShowEmployee(false)} onAdd={handleAddEmployee} fixedRole="employee" title="Nieuwe Beller" />
+      <ResetPasswordModal isOpen={!!resettingUser} onClose={() => setResettingUser(null)} targetUser={resettingUser} />
       <ImportLeadsModal isOpen={showImport} initialMode={importMode} onClose={() => setShowImport(false)} onImported={() => fetchCallLogs()} />
       {aiResults && <EnrichResultsModal results={aiResults} onClose={() => setAiResults(null)} />}
       <CampaignBriefingModal isOpen={!!briefingCampaign} campaign={briefingCampaign} onClose={() => setBriefingCampaign(null)} />

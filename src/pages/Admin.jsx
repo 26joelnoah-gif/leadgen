@@ -7,10 +7,10 @@ import Header from '../components/Header'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { 
-  Plus, Users, Settings, UserPlus, Phone, PhoneOff, Mail, 
-  UserCheck, Shield, Activity, Download, Play, Zap, Upload, 
-  X, CheckCircle, AlertTriangle, Bell, Megaphone, Target, 
-  DollarSign, Calendar, List, ChevronRight, Layers, Trash2, Search
+  Plus, Users, Settings, UserPlus, Phone, PhoneOff, Mail,
+  UserCheck, Shield, Activity, Download, Play, Zap, Upload,
+  X, CheckCircle, AlertTriangle, Bell, Megaphone, Target,
+  DollarSign, Calendar, List, ChevronRight, Layers, Trash2, Search, KeyRound
 } from 'lucide-react'
 import { STATUS_MAP } from '../utils/statusUtils'
 import { exportToCSV } from '../utils/exportUtils'
@@ -25,6 +25,7 @@ import CampaignModal, { CampaignCard } from '../components/CampaignModal'
 import BriefingModal, { BriefingCard } from '../components/BriefingModal'
 import { LeadListModal } from '../components/LeadListModal'
 import EmployeeModal from '../components/EmployeeModal'
+import ResetPasswordModal from '../components/ResetPasswordModal'
 import ManagerProjectsModal from '../components/ManagerProjectsModal'
 import NewProjectWizard from '../components/NewProjectWizard'
 import PayoutSettings from '../components/PayoutSettings'
@@ -66,9 +67,9 @@ export default function Admin() {
   const [briefings, setBriefings] = useState([])
   const [confirmDeleteUser, setConfirmDeleteUser] = useState(null)
   const [todayStats, setTodayStats] = useState({ calls: 0, seconds: 0, afspraken: 0, deals: 0, perAgent: {} })
-  const [showSettings, setShowSettings] = useState(false)
   const [showEmployee, setShowEmployee] = useState(false)
   const [managingUser, setManagingUser] = useState(null) // manager wiens projecten we koppelen
+  const [resettingUser, setResettingUser] = useState(null) // v35: wachtwoord resetten voor deze gebruiker
   const [showNewProject, setShowNewProject] = useState(false)
   const [managerLinks, setManagerLinks] = useState([]) // campaign_managers-rijen voor de projectenteller (v23)
   const [showLeadList, setShowLeadList] = useState(false)
@@ -298,7 +299,7 @@ export default function Admin() {
 
   return (
     <div className="min-h-screen bg-dark text-body">
-      <Header onOpenSettings={() => setShowSettings(true)} />
+      <Header />
 
       <main className="container-wide py-6 px-8">
         {/* TABS MENU */}
@@ -466,6 +467,13 @@ export default function Admin() {
                         {u.id !== user.id && (
                           <div className="flex items-center gap-1">
                             <button
+                              onClick={() => setResettingUser(u)}
+                              className="p-2 rounded-lg transition-all text-muted hover:bg-primary/20 hover:text-primary opacity-0 group-hover:opacity-100"
+                              title="Wachtwoord resetten"
+                            >
+                              <KeyRound size={18}/>
+                            </button>
+                            <button
                               onClick={() => handleToggleActive(u)}
                               className={`p-2 rounded-lg transition-all ${u.is_active === false ? 'text-success hover:bg-success/20' : 'text-muted hover:bg-secondary/20 hover:text-secondary opacity-0 group-hover:opacity-100'}`}
                               title={u.is_active === false ? 'Weer activeren (kan dan weer inloggen)' : 'Inactief zetten - kan niet meer inloggen, historie blijft bewaard'}
@@ -621,6 +629,7 @@ export default function Admin() {
       </main>
 
       <EmployeeModal isOpen={showEmployee} onClose={() => setShowEmployee(false)} onAdd={handleAddEmployee} />
+      <ResetPasswordModal isOpen={!!resettingUser} onClose={() => setResettingUser(null)} targetUser={resettingUser} />
       <AnimatePresence>
         {managingUser && (
           <ManagerProjectsModal

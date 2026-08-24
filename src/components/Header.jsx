@@ -4,12 +4,16 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { Zap, Settings, LogOut, Phone, Menu, X, Sun, Moon } from 'lucide-react'
 import Logo from './Logo'
+import AccountSettingsModal from './AccountSettingsModal'
 
 export default function Header({ onOpenSettings }) {
   const { profile, signOut, sessionCallCount, toggleWorkingMode, isWorking } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  // v35: "Mijn account" (o.a. eigen wachtwoord wijzigen) - overal beschikbaar
+  // via het tandwiel, ongeacht of een pagina zelf nog onOpenSettings gebruikt.
+  const [showAccount, setShowAccount] = useState(false)
 
   const isAdmin = profile?.role === 'admin'
   const isManager = profile?.role === 'manager'
@@ -112,17 +116,22 @@ export default function Header({ onOpenSettings }) {
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
           </button>
 
-          {onOpenSettings && (
-            <button onClick={onOpenSettings} className="btn btn-sm btn-outline" style={{ padding: '8px', minWidth: 'auto' }} title="Instellingen">
-              <Settings size={16} />
-            </button>
-          )}
-          
+          <button
+            onClick={() => (onOpenSettings ? onOpenSettings() : setShowAccount(true))}
+            className="btn btn-sm btn-outline"
+            style={{ padding: '8px', minWidth: 'auto' }}
+            title="Mijn account"
+          >
+            <Settings size={16} />
+          </button>
+
           <button onClick={signOut} className="btn btn-sm btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <LogOut size={16} /> <span className="hide-mobile">Uitloggen</span>
           </button>
         </div>
       </div>
+
+      <AccountSettingsModal isOpen={showAccount} onClose={() => setShowAccount(false)} profile={profile} />
       <style>{`
         .nav { overflow-x: auto; scrollbar-width: none; }
         .nav::-webkit-scrollbar { display: none; }
