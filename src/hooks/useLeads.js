@@ -55,7 +55,7 @@ export function useLeads() {
       if (profile?.role === 'admin') {
         const { data, error } = await supabase
           .from('leads')
-          .select('*, lead_lists(assigned_team_id)')
+          .select('*, lead_lists(assigned_team_id, campaigns(type))')
           .is('deleted_at', null)
           .order('created_at', { ascending: false })
         if (error) throw error
@@ -85,7 +85,7 @@ export function useLeads() {
         }
 
         // 3. Build OR filter: assigned to me OR in my team's lists
-        let query = supabase.from('leads').select('*, lead_lists(assigned_team_id)').is('deleted_at', null)
+        let query = supabase.from('leads').select('*, lead_lists(assigned_team_id, campaigns(type))').is('deleted_at', null)
         
         if (teamListIds.length > 0) {
           query = query.or(`assigned_to.eq.${me},lead_list_id.in.(${teamListIds.join(',')})`)

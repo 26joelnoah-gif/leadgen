@@ -75,6 +75,9 @@ export default function Dashboard() {
 
     for (const lead of leads) {
       if (!lead || !lead.status) continue
+      // v37: sollicitanten (campagne type='recruitment') zijn geen sales
+      // leads - de dashboard-tellers gaan alleen over verkoop
+      if (lead.lead_lists?.campaigns?.type === 'recruitment') continue
       if (lead.status === 'new') nieuweLeads++
       if (lead.status === 'terugbelafspraak') terugbelacties++
       if (['new', 'terugbelafspraak', 'later_bellen'].includes(lead.status)) hotLeads++
@@ -148,7 +151,7 @@ export default function Dashboard() {
             <h1>Welkom terug, {profile?.full_name?.split(' ')[0] || 'Sales'}</h1>
             <p>
               {isAdmin
-                ? `Je hebt vandaag ${leads.filter(l => l.status === 'new').length} nieuwe leads om op te volgen.`
+                ? `Je hebt vandaag ${stats.nieuweLeads} nieuwe leads om op te volgen.`
                 : isManager
                 ? 'Bekijk op Mijn Projecten hoe je bellers presteren.'
                 : `Je hebt ${leads.filter(l => l.status === 'terugbelafspraak').length} terugbelopdrachten voor vandaag.`
