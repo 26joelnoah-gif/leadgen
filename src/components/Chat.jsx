@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { MessageCircle, X, Send, Plus, Hash, Users } from 'lucide-react'
+import { MessageCircle, X, Send, Plus, Hash, Users, Lock, UserPlus, Trash2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useToast } from './Toast'
+
+const GENERAL_CHANNEL = { id: 'general', name: 'Team', is_default: true }
 
 export default function Chat() {
   const { user, profile } = useAuth()
@@ -11,19 +13,36 @@ export default function Chat() {
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
-  const [channels, setChannels] = useState([{ id: 'general', name: 'Team', is_default: true }])
+  const [channels, setChannels] = useState([GENERAL_CHANNEL])
   const [currentChannel, setCurrentChannel] = useState('general')
   const [showChannelModal, setShowChannelModal] = useState(false)
   const [newChannelName, setNewChannelName] = useState('')
+  const [newChannelCampaignId, setNewChannelCampaignId] = useState('')
+  const [campaigns, setCampaigns] = useState([])
+  const [managedCampaignIds, setManagedCampaignIds] = useState([])
   const [isInitialized, setIsInitialized] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState('connecting') // 'connecting' | 'connected' | 'error'
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [oldestMessageId, setOldestMessageId] = useState(null)
+  const [showMembersModal, setShowMembersModal] = useState(false)
+  const [channelMembers, setChannelMembers] = useState([])
+  const [orgProfiles, setOrgProfiles] = useState([])
+  const [addMemberId, setAddMemberId] = useState('')
+  const [membersLoading, setMembersLoading] = useState(false)
   const messagesEndRef = useRef(null)
   const messagesContainerRef = useRef(null)
 
   const isAdmin = profile?.role === 'admin'
+  const isManager = profile?.role === 'manager'
+  const canCreateChannels = isAdmin || isManager
+
+  const currentChannelObj = channels.find(ch => ch.id === currentChannel) || GENERAL_CHANNEL
+  const canManageCurrentChannel = currentChannel !== 'general' && (
+    isAdmin ||
+    currentChannelObj.created_by === user?.id ||
+    (currentChannelObj.campaign_id && managedCampaignIds.includes(currentChannelObj.campaign_id))
+  )
 
   // Initialize on mount
   useEffect(() => {
@@ -38,6 +57,11 @@ export default function Chat() {
   useEffect(() => {
     if (!isInitialized) return
     fetchChannels()
+    if (isManager) fetchManagedCampaignIds()
+  }, [isInitialized])
+
+  useEffect(() => {
+    if (!isInitialized) return
     fetchMessages()
   }, [currentChannel, isInitialized])
 
@@ -71,16 +95,32 @@ export default function Chat() {
 
   async function fetchChannels() {
     try {
-      if (isAdmin) {
-        const { data, error } = await supabase.from('chat_channels').select('*').order('created_at')
-        if (error) throw error
-        if (data) {
-          const allChannels = [{ id: 'general', name: 'Team', is_default: true }, ...data]
-          setChannels(allChannels)
-        }
+      // RLS bepaalt al welke kanalen deze gebruiker mag zien
+      // (open kanalen + kanalen waar hij/zij lid van is + eigen/beheerde kanalen).
+      const { data, error } = await supabase
+        .from('chat_channels')
+        .select('*, campaigns(name)')
+        .order('created_at')
+      if (error) throw error
+      if (data) {
+        setChannels([GENERAL_CHANNEL, ...data])
       }
     } catch (err) {
       toast(err.message, 'error')
+    }
+  }
+
+  async function fetchManagedCampaignIds() {
+    try {
+      const { data, error } = await supabase
+        .from('campaign_managers')
+        .select('campaign_id')
+        .eq('manager_id', user.id)
+      if (error) throw error
+      setManagedCampaignIds((data || []).map(r => r.campaign_id))
+    } catch (err) {
+      // niet kritiek voor de rest van de chat
+      console.error('fetchManagedCampaignIds', err)
     }
   }
 
@@ -144,21 +184,98 @@ export default function Chat() {
     }
   }
 
+  async function openChannelModal() {
+    setShowChannelModal(true)
+    if (campaigns.length > 0) return
+    try {
+      const { data, error } = await supabase
+        .from('campaigns')
+        .select('id, name')
+        .is('deleted_at', null)
+        .eq('is_active', true)
+        .order('name')
+      if (error) throw error
+      setCampaigns(data || [])
+    } catch (err) {
+      console.error('fetchCampaigns', err)
+    }
+  }
+
   async function createChannel() {
     if (!newChannelName.trim()) return
 
     const { data, error } = await supabase
       .from('chat_channels')
-      .insert({ name: newChannelName.trim() })
-      .select()
+      .insert({
+        name: newChannelName.trim(),
+        campaign_id: newChannelCampaignId || null,
+        restricted: !!newChannelCampaignId,
+        organization_id: profile?.organization_id || null,
+        created_by: user.id
+      })
+      .select('*, campaigns(name)')
       .single()
 
     if (data && !error) {
-      setChannels([...channels, data])
+      setChannels(prev => [...prev, data])
       setCurrentChannel(data.id)
       setNewChannelName('')
+      setNewChannelCampaignId('')
       setShowChannelModal(false)
+    } else if (error) {
+      toast('Kon kanaal niet aanmaken: ' + error.message, 'error')
     }
+  }
+
+  async function openMembersModal() {
+    setShowMembersModal(true)
+    setMembersLoading(true)
+    try {
+      const [membersRes, profilesRes] = await Promise.all([
+        supabase
+          .from('chat_channel_members')
+          .select('user_id, added_at, profiles(id, full_name, email)')
+          .eq('channel_id', currentChannel),
+        supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .order('full_name')
+      ])
+      if (membersRes.error) throw membersRes.error
+      if (profilesRes.error) throw profilesRes.error
+      setChannelMembers(membersRes.data || [])
+      setOrgProfiles(profilesRes.data || [])
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setMembersLoading(false)
+    }
+  }
+
+  async function addMember() {
+    if (!addMemberId) return
+    const { error } = await supabase
+      .from('chat_channel_members')
+      .insert({ channel_id: currentChannel, user_id: addMemberId, added_by: user.id })
+    if (error) {
+      toast('Kon lid niet toevoegen: ' + error.message, 'error')
+      return
+    }
+    setAddMemberId('')
+    openMembersModal()
+  }
+
+  async function removeMember(memberUserId) {
+    const { error } = await supabase
+      .from('chat_channel_members')
+      .delete()
+      .eq('channel_id', currentChannel)
+      .eq('user_id', memberUserId)
+    if (error) {
+      toast('Kon lid niet verwijderen: ' + error.message, 'error')
+      return
+    }
+    setChannelMembers(prev => prev.filter(m => m.user_id !== memberUserId))
   }
 
   async function sendMessage() {
@@ -201,6 +318,8 @@ export default function Chat() {
     }
   }
 
+  const availableProfiles = orgProfiles.filter(p => !channelMembers.some(m => m.user_id === p.id))
+
   return (
     <div className="chat-container">
       <AnimatePresence>
@@ -227,9 +346,18 @@ export default function Chat() {
                 </span>
               </div>
               <div className="flex items-center gap-2">
-                {isAdmin && (
+                {canManageCurrentChannel && (
                   <button
-                    onClick={() => setShowChannelModal(true)}
+                    onClick={openMembersModal}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px' }}
+                    title="Leden beheren"
+                  >
+                    <Users size={18} />
+                  </button>
+                )}
+                {canCreateChannels && (
+                  <button
+                    onClick={openChannelModal}
                     style={{ background: 'none', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', padding: '4px' }}
                     title="Nieuw kanaal"
                   >
@@ -253,8 +381,9 @@ export default function Chat() {
                   onClick={() => setCurrentChannel(ch.id)}
                   className={`btn btn-sm ${currentChannel === ch.id ? 'btn-secondary' : 'btn-outline'}`}
                   style={{ fontSize: '0.75rem', padding: '4px 10px', whiteSpace: 'nowrap' }}
+                  title={ch.campaigns?.name ? `Project: ${ch.campaigns.name}` : undefined}
                 >
-                  <Hash size={12} /> {ch.name}
+                  {ch.restricted ? <Lock size={12} /> : <Hash size={12} />} {ch.name}
                 </button>
               ))}
             </div>
@@ -329,10 +458,10 @@ export default function Chat() {
               </div>
             </div>
 
-            {/* Create Channel Modal (Admin only) */}
+            {/* Create Channel Modal (admin/manager) */}
             {showChannelModal && (
               <div className="modal-overlay" onClick={() => setShowChannelModal(false)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '16px' }}>
-                <div className="modal glass-panel" onClick={e => e.stopPropagation()} style={{ padding: '24px', maxWidth: '300px' }}>
+                <div className="modal glass-panel" onClick={e => e.stopPropagation()} style={{ padding: '24px', maxWidth: '320px', width: '90%' }}>
                   <h3 style={{ marginBottom: '16px' }}><Plus size={18} /> Nieuw Kanaal</h3>
                   <input
                     type="text"
@@ -341,10 +470,78 @@ export default function Chat() {
                     placeholder="Kanaal naam"
                     style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', marginBottom: '12px' }}
                   />
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>
+                    Koppel aan project (optioneel)
+                  </label>
+                  <select
+                    value={newChannelCampaignId}
+                    onChange={e => setNewChannelCampaignId(e.target.value)}
+                    className="form-dark"
+                    style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid var(--border)', marginBottom: '8px' }}
+                  >
+                    <option value="">Geen project (open kanaal)</option>
+                    {campaigns.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                  {newChannelCampaignId && (
+                    <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginBottom: '12px' }}>
+                      Dit kanaal is alleen zichtbaar voor leden die je erbij toevoegt.
+                    </p>
+                  )}
                   <div className="flex gap-2">
                     <button onClick={() => setShowChannelModal(false)} className="btn btn-outline btn-sm" style={{ flex: 1 }}>Annuleren</button>
                     <button onClick={createChannel} className="btn btn-primary btn-sm" style={{ flex: 1 }}>Aanmaken</button>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Manage Members Modal */}
+            {showMembersModal && (
+              <div className="modal-overlay" onClick={() => setShowMembersModal(false)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '16px' }}>
+                <div className="modal glass-panel" onClick={e => e.stopPropagation()} style={{ padding: '24px', maxWidth: '340px', width: '90%', maxHeight: '420px', display: 'flex', flexDirection: 'column' }}>
+                  <h3 style={{ marginBottom: '12px' }}><Users size={18} /> Leden van #{currentChannelObj.name}</h3>
+
+                  <div style={{ flex: 1, overflowY: 'auto', marginBottom: '12px' }}>
+                    {membersLoading ? (
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Laden...</p>
+                    ) : channelMembers.length === 0 ? (
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Nog geen leden toegevoegd.</p>
+                    ) : (
+                      channelMembers.map(m => (
+                        <div key={m.user_id} className="flex items-center justify-between" style={{ padding: '6px 0', borderBottom: '1px solid var(--border)' }}>
+                          <span style={{ fontSize: '0.85rem' }}>{m.profiles?.full_name || m.profiles?.email || m.user_id}</span>
+                          <button
+                            onClick={() => removeMember(m.user_id)}
+                            style={{ background: 'none', border: 'none', color: 'var(--danger, #ef4444)', cursor: 'pointer', padding: '4px' }}
+                            title="Verwijderen uit kanaal"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="flex gap-2" style={{ marginBottom: '12px' }}>
+                    <select
+                      value={addMemberId}
+                      onChange={e => setAddMemberId(e.target.value)}
+                      className="form-dark"
+                      style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border)' }}
+                    >
+                      <option value="">Kies persoon...</option>
+                      {availableProfiles.map(p => (
+                        <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+                      ))}
+                    </select>
+                    <button onClick={addMember} className="btn btn-primary btn-sm" disabled={!addMemberId} title="Toevoegen">
+                      <UserPlus size={16} />
+                    </button>
+                  </div>
+
+                  <button onClick={() => setShowMembersModal(false)} className="btn btn-outline btn-sm">Sluiten</button>
                 </div>
               </div>
             )}
