@@ -374,15 +374,19 @@ export default function Manager() {
       a.calls++
       // v24: effectieve beltijd (gemaximeerd per afboeking) is leidend
       a.seconds += effectiveSeconds(log.disposition, log.duration_seconds)
-      if (log.disposition === 'deal') a.deals++
-      if (log.disposition === 'afspraak_gemaakt') a.afspraken++
+      // Statuskaart per lead (join hierboven): een teruggedraaide afboeking (bv.
+      // "Terug in wachtrij" bij Manager > Resultaten) telt niet meer mee als
+      // afspraak/deal zodra de lead een andere status heeft. Zie Admin.jsx fetchData.
+      const nogSteedsActueel = log.lead?.status === log.disposition
+      if (log.disposition === 'deal' && nogSteedsActueel) a.deals++
+      if (log.disposition === 'afspraak_gemaakt' && nogSteedsActueel) a.afspraken++
       if (log.disposition === 'terugbelafspraak') a.tba++
       if (log.disposition === 'geen_interesse') a.geenInteresse++
       if (log.disposition === 'geen_gehoor') a.geenGehoor++
       if (canViewRates) {
         const r = rateFor(log.lead_list_id)
-        a.cost += (log.disposition === 'deal' ? r.deal : 0)
-          + (log.disposition === 'afspraak_gemaakt' ? r.appointment : 0)
+        a.cost += (log.disposition === 'deal' && nogSteedsActueel ? r.deal : 0)
+          + (log.disposition === 'afspraak_gemaakt' && nogSteedsActueel ? r.appointment : 0)
           + (effectiveSeconds(log.disposition, log.duration_seconds) / 3600) * r.hour
       }
     })
