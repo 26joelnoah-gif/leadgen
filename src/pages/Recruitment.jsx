@@ -68,6 +68,10 @@ export default function Recruitment() {
   const [dragOverColumn, setDragOverColumn] = useState(null)
   const [tbaPrompt, setTbaPrompt] = useState(null) // { leadId, value }
 
+  const [editLead, setEditLead] = useState(null)
+  const [editForm, setEditForm] = useState(EMPTY_FORM)
+  const [savingEdit, setSavingEdit] = useState(false)
+
   // De recruiter heeft precies één lijst nodig om in te werken: die met
   // assigned_to = zichzelf (zo gezet bij het aanmaken van het account).
   // RLS zorgt er sowieso al voor dat leadLists alleen eigen lijsten bevat.
@@ -152,6 +156,46 @@ export default function Recruitment() {
       toast(err.message, 'error')
     } finally {
       setCreating(false)
+    }
+  }
+
+  // ---------- Sollicitant bewerken (klik op kaartje/naam) ----------
+  function openEdit(lead) {
+    setEditForm({
+      name: lead.name || '',
+      phone: lead.phone || '',
+      email: lead.email || '',
+      function: lead.function || '',
+      lead_source: lead.lead_source || '',
+      notes: lead.notes || '',
+      cv_link: lead.extra_info1 || ''
+    })
+    setEditLead(lead)
+  }
+
+  async function handleSaveEdit(e) {
+    e.preventDefault()
+    if (!editLead || !editForm.name.trim() || !editForm.phone.trim()) return
+    setSavingEdit(true)
+    try {
+      const { error } = await supabase.from('leads').update({
+        name: editForm.name.trim(),
+        phone: editForm.phone.trim(),
+        email: editForm.email.trim() || null,
+        function: editForm.function.trim() || null,
+        notes: editForm.notes.trim() || '',
+        lead_source: editForm.lead_source.trim() || null,
+        extra_info1: editForm.cv_link.trim() || null
+      }).eq('id', editLead.id)
+      if (error) throw error
+      toast('Sollicitant bijgewerkt', 'success')
+      logActivity(editLead.id, 'edit', 'Gegevens bijgewerkt')
+      setEditLead(null)
+      fetchLeads()
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setSavingEdit(false)
     }
   }
 
@@ -417,6 +461,8 @@ export default function Recruitment() {
                             draggable
                             onDragStart={e => { e.dataTransfer.setData('text/plain', lead.id); setDraggingId(lead.id) }}
                             onDragEnd={() => setDraggingId(null)}
+                            onClick={() => openEdit(lead)}
+                            title="Klik om te bewerken"
                             style={{
                               background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '7px',
                               padding: '6px 7px', cursor: 'grab', opacity: draggingId === lead.id ? 0.4 : 1
@@ -436,7 +482,7 @@ export default function Recruitment() {
                               </div>
                             )}
                             <button
-                              onClick={() => handleCall(lead)}
+                              onClick={e => { e.stopPropagation(); handleCall(lead) }}
                               className="btn btn-success btn-sm"
                               style={{ marginTop: '5px', width: '100%', padding: '3px', fontSize: '0.62rem' }}
                             >
@@ -471,7 +517,15 @@ export default function Recruitment() {
                       >
                         <div style={{ flex: 1, minWidth: '220px' }}>
                           <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
-                            <strong style={{ fontSize: '1rem' }}>{lead.name}</strong>
+                            <strong
+                              onClick={() => openEdit(lead)}
+                              title="Klik om te bewerken"
+                              style={{ fontSize: '1rem', cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '3px' }}
+                              onMouseEnter={e => { e.currentTarget.style.textDecorationColor = 'var(--text-muted)' }}
+                              onMouseLeave={e => { e.currentTarget.style.textDecorationColor = 'transparent' }}
+                            >
+                              {lead.name}
+                            </strong>
                             <span style={{ background: status.bg, color: status.color, padding: '2px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 800 }}>{status.label}</span>
                             {lead.lead_source && (
                               <span style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', color: 'var(--text-muted)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.7rem', fontWeight: 700 }}>
@@ -594,6 +648,67 @@ export default function Recruitment() {
                   <button type="button" className="btn btn-outline" onClick={() => setShowNew(false)} style={{ flex: 1 }}>Annuleren</button>
                   <button type="submit" className="btn btn-secondary" disabled={creating} style={{ flex: 1 }}>
                     {creating ? 'Toevoegen...' : 'Sollicitant toevoegen'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Sollicitant bewerken (klik op kaartje in het bord, of op naam in de lijst) */}
+      <AnimatePresence>
+        {editLead && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="modal-overlay" onClick={() => setEditLead(null)}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="modal" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2><UserPlus size={18} /> Sollicitant bewerken</h2>
+                <button className="modal-close" onClick={() => setEditLead(null)}><X size={18} /></button>
+              </div>
+              <form onSubmit={handleSaveEdit} autoComplete="off">
+                <div className="form-group">
+                  <label>Naam *</label>
+                  <input type="text" value={editForm.name} onChange={e => setEditForm({ ...editForm, name: e.target.value })} placeholder="Volledige naam" required />
+                </div>
+                <div className="form-group">
+                  <label>Telefoonnummer *</label>
+                  <input type="tel" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} placeholder="06-12345678" required />
+                </div>
+                <div className="form-group">
+                  <label>Email</label>
+                  <input type="email" value={editForm.email} onChange={e => setEditForm({ ...editForm, email: e.target.value })} placeholder="email@voorbeeld.nl" />
+                </div>
+                <div className="form-group">
+                  <label>Functie / vacature</label>
+                  <input type="text" value={editForm.function} onChange={e => setEditForm({ ...editForm, function: e.target.value })} placeholder="Waar heeft hij/zij op gesolliciteerd?" />
+                </div>
+                <div className="grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                  <div className="form-group">
+                    <label>Bron</label>
+                    <input
+                      type="text"
+                      list="recruiter-sources-edit"
+                      value={editForm.lead_source}
+                      onChange={e => setEditForm({ ...editForm, lead_source: e.target.value })}
+                      placeholder="Typ of kies een bron..."
+                    />
+                    <datalist id="recruiter-sources-edit">
+                      {sources.map(s => <option key={s} value={s} />)}
+                    </datalist>
+                  </div>
+                  <div className="form-group">
+                    <label>CV / LinkedIn-link</label>
+                    <input type="text" value={editForm.cv_link} onChange={e => setEditForm({ ...editForm, cv_link: e.target.value })} placeholder="https://..." />
+                  </div>
+                </div>
+                <div className="form-group">
+                  <label>Motivatie / notities</label>
+                  <textarea value={editForm.notes} onChange={e => setEditForm({ ...editForm, notes: e.target.value })} placeholder="Extra informatie over deze sollicitant..." rows={4} />
+                </div>
+                <div className="flex gap-2" style={{ marginTop: '20px' }}>
+                  <button type="button" className="btn btn-outline" onClick={() => setEditLead(null)} style={{ flex: 1 }}>Annuleren</button>
+                  <button type="submit" className="btn btn-secondary" disabled={savingEdit} style={{ flex: 1 }}>
+                    {savingEdit ? 'Opslaan...' : 'Wijzigingen opslaan'}
                   </button>
                 </div>
               </form>
