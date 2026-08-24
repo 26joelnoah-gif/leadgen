@@ -31,7 +31,7 @@ const DEFAULT_SOURCE_SUGGESTIONS = ['Sollicitatie', 'Indeed', 'LinkedIn', 'Refer
 const BOARD_COLUMNS = [
   { id: 'new', label: 'Nieuw', statuses: ['new'], dropStatus: 'new', color: 'var(--info)' },
   { id: 'followup', label: 'Opvolgen', statuses: ['later_bellen', 'geen_gehoor', 'mailbox', 'onjuiste_timing'], dropStatus: 'later_bellen', color: 'var(--warning)' },
-  { id: 'tba', label: 'Terugbelafspraak (TBA)', statuses: ['terugbelafspraak'], dropStatus: 'terugbelafspraak', color: 'var(--secondary)', needsDate: true },
+  { id: 'tba', label: 'TBA', statuses: ['terugbelafspraak'], dropStatus: 'terugbelafspraak', color: 'var(--secondary)', needsDate: true },
   { id: 'interview', label: 'Gesprek gepland', statuses: ['afspraak_gemaakt'], dropStatus: 'afspraak_gemaakt', color: 'var(--primary)' },
   { id: 'hired', label: 'Aangenomen', statuses: ['deal'], dropStatus: 'deal', color: 'var(--success)' },
   { id: 'rejected', label: 'Afgewezen', statuses: ['geen_interesse', 'verkeerd_nummer', 'cold', 'blacklist'], dropStatus: 'geen_interesse', color: 'var(--danger)' }
@@ -389,7 +389,7 @@ export default function Recruitment() {
                 message={sourceFilter || search ? 'Geen sollicitanten gevonden met dit filter.' : 'Voeg je eerste sollicitant toe of importeer een lijst om te kunnen bellen.'}
               />
             ) : view === 'board' ? (
-              <div style={{ display: 'flex', gap: '14px', overflowX: 'auto', paddingBottom: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(120px, 1fr))', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
                 {BOARD_COLUMNS.map(col => {
                   const items = applicants.filter(l => col.statuses.includes(l.status))
                   const isOver = dragOverColumn === col.id
@@ -400,17 +400,17 @@ export default function Recruitment() {
                       onDragLeave={() => setDragOverColumn(prev => (prev === col.id ? null : prev))}
                       onDrop={e => { e.preventDefault(); handleDrop(col, e.dataTransfer.getData('text/plain')) }}
                       style={{
-                        flex: '0 0 260px', minWidth: '260px', background: isOver ? 'var(--accent-soft)' : 'var(--bg-card)',
-                        border: `1px solid ${isOver ? col.color : 'var(--border)'}`, borderRadius: '12px', padding: '10px',
-                        transition: 'background 0.15s, border-color 0.15s', maxHeight: 'calc(100vh - 420px)', minHeight: '200px',
+                        minWidth: 0, background: isOver ? 'var(--accent-soft)' : 'var(--bg-card)',
+                        border: `1px solid ${isOver ? col.color : 'var(--border)'}`, borderRadius: '10px', padding: '7px',
+                        transition: 'background 0.15s, border-color 0.15s', maxHeight: 'calc(100vh - 380px)', minHeight: '160px',
                         display: 'flex', flexDirection: 'column'
                       }}
                     >
-                      <div className="flex items-center justify-between" style={{ padding: '4px 6px 10px', borderBottom: `2px solid ${col.color}`, marginBottom: '8px' }}>
-                        <span style={{ fontWeight: 800, fontSize: '0.85rem', color: col.color }}>{col.label}</span>
-                        <span style={{ background: 'var(--bg-elevated)', padding: '1px 8px', borderRadius: '10px', fontSize: '0.75rem', fontWeight: 700 }}>{items.length}</span>
+                      <div className="flex items-center justify-between" style={{ padding: '3px 4px 8px', borderBottom: `2px solid ${col.color}`, marginBottom: '6px', gap: '4px' }}>
+                        <span style={{ fontWeight: 800, fontSize: '0.72rem', color: col.color, lineHeight: 1.2 }}>{col.label}</span>
+                        <span style={{ background: 'var(--bg-elevated)', padding: '1px 6px', borderRadius: '10px', fontSize: '0.68rem', fontWeight: 700, flexShrink: 0 }}>{items.length}</span>
                       </div>
-                      <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+                      <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '5px', flex: 1 }}>
                         {items.map(lead => (
                           <div
                             key={lead.id}
@@ -418,35 +418,35 @@ export default function Recruitment() {
                             onDragStart={e => { e.dataTransfer.setData('text/plain', lead.id); setDraggingId(lead.id) }}
                             onDragEnd={() => setDraggingId(null)}
                             style={{
-                              background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '8px',
-                              padding: '10px', cursor: 'grab', opacity: draggingId === lead.id ? 0.4 : 1
+                              background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: '7px',
+                              padding: '6px 7px', cursor: 'grab', opacity: draggingId === lead.id ? 0.4 : 1
                             }}
                           >
-                            <div style={{ fontWeight: 700, fontSize: '0.85rem' }}>{lead.name}</div>
-                            {lead.function && <div className="text-muted" style={{ fontSize: '0.72rem', marginTop: '1px' }}>{lead.function}</div>}
-                            <div className="text-muted" style={{ fontSize: '0.72rem', marginTop: '2px' }}>{lead.phone}</div>
+                            <div style={{ fontWeight: 700, fontSize: '0.74rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.name}</div>
+                            {lead.function && <div className="text-muted" style={{ fontSize: '0.62rem', marginTop: '1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.function}</div>}
+                            <div className="text-muted" style={{ fontSize: '0.62rem', marginTop: '1px' }}>{lead.phone}</div>
                             {lead.lead_source && (
-                              <span style={{ display: 'inline-block', marginTop: '6px', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-muted)', padding: '1px 7px', borderRadius: '6px', fontSize: '0.65rem', fontWeight: 700 }}>
+                              <span style={{ display: 'inline-block', marginTop: '4px', background: 'var(--bg-card)', border: '1px solid var(--border)', color: 'var(--text-muted)', padding: '0px 5px', borderRadius: '5px', fontSize: '0.58rem', fontWeight: 700 }}>
                                 {lead.lead_source}
                               </span>
                             )}
                             {lead.status === 'terugbelafspraak' && lead.next_contact_date && (
-                              <div style={{ fontSize: '0.68rem', marginTop: '4px', color: 'var(--secondary)', fontWeight: 700 }}>
-                                <Clock size={10} style={{ verticalAlign: '-1px', marginRight: '3px' }} />{formatDateTime(lead.next_contact_date)}
+                              <div style={{ fontSize: '0.6rem', marginTop: '3px', color: 'var(--secondary)', fontWeight: 700 }}>
+                                <Clock size={9} style={{ verticalAlign: '-1px', marginRight: '2px' }} />{formatDateTime(lead.next_contact_date)}
                               </div>
                             )}
                             <button
                               onClick={() => handleCall(lead)}
                               className="btn btn-success btn-sm"
-                              style={{ marginTop: '8px', width: '100%', padding: '5px', fontSize: '0.72rem' }}
+                              style={{ marginTop: '5px', width: '100%', padding: '3px', fontSize: '0.62rem' }}
                             >
-                              <Phone size={12} /> Bel
+                              <Phone size={10} /> Bel
                             </button>
                           </div>
                         ))}
                         {items.length === 0 && (
-                          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center', padding: '20px 6px', opacity: 0.6 }}>
-                            Sleep hier een sollicitant naartoe
+                          <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textAlign: 'center', padding: '14px 4px', opacity: 0.6 }}>
+                            Sleep hier naartoe
                           </div>
                         )}
                       </div>
