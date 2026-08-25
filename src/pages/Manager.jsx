@@ -18,6 +18,7 @@ import EmptyState from '../components/EmptyState'
 import EmployeeModal from '../components/EmployeeModal'
 import ResetPasswordModal from '../components/ResetPasswordModal'
 import ImportLeadsModal from '../components/ImportLeadsModal'
+import MoveCopyLeadsModal from '../components/MoveCopyLeadsModal'
 import CampaignBriefingModal from '../components/CampaignBriefingModal'
 import FlowSettingsEditor from '../components/FlowSettingsEditor'
 import { useToast } from '../components/Toast'
@@ -111,6 +112,8 @@ export default function Manager() {
   // v27: resultaten-overzicht (deals, afspraken, geen interesse, blacklist)
   const [resultLeads, setResultLeads] = useState([])
   const [resultFilter, setResultFilter] = useState('afspraak_gemaakt')
+  const [selectedResultIds, setSelectedResultIds] = useState([]) // v39: bulk verplaatsen/kopieren
+  const [showResultMoveCopy, setShowResultMoveCopy] = useState(false)
 
   // ===== Projectlijsten van deze manager laden =====
   async function fetchManagedLists() {
@@ -159,7 +162,9 @@ export default function Manager() {
     setRules(data?.[0] || null)
   }
 
-  useEffect(() => {
+  // v39: los getrokken uit de useEffect zodat we na verplaatsen/kopieren
+  // handmatig kunnen verversen zonder op een dependency-wissel te wachten
+  function fetchResultLeads() {
     if (isDemoMode || kpiOnly || managedLists.length === 0) { setResultLeads([]); return }
     supabase
       .from('leads')
@@ -170,6 +175,10 @@ export default function Manager() {
       .order('updated_at', { ascending: false })
       .limit(500)
       .then(({ data }) => setResultLeads(data || []))
+  }
+
+  useEffect(() => {
+    fetchResultLeads()
   }, [managedLists, isDemoMode, kpiOnly])
 
   // v27: manager (met leadbeheer-recht) of admin zet een geen-interesse-lead
@@ -763,13 +772,24 @@ export default function Manager() {
                   return (
                     <button
                       key={f.id}
-                      onClick={() => setResultFilter(f.id)}
+                      onClick={() => { setResultFilter(f.id); setSelectedResultIds([]) }}
                       className={`btn btn-sm ${resultFilter === f.id ? 'btn-primary' : 'btn-outline'}`}
                     >{f.label} ({count})</button>
                   )
                 })}
               </div>
             </div>
+            {canManageLeads && selectedResultIds.length > 0 && (
+              <div style={{ padding: '12px 24px', background: 'var(--bg-elevated, rgba(99,102,241,0.08))', borderBottom: '1px solid var(--border-color, #262b3d)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 700 }}>{selectedResultIds.length} lead(s) geselecteerd</span>
+                <div className="flex gap-2">
+                  <button className="btn btn-sm btn-primary" onClick={() => setShowResultMoveCopy(true)}>
+                    Verplaatsen / kopieren naar andere lijst
+                  </button>
+                  <button className="btn btn-sm btn-outline" onClick={() => setSelectedResultIds([])}>Selectie wissen</button>
+                </div>
+              </div>
+            )}
             {resultLeads.filter(l => l.status === resultFilter).length === 0 ? (
               <p className="text-muted" style={{ padding: '24px' }}>Nog niets met deze status in jouw projecten.</p>
             ) : (
@@ -777,6 +797,17 @@ export default function Manager() {
                 <table className="data-table" style={{ width: '100%' }}>
                   <thead>
                     <tr>
+                      {canManageLeads && (
+                        <th style={{ width: '32px' }}>
+                          <input
+                            type="checkbox"
+                            checked={resultLeads.filter(l => l.status === resultFilter).length > 0 && selectedResultIds.length === resultLeads.filter(l => l.status === resultFilter).length}
+                            onChange={e => setSelectedResultIds(e.target.checked ? resultLeads.filter(l => l.status === resultFilter).map(l => l.id) : [])}
+                            style={{ width: '15px', height: '15px' }}
+                            title="Alles selecteren"
+                          />
+                        </th>
+                      )}
                       <th>Lead</th>
                       <th>Telefoon</th>
                       <th>Project / lijst</th>
@@ -789,6 +820,16 @@ export default function Manager() {
                   <tbody>
                     {resultLeads.filter(l => l.status === resultFilter).map(lead => (
                       <tr key={lead.id}>
+                        {canManageLeads && (
+                          <td>
+                            <input
+                              type="checkbox"
+                              checked={selectedResultIds.includes(lead.id)}
+                              onChange={e => setSelectedResultIds(prev => e.target.checked ? [...prev, lead.id] : prev.filter(id => id !== lead.id))}
+                              style={{ width: '15px', height: '15px' }}
+                            />
+                          </td>
+                        )}
                         <td><strong>{lead.name}</strong></td>
                         <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{lead.phone}</td>
                         <td className="text-muted" style={{ fontSize: '0.85rem' }}>{managedLists.find(l => l.id === lead.lead_list_id)?.name || '-'}</td>
@@ -975,6 +1016,14 @@ export default function Manager() {
       <EmployeeModal isOpen={showEmployee} onClose={() => setShowEmployee(false)} onAdd={handleAddEmployee} fixedRole="employee" title="Nieuwe Beller" />
       <ResetPasswordModal isOpen={!!resettingUser} onClose={() => setResettingUser(null)} targetUser={resettingUser} />
       <ImportLeadsModal isOpen={showImport} initialMode={importMode} onClose={() => setShowImport(false)} onImported={() => fetchCallLogs()} />
+      {/* v39: geselecteerde resultaten-leads handmatig verplaatsen/kopieren naar een andere lijst */}
+      <MoveCopyLeadsModal
+        isOpen={showResultMoveCopy}
+        onClose={() => setShowResultMoveCopy(false)}
+        leadIds={selectedResultIds}
+        targetLists={managedLists.map(l => ({ id: l.id, name: l.name }))}
+        onDone={() => { setSelectedResultIds([]); fetchResultLeads() }}
+      />
       {aiResults && <EnrichResultsModal results={aiResults} onClose={() => setAiResults(null)} />}
       <CampaignBriefingModal isOpen={!!briefingCampaign} campaign={briefingCampaign} onClose={() => setBriefingCampaign(null)} />
     </motion.div>

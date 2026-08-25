@@ -21,6 +21,7 @@ import EnrichResultsModal from '../components/EnrichResultsModal'
 import NewProjectWizard from '../components/NewProjectWizard'
 import CampaignBriefingModal from '../components/CampaignBriefingModal'
 import LeadDetailModal from '../components/LeadDetailModal'
+import MoveCopyLeadsModal from '../components/MoveCopyLeadsModal'
 
 function StatusBadge({ status }) {
   const configs = {
@@ -57,6 +58,8 @@ export default function LeadManagement({ standalone = true }) {
   // Data View State
   const [selectedList, setSelectedList] = useState(null)
   const [leads, setLeads] = useState([])
+  const [selectedLeadIds, setSelectedLeadIds] = useState([]) // v39: bulk verplaatsen/kopieren
+  const [showMoveCopy, setShowMoveCopy] = useState(false)
   const [leadSearch, setLeadSearch] = useState('')
   const [loadingLeads, setLoadingLeads] = useState(false)
   const [dataSubTab, setDataSubTab] = useState('active') // 'active', 'archived', 'flows'
@@ -145,6 +148,7 @@ export default function LeadManagement({ standalone = true }) {
 
   async function fetchLeads(listId) {
     setLoadingLeads(true)
+    setSelectedLeadIds([])
     try {
       const { data, error } = await supabase
         .from('leads')
@@ -702,12 +706,34 @@ export default function LeadManagement({ standalone = true }) {
                          </div>
                       </div>
 
+                      {/* v39: bulk verplaatsen/kopieren naar een andere lijst - alleen handmatig, nooit automatisch */}
+                      {selectedLeadIds.length > 0 && (
+                        <div className="p-3 px-6 border-b border-border bg-primary/10 flex items-center justify-between" style={{ flexWrap: 'wrap', gap: '8px' }}>
+                          <span className="text-xs font-black text-body">{selectedLeadIds.length} lead(s) geselecteerd</span>
+                          <div className="flex gap-2">
+                            <button className="btn btn-sm btn-primary" onClick={() => setShowMoveCopy(true)}>
+                              Verplaatsen / kopieren naar andere lijst
+                            </button>
+                            <button className="btn btn-sm btn-outline" onClick={() => setSelectedLeadIds([])}>Selectie wissen</button>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="p-0 flex-1 overflow-y-auto overflow-x-auto" style={{ maxHeight: 'calc(100vh - 400px)' }}>
                         {loadingLeads ? <div className="p-20"><LoadingSpinner /></div> : (
                           <table className="w-full text-left border-collapse">
                             <thead className="sticky top-0 bg-dark z-10 text-[10px] font-black text-muted uppercase tracking-widest border-b border-border shadow-sm">
                               <tr>
-                                <th className="p-4 pl-8">Lead Contact</th>
+                                <th className="p-4 pl-8" style={{ width: '36px' }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={leads.length > 0 && selectedLeadIds.length === leads.length}
+                                    onChange={e => setSelectedLeadIds(e.target.checked ? leads.map(l => l.id) : [])}
+                                    style={{ width: '15px', height: '15px' }}
+                                    title="Alles selecteren"
+                                  />
+                                </th>
+                                <th className="p-4 pl-2">Lead Contact</th>
                                 <th className="p-4">Huidige Status</th>
                                 <th className="p-4">Toegewezen aan</th>
                                 <th className="p-4">Pogingen</th>
@@ -717,7 +743,7 @@ export default function LeadManagement({ standalone = true }) {
                             </thead>
                             <tbody>
                               {(leadSearch ? leads.filter(l => l.name.toLowerCase().includes(leadSearch.toLowerCase()) || l.phone.includes(leadSearch)) : leads).length === 0 ? (
-                                <tr><td colSpan={6} className="p-20 text-center text-muted font-bold italic">Geen leads gevonden die voldoen aan je zoekopdracht...</td></tr>
+                                <tr><td colSpan={7} className="p-20 text-center text-muted font-bold italic">Geen leads gevonden die voldoen aan je zoekopdracht...</td></tr>
                               ) : (leadSearch ? leads.filter(l => l.name.toLowerCase().includes(leadSearch.toLowerCase()) || l.phone.includes(leadSearch)) : leads).map(lead => (
                                 <tr
                                   key={lead.id}
@@ -725,7 +751,15 @@ export default function LeadManagement({ standalone = true }) {
                                   onClick={() => setDetailLead(lead)}
                                   title="Klik voor de contactkaart, afboek-geschiedenis en notities"
                                 >
-                                  <td className="p-4 pl-8">
+                                  <td className="p-4 pl-8" onClick={e => e.stopPropagation()}>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedLeadIds.includes(lead.id)}
+                                      onChange={e => setSelectedLeadIds(prev => e.target.checked ? [...prev, lead.id] : prev.filter(id => id !== lead.id))}
+                                      style={{ width: '15px', height: '15px' }}
+                                    />
+                                  </td>
+                                  <td className="p-4 pl-2">
                                      <div className="font-bold text-body group-hover:text-primary transition-colors">{lead.name}</div>
                                      <div className="text-[10px] text-muted font-mono">{lead.phone}</div>
                                   </td>
@@ -985,6 +1019,17 @@ export default function LeadManagement({ standalone = true }) {
         initialMode={importMode}
         onClose={() => setShowImport(false)}
         onImported={() => { fetchData(); fetchLeadLists(); if (selectedList) fetchLeads(selectedList.id) }}
+      />
+
+      {/* v39: handmatig verplaatsen/kopieren van geselecteerde leads naar een andere lijst */}
+      <MoveCopyLeadsModal
+        isOpen={showMoveCopy}
+        onClose={() => setShowMoveCopy(false)}
+        leadIds={selectedLeadIds}
+        targetLists={leadLists
+          .filter(l => l.id !== selectedList?.id)
+          .map(l => ({ id: l.id, name: l.name, groupLabel: campaigns.find(c => c.id === l.campaign_id)?.name || 'Zonder project' }))}
+        onDone={() => { setSelectedLeadIds([]); if (selectedList) fetchLeads(selectedList.id); fetchLeadLists() }}
       />
 
       {aiResults && <EnrichResultsModal results={aiResults} onClose={() => setAiResults(null)} />}
