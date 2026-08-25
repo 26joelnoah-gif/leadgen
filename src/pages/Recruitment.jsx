@@ -34,7 +34,8 @@ const BOARD_COLUMNS = [
   { id: 'tba', label: 'TBA', statuses: ['terugbelafspraak'], dropStatus: 'terugbelafspraak', color: 'var(--secondary)', needsDate: true },
   { id: 'interview', label: 'Gesprek gepland', statuses: ['afspraak_gemaakt'], dropStatus: 'afspraak_gemaakt', color: 'var(--primary)' },
   { id: 'hired', label: 'Aangenomen', statuses: ['deal'], dropStatus: 'deal', color: 'var(--success)' },
-  { id: 'rejected', label: 'Afgewezen', statuses: ['geen_interesse', 'verkeerd_nummer', 'cold', 'blacklist'], dropStatus: 'geen_interesse', color: 'var(--danger)' }
+  { id: 'cold', label: 'Koud', statuses: ['cold'], dropStatus: 'cold', color: 'var(--text-muted)' },
+  { id: 'rejected', label: 'Afgewezen', statuses: ['geen_interesse', 'verkeerd_nummer', 'blacklist'], dropStatus: 'geen_interesse', color: 'var(--danger)' }
 ]
 
 function defaultTbaDateTimeLocal() {
@@ -433,7 +434,7 @@ export default function Recruitment() {
                 message={sourceFilter || search ? 'Geen sollicitanten gevonden met dit filter.' : 'Voeg je eerste sollicitant toe of importeer een lijst om te kunnen bellen.'}
               />
             ) : view === 'board' ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, minmax(120px, 1fr))', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${BOARD_COLUMNS.length}, minmax(120px, 1fr))`, gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
                 {BOARD_COLUMNS.map(col => {
                   const items = applicants.filter(l => col.statuses.includes(l.status))
                   const isOver = dragOverColumn === col.id
