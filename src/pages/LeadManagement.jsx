@@ -1036,6 +1036,8 @@ export default function LeadManagement({ standalone = true }) {
         targetLists={leadLists
           .filter(l => l.id !== selectedList?.id)
           .map(l => ({ id: l.id, name: l.name, groupLabel: campaigns.find(c => c.id === l.campaign_id)?.name || 'Zonder project' }))}
+        campaigns={campaigns}
+        sourceCampaignId={selectedList?.campaign_id || ''}
         onDone={() => { setSelectedLeadIds([]); if (selectedList) fetchLeads(selectedList.id); fetchLeadLists() }}
       />
 

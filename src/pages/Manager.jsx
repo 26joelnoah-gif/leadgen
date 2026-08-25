@@ -1021,7 +1021,8 @@ export default function Manager() {
         isOpen={showResultMoveCopy}
         onClose={() => setShowResultMoveCopy(false)}
         leadIds={selectedResultIds}
-        targetLists={managedLists.map(l => ({ id: l.id, name: l.name }))}
+        targetLists={managedLists.map(l => ({ id: l.id, name: l.name, groupLabel: campaigns.find(c => c.id === l.campaign_id)?.name }))}
+        campaigns={campaigns}
         onDone={() => { setSelectedResultIds([]); fetchResultLeads() }}
       />
       {aiResults && <EnrichResultsModal results={aiResults} onClose={() => setAiResults(null)} />}
