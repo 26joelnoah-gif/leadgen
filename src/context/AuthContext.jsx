@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
 const AuthContext = createContext({})
@@ -23,6 +23,7 @@ export function AuthProvider({ children }) {
   const [workingListId, setWorkingListId] = useState(null) // Which list they selected
   const [workingLead, setWorkingLead] = useState(null) // For calling a single lead (e.g. from TBA)
   const [sessionCallCount, setSessionCallCount] = useState(0)
+  const pingClickCountRef = useRef(0) // v43: klik-teller voor intensiteit/ingelogde-tijd (Admin)
 
   // Check if Supabase is configured, otherwise use demo mode
   useEffect(() => {
@@ -151,6 +152,46 @@ export function AuthProvider({ children }) {
       })
     }
   }
+
+  // v43: lichte "heartbeat" voor het intensiteit/ingelogde-tijd-overzicht in
+  // Admin > Team. Telt clicks lokaal (geen DB-round-trip per klik) en
+  // schrijft elke 60s (en bij het verbergen van het tabblad) 1 rij weg met
+  // het aantal clicks in dat venster - alleen als er ook echt geklikt is,
+  // zodat een vergeten openstaand tabblad de tabel niet vervuilt.
+  // Admin bepaalt zelf de drempel ("minimaal X acties per Y minuten") bij
+  // het bekijken van het overzicht - hier wordt alleen ruwe data verzameld.
+  useEffect(() => {
+    if (isDemoMode || !user?.id) return
+
+    const onClick = () => { pingClickCountRef.current += 1 }
+    window.addEventListener('click', onClick, true)
+
+    const flushPing = async () => {
+      if (document.visibilityState !== 'visible') return
+      const count = pingClickCountRef.current
+      if (count <= 0) return
+      pingClickCountRef.current = 0
+      try {
+        await supabase.from('activity_pings').insert({
+          user_id: user.id,
+          organization_id: profile?.organization_id ?? null,
+          click_count: count
+        })
+      } catch (err) {
+        console.error('activity_pings insert mislukt:', err)
+      }
+    }
+
+    const interval = setInterval(flushPing, 60000)
+    const onVisibilityChange = () => { if (document.visibilityState === 'hidden') flushPing() }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      window.removeEventListener('click', onClick, true)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      clearInterval(interval)
+    }
+  }, [isDemoMode, user?.id, profile?.organization_id])
 
   return (
     <AuthContext.Provider value={{ 

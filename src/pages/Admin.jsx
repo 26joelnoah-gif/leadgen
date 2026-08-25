@@ -26,6 +26,7 @@ import BriefingModal, { BriefingCard } from '../components/BriefingModal'
 import { LeadListModal } from '../components/LeadListModal'
 import EmployeeModal from '../components/EmployeeModal'
 import ResetPasswordModal from '../components/ResetPasswordModal'
+import IntensityModal from '../components/IntensityModal'
 import ManagerProjectsModal from '../components/ManagerProjectsModal'
 import NewProjectWizard from '../components/NewProjectWizard'
 import PayoutSettings from '../components/PayoutSettings'
@@ -70,6 +71,7 @@ export default function Admin() {
   const [showEmployee, setShowEmployee] = useState(false)
   const [managingUser, setManagingUser] = useState(null) // manager wiens projecten we koppelen
   const [resettingUser, setResettingUser] = useState(null) // v35: wachtwoord resetten voor deze gebruiker
+  const [intensityUser, setIntensityUser] = useState(null) // v43: intensiteit/ingelogde-tijd voor deze gebruiker
   const [showNewProject, setShowNewProject] = useState(false)
   const [managerLinks, setManagerLinks] = useState([]) // campaign_managers-rijen voor de projectenteller (v23)
   const [showLeadList, setShowLeadList] = useState(false)
@@ -511,6 +513,13 @@ export default function Admin() {
                         {u.id !== user.id && (
                           <div className="flex items-center gap-1">
                             <button
+                              onClick={() => setIntensityUser(u)}
+                              className="p-2 rounded-lg transition-all text-muted hover:bg-primary/20 hover:text-primary opacity-0 group-hover:opacity-100"
+                              title="Intensiteit & ingelogde tijd"
+                            >
+                              <Zap size={18}/>
+                            </button>
+                            <button
                               onClick={() => setResettingUser(u)}
                               className="p-2 rounded-lg transition-all text-muted hover:bg-primary/20 hover:text-primary opacity-0 group-hover:opacity-100"
                               title="Wachtwoord resetten"
@@ -675,6 +684,7 @@ export default function Admin() {
 
       <EmployeeModal isOpen={showEmployee} onClose={() => setShowEmployee(false)} onAdd={handleAddEmployee} />
       <ResetPasswordModal isOpen={!!resettingUser} onClose={() => setResettingUser(null)} targetUser={resettingUser} />
+      <IntensityModal isOpen={!!intensityUser} onClose={() => setIntensityUser(null)} targetUser={intensityUser} users={users} />
       <AnimatePresence>
         {managingUser && (
           <ManagerProjectsModal
