@@ -249,7 +249,7 @@ export function useLeads() {
 
   // Schrijft één rij per behandelde lead naar call_logs (basis voor telemetrie, targets en payouts)
   // v29: de gespreksnotitie gaat mee, zodat collega's de historie van een lead kunnen zien
-  async function logCallToDatabase(currentLead, dispositionType, callMeta, notes = '') {
+  async function logCallToDatabase(currentLead, dispositionType, callMeta, notes = '', customDispositionId = null) {
     if (isDemoMode || !user?.id) return
     try {
       const disposedAt = new Date().toISOString()
@@ -264,7 +264,8 @@ export function useLeads() {
         started_at: startedAt,
         disposed_at: disposedAt,
         duration_seconds: duration,
-        notes: notes || null
+        notes: notes || null,
+        custom_disposition_id: customDispositionId || null
       })
     } catch (err) {
       // Call logging mag de dispositie-flow nooit blokkeren
@@ -279,7 +280,9 @@ export function useLeads() {
   // Er worden dus nooit meer automatisch lijsten aangemaakt.
   // flow_settings bepaalt alleen nog: toewijzing + notitie-tag.
   // ==========================================================
-  async function handleLeadDisposition(leadId, currentListName, dispositionType, notes, nextDate = null, callMeta = null) {
+  // v41: customDispositionId - wanneer de beller een eigen afboekreden koos
+  // (WorkInterface), zodat call_logs herleidbaar blijft naar de eigen reden.
+  async function handleLeadDisposition(leadId, currentListName, dispositionType, notes, nextDate = null, callMeta = null, customDispositionId = null) {
     const currentLead = leads.find(l => l.id === leadId)
     if (!currentLead) return
     const agentName = profile?.full_name || user?.email || 'Onbekend'
@@ -336,7 +339,7 @@ export function useLeads() {
       return
     }
 
-    await logCallToDatabase(currentLead, dispositionType, callMeta, notes)
+    await logCallToDatabase(currentLead, dispositionType, callMeta, notes, customDispositionId)
 
     // Instellingen per afboekreden (alleen toewijzing + notitie-tag)
     const { data: rule } = await supabase.from('flow_settings').select('auto_assign_to, append_agent_note, cooldown_days').eq('disposition_type', dispositionType).eq('is_active', true).maybeSingle()

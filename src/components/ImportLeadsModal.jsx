@@ -19,10 +19,11 @@ import { useToast } from './Toast'
 
 const FIELDS = [
   { id: 'skip', label: '- Negeren -' },
-  { id: 'name', label: 'Bedrijfsnaam *' },
+  { id: 'name', label: 'Bedrijfsnaam' },
   { id: 'phone', label: 'Telefoonnummer *' },
   { id: 'contact_person', label: 'Contactpersoon' },
   { id: 'function', label: 'Functie' },
+  { id: 'lead_source', label: 'Bron' },
   { id: 'email', label: 'E-mail' },
   { id: 'website', label: 'Website' },
   { id: 'address', label: 'Straat' },
@@ -185,6 +186,7 @@ function guessFieldForHeader(header) {
   if (/huisnr|huisnummer|house/.test(h)) return 'house_number'
   if (/postcode|zip|postal/.test(h)) return 'postal_code'
   if (/kvk|btw|iban/.test(h)) return 'skip'
+  if (/bron|source/.test(h)) return 'lead_source'
   if (/contact|persoon|voornaam|achternaam|aanspreek/.test(h)) return 'contact_person'
   if (/bedrijf|company|organisatie|firma|zaak|praktijk|winkel/.test(h)) return 'name'
   // Telefoon: telefoonnummer, telefoon, tel, tel., nummer, nr, phone, mobiel, gsm, 06...
@@ -213,6 +215,11 @@ function guessFieldForColumn(values) {
   return 'skip'
 }
 
+// v40: standaardbron voor deze import - zelfde vrije-tekst-aanpak als Recruitment.jsx,
+// met de bestaande vaste codes (cold/linkedin/referral) als suggestie zodat oude en
+// nieuwe leads dezelfde waarden gebruiken.
+const DEFAULT_SOURCE_SUGGESTIONS = ['cold', 'linkedin', 'referral']
+
 export default function ImportLeadsModal({ isOpen, onClose, onImported, initialMode = 'import' }) {
   const { user, profile, isDemoMode } = useAuth()
   const { leadLists, createLeadList, fetchLeadLists } = useLeadLists()
@@ -237,28 +244,48 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
   const [newCampaignTeamId, setNewCampaignTeamId] = useState('')
   const [targetListId, setTargetListId] = useState('')
   const [newListName, setNewListName] = useState('')
+  const [importSource, setImportSource] = useState('') // v40: bron die voor de hele import geldt
+  const [sourceSuggestions, setSourceSuggestions] = useState(DEFAULT_SOURCE_SUGGESTIONS)
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState(null)
   const [fileName, setFileName] = useState('')
-  // v38: al gemaakte sales importeren (voor backoffice - monteur inplannen)
-  // i.p.v. nieuwe leads - zet status meteen op 'deal'
-  const [importAsSales, setImportAsSales] = useState(false)
+  // v42: projectsoort bepaalt automatisch het naamveld-label en het importgedrag
+  // (i.p.v. losse checkboxes per import) - 'sales' is de standaard voor uitbellen/
+  // acquisitie, 'backoffice' voor al gemaakte sales (monteur inplannen).
+  const [newCampaignType, setNewCampaignType] = useState('sales')
 
   const isAdmin = profile?.role === 'admin'
+  // v42: type van het gekozen (of nog aan te maken) project - bepaalt naamveld-label
+  // en of geïmporteerde leads meteen als 'deal' binnenkomen (backoffice) of als 'new'.
+  const selectedCampaign = campaigns.find(c => c.id === targetCampaignId)
+  const effectiveCampaignType = targetCampaignId === '__new__' ? newCampaignType : (selectedCampaign?.type || 'sales')
+  const isBackofficeProject = effectiveCampaignType === 'backoffice'
+  const nameFieldLabel = effectiveCampaignType === 'backoffice' ? 'Naam klant' : (effectiveCampaignType === 'recruitment' ? 'Naam sollicitant' : 'Bedrijfsnaam')
 
   useEffect(() => {
     if (!isOpen || isDemoMode) return
-    supabase.from('campaigns').select('id, name').is('deleted_at', null).order('name')
+    supabase.from('campaigns').select('id, name, type').is('deleted_at', null).order('name')
       .then(({ data }) => setCampaigns(data || []))
     supabase.from('teams').select('id, name').order('name')
       .then(({ data }) => setTeams(data || []))
+    // v40: bronnen die al eerder gebruikt zijn, als suggestie bij "Standaardbron"
+    supabase.from('leads').select('lead_source').not('lead_source', 'is', null).limit(3000)
+      .then(({ data }) => {
+        const byLower = new Map()
+        DEFAULT_SOURCE_SUGGESTIONS.forEach(v => byLower.set(v.toLowerCase(), v))
+        ;(data || []).forEach(d => {
+          const v = (d.lead_source || '').trim()
+          if (v && !byLower.has(v.toLowerCase())) byLower.set(v.toLowerCase(), v)
+        })
+        setSourceSuggestions(Array.from(byLower.values()).sort((a, b) => a.localeCompare(b)))
+      })
   }, [isOpen, isDemoMode])
 
   function reset() {
     setStep(1); setPasteText(''); setRows([]); setMapping([]); setResult(null)
-    setTargetCampaignId(''); setNewCampaignName(''); setNewCampaignTeamId('')
+    setTargetCampaignId(''); setNewCampaignName(''); setNewCampaignTeamId(''); setNewCampaignType('sales')
     setTargetListId(''); setNewListName(''); setFileName(''); setHasHeader(true)
-    setExcludedRows(new Set()); setImportAsSales(false)
+    setExcludedRows(new Set()); setImportSource('')
   }
 
   function close() { reset(); onClose() }
@@ -440,17 +467,24 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
       })
       const rowNr = idx + (hasHeader ? 2 : 1)
       if (!lead.name && !lead.phone) return // volledig lege rij
-      if (!lead.name) { errors.push(`Rij ${rowNr}: bedrijfsnaam ontbreekt`); return }
+      // v39: bedrijfsnaam is niet altijd bekend (particuliere/consumentenlijsten) -
+      // val dan terug op de contactpersoon als naam, want leads.name mag niet leeg zijn.
+      if (!lead.name && lead.contact_person) lead.name = lead.contact_person
+      if (!lead.name) { errors.push(`Rij ${rowNr}: ${nameFieldLabel.toLowerCase()} of contactpersoon ontbreekt`); return }
       if (!lead.phone || lead.phone.replace(/\D/g, '').length < 8) { errors.push(`Rij ${rowNr}: geen geldig telefoonnummer`); return }
       if (seenPhones.has(lead.phone)) { errors.push(`Rij ${rowNr}: dubbel nummer (${lead.phone}) - overgeslagen`); return }
       seenPhones.add(lead.phone)
       leads.push(lead)
     })
     return { leads, errors }
-  }, [dataRows, mapping, hasHeader, rows])
+  }, [dataRows, mapping, hasHeader, rows, nameFieldLabel])
 
   const mappingHasName = mapping.includes('name')
+  const mappingHasContactPerson = mapping.includes('contact_person')
   const mappingHasPhone = mapping.includes('phone')
+  // v39: bedrijfsnaam is niet altijd beschikbaar (bijv. particuliere/consumentenlijsten) -
+  // contactpersoon mag 'm dan vervangen als identificerend naamveld.
+  const mappingHasNameOrContact = mappingHasName || mappingHasContactPerson
 
   // ===== v31: VERRIJKEN - geplakte rijen matchen aan bestaande leads =====
   // Kolommen op "Negeren" doen hier bewust NIET mee: negeren = negeren.
@@ -620,6 +654,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
           .from('campaigns')
           .insert({
             name: newCampaignName.trim(),
+            type: newCampaignType,
             description: `Aangemaakt bij import op ${new Date().toLocaleDateString('nl-NL')}`,
             created_by: user?.id,
             organization_id: profile?.organization_id ?? null
@@ -667,12 +702,12 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         .filter(l => !existing.has(l.phone))
         .map(l => ({
           ...l,
-          status: importAsSales ? 'deal' : 'new',
-          sale_date: importAsSales ? (l.sale_date || new Date().toISOString()) : (l.sale_date || null),
+          status: isBackofficeProject ? 'deal' : 'new',
+          sale_date: isBackofficeProject ? (l.sale_date || new Date().toISOString()) : (l.sale_date || null),
           lead_list_id: listId,
           created_by: user?.id,
           organization_id: profile?.organization_id ?? null,
-          lead_source: 'cold'
+          lead_source: (l.lead_source || importSource || '').trim() || 'cold'
         }))
 
       // 3. In batches wegschrijven
@@ -749,6 +784,116 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                       </button>
                     ))}
                   </div>
+                  {/* v42: eerst het project bepalen - bestaand kiezen of meteen een los nieuw project
+                      aanmaken. Het projecttype (uitbellen/acquisitie of backoffice) bepaalt verderop
+                      automatisch het naamveld-label en of leads als nieuw of als 'deal' binnenkomen -
+                      geen losse checkboxes meer per import. */}
+                  {mode === 'import' && (
+                  <div style={{ padding: '16px', borderRadius: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '10px', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                        <List size={15} style={{ color: 'var(--primary)' }} /> 1. Bij welk project hoort deze import?
+                      </label>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <select
+                          value={targetCampaignId}
+                          onChange={e => { setTargetCampaignId(e.target.value); setTargetListId(''); if (e.target.value !== '__new__') { setNewCampaignName(''); setNewCampaignTeamId('') } }}
+                          style={{ flex: 1, minWidth: '200px', padding: '11px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600 }}
+                        >
+                          <option value="">- Kies een bestaand project -</option>
+                          {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}{c.type === 'backoffice' ? ' (backoffice)' : ''}</option>)}
+                          {isAdmin && <option value="__new__">+ Los nieuw project aanmaken...</option>}
+                        </select>
+                      </div>
+                      {targetCampaignId === '__new__' && isAdmin && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '10px' }}>
+                          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                            <div style={{ flex: 1, minWidth: '200px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <Plus size={15} style={{ color: 'var(--secondary)' }} />
+                              <input
+                                type="text"
+                                value={newCampaignName}
+                                onChange={e => setNewCampaignName(e.target.value)}
+                                placeholder="Naam van het nieuwe project..."
+                                style={{ flex: 1, padding: '11px', borderRadius: '10px', border: '1px solid var(--secondary)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600 }}
+                              />
+                            </div>
+                            <select
+                              value={newCampaignTeamId}
+                              onChange={e => setNewCampaignTeamId(e.target.value)}
+                              title="Zonder team kan alleen een individueel toegewezen beller op dit project bellen"
+                              style={{ minWidth: '180px', padding: '11px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600 }}
+                            >
+                              <option value="">Team koppelen (optioneel)</option>
+                              {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                            </select>
+                          </div>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            <button type="button" onClick={() => setNewCampaignType('sales')} className={`btn btn-sm ${newCampaignType === 'sales' ? 'btn-primary' : 'btn-outline'}`}>Uitbellen / acquisitie</button>
+                            <button type="button" onClick={() => setNewCampaignType('backoffice')} className={`btn btn-sm ${newCampaignType === 'backoffice' ? 'btn-primary' : 'btn-outline'}`}>Backoffice (al gemaakte sales)</button>
+                          </div>
+                        </div>
+                      )}
+                      <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        Het team van het project mag op alle lijsten binnen dat project bellen. Een lijst zonder project is voor bellers onzichtbaar.
+                      </p>
+                      {isBackofficeProject && (
+                        <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: 'var(--warning)', fontWeight: 700 }}>
+                          Backoffice-project: leads komen binnen met status "Deal" en het naamveld hieronder heet "Naam klant". Map een kolom naar "Verkoopdatum/tijd (backoffice)" voor de juiste FIFO-volgorde.
+                        </p>
+                      )}
+                    </div>
+                    <div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '10px', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                        <Plus size={15} style={{ color: 'var(--primary)' }} /> 2. In welke lijst komen de leads?
+                      </label>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <select
+                          value={targetListId}
+                          onChange={e => { setTargetListId(e.target.value); if (e.target.value) setNewListName('') }}
+                          disabled={!targetCampaignId || (targetCampaignId === '__new__' && !newCampaignName.trim())}
+                          style={{ flex: 1, minWidth: '200px', padding: '11px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600, opacity: (!targetCampaignId || (targetCampaignId === '__new__' && !newCampaignName.trim())) ? 0.5 : 1 }}
+                        >
+                          <option value="">- Nieuwe lijst aanmaken -</option>
+                          {targetCampaignId && targetCampaignId !== '__new__' && leadLists.filter(l => l.campaign_id === targetCampaignId).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                        </select>
+                        {!targetListId && (
+                          <div style={{ flex: 1, minWidth: '200px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Plus size={15} style={{ color: 'var(--secondary)' }} />
+                            <input
+                              type="text"
+                              value={newListName}
+                              onChange={e => setNewListName(e.target.value)}
+                              placeholder="Naam van de nieuwe lijst..."
+                              style={{ flex: 1, padding: '11px', borderRadius: '10px', border: '1px solid var(--secondary)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600 }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '10px', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
+                        <Sparkles size={15} style={{ color: 'var(--primary)' }} /> 3. Bron (optioneel)
+                      </label>
+                      <input
+                        type="text"
+                        list="import-source-suggestions"
+                        value={importSource}
+                        onChange={e => setImportSource(e.target.value)}
+                        placeholder="bv. cold, linkedin, referral, beurs..."
+                        style={{ width: '100%', padding: '11px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600 }}
+                      />
+                      <datalist id="import-source-suggestions">
+                        {sourceSuggestions.map(s => <option key={s} value={s} />)}
+                      </datalist>
+                      <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        Geldt voor de hele import. Map hierboven een kolom op "Bron" als de bron per rij verschilt - die overschrijft dit veld dan per lead.
+                      </p>
+                    </div>
+                  </div>
+                  )}
+
                   <div>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '8px', color: 'var(--text-primary)' }}>
                       <ClipboardPaste size={16} style={{ color: 'var(--primary)' }} /> Plakken uit Google Sheets of Excel
@@ -833,7 +978,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                                   color: field === 'skip' ? 'var(--text-muted)' : 'var(--accent)'
                                 }}
                               >
-                                {FIELDS.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                                {FIELDS.map(f => <option key={f.id} value={f.id}>{f.id === 'name' ? nameFieldLabel : f.label}</option>)}
                               </select>
                               {hasHeader && <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '6px', fontWeight: 600, textAlign: 'left' }}>{rows[0]?.[i]}</div>}
                             </th>
@@ -875,9 +1020,9 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                           </div>
                         )}
                       </div>
-                      {(!mappingHasName || !mappingHasPhone) && (
+                      {(!mappingHasNameOrContact || !mappingHasPhone) && (
                         <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#FCA5A5', fontSize: '0.82rem', fontWeight: 700 }}>
-                          Wijs minimaal een kolom toe aan {!mappingHasName && '"Bedrijfsnaam"'}{!mappingHasName && !mappingHasPhone && ' en '}{!mappingHasPhone && '"Telefoonnummer"'}.
+                          Wijs minimaal een kolom toe aan {!mappingHasNameOrContact && `"${nameFieldLabel}" of "Contactpersoon"`}{!mappingHasNameOrContact && !mappingHasPhone && ' en '}{!mappingHasPhone && '"Telefoonnummer"'}.
                         </div>
                       )}
                     </>
@@ -978,111 +1123,14 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                     </>
                   )}
 
-                  {/* Doel: project (campagne) → lijst binnen dat project - alleen bij import */}
-                  {mode === 'import' && (
-                  <div style={{ padding: '16px', borderRadius: '12px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                    <div>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '10px', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
-                        <List size={15} style={{ color: 'var(--primary)' }} /> 1. Bij welk project hoort deze import?
-                      </label>
-                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <select
-                          value={targetCampaignId}
-                          onChange={e => { setTargetCampaignId(e.target.value); setTargetListId(''); if (e.target.value !== '__new__') { setNewCampaignName(''); setNewCampaignTeamId('') } }}
-                          style={{ flex: 1, minWidth: '200px', padding: '11px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600 }}
-                        >
-                          <option value="">- Kies een project -</option>
-                          {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                          {isAdmin && <option value="__new__">+ Nieuw project aanmaken...</option>}
-                        </select>
-                        {targetCampaignId === '__new__' && isAdmin && (
-                          <>
-                            <div style={{ flex: 1, minWidth: '200px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <Plus size={15} style={{ color: 'var(--secondary)' }} />
-                              <input
-                                type="text"
-                                value={newCampaignName}
-                                onChange={e => setNewCampaignName(e.target.value)}
-                                placeholder="Naam van het nieuwe project..."
-                                style={{ flex: 1, padding: '11px', borderRadius: '10px', border: '1px solid var(--secondary)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600 }}
-                              />
-                            </div>
-                            <select
-                              value={newCampaignTeamId}
-                              onChange={e => setNewCampaignTeamId(e.target.value)}
-                              title="Zonder team kan alleen een individueel toegewezen beller op dit project bellen"
-                              style={{ minWidth: '180px', padding: '11px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600 }}
-                            >
-                              <option value="">Team koppelen (optioneel)</option>
-                              {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                            </select>
-                          </>
-                        )}
-                      </div>
-                      <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        Het team van het project mag op alle lijsten binnen dat project bellen. Een lijst zonder project is voor bellers onzichtbaar.
-                      </p>
-                    </div>
-                    <div>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '10px', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
-                        <Plus size={15} style={{ color: 'var(--primary)' }} /> 2. In welke lijst komen de leads?
-                      </label>
-                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <select
-                          value={targetListId}
-                          onChange={e => { setTargetListId(e.target.value); if (e.target.value) setNewListName('') }}
-                          disabled={!targetCampaignId || (targetCampaignId === '__new__' && !newCampaignName.trim())}
-                          style={{ flex: 1, minWidth: '200px', padding: '11px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600, opacity: (!targetCampaignId || (targetCampaignId === '__new__' && !newCampaignName.trim())) ? 0.5 : 1 }}
-                        >
-                          <option value="">- Nieuwe lijst aanmaken -</option>
-                          {targetCampaignId && targetCampaignId !== '__new__' && leadLists.filter(l => l.campaign_id === targetCampaignId).map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                        </select>
-                        {!targetListId && (
-                          <div style={{ flex: 1, minWidth: '200px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Plus size={15} style={{ color: 'var(--secondary)' }} />
-                            <input
-                              type="text"
-                              value={newListName}
-                              onChange={e => setNewListName(e.target.value)}
-                              placeholder="Naam van de nieuwe lijst..."
-                              style={{ flex: 1, padding: '11px', borderRadius: '10px', border: '1px solid var(--secondary)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600 }}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* v38: al gemaakte sales importeren (voor backoffice - monteur inplannen) */}
-                    <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--bg-dark)', border: '1px solid var(--border)' }}>
-                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={importAsSales}
-                          onChange={e => setImportAsSales(e.target.checked)}
-                          style={{ marginTop: '3px' }}
-                        />
-                        <span>
-                          <span style={{ display: 'block', fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.85rem' }}>
-                            Dit zijn al gemaakte sales (voor backoffice - monteur inplannen)
-                          </span>
-                          <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                            Leads krijgen meteen status "Deal" en komen in de backoffice-wachtrij. Map hierboven een kolom naar "Verkoopdatum/tijd (backoffice)" zodat de oudste sale als eerst wordt nagebeld (first-in-first-out) - zonder die kolom geldt het import-moment.
-                          </span>
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-
-                  )}
-
                   <div style={{ display: 'flex', gap: '10px' }}>
                     <button onClick={() => setStep(1)} className="btn btn-outline" style={{ padding: '13px 20px' }}><ArrowLeft size={16} /> Terug</button>
                     {mode === 'import' ? (
                       <button
                         onClick={runImport}
-                        disabled={importing || !parsedLeads.leads.length || !mappingHasName || !mappingHasPhone || !targetCampaignId || (targetCampaignId === '__new__' && !newCampaignName.trim()) || (!targetListId && !newListName.trim())}
+                        disabled={importing || !parsedLeads.leads.length || !mappingHasNameOrContact || !mappingHasPhone || !targetCampaignId || (targetCampaignId === '__new__' && !newCampaignName.trim()) || (!targetListId && !newListName.trim())}
                         className="btn btn-primary"
-                        style={{ flex: 1, padding: '13px', fontWeight: 900, fontSize: '1rem', opacity: (importing || !parsedLeads.leads.length || !mappingHasName || !mappingHasPhone || !targetCampaignId || (targetCampaignId === '__new__' && !newCampaignName.trim()) || (!targetListId && !newListName.trim())) ? 0.5 : 1 }}
+                        style={{ flex: 1, padding: '13px', fontWeight: 900, fontSize: '1rem', opacity: (importing || !parsedLeads.leads.length || !mappingHasNameOrContact || !mappingHasPhone || !targetCampaignId || (targetCampaignId === '__new__' && !newCampaignName.trim()) || (!targetListId && !newListName.trim())) ? 0.5 : 1 }}
                       >
                         {importing ? 'Bezig met importeren...' : `Importeer ${parsedLeads.leads.length} leads`}
                       </button>

@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { FastForward } from 'lucide-react'
+import { FastForward, Plus, Trash2, Pencil } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { getStatusDetails } from '../utils/statusUtils'
 import { useToast } from './Toast'
+import { useAuth } from '../context/AuthContext'
 
 // Aanbevolen flow-instellingen: resultaten en opvolgacties blijven bij de
 // beller (voor verdiensten en TBA's); afgevallen leads gaan terug naar de pool.
@@ -27,14 +28,31 @@ export const FLOW_GROUPS = [
   { title: 'Backoffice', hint: 'Afboekredenen van backoffice-medewerkers die sales nabellen om de monteur in te plannen.', color: 'var(--primary)', types: ['monteur_ingepland', 'wil_annuleren'] }
 ]
 
+// v41: eigen afboekredenen - een label bovenop een van deze 5 bestaande
+// "geen succes"-statussen. De technische afhandeling (wachtrij/cooldown/
+// toewijzing, hierboven ingesteld) blijft die van de basisstatus; alleen
+// de knoptekst in het belscherm en de notitie zijn eigen aan de reden.
+export const CUSTOM_BASE_STATUSES = ['geen_interesse', 'onjuiste_timing', 'geen_gehoor', 'verkeerd_nummer', 'blacklist']
+
 // Gedeelde flows-editor: gebruikt door Projecten & Leads (admin) en het
 // manager-dashboard (alleen met het recht "Flows aanpassen").
 // Wijzigingen gelden voor ALLE projecten - dat staat ook onderaan het paneel.
 export default function FlowSettingsEditor() {
   const toast = useToast()
+  const { profile } = useAuth()
   const [flowSettings, setFlowSettings] = useState([])
   const [savingFlow, setSavingFlow] = useState(false)
   const [loading, setLoading] = useState(true)
+
+  // v41: eigen afboekredenen
+  const [customDispositions, setCustomDispositions] = useState([])
+  const [loadingCustom, setLoadingCustom] = useState(true)
+  const [newCustomLabel, setNewCustomLabel] = useState('')
+  const [newCustomBase, setNewCustomBase] = useState('geen_interesse')
+  const [addingCustom, setAddingCustom] = useState(false)
+  const [editingCustomId, setEditingCustomId] = useState(null)
+  const [editingCustomLabel, setEditingCustomLabel] = useState('')
+  const [confirmDeleteCustomId, setConfirmDeleteCustomId] = useState(null)
 
   useEffect(() => {
     supabase.from('flow_settings').select('*').then(({ data, error }) => {
@@ -42,7 +60,66 @@ export default function FlowSettingsEditor() {
       setFlowSettings(data || [])
       setLoading(false)
     })
+    fetchCustomDispositions()
   }, [])
+
+  function fetchCustomDispositions() {
+    setLoadingCustom(true)
+    supabase.from('custom_dispositions').select('*').order('sort_order').order('created_at').then(({ data, error }) => {
+      if (error) toast(error.message, 'error')
+      setCustomDispositions(data || [])
+      setLoadingCustom(false)
+    })
+  }
+
+  async function addCustomDisposition() {
+    const label = newCustomLabel.trim()
+    if (!label) return
+    setAddingCustom(true)
+    try {
+      const { error } = await supabase.from('custom_dispositions').insert({
+        label, base_status: newCustomBase, created_by: profile?.id
+      })
+      if (error) throw error
+      setNewCustomLabel('')
+      toast(`Eigen afboekreden "${label}" aangemaakt`, 'success')
+      fetchCustomDispositions()
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setAddingCustom(false)
+    }
+  }
+
+  async function saveCustomLabel(id) {
+    const label = editingCustomLabel.trim()
+    setEditingCustomId(null)
+    if (!label) return
+    const current = customDispositions.find(c => c.id === id)
+    if (current && current.label === label) return
+    const { error } = await supabase.from('custom_dispositions').update({ label }).eq('id', id)
+    if (error) { toast(error.message, 'error'); return }
+    setCustomDispositions(prev => prev.map(c => c.id === id ? { ...c, label } : c))
+  }
+
+  async function toggleCustomActive(c) {
+    const { error } = await supabase.from('custom_dispositions').update({ is_active: !c.is_active }).eq('id', c.id)
+    if (error) { toast(error.message, 'error'); return }
+    setCustomDispositions(prev => prev.map(x => x.id === c.id ? { ...x, is_active: !c.is_active } : x))
+  }
+
+  async function deleteCustomDisposition(id) {
+    if (confirmDeleteCustomId !== id) {
+      setConfirmDeleteCustomId(id)
+      toast('Klik nogmaals om deze eigen reden te verwijderen', 'info')
+      return
+    }
+    setConfirmDeleteCustomId(null)
+    const { error } = await supabase.from('custom_dispositions').delete().eq('id', id)
+    if (error) { toast(error.message, 'error'); return }
+    setCustomDispositions(prev => prev.filter(c => c.id !== id))
+    toast('Eigen afboekreden verwijderd', 'success')
+  }
 
   async function handleUpdateFlow(disposition, updates) {
     setSavingFlow(true)
@@ -197,6 +274,107 @@ export default function FlowSettingsEditor() {
           </div>
         )
       })}
+
+      {/* v41: eigen afboekredenen */}
+      <div className="mb-5">
+        <div className="flex items-center gap-2 px-4 py-2">
+          <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--secondary)', display: 'inline-block' }} />
+          <span className="text-xs font-black uppercase tracking-widest" style={{ color: 'var(--secondary)' }}>Eigen afboekredenen</span>
+          <span className="text-[11px] text-muted">- jouw eigen knoppen naast de standaardredenen hierboven</span>
+        </div>
+        <p className="text-[11px] text-muted px-4 mb-2">
+          Een eigen reden krijgt een eigen knoptekst in het belscherm, maar telt achter de schermen mee als een
+          van de vijf "Geen succes"-redenen hierboven - de wachtrij/cooldown/toewijzing daarvan blijft gewoon gelden.
+          De precieze reden komt altijd in de notitie van het gesprek te staan.
+        </p>
+
+        <div className="rounded-2xl border border-border overflow-hidden">
+          {loadingCustom ? (
+            <p className="text-muted px-4 py-4 text-sm">Laden...</p>
+          ) : customDispositions.length === 0 ? (
+            <p className="text-muted px-4 py-4 text-sm">Nog geen eigen redenen - maak er hieronder een aan.</p>
+          ) : customDispositions.map((c, i) => (
+            <div
+              key={c.id}
+              className="grid items-center gap-4 px-4 py-3 bg-dark hover:bg-elevated transition-all"
+              style={{ gridTemplateColumns: 'minmax(0,1fr) 190px auto', borderTop: i > 0 ? '1px solid var(--border)' : 'none', opacity: c.is_active ? 1 : 0.45 }}
+            >
+              <div className="min-w-0 flex items-center gap-2">
+                {editingCustomId === c.id ? (
+                  <input
+                    autoFocus
+                    className="text-sm font-bold"
+                    style={{ width: '100%' }}
+                    value={editingCustomLabel}
+                    onChange={e => setEditingCustomLabel(e.target.value)}
+                    onBlur={() => saveCustomLabel(c.id)}
+                    onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') setEditingCustomId(null) }}
+                  />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => { setEditingCustomId(c.id); setEditingCustomLabel(c.label) }}
+                    className="font-bold text-body text-sm flex items-center gap-2"
+                    title="Klik om de naam te bewerken"
+                    style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, textAlign: 'left' }}
+                  >
+                    {c.label} <Pencil size={11} className="text-muted" />
+                  </button>
+                )}
+              </div>
+              <div className="text-[11px] text-muted">
+                telt als <strong className="text-body">{getStatusDetails(c.base_status).label}</strong>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'flex-end' }}>
+                <button
+                  role="switch"
+                  aria-checked={c.is_active}
+                  onClick={() => toggleCustomActive(c)}
+                  title={c.is_active ? 'Actief: klik om uit te zetten' : 'Uitgezet: klik om aan te zetten'}
+                  style={{
+                    width: '40px', height: '22px', borderRadius: '11px', position: 'relative',
+                    background: c.is_active ? 'var(--primary)' : 'var(--border-strong)', transition: 'background 0.15s', flexShrink: 0
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute', top: '3px', left: c.is_active ? '21px' : '3px',
+                    width: '16px', height: '16px', borderRadius: '50%', background: 'white', transition: 'left 0.15s'
+                  }} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => deleteCustomDisposition(c.id)}
+                  title={confirmDeleteCustomId === c.id ? 'Klik nogmaals om te bevestigen' : 'Verwijderen'}
+                  className="p-1 rounded transition-all"
+                  style={{ color: confirmDeleteCustomId === c.id ? 'var(--danger)' : 'var(--text-muted)' }}
+                ><Trash2 size={14} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-end gap-2 px-4 py-3" style={{ flexWrap: 'wrap' }}>
+          <div style={{ flex: '1 1 220px' }}>
+            <label className="text-[10px] font-black uppercase text-muted tracking-widest mb-1 block">Nieuwe reden</label>
+            <input
+              className="text-sm w-full"
+              placeholder="Bijv. Al bij een andere partij"
+              value={newCustomLabel}
+              onChange={e => setNewCustomLabel(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') addCustomDisposition() }}
+            />
+          </div>
+          <div style={{ flex: '0 1 200px' }}>
+            <label className="text-[10px] font-black uppercase text-muted tracking-widest mb-1 block">Telt als</label>
+            <select className="text-sm w-full" value={newCustomBase} onChange={e => setNewCustomBase(e.target.value)}>
+              {CUSTOM_BASE_STATUSES.map(s => <option key={s} value={s}>{getStatusDetails(s).label}</option>)}
+            </select>
+          </div>
+          <button type="button" className="btn btn-sm btn-primary" disabled={addingCustom || !newCustomLabel.trim()} onClick={addCustomDisposition}>
+            <Plus size={14} /> Toevoegen
+          </button>
+        </div>
+      </div>
 
       <p className="text-[11px] text-muted px-4">
         Wijzigingen worden direct opgeslagen en gelden voor alle projecten.

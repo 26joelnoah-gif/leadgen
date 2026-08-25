@@ -22,6 +22,7 @@ import NewProjectWizard from '../components/NewProjectWizard'
 import CampaignBriefingModal from '../components/CampaignBriefingModal'
 import LeadDetailModal from '../components/LeadDetailModal'
 import MoveCopyLeadsModal from '../components/MoveCopyLeadsModal'
+import ProjectSettingsModal from '../components/ProjectSettingsModal'
 
 function StatusBadge({ status }) {
   const configs = {
@@ -100,6 +101,7 @@ export default function LeadManagement({ standalone = true }) {
 
   // v29: briefing (belscript + projectinfo) per project
   const [briefingCampaign, setBriefingCampaign] = useState(null)
+  const [settingsCampaign, setSettingsCampaign] = useState(null) // v41: uitgebreid projectinstellingen-paneel
 
   // v36: contactkaart - klik op een lead in de leadlijst
   const [detailLead, setDetailLead] = useState(null)
@@ -528,6 +530,11 @@ export default function LeadManagement({ standalone = true }) {
                                         )}
                                       </div>
                                     )}
+                                    <button
+                                      onClick={() => setSettingsCampaign(c)}
+                                      title="Projectinstellingen: naam, managers, teams, wachtrij, verwijderen"
+                                      className="p-1 rounded text-muted hover:text-body hover:bg-elevated transition-all"
+                                    ><Settings size={12} /></button>
                                     <button
                                       onClick={() => toggleProjectActive(c)}
                                       title={c.is_active === false ? 'Project weer activeren' : 'Project pauzeren (bellers zien de lijsten dan niet meer)'}
@@ -1051,6 +1058,16 @@ export default function LeadManagement({ standalone = true }) {
         isOpen={!!briefingCampaign}
         campaign={briefingCampaign}
         onClose={() => setBriefingCampaign(null)}
+      />
+
+      <ProjectSettingsModal
+        isOpen={!!settingsCampaign}
+        campaign={settingsCampaign}
+        agents={agents}
+        teams={teams}
+        leadLists={leadLists}
+        onClose={() => setSettingsCampaign(null)}
+        onSaved={fetchData}
       />
 
       <style>{`

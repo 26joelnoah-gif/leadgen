@@ -4,7 +4,7 @@ import {
   X, Phone, Mail, MapPin, User, Building2,
   Calendar, Clock, AlertCircle, CheckCircle2,
   ChevronRight, ChevronDown, Copy, Save, Users, Target, Ban,
-  BookOpen, Info, History
+  BookOpen, Info, History, Tag
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
@@ -30,6 +30,12 @@ const RECRUITMENT_FIELD_LABELS = {
   'Extra info 1': 'CV / LinkedIn-link',
   'Extra info 2': 'Ervaring',
   'Extra info 3': 'Beschikbaarheid'
+}
+
+// v38: backoffice belt particuliere klanten om de monteur in te plannen -
+// dit zijn geen bedrijven, dus het 'name'-veld heet hier "Naam klant".
+const BACKOFFICE_FIELD_LABELS = {
+  Bedrijfsnaam: 'Naam klant'
 }
 
 const CopyButton = ({ text, label }) => {
@@ -230,10 +236,13 @@ export default function WorkInterface() {
   // (Hook staat bewust VOOR de early returns - anders klapt React over
   // een wisselend aantal hooks tussen renders.)
   const [disabledDispositions, setDisabledDispositions] = useState([])
+  const [customReasons, setCustomReasons] = useState([]) // v41: eigen afboekredenen
   useEffect(() => {
     if (!isWorking) return
     supabase.from('flow_settings').select('disposition_type, is_active')
       .then(({ data }) => setDisabledDispositions((data || []).filter(f => f.is_active === false).map(f => f.disposition_type)))
+    supabase.from('custom_dispositions').select('*').eq('is_active', true).order('sort_order').order('created_at')
+      .then(({ data }) => setCustomReasons(data || []))
   }, [isWorking])
 
   // Don't render if not working
@@ -323,13 +332,31 @@ export default function WorkInterface() {
     { id: 'blacklist', label: dLabel('blacklist', 'BLACKLIST'), color: '#991B1B', icon: <Ban size={18} />, quick: true },
   ]
 
+  // v41: eigen afboekredenen worden extra quick-knoppen naast de vaste set -
+  // alleen in de sales/recruitment-knoppenset (niet backoffice), en verborgen
+  // zodra de onderliggende basisreden zelf is uitgezet.
+  const customButtons = isBackoffice ? [] : customReasons
+    .filter(c => !disabledDispositions.includes(c.base_status))
+    .map(c => ({
+      id: `custom:${c.id}`,
+      label: c.label.toUpperCase(),
+      rawLabel: c.label,
+      color: dispositions.find(d => d.id === c.base_status)?.color || '#64748B',
+      icon: <Tag size={18} />,
+      quick: true,
+      custom: true,
+      baseStatus: c.base_status,
+      customId: c.id
+    }))
+  const allButtons = [...dispositions, ...customButtons]
+
   // Veiligheidsklep: als alles uitgezet zou zijn, toon dan toch alle knoppen
   const visibleDispositions = (() => {
-    const v = dispositions.filter(d => !disabledDispositions.includes(d.id))
-    return v.length > 0 ? v : dispositions
+    const v = allButtons.filter(d => d.custom ? true : !disabledDispositions.includes(d.id))
+    return v.length > 0 ? v : allButtons
   })()
 
-  const submitDisposition = async (dispositionType, notes = '', nextDate = null) => {
+  const submitDisposition = async (dispositionType, notes = '', nextDate = null, customDispositionId = null) => {
     if (isSubmitting) return
     setIsSubmitting(true)
     try {
@@ -339,7 +366,8 @@ export default function WorkInterface() {
         dispositionType,
         notes,
         nextDate || null,
-        { startedAt: leadStartRef.current }
+        { startedAt: leadStartRef.current },
+        customDispositionId
       )
       setTodayCalls(prev => prev + 1)
 
@@ -558,7 +586,7 @@ export default function WorkInterface() {
                       ['Extra info 1', 'extra_info1'], ['Extra info 2', 'extra_info2'], ['Extra info 3', 'extra_info3']
                     ].map(([label, field]) => (
                       <div key={field}>
-                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{isRecruitmentCampaign ? (RECRUITMENT_FIELD_LABELS[label] || label) : label}</label>
+                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{isRecruitmentCampaign ? (RECRUITMENT_FIELD_LABELS[label] || label) : (isBackoffice ? (BACKOFFICE_FIELD_LABELS[label] || label) : label)}</label>
                         <input type="text" value={editableLead[field] || ''} onChange={e => setEditableLead({ ...editableLead, [field]: e.target.value })} placeholder="..." style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
                       </div>
                     ))}
@@ -576,7 +604,7 @@ export default function WorkInterface() {
                   </div>
                   <div style={{ padding: '14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 14px', alignContent: 'start' }}>
                     <div>
-                      <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{isRecruitmentCampaign ? RECRUITMENT_FIELD_LABELS.Bedrijfsnaam : 'Bedrijfsnaam'}</label>
+                      <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{isRecruitmentCampaign ? RECRUITMENT_FIELD_LABELS.Bedrijfsnaam : (isBackoffice ? BACKOFFICE_FIELD_LABELS.Bedrijfsnaam : 'Bedrijfsnaam')}</label>
                       <input type="text" value={editableLead.name || ''} onChange={e => setEditableLead({...editableLead, name: e.target.value})} style={{ ...{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem' }, fontWeight: 600 }}/>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
@@ -696,7 +724,11 @@ export default function WorkInterface() {
                 key={d.id}
                 disabled={isSubmitting}
                 onClick={() => {
-                  if (d.quick) {
+                  if (d.custom) {
+                    // v41: eigen reden - 1 klik, telt als de gekoppelde basisreden,
+                    // de eigen tekst gaat mee als notitie zodat hij herleidbaar blijft
+                    submitDisposition(d.baseStatus, `Reden: ${d.rawLabel}`, null, d.customId)
+                  } else if (d.quick) {
                     // 1 klik = direct afgeboekt, geen notitie nodig
                     submitDisposition(d.id)
                   } else {
