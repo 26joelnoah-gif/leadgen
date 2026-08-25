@@ -32,6 +32,7 @@ const FIELDS = [
   { id: 'notes', label: 'Notities' },
   { id: 'verrijking', label: 'Verrijking (altijd toevoegen)' },
   { id: 'decision_maker', label: 'Beslisser (ja/nee)' },
+  { id: 'sale_date', label: 'Verkoopdatum/tijd (backoffice)' },
   { id: 'extra_info1', label: 'Extra info 1' },
   { id: 'extra_info2', label: 'Extra info 2' },
   { id: 'extra_info3', label: 'Extra info 3' },
@@ -41,6 +42,35 @@ const FIELDS = [
 const ENRICHABLE = ['contact_person', 'function', 'email', 'website', 'address', 'house_number', 'postal_code', 'city', 'notes', 'extra_info1', 'extra_info2', 'extra_info3']
 
 const parseDecisionMaker = (v) => /^(ja|j|yes|y|x|true|1|beslisser|dmu?)$/i.test(String(v || '').trim())
+
+// v38: verkoopdatum/tijd voor de backoffice-wachtrij (FIFO op sale_date).
+// Snapt dd-mm-jjjj, dd/mm/jjjj, jjjj-mm-dd (met of zonder tijd) en
+// Excel-serienummers (SheetJS levert die soms als plat getal aan).
+function parseSaleDate(v) {
+  const raw = String(v || '').trim()
+  if (!raw) return null
+  if (/^\d{4,6}(\.\d+)?$/.test(raw)) {
+    const serial = parseFloat(raw)
+    const ms = Math.round((serial - 25569) * 86400 * 1000)
+    const d = new Date(ms)
+    if (!isNaN(d.getTime())) return d.toISOString()
+  }
+  const dmy = raw.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{2,4})(?:[ T](\d{1,2}):(\d{2}))?/)
+  if (dmy) {
+    let [, d, m, y, h, min] = dmy
+    if (y.length === 2) y = `20${y}`
+    const date = new Date(Number(y), Number(m) - 1, Number(d), Number(h || 0), Number(min || 0))
+    if (!isNaN(date.getTime())) return date.toISOString()
+  }
+  const ymd = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?/)
+  if (ymd) {
+    const [, y, m, d, h, min] = ymd
+    const date = new Date(Number(y), Number(m) - 1, Number(d), Number(h || 0), Number(min || 0))
+    if (!isNaN(date.getTime())) return date.toISOString()
+  }
+  const fallback = new Date(raw)
+  return isNaN(fallback.getTime()) ? null : fallback.toISOString()
+}
 
 // v32.2: bedrijfsnaam normaliseren voor het matchen - rechtsvorm (B.V., VOF...)
 // en leestekens tellen niet mee, zodat "Verdel Logistiek B.V." ook matcht
@@ -210,6 +240,9 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState(null)
   const [fileName, setFileName] = useState('')
+  // v38: al gemaakte sales importeren (voor backoffice - monteur inplannen)
+  // i.p.v. nieuwe leads - zet status meteen op 'deal'
+  const [importAsSales, setImportAsSales] = useState(false)
 
   const isAdmin = profile?.role === 'admin'
 
@@ -225,7 +258,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
     setStep(1); setPasteText(''); setRows([]); setMapping([]); setResult(null)
     setTargetCampaignId(''); setNewCampaignName(''); setNewCampaignTeamId('')
     setTargetListId(''); setNewListName(''); setFileName(''); setHasHeader(true)
-    setExcludedRows(new Set())
+    setExcludedRows(new Set()); setImportAsSales(false)
   }
 
   function close() { reset(); onClose() }
@@ -389,6 +422,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         else if (field === 'website') lead.website = normalizeWebsite(value)
         else if (field === 'phone') lead.phone = cleanPhone(value)
         else if (field === 'decision_maker') lead.decision_maker = parseDecisionMaker(value)
+        else if (field === 'sale_date') { const d = parseSaleDate(value); if (d) lead.sale_date = d }
         else if (field === 'contact_person') {
           // v32.3: ook bij import de contactpersoon-cel netjes uit elkaar halen
           const parsed = parseContactCell(value)
@@ -633,7 +667,8 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         .filter(l => !existing.has(l.phone))
         .map(l => ({
           ...l,
-          status: 'new',
+          status: importAsSales ? 'deal' : 'new',
+          sale_date: importAsSales ? (l.sale_date || new Date().toISOString()) : (l.sale_date || null),
           lead_list_id: listId,
           created_by: user?.id,
           organization_id: profile?.organization_id ?? null,
@@ -1015,6 +1050,26 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                           </div>
                         )}
                       </div>
+                    </div>
+
+                    {/* v38: al gemaakte sales importeren (voor backoffice - monteur inplannen) */}
+                    <div style={{ padding: '12px 14px', borderRadius: '10px', background: 'var(--bg-dark)', border: '1px solid var(--border)' }}>
+                      <label style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', cursor: 'pointer' }}>
+                        <input
+                          type="checkbox"
+                          checked={importAsSales}
+                          onChange={e => setImportAsSales(e.target.checked)}
+                          style={{ marginTop: '3px' }}
+                        />
+                        <span>
+                          <span style={{ display: 'block', fontWeight: 800, color: 'var(--text-primary)', fontSize: '0.85rem' }}>
+                            Dit zijn al gemaakte sales (voor backoffice - monteur inplannen)
+                          </span>
+                          <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
+                            Leads krijgen meteen status "Deal" en komen in de backoffice-wachtrij. Map hierboven een kolom naar "Verkoopdatum/tijd (backoffice)" zodat de oudste sale als eerst wordt nagebeld (first-in-first-out) - zonder die kolom geldt het import-moment.
+                          </span>
+                        </span>
+                      </label>
                     </div>
                   </div>
 

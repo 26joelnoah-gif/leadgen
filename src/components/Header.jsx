@@ -18,6 +18,7 @@ export default function Header({ onOpenSettings }) {
   const isAdmin = profile?.role === 'admin'
   const isManager = profile?.role === 'manager'
   const isRecruiter = profile?.role === 'recruiter'
+  const isBackoffice = profile?.role === 'backoffice'
 
   // v36: recruiter krijgt een eigen, kleine nav - geen sales-dashboard/verdiensten
   const navLinks = isRecruiter
@@ -87,7 +88,7 @@ export default function Header({ onOpenSettings }) {
         </nav>
 
         <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {(profile?.role === 'employee' || isRecruiter) && (
+          {(profile?.role === 'employee' || isRecruiter || isBackoffice) && (
             <button
               onClick={toggleWorkingMode}
               className="btn btn-sm"
@@ -105,7 +106,7 @@ export default function Header({ onOpenSettings }) {
             </button>
           )}
 
-          {profile?.role === 'employee' && (
+          {(profile?.role === 'employee' || isBackoffice) && (
             <div className="flex items-center gap-2" style={{ background: 'var(--bg-elevated)', padding: '6px 14px', borderRadius: '20px', border: '1px solid var(--border)', whiteSpace: 'nowrap' }}>
               <Zap size={14} className="text-secondary" />
               <span style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>

@@ -14,7 +14,10 @@ export const STATUS_MAP = {
   deal: { label: 'Deal!', color: 'var(--success)', bg: 'var(--success-bg)' },
   ptfu: { label: 'PTFU', color: 'var(--info)', bg: 'var(--info-bg)', description: 'Power Through Follow Ups' },
   goed_op_weg: { label: 'Goed Op Weg', color: 'var(--success)', bg: 'var(--success-bg)', description: 'Goede voortgang' },
-  verbetering_nodig: { label: 'Verbetering Nodig', color: 'var(--warning)', bg: 'var(--warning-bg)', description: 'Moet beter' }
+  verbetering_nodig: { label: 'Verbetering Nodig', color: 'var(--warning)', bg: 'var(--warning-bg)', description: 'Moet beter' },
+  // v38: backoffice - monteur inplannen na een gemaakte sale (status 'deal')
+  monteur_ingepland: { label: 'Monteur ingepland', color: 'var(--success)', bg: 'var(--success-bg)', description: 'Monteur is ingepland - sale is doorgezet' },
+  wil_annuleren: { label: 'Wil annuleren', color: 'var(--danger)', bg: 'var(--danger-bg)', description: 'Klant wil annuleren - reden vastgelegd' }
 };
 
 // v36: recruitment-projecten gebruiken dezelfde statussen/dispositie-flow

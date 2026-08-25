@@ -107,6 +107,7 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
               <label><Shield size={14} /> Rol</label>
               <select value={role} onChange={e => setRole(e.target.value)}>
                 <option value="employee">Beller (medewerker)</option>
+                <option value="backoffice">Backoffice</option>
                 <option value="manager">Manager</option>
                 <option value="recruiter">Recruiter</option>
                 <option value="admin">Admin</option>
@@ -119,6 +120,11 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
               {role === 'recruiter' && (
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
                   Er wordt automatisch een sollicitatieproject "Sollicitanten" voor deze recruiter aangemaakt.
+                </p>
+              )}
+              {role === 'backoffice' && (
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  Belt gemaakte sales na om de monteur in te plannen. Koppel deze medewerker net als een beller aan een project/team zodat hij de sales van dat project ziet.
                 </p>
               )}
             </div>

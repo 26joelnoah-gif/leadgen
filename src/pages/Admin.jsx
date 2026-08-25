@@ -171,6 +171,8 @@ export default function Admin() {
           ? 'Manager aangemaakt! Koppel nu projecten via de knop "Projecten".'
           : employeeData.role === 'recruiter'
           ? 'Recruiter aangemaakt! Het sollicitatieproject "Sollicitanten" staat klaar.'
+          : employeeData.role === 'backoffice'
+          ? 'Backoffice-medewerker aangemaakt! Koppel hem/haar aan een team via Lead Beheer > Teams, net als een beller.'
           : 'Medewerker uitnodiging verstuurd!',
         'success'
       )
@@ -489,7 +491,7 @@ export default function Admin() {
                            </div>
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
-                           <span className={`self-start shrink-0 whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : u.role === 'recruiter' ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}`}>{u.role === 'employee' ? 'Beller' : u.role === 'recruiter' ? 'Recruiter' : u.role}</span>
+                           <span className={`self-start shrink-0 whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : u.role === 'recruiter' ? 'bg-warning/20 text-warning' : u.role === 'backoffice' ? 'bg-primary/20 text-primary' : 'bg-success/20 text-success'}`}>{u.role === 'employee' ? 'Beller' : u.role === 'recruiter' ? 'Recruiter' : u.role === 'backoffice' ? 'Backoffice' : u.role}</span>
                            {u.is_active === false && (
                              <span className="whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-error/20 text-error">Inactief</span>
                            )}

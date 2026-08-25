@@ -15,13 +15,16 @@ export const FLOW_RECOMMENDED = {
   onjuiste_timing: { auto_assign_to: 'none', append_agent_note: false },
   geen_interesse: { auto_assign_to: 'none', append_agent_note: false },
   verkeerd_nummer: { auto_assign_to: 'none', append_agent_note: false },
-  blacklist: { auto_assign_to: 'none', append_agent_note: false }
+  blacklist: { auto_assign_to: 'none', append_agent_note: false },
+  monteur_ingepland: { auto_assign_to: 'agent', append_agent_note: true },
+  wil_annuleren: { auto_assign_to: 'none', append_agent_note: true }
 }
 
 export const FLOW_GROUPS = [
   { title: 'Resultaat', hint: 'De lead blijft bij de beller - zo tellen verdiensten goed mee.', color: 'var(--success)', types: ['deal', 'afspraak_gemaakt'] },
   { title: 'Opvolgen', hint: 'De beller houdt de lead vast en krijgt hem terug in zijn wachtrij of TBA-lijst.', color: 'var(--secondary)', types: ['terugbelafspraak', 'later_bellen'] },
-  { title: 'Geen succes', hint: 'Kies of de lead blijft staan of terug naar de pool gaat voor een volgende poging.', color: 'var(--danger)', types: ['geen_gehoor', 'onjuiste_timing', 'geen_interesse', 'verkeerd_nummer', 'blacklist'] }
+  { title: 'Geen succes', hint: 'Kies of de lead blijft staan of terug naar de pool gaat voor een volgende poging.', color: 'var(--danger)', types: ['geen_gehoor', 'onjuiste_timing', 'geen_interesse', 'verkeerd_nummer', 'blacklist'] },
+  { title: 'Backoffice', hint: 'Afboekredenen van backoffice-medewerkers die sales nabellen om de monteur in te plannen.', color: 'var(--primary)', types: ['monteur_ingepland', 'wil_annuleren'] }
 ]
 
 // Gedeelde flows-editor: gebruikt door Projecten & Leads (admin) en het

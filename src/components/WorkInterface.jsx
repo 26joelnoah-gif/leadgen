@@ -71,7 +71,11 @@ const CopyButton = ({ text, label }) => {
 
 export default function WorkInterface() {
   const { isWorking, toggleWorkingMode, workingLead, workingListId, sessionCallCount, profile, user } = useAuth()
-  const { leads, updateLeadStatus, logActivity, handleLeadDisposition, claimNextLead, releaseMyLeads } = useLeads()
+  const { leads, updateLeadStatus, logActivity, handleLeadDisposition, claimNextLead, claimNextBackofficeLead, releaseMyLeads } = useLeads()
+
+  // v38: backoffice medewerkers werken de al gemaakte sales (status 'deal')
+  // af om de monteur in te plannen - eigen wachtrij/claim-functie/knoppen.
+  const isBackoffice = profile?.role === 'backoffice'
 
   // Belwachtrij: leads uit de projectlijst die nu belbaar zijn.
   // Afgeronde statussen vallen eruit, en leads met een terugbelmoment
@@ -83,7 +87,7 @@ export default function WorkInterface() {
   const listLeads = workingListId
     ? leads.filter(l =>
         l.lead_list_id === workingListId &&
-        !DONE_STATUSES.includes(l.status) &&
+        (isBackoffice ? l.status === 'deal' : !DONE_STATUSES.includes(l.status)) &&
         (!l.next_contact_date || new Date(l.next_contact_date) <= new Date()) &&
         (!l.locked_by || l.locked_by === user?.id || !l.locked_at || (Date.now() - new Date(l.locked_at).getTime()) > LOCK_TTL_MS)
       )
@@ -102,13 +106,14 @@ export default function WorkInterface() {
     if (!isWorking || !workingListId || workingLead) return
     let cancelled = false
     setClaiming(true)
-    claimNextLead(workingListId).then(lead => {
+    const claimFn = isBackoffice ? claimNextBackofficeLead : claimNextLead
+    claimFn(workingListId).then(lead => {
       if (cancelled) return
       setClaimedLead(lead)
       setClaiming(false)
     })
     return () => { cancelled = true }
-  }, [isWorking, workingListId])
+  }, [isWorking, workingListId, isBackoffice])
 
   // Bij het sluiten van de belmodus: alle eigen locks vrijgeven,
   // zodat collega's de niet-afgehandelde lead direct kunnen oppakken
@@ -297,7 +302,16 @@ export default function WorkInterface() {
   // quick: true = direct afboeken met 1 klik, geen modal en geen verplichte notitie
   // v36: label wijkt af voor recruitment-projecten (zelfde id/logica, andere tekst)
   const dLabel = (id, fallback) => (isRecruitmentCampaign && RECRUITMENT_BUTTON_LABELS[id]) || fallback
-  const dispositions = [
+  // v38: backoffice-medewerkers bellen al gemaakte sales om de monteur in te
+  // plannen - eigen, kleinere knoppenset i.p.v. de sales-dispositielijst.
+  const dispositions = isBackoffice ? [
+    { id: 'monteur_ingepland', label: 'MONTEUR INGEPLAND', color: '#10B981', icon: <CheckCircle2 size={18} /> },
+    { id: 'wil_annuleren', label: 'WIL ANNULEREN', color: '#EF4444', icon: <Ban size={18} /> },
+    { id: 'terugbelafspraak', label: 'TBA (Terugbel)', color: '#8B5CF6', icon: <Clock size={18} /> },
+    { id: 'later_bellen', label: 'LATER BELLEN', color: '#F59E0B', icon: <Clock size={18} /> },
+    { id: 'geen_gehoor', label: 'GEEN GEHOOR', color: '#64748B', icon: <Phone size={18} />, quick: true },
+    { id: 'verkeerd_nummer', label: 'FOUTIEVE INFO', color: '#EF4444', icon: <AlertCircle size={18} />, quick: true },
+  ] : [
     { id: 'deal', label: dLabel('deal', 'DEAL'), color: '#10B981', icon: <CheckCircle2 size={18} /> },
     { id: 'afspraak_gemaakt', label: dLabel('afspraak_gemaakt', 'AFSPRAAK'), color: '#3B82F6', icon: <Calendar size={18} /> },
     { id: 'terugbelafspraak', label: 'TBA (Terugbel)', color: '#8B5CF6', icon: <Clock size={18} /> },
@@ -341,7 +355,8 @@ export default function WorkInterface() {
         // slaat leads over die een collega net heeft geclaimd
         setClaimedLead(null)
         setClaiming(true)
-        const nextLead = await claimNextLead(workingListId)
+        const claimFn = isBackoffice ? claimNextBackofficeLead : claimNextLead
+        const nextLead = await claimFn(workingListId)
         setClaimedLead(nextLead)
         setClaiming(false)
       }
@@ -410,7 +425,7 @@ export default function WorkInterface() {
             <div className="flex items-center gap-4">
                <h2 style={{ margin: 0, fontSize: '1.2rem', display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 700 }}>
                  <Phone size={18} />
-                 Belmodus
+                 {isBackoffice ? 'Backoffice - Monteur inplannen' : 'Belmodus'}
                </h2>
                <span style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>Vandaag: {todayCalls}</span>
                {dailyTarget > 0 && (
@@ -747,11 +762,13 @@ export default function WorkInterface() {
                     )}
 
                     <div>
-                      <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>Gespreksverslag / Toelichting</label>
+                      <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>
+                        {selectedDisposition === 'wil_annuleren' ? 'Reden van annulering (verplicht)' : 'Gespreksverslag / Toelichting'}
+                      </label>
                       <textarea
                         value={dispositionNotes}
                         onChange={e => setDispositionNotes(e.target.value)}
-                        placeholder="Wat is er besproken? Waarom deze status?"
+                        placeholder={selectedDisposition === 'wil_annuleren' ? 'Waarom wil de klant annuleren?' : 'Wat is er besproken? Waarom deze status?'}
                         rows={4}
                         style={{ width: '100%', padding: '15px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }}
                       />
@@ -759,7 +776,7 @@ export default function WorkInterface() {
 
                     <button
                       onClick={handleFinalDisposition}
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || (selectedDisposition === 'wil_annuleren' && !dispositionNotes.trim())}
                       style={{
                         background: dispositions.find(d => d.id === selectedDisposition)?.color,
                         color: 'var(--text-on-accent)',

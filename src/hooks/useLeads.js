@@ -189,6 +189,20 @@ export function useLeads() {
     return lead || null
   }
 
+  // v38: backoffice-wachtrij - alleen leads met status 'deal' (al gemaakte
+  // sales), FIFO op sale_date (verkoopmoment) i.p.v. created_at. Gebruikt
+  // door WorkInterface wanneer profile.role === 'backoffice'.
+  async function claimNextBackofficeLead(listId) {
+    if (isDemoMode || !listId) return null
+    const { data, error } = await supabase.rpc('claim_next_backoffice_lead', { p_list_id: listId })
+    if (error) {
+      console.error('claim_next_backoffice_lead mislukt:', error)
+      return null
+    }
+    const lead = Array.isArray(data) ? data[0] : data
+    return lead || null
+  }
+
   // Lock van één lead vrijgeven (bijv. bij overslaan)
   async function releaseLead(leadId) {
     if (isDemoMode) return { error: null }
@@ -305,6 +319,18 @@ export function useLeads() {
       }
     }
 
+    // v38: backoffice - sale doorgezet / klant wil annuleren
+    // - deal krijgt (indien nog niet gezet) een sale_date: het moment dat de
+    //   sale IS gemaakt, gebruikt voor FIFO in de backoffice-wachtrij.
+    // - wil_annuleren legt de reden apart vast (cancel_reason) zodat die
+    //   los van de vrije notities getoond kan worden in het Annuleringen-overzicht.
+    if (dispositionType === 'deal' && !currentLead.sale_date) {
+      updates.sale_date = new Date().toISOString()
+    }
+    if (dispositionType === 'wil_annuleren') {
+      updates.cancel_reason = notes || null
+    }
+
     if (isDemoMode) {
       setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updates } : l))
       return
@@ -335,6 +361,6 @@ export function useLeads() {
   }
 
   return {
-    leads, loading, error, fetchLeads, updateLeadStatus, assignLead, logActivity, callLead, claimNextLead, releaseLead, releaseMyLeads, createLead, handleLeadDisposition
+    leads, loading, error, fetchLeads, updateLeadStatus, assignLead, logActivity, callLead, claimNextLead, claimNextBackofficeLead, releaseLead, releaseMyLeads, createLead, handleLeadDisposition
   }
 }

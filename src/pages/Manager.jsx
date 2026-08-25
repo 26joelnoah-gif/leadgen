@@ -163,9 +163,9 @@ export default function Manager() {
     if (isDemoMode || kpiOnly || managedLists.length === 0) { setResultLeads([]); return }
     supabase
       .from('leads')
-      .select('id, name, phone, status, lead_list_id, updated_at, assigned:profiles!leads_assigned_to_fkey(full_name)')
+      .select('id, name, phone, status, lead_list_id, updated_at, cancel_reason, assigned:profiles!leads_assigned_to_fkey(full_name)')
       .in('lead_list_id', managedLists.map(l => l.id))
-      .in('status', ['afspraak_gemaakt', 'deal', 'geen_interesse', 'blacklist'])
+      .in('status', ['afspraak_gemaakt', 'deal', 'geen_interesse', 'blacklist', 'monteur_ingepland', 'wil_annuleren'])
       .is('deleted_at', null)
       .order('updated_at', { ascending: false })
       .limit(500)
@@ -181,6 +181,18 @@ export default function Manager() {
       .eq('id', lead.id)
     if (error) { toast(error.message, 'error'); return }
     toast(`${lead.name} staat weer in de belwachtrij`, 'success')
+    setResultLeads(prev => prev.filter(l => l.id !== lead.id))
+  }
+
+  // v38: een annulering terugzetten in de backoffice-wachtrij (status 'deal')
+  // voor een nieuwe poging om de klant alsnog te behouden
+  async function reactivateToBackoffice(lead) {
+    const { error } = await supabase
+      .from('leads')
+      .update({ status: 'deal', cancel_reason: null, updated_at: new Date().toISOString() })
+      .eq('id', lead.id)
+    if (error) { toast(error.message, 'error'); return }
+    toast(`${lead.name} staat weer in de backoffice-wachtrij`, 'success')
     setResultLeads(prev => prev.filter(l => l.id !== lead.id))
   }
 
@@ -742,6 +754,8 @@ export default function Manager() {
                 {[
                   { id: 'afspraak_gemaakt', label: 'Afspraken' },
                   { id: 'deal', label: 'Deals' },
+                  { id: 'monteur_ingepland', label: 'Monteur ingepland' },
+                  { id: 'wil_annuleren', label: 'Annuleringen' },
                   { id: 'geen_interesse', label: 'Geen interesse' },
                   { id: 'blacklist', label: 'Blacklist' }
                 ].map(f => {
@@ -767,8 +781,9 @@ export default function Manager() {
                       <th>Telefoon</th>
                       <th>Project / lijst</th>
                       <th>Beller</th>
+                      {resultFilter === 'wil_annuleren' && <th>Reden</th>}
                       <th>Laatst bijgewerkt</th>
-                      {resultFilter === 'geen_interesse' && canManageLeads && <th></th>}
+                      {(resultFilter === 'geen_interesse' || resultFilter === 'wil_annuleren') && canManageLeads && <th></th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -778,6 +793,7 @@ export default function Manager() {
                         <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{lead.phone}</td>
                         <td className="text-muted" style={{ fontSize: '0.85rem' }}>{managedLists.find(l => l.id === lead.lead_list_id)?.name || '-'}</td>
                         <td>{lead.assigned?.full_name || '-'}</td>
+                        {resultFilter === 'wil_annuleren' && <td style={{ fontSize: '0.85rem' }}>{lead.cancel_reason || '-'}</td>}
                         <td style={{ whiteSpace: 'nowrap', fontSize: '0.85rem' }}>
                           {new Date(lead.updated_at).toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                         </td>
@@ -785,6 +801,13 @@ export default function Manager() {
                           <td>
                             <button className="btn btn-sm btn-outline" onClick={() => reactivateLead(lead)} title="Zet deze lead terug in de belwachtrij voor een nieuwe poging">
                               Opnieuw bellen
+                            </button>
+                          </td>
+                        )}
+                        {resultFilter === 'wil_annuleren' && canManageLeads && (
+                          <td>
+                            <button className="btn btn-sm btn-outline" onClick={() => reactivateToBackoffice(lead)} title="Zet deze sale terug in de backoffice-wachtrij voor een nieuwe poging">
+                              Terug naar backoffice
                             </button>
                           </td>
                         )}
