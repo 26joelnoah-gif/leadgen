@@ -161,7 +161,8 @@ export default function Admin() {
           if (campErr) {
             toast(`Recruiter aangemaakt, maar het sollicitatieproject kon niet worden opgezet: ${campErr.message}`, 'error')
           } else {
-            await supabase.from('campaign_managers').insert({ campaign_id: campaign.id, manager_id: signUpData.user.id })
+            const { error: cmErr } = await supabase.from('campaign_managers').insert({ campaign_id: campaign.id, manager_id: signUpData.user.id })
+            if (cmErr) toast(`Recruiter aangemaakt, maar de koppeling aan het sollicitatieproject mislukte: ${cmErr.message}. Zonder deze koppeling kan de recruiter zijn eigen sollicitanten niet zien.`, 'error')
             const { error: listErr } = await supabase.from('lead_lists').insert({
               name: 'Sollicitanten',
               campaign_id: campaign.id,
