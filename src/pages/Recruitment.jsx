@@ -75,10 +75,19 @@ export default function Recruitment() {
 
   // De recruiter heeft precies één lijst nodig om in te werken: die met
   // assigned_to = zichzelf (zo gezet bij het aanmaken van het account).
-  // RLS zorgt er sowieso al voor dat leadLists alleen eigen lijsten bevat.
+  // RLS scopet leadLists voor een recruiter al tot eigen lijsten, maar een
+  // admin/manager ziet via dezelfde hook ALLE lijsten in de organisatie
+  // (sales + recruitment door elkaar) - zonder deze filter viel de fallback
+  // op leadLists[0] terug, oftewel de nieuwste lijst van de hele org, wat
+  // sales-leads liet lekken in het sollicitanten-scherm. Filter daarom altijd
+  // eerst op recruitment-campagnes voordat we een "thuislijst" kiezen.
+  const recruitmentLists = useMemo(
+    () => leadLists.filter(l => l.campaigns?.type === 'recruitment'),
+    [leadLists]
+  )
   const homeList = useMemo(
-    () => leadLists.find(l => l.assigned_to === user?.id) || leadLists[0] || null,
-    [leadLists, user?.id]
+    () => recruitmentLists.find(l => l.assigned_to === user?.id) || recruitmentLists[0] || null,
+    [recruitmentLists, user?.id]
   )
 
   const baseApplicants = useMemo(

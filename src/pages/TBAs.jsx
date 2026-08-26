@@ -9,7 +9,7 @@ import EmptyState from '../components/EmptyState'
 import Header from '../components/Header'
 
 export default function TBAs() {
-  const { user, profile, toggleWorkingMode, logCall } = useAuth()
+  const { user, toggleWorkingMode, logCall } = useAuth()
   const { leads, loading, logActivity } = useLeads()
   const [filter, setFilter] = useState('upcoming')
   const [searchTerm, setSearchTerm] = useState('')
@@ -21,10 +21,13 @@ export default function TBAs() {
   // openbaar: zichtbaar (en belbaar) voor manager en alle teamleden.
   const OVERDUE_MS = 24 * 60 * 60 * 1000
   const now = new Date()
-  const isStaff = profile?.role === 'admin' || profile?.role === 'manager'
   const isPublicOverdue = (l) => l.next_contact_date && (now - new Date(l.next_contact_date)) > OVERDUE_MS
+  // Een niet-verlopen TBA is en blijft prive van de beller die hem maakte -
+  // ook admin/manager zien elkaars (of de recruiter's) nog-niet-verlopen
+  // afspraken hier niet. Pas na 24 uur zonder opvolging wordt hij openbaar
+  // (pastTBAs hieronder, ongewijzigd) en dus voor iedereen zichtbaar.
   const upcomingTBAs = tbaLeads.filter(l =>
-    !isPublicOverdue(l) && (isStaff || l.assigned_to === user?.id)
+    !isPublicOverdue(l) && l.assigned_to === user?.id
   )
   const pastTBAs = tbaLeads.filter(isPublicOverdue)
 
