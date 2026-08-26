@@ -327,7 +327,7 @@ export function useLeads() {
     //   sale IS gemaakt, gebruikt voor FIFO in de backoffice-wachtrij.
     // - wil_annuleren legt de reden apart vast (cancel_reason) zodat die
     //   los van de vrije notities getoond kan worden in het Annuleringen-overzicht.
-    if (dispositionType === 'deal' && !currentLead.sale_date) {
+    if ((dispositionType === 'deal' || dispositionType === 'bruto_deal') && !currentLead.sale_date) {
       updates.sale_date = new Date().toISOString()
     }
     if (dispositionType === 'wil_annuleren') {

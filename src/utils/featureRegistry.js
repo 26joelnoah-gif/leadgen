@@ -17,7 +17,7 @@ import { getStatusDetails } from './statusUtils'
 // als expliciete lijst i.p.v. afgeleid van FLOW_GROUPS, want die laatste is
 // de instellingen-indeling, niet de daadwerkelijke knoppenset per rol.
 const CALLER_BASE_DISPOSITIONS = [
-  'deal', 'afspraak_gemaakt', 'terugbelafspraak', 'later_bellen',
+  'deal', 'bruto_deal', 'afspraak_gemaakt', 'terugbelafspraak', 'later_bellen',
   'geen_gehoor', 'verkeerd_nummer', 'geen_interesse', 'onjuiste_timing', 'blacklist'
 ]
 const BACKOFFICE_BASE_DISPOSITIONS = [

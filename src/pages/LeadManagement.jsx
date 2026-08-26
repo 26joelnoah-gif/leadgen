@@ -106,6 +106,14 @@ export default function LeadManagement({ standalone = true }) {
   // v36: contactkaart - klik op een lead in de leadlijst
   const [detailLead, setDetailLead] = useState(null)
 
+  // v47: na het opslaan van notities/velden in de contactkaart de lokale
+  // leadlijst en de open kaart direct bijwerken - geen refetch nodig, en de
+  // "Laatste notitie"-kolom in de tabel klopt meteen weer.
+  function handleLeadUpdated(leadId, updates) {
+    setLeads(prev => prev.map(l => (l.id === leadId ? { ...l, ...updates } : l)))
+    setDetailLead(prev => (prev && prev.id === leadId ? { ...prev, ...updates } : prev))
+  }
+
   useEffect(() => {
     fetchData()
   }, [])
@@ -709,7 +717,7 @@ export default function LeadManagement({ standalone = true }) {
                          </div>
                          <div className="p-4 text-center bg-success/5">
                             <div className="text-[10px] font-black text-success uppercase mb-1">Deals Verzorgd</div>
-                            <div className="text-xl font-black text-success">{leads.filter(l => l.status === 'deal').length}</div>
+                            <div className="text-xl font-black text-success">{leads.filter(l => l.status === 'deal' || l.status === 'bruto_deal').length}</div>
                          </div>
                       </div>
 
@@ -1048,6 +1056,7 @@ export default function LeadManagement({ standalone = true }) {
         onClose={() => setDetailLead(null)}
         lead={detailLead}
         assignedName={agents.find(a => a.id === detailLead?.assigned_to)?.full_name}
+        onUpdated={handleLeadUpdated}
       />
 
       <NewProjectWizard

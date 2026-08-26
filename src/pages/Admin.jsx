@@ -74,6 +74,12 @@ export default function Admin() {
   const [intensityUser, setIntensityUser] = useState(null) // v43: intensiteit/ingelogde-tijd voor deze gebruiker
   const [showNewProject, setShowNewProject] = useState(false)
   const [managerLinks, setManagerLinks] = useState([]) // campaign_managers-rijen voor de projectenteller (v23)
+  // Voor het projecten/leadlijsten-overzicht per beller (Team-tab): teams met hun
+  // leden, en de campaign_teams-koppeling om per team de projecten te vinden.
+  const [assignTeams, setAssignTeams] = useState([])
+  const [assignCampaignTeams, setAssignCampaignTeams] = useState([])
+  const [assignProjects, setAssignProjects] = useState([]) // campaigns (projecten), niet verwijderd
+  const [expandedAssignments, setExpandedAssignments] = useState({}) // per user-id: toon leadlijsten
   const [showLeadList, setShowLeadList] = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [importMode, setImportMode] = useState('import') // v32.1: 'import' of 'enrich'
@@ -184,6 +190,20 @@ export default function Admin() {
     }
   }
 
+  // Welke projecten en leadlijsten heeft deze persoon aan staan? Bellers/backoffice
+  // via hun team (assignTeams -> assignCampaignTeams), managers/recruiters via hun
+  // campaign_managers-koppeling (managerLinks). Leadlijsten = lijsten van die
+  // projecten, plus lijsten die rechtstreeks aan deze persoon zijn toegewezen.
+  function getUserAssignments(u) {
+    const myTeamIds = assignTeams.filter(t => (t.team_members || []).some(m => m.profile_id === u.id)).map(t => t.id)
+    const viaTeam = assignCampaignTeams.filter(ct => myTeamIds.includes(ct.team_id)).map(ct => ct.campaign_id)
+    const viaManager = managerLinks.filter(pm => pm.manager_id === u.id).map(pm => pm.campaign_id)
+    const projectIds = [...new Set([...viaTeam, ...viaManager])]
+    const userProjects = assignProjects.filter(p => projectIds.includes(p.id))
+    const userLists = leadLists.filter(l => !l.deleted_at && (l.assigned_to === u.id || projectIds.includes(l.campaign_id)))
+    return { projects: userProjects, lists: userLists }
+  }
+
   if (profile && profile.role !== 'admin') return <Navigate to="/dashboard" />
 
   async function fetchData() {
@@ -195,6 +215,14 @@ export default function Admin() {
       if (uErr) throw uErr
       const { data: pm } = await supabase.from('campaign_managers').select('campaign_id, manager_id')
       const { data: o } = await supabase.from('organizations').select('id, name, slug, owner_id').order('name')
+      // Voor "welke projecten/leadlijsten heeft deze beller aan staan" (Team-tab):
+      // dezelfde route als my_list_ids() in de database - team -> campaign_teams.
+      const { data: atRows } = await supabase.from('teams').select('id, name, team_members(profile_id)')
+      const { data: actRows } = await supabase.from('campaign_teams').select('campaign_id, team_id')
+      const { data: apRows } = await supabase.from('campaigns').select('id, name, organization_id, is_active').is('deleted_at', null).order('name')
+      setAssignTeams(atRows || [])
+      setAssignCampaignTeams(actRows || [])
+      setAssignProjects(apRows || [])
       setLeads(l || [])
       setUsers(u || [])
       setManagerLinks(pm || [])
@@ -219,7 +247,7 @@ export default function Admin() {
         stats.seconds += log.duration_seconds || 0
         const nogSteedsActueel = leadStatusById[log.lead_id] === log.disposition
         if (log.disposition === 'afspraak_gemaakt' && nogSteedsActueel) stats.afspraken++
-        if (log.disposition === 'deal' && nogSteedsActueel) stats.deals++
+        if ((log.disposition === 'deal' || log.disposition === 'bruto_deal') && nogSteedsActueel) stats.deals++
         if (log.agent_id) {
           if (!stats.perAgent[log.agent_id]) stats.perAgent[log.agent_id] = { calls: 0, seconds: 0 }
           stats.perAgent[log.agent_id].calls++
@@ -476,8 +504,24 @@ export default function Admin() {
                   )}
                </div>
              )}
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[...users].sort((a, b) => (a.is_active === false ? 1 : 0) - (b.is_active === false ? 1 : 0)).map(u => (
+             {(() => {
+                const sortedUsers = [...users].sort((a, b) => (a.is_active === false ? 1 : 0) - (b.is_active === false ? 1 : 0))
+                const groups = orgs.length > 0
+                  ? [
+                      { key: 'none', label: 'Mijn eigen omgeving', users: sortedUsers.filter(u => !u.organization_id) },
+                      ...orgs.map(o => ({ key: o.id, label: o.name, users: sortedUsers.filter(u => u.organization_id === o.id) }))
+                    ].filter(g => g.users.length > 0)
+                  : [{ key: 'all', label: null, users: sortedUsers }]
+                return groups.map(group => (
+                  <div key={group.key} className="mb-10">
+                     {group.label && (
+                       <h3 className="text-xs font-black uppercase tracking-widest text-secondary mb-4 flex items-center gap-2">
+                          <Shield size={14} /> {group.label}
+                          <span className="text-muted font-bold normal-case tracking-normal">({group.users.length} medewerker{group.users.length === 1 ? '' : 's'})</span>
+                       </h3>
+                     )}
+                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {group.users.map(u => (
                   <div key={u.id} className="glass-panel p-6 group hover:border-primary/50 transition-all border border-border" style={u.is_active === false ? { opacity: 0.55 } : undefined}>
                      <div className="flex justify-between items-start gap-3">
                         <div className="flex items-center gap-4 min-w-0">
@@ -543,6 +587,50 @@ export default function Admin() {
                           </div>
                         )}
                      </div>
+                     {u.role !== 'admin' && (() => {
+                       const { projects: uProjects, lists: uLists } = getUserAssignments(u)
+                       const isOpen = !!expandedAssignments[u.id]
+                       if (uProjects.length === 0 && uLists.length === 0) {
+                         return <div className="mt-3 pt-3 border-t border-border text-[10px] text-muted italic">Nog geen project of leadlijst gekoppeld</div>
+                       }
+                       return (
+                         <div className="mt-3 pt-3 border-t border-border">
+                            <div className="text-[10px] text-muted font-black uppercase tracking-widest mb-2">
+                               Projecten ({uProjects.length}) &middot; Leadlijsten ({uLists.length})
+                            </div>
+                            <div className="flex flex-wrap gap-1.5" style={{ marginBottom: uLists.length > 0 ? '8px' : 0 }}>
+                               {uProjects.length > 0 ? uProjects.map(p => (
+                                 <span key={p.id} className={`px-2 py-1 rounded text-[10px] font-bold break-words ${p.is_active === false ? 'bg-elevated text-muted' : 'bg-primary/15 text-primary'}`}>
+                                    {p.name}{p.is_active === false ? ' (gepauzeerd)' : ''}
+                                 </span>
+                               )) : (
+                                 <span className="text-[10px] text-muted italic">Geen project, wel losse leadlijst(en)</span>
+                               )}
+                            </div>
+                            {uLists.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedAssignments(prev => ({ ...prev, [u.id]: !prev[u.id] }))}
+                                className="text-[10px] font-black uppercase tracking-widest text-primary hover:underline"
+                              >
+                                 {isOpen ? 'Verberg leadlijsten' : `Toon ${uLists.length} leadlijst${uLists.length === 1 ? '' : 'en'}`}
+                              </button>
+                            )}
+                            {isOpen && (
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                 {uLists.map(l => {
+                                   const scheduled = l.activate_at && new Date(l.activate_at) > new Date()
+                                   return (
+                                     <span key={l.id} className={`px-2 py-1 rounded text-[10px] font-bold break-words ${scheduled ? 'bg-elevated text-muted' : 'bg-secondary/15 text-secondary'}`}>
+                                        {l.name}{scheduled ? ' (gepland)' : ''}
+                                     </span>
+                                   )
+                                 })}
+                              </div>
+                            )}
+                         </div>
+                       )
+                     })()}
                      {u.role === 'manager' && (
                        <div className="mt-3">
                           {(() => {
@@ -594,7 +682,10 @@ export default function Admin() {
                      )}
                   </div>
                 ))}
-             </div>
+                     </div>
+                  </div>
+                ))
+             })()}
           </motion.div>
         )}
 

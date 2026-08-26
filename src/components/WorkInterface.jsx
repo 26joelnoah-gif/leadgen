@@ -88,12 +88,12 @@ export default function WorkInterface() {
   // in de toekomst (TBA / later bellen / geen gehoor) wachten tot hun datum.
   // Leads die een collega op dit moment in behandeling heeft (lock < 10 min
   // oud) tellen niet mee in de wachtrij.
-  const DONE_STATUSES = ['deal', 'afspraak_gemaakt', 'geen_interesse', 'onjuiste_timing', 'verkeerd_nummer', 'cold', 'terugbelafspraak']
+  const DONE_STATUSES = ['deal', 'bruto_deal', 'afspraak_gemaakt', 'geen_interesse', 'onjuiste_timing', 'verkeerd_nummer', 'cold', 'terugbelafspraak']
   const LOCK_TTL_MS = 10 * 60 * 1000
   const listLeads = workingListId
     ? leads.filter(l =>
         l.lead_list_id === workingListId &&
-        (isBackoffice ? l.status === 'deal' : !DONE_STATUSES.includes(l.status)) &&
+        (isBackoffice ? l.status === 'bruto_deal' : !DONE_STATUSES.includes(l.status)) &&
         (!l.next_contact_date || new Date(l.next_contact_date) <= new Date()) &&
         (!l.locked_by || l.locked_by === user?.id || !l.locked_at || (Date.now() - new Date(l.locked_at).getTime()) > LOCK_TTL_MS)
       )
@@ -201,14 +201,19 @@ export default function WorkInterface() {
   // v36: type van de campagne ('sales' | 'recruitment') - bepaalt of de
   // dispositie-knoppen en veldlabels als sollicitant-tekst getoond worden.
   const [isRecruitmentCampaign, setIsRecruitmentCampaign] = useState(false)
+  // v47: type van de campagne bepaalt of een live-gesloten 'DEAL' meteen
+  // moet doorstromen naar bruto_deal (backoffice moet de monteur nog
+  // inplannen) i.p.v. de gewone eindstatus 'deal'.
+  const [isBackofficeCampaign, setIsBackofficeCampaign] = useState(false)
   useEffect(() => {
     const listId = workingListId || workingLead?.lead_list_id
-    if (!isWorking || !listId) { setBriefing(null); setIsRecruitmentCampaign(false); return }
+    if (!isWorking || !listId) { setBriefing(null); setIsRecruitmentCampaign(false); setIsBackofficeCampaign(false); return }
     let cancelled = false
     supabase.from('lead_lists').select('campaign_id, campaigns(type)').eq('id', listId).maybeSingle()
       .then(({ data }) => {
         if (cancelled) return
         setIsRecruitmentCampaign(data?.campaigns?.type === 'recruitment')
+        setIsBackofficeCampaign(data?.campaigns?.type === 'backoffice')
         if (!data?.campaign_id) { setBriefing(null); return }
         supabase.from('campaign_briefings')
           .select('call_script, project_info')
@@ -321,7 +326,7 @@ export default function WorkInterface() {
     { id: 'geen_gehoor', label: 'GEEN GEHOOR', color: '#64748B', icon: <Phone size={18} />, quick: true },
     { id: 'verkeerd_nummer', label: 'FOUTIEVE INFO', color: '#EF4444', icon: <AlertCircle size={18} />, quick: true },
   ] : [
-    { id: 'deal', label: dLabel('deal', 'DEAL'), color: '#10B981', icon: <CheckCircle2 size={18} /> },
+    { id: isBackofficeCampaign ? 'bruto_deal' : 'deal', label: dLabel('deal', 'DEAL'), color: '#10B981', icon: <CheckCircle2 size={18} /> },
     { id: 'afspraak_gemaakt', label: dLabel('afspraak_gemaakt', 'AFSPRAAK'), color: '#3B82F6', icon: <Calendar size={18} /> },
     { id: 'terugbelafspraak', label: 'TBA (Terugbel)', color: '#8B5CF6', icon: <Clock size={18} /> },
     { id: 'later_bellen', label: 'LATER BELLEN', color: '#F59E0B', icon: <Clock size={18} /> },

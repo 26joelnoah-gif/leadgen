@@ -12,6 +12,7 @@ export const STATUS_MAP = {
   cold: { label: 'Cold', color: 'var(--text-muted)', bg: 'var(--bg-elevated)', description: 'Na 3 pogingen geen contact' },
   afspraak_gemaakt: { label: 'Afspraak gemaakt', color: 'var(--success)', bg: 'var(--success-bg)' },
   deal: { label: 'Deal!', color: 'var(--success)', bg: 'var(--success-bg)' },
+  bruto_deal: { label: 'Bruto deal', color: 'var(--success)', bg: 'var(--success-bg)', description: 'Sale is gemaakt, monteur moet nog worden ingepland - telt al mee als deal' },
   ptfu: { label: 'PTFU', color: 'var(--info)', bg: 'var(--info-bg)', description: 'Power Through Follow Ups' },
   goed_op_weg: { label: 'Goed Op Weg', color: 'var(--success)', bg: 'var(--success-bg)', description: 'Goede voortgang' },
   verbetering_nodig: { label: 'Verbetering Nodig', color: 'var(--warning)', bg: 'var(--warning-bg)', description: 'Moet beter' },

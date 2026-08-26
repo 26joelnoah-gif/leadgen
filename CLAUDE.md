@@ -69,3 +69,16 @@ Twee-zijdig platform:
   geen_gehoor, verkeerd_nummer.
 - Rapportage (/admin/reports) draait volledig op call_logs:
   beltijd per beller + resultaat per gesprek/lead.
+
+- **BACKOFFICE / MONTEUR-INPLANNEN (v47, 2026-08-26):** sales die nog
+  nagebeld moeten worden om de monteur in te plannen staan NIET meer op
+  status 'deal' (die is in de gewone verkoop-wachtrij een eindstatus en
+  dus onbelbaar voor een gewone beller). Nieuwe status 'bruto_deal' voor
+  precies dat tussenmoment. Telt overal (Payouts/Earnings/Dashboard/
+  Reports/XP) net zo mee als 'deal' - alleen de sleutel is anders.
+  claim_next_backoffice_lead + de backoffice-wachtrij in WorkInterface
+  filteren nu op 'bruto_deal'. Import van een backoffice-project
+  (ImportLeadsModal) en het live sluiten van een DEAL binnen een
+  campagne van het type 'backoffice' (WorkInterface) zetten beide
+  'bruto_deal'. Recruitment gebruikt 'deal' nog gewoon voor "aangenomen"
+  - andere betekenis van dezelfde status-key, bewust ongemoeid.

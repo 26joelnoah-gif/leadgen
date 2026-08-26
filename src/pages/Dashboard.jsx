@@ -83,7 +83,7 @@ export default function Dashboard() {
       if (lead.status === 'terugbelafspraak') terugbelacties++
       if (['new', 'terugbelafspraak', 'later_bellen'].includes(lead.status)) hotLeads++
       if (lead.status === 'afspraak_gemaakt') afspraken++
-      if (lead.status === 'deal') deals++
+      if (lead.status === 'deal' || lead.status === 'bruto_deal') deals++
     }
 
     return { nieuweLeads, terugbelacties, hotLeads, afspraken, deals }

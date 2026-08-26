@@ -170,7 +170,7 @@ export default function Manager() {
       .from('leads')
       .select('id, name, phone, status, lead_list_id, updated_at, cancel_reason, assigned:profiles!leads_assigned_to_fkey(full_name)')
       .in('lead_list_id', managedLists.map(l => l.id))
-      .in('status', ['afspraak_gemaakt', 'deal', 'geen_interesse', 'blacklist', 'monteur_ingepland', 'wil_annuleren'])
+      .in('status', ['afspraak_gemaakt', 'deal', 'bruto_deal', 'geen_interesse', 'blacklist', 'monteur_ingepland', 'wil_annuleren'])
       .is('deleted_at', null)
       .order('updated_at', { ascending: false })
       .limit(500)
@@ -198,7 +198,7 @@ export default function Manager() {
   async function reactivateToBackoffice(lead) {
     const { error } = await supabase
       .from('leads')
-      .update({ status: 'deal', cancel_reason: null, updated_at: new Date().toISOString() })
+      .update({ status: 'bruto_deal', cancel_reason: null, updated_at: new Date().toISOString() })
       .eq('id', lead.id)
     if (error) { toast(error.message, 'error'); return }
     toast(`${lead.name} staat weer in de backoffice-wachtrij`, 'success')
@@ -399,14 +399,14 @@ export default function Manager() {
       // "Terug in wachtrij" bij Manager > Resultaten) telt niet meer mee als
       // afspraak/deal zodra de lead een andere status heeft. Zie Admin.jsx fetchData.
       const nogSteedsActueel = log.lead?.status === log.disposition
-      if (log.disposition === 'deal' && nogSteedsActueel) a.deals++
+      if ((log.disposition === 'deal' || log.disposition === 'bruto_deal') && nogSteedsActueel) a.deals++
       if (log.disposition === 'afspraak_gemaakt' && nogSteedsActueel) a.afspraken++
       if (log.disposition === 'terugbelafspraak') a.tba++
       if (log.disposition === 'geen_interesse') a.geenInteresse++
       if (log.disposition === 'geen_gehoor') a.geenGehoor++
       if (canViewRates) {
         const r = rateFor(log.lead_list_id)
-        a.cost += (log.disposition === 'deal' && nogSteedsActueel ? r.deal : 0)
+        a.cost += ((log.disposition === 'deal' || log.disposition === 'bruto_deal') && nogSteedsActueel ? r.deal : 0)
           + (log.disposition === 'afspraak_gemaakt' && nogSteedsActueel ? r.appointment : 0)
           + (effectiveSeconds(log.disposition, log.duration_seconds) / 3600) * r.hour
       }
@@ -451,7 +451,7 @@ export default function Manager() {
       const b = buckets[key]
       b.calls++
       b.seconds += effectiveSeconds(log.disposition, log.duration_seconds)
-      if (log.disposition === 'deal') b.deals++
+      if (log.disposition === 'deal' || log.disposition === 'bruto_deal') b.deals++
       if (log.disposition === 'afspraak_gemaakt') b.afspraken++
       if (log.disposition === 'terugbelafspraak') b.tba++
     })
@@ -763,6 +763,7 @@ export default function Manager() {
                 {[
                   { id: 'afspraak_gemaakt', label: 'Afspraken' },
                   { id: 'deal', label: 'Deals' },
+                  { id: 'bruto_deal', label: 'Bruto deal' },
                   { id: 'monteur_ingepland', label: 'Monteur ingepland' },
                   { id: 'wil_annuleren', label: 'Annuleringen' },
                   { id: 'geen_interesse', label: 'Geen interesse' },

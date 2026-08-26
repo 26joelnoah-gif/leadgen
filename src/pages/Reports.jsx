@@ -162,7 +162,7 @@ export default function Reports() {
       // v24: effectieve beltijd (gemaximeerd per afboeking) is leidend
       a.seconds += effectiveSeconds(log.disposition, log.duration_seconds)
       a.rawSeconds = (a.rawSeconds || 0) + (log.duration_seconds || 0)
-      if (log.disposition === 'deal') a.deals++
+      if (log.disposition === 'deal' || log.disposition === 'bruto_deal') a.deals++
       if (log.disposition === 'afspraak_gemaakt') a.afspraken++
       if (log.disposition === 'terugbelafspraak') a.tba++
       if (log.disposition === 'geen_interesse') a.geenInteresse++
@@ -196,7 +196,7 @@ export default function Reports() {
       p.calls++
       p.seconds += effectiveSeconds(log.disposition, log.duration_seconds)
       p.agents.add(log.agent_id)
-      if (log.disposition === 'deal') p.deals++
+      if (log.disposition === 'deal' || log.disposition === 'bruto_deal') p.deals++
       if (log.disposition === 'afspraak_gemaakt') p.afspraken++
       if (log.disposition === 'terugbelafspraak') p.tba++
       if (log.disposition === 'geen_interesse') p.geenInteresse++

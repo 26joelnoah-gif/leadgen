@@ -702,7 +702,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         .filter(l => !existing.has(l.phone))
         .map(l => ({
           ...l,
-          status: isBackofficeProject ? 'deal' : 'new',
+          status: isBackofficeProject ? 'bruto_deal' : 'new',
           sale_date: isBackofficeProject ? (l.sale_date || new Date().toISOString()) : (l.sale_date || null),
           lead_list_id: listId,
           created_by: user?.id,

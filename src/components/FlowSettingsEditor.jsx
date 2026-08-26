@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext'
 // beller (voor verdiensten en TBA's); afgevallen leads gaan terug naar de pool.
 export const FLOW_RECOMMENDED = {
   deal: { auto_assign_to: 'agent', append_agent_note: true },
+  bruto_deal: { auto_assign_to: 'agent', append_agent_note: true },
   afspraak_gemaakt: { auto_assign_to: 'agent', append_agent_note: true },
   terugbelafspraak: { auto_assign_to: 'agent', append_agent_note: false },
   later_bellen: { auto_assign_to: 'agent', append_agent_note: false },
@@ -22,7 +23,7 @@ export const FLOW_RECOMMENDED = {
 }
 
 export const FLOW_GROUPS = [
-  { title: 'Resultaat', hint: 'De lead blijft bij de beller - zo tellen verdiensten goed mee.', color: 'var(--success)', types: ['deal', 'afspraak_gemaakt'] },
+  { title: 'Resultaat', hint: 'De lead blijft bij de beller - zo tellen verdiensten goed mee.', color: 'var(--success)', types: ['deal', 'bruto_deal', 'afspraak_gemaakt'] },
   { title: 'Opvolgen', hint: 'De beller houdt de lead vast en krijgt hem terug in zijn wachtrij of TBA-lijst.', color: 'var(--secondary)', types: ['terugbelafspraak', 'later_bellen'] },
   { title: 'Geen succes', hint: 'Kies of de lead blijft staan of terug naar de pool gaat voor een volgende poging.', color: 'var(--danger)', types: ['geen_gehoor', 'onjuiste_timing', 'geen_interesse', 'verkeerd_nummer', 'blacklist'] },
   { title: 'Backoffice', hint: 'Afboekredenen van backoffice-medewerkers die sales nabellen om de monteur in te plannen.', color: 'var(--primary)', types: ['monteur_ingepland', 'wil_annuleren'] }

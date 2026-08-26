@@ -115,7 +115,7 @@ export default function Earnings() {
       return created >= start && created <= end
     }
 
-    const filteredDeals = leads.filter(l => l.status === 'deal' && inRange(l))
+    const filteredDeals = leads.filter(l => (l.status === 'deal' || l.status === 'bruto_deal') && inRange(l))
     const allAppointments = leads.filter(l => l.status === 'afspraak_gemaakt' && inRange(l))
     const netto = allAppointments.filter(l => l.appointment_approved === true)
     const pending = allAppointments.filter(l => l.appointment_approved === null || l.appointment_approved === undefined)
@@ -176,7 +176,7 @@ export default function Earnings() {
       return leads.filter(l => l.status === 'afspraak_gemaakt' && l.appointment_approved === true && new Date(l.updated_at || l.created_at) >= start).length
     }
     if (prize.metric === 'deals') {
-      return leads.filter(l => l.status === 'deal' && new Date(l.updated_at || l.created_at) >= start).length
+      return leads.filter(l => (l.status === 'deal' || l.status === 'bruto_deal') && new Date(l.updated_at || l.created_at) >= start).length
     }
     return 0
   }

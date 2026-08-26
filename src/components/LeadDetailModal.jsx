@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   X, Phone, Mail, Globe, MapPin, User, Briefcase, Calendar,
-  History, StickyNote, ExternalLink, Star
+  History, StickyNote, ExternalLink, Star, Pencil, Check, Save
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { getStatusDetails } from '../utils/statusUtils'
 import { formatDateTime } from '../utils/dateUtils'
 import { normalizeWebsite, displayWebsite } from '../utils/urlUtils'
+import { useToast } from './Toast'
 import CopyButton from './CopyButton'
 import LoadingSpinner from './LoadingSpinner'
 
@@ -19,14 +20,38 @@ function fmtDuration(sec) {
   return `${m}m ${rem}s`
 }
 
+const EDITABLE_FIELDS = [
+  'contact_person', 'function', 'email', 'phone', 'website',
+  'address', 'house_number', 'postal_code', 'city', 'decision_maker'
+]
+
+function fieldsFromLead(lead) {
+  const draft = {}
+  EDITABLE_FIELDS.forEach(f => { draft[f] = lead?.[f] ?? (f === 'decision_maker' ? false : '') })
+  return draft
+}
+
 // v36: contactkaart voor een lead - opent als je in de leadlijst (Admin ->
 // Projecten & Leads) op een rij klikt. Toont de volledige leadgegevens plus
 // de afboek-geschiedenis (call_logs: wie, wanneer, welke dispositie, notitie
 // bij dat specifieke gesprek) - dus per beller, niet alleen de ene lopende
 // notitie die al in de tabel stond.
-export default function LeadDetailModal({ isOpen, onClose, lead, assignedName }) {
+// v47: notities en contactgegevens zijn nu direct vanuit de contactkaart te
+// wijzigen. Notities zijn met opzet altijd bewerkbaar (geen extra klik nodig,
+// autosave bij wegklikken) - dat moest het makkelijkst zijn. Overige velden
+// zitten achter een "Bewerken"-knop zodat je niet per ongeluk iets wijzigt.
+export default function LeadDetailModal({ isOpen, onClose, lead, assignedName, onUpdated }) {
+  const toast = useToast()
   const [callLogs, setCallLogs] = useState([])
   const [loading, setLoading] = useState(false)
+
+  const [notesValue, setNotesValue] = useState('')
+  const [savingNotes, setSavingNotes] = useState(false)
+  const notesDirty = lead ? notesValue !== (lead.notes || '') : false
+
+  const [editingFields, setEditingFields] = useState(false)
+  const [fieldsDraft, setFieldsDraft] = useState({})
+  const [savingFields, setSavingFields] = useState(false)
 
   useEffect(() => {
     if (!isOpen || !lead?.id) return
@@ -47,6 +72,15 @@ export default function LeadDetailModal({ isOpen, onClose, lead, assignedName })
     return () => { cancelled = true }
   }, [isOpen, lead?.id])
 
+  // Notitie en bewerkveldjes resetten zodra de contactkaart voor een
+  // (andere) lead opent - anders blijft een niet-opgeslagen concept staan.
+  useEffect(() => {
+    if (!isOpen || !lead) return
+    setNotesValue(lead.notes || '')
+    setFieldsDraft(fieldsFromLead(lead))
+    setEditingFields(false)
+  }, [isOpen, lead?.id])
+
   if (!isOpen || !lead) return null
 
   const statusDetails = getStatusDetails(lead.status)
@@ -57,6 +91,51 @@ export default function LeadDetailModal({ isOpen, onClose, lead, assignedName })
     ['Extra info 2', lead.extra_info2],
     ['Extra info 3', lead.extra_info3]
   ].filter(([, v]) => (v || '').trim())
+
+  async function saveNotes() {
+    if (!notesDirty || savingNotes) return
+    setSavingNotes(true)
+    const { error } = await supabase
+      .from('leads')
+      .update({ notes: notesValue, updated_at: new Date().toISOString() })
+      .eq('id', lead.id)
+    setSavingNotes(false)
+    if (error) {
+      toast(error.message, 'error')
+      return
+    }
+    toast('Notitie opgeslagen', 'success')
+    onUpdated?.(lead.id, { notes: notesValue })
+  }
+
+  function startEditingFields() {
+    setFieldsDraft(fieldsFromLead(lead))
+    setEditingFields(true)
+  }
+
+  async function saveFields() {
+    setSavingFields(true)
+    const updates = {
+      ...fieldsDraft,
+      email: (fieldsDraft.email || '').trim() || null,
+      website: (fieldsDraft.website || '').trim() || null,
+      updated_at: new Date().toISOString()
+    }
+    const { error } = await supabase.from('leads').update(updates).eq('id', lead.id)
+    setSavingFields(false)
+    if (error) {
+      toast(error.message, 'error')
+      return
+    }
+    toast('Wijzigingen opgeslagen', 'success')
+    onUpdated?.(lead.id, updates)
+    setEditingFields(false)
+  }
+
+  const inputStyle = {
+    width: '100%', background: 'var(--bg-elevated)', border: '1px solid var(--border)',
+    borderRadius: '6px', padding: '5px 8px', fontSize: '0.85rem', color: 'var(--text-main)', fontWeight: 600
+  }
 
   return (
     <motion.div
@@ -81,7 +160,7 @@ export default function LeadDetailModal({ isOpen, onClose, lead, assignedName })
               <span className="status" style={{ background: statusDetails.bg, color: statusDetails.color }}>
                 {statusDetails.label}
               </span>
-              {lead.decision_maker && (
+              {(editingFields ? fieldsDraft.decision_maker : lead.decision_maker) && (
                 <span className="status" style={{ background: 'var(--secondary)', color: 'var(--primary-dark)' }}>
                   <Star size={11} fill="currentColor" /> Beslisser
                 </span>
@@ -92,59 +171,140 @@ export default function LeadDetailModal({ isOpen, onClose, lead, assignedName })
         </div>
 
         {/* Contactgegevens */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>
-          <div className="flex items-center gap-2 text-muted" style={{ minWidth: 0 }}>
-            <Phone size={15} style={{ flexShrink: 0 }} />
-            {lead.phone ? (
-              <>
-                <a href={`tel:${lead.phone}`} style={{ color: 'var(--text-main)', fontWeight: 600, overflowWrap: 'break-word' }}>{lead.phone}</a>
-                <CopyButton text={lead.phone} label="Kopieer telefoonnummer" />
-              </>
-            ) : <span>Geen telefoon</span>}
-          </div>
-          <div className="flex items-center gap-2 text-muted" style={{ minWidth: 0 }}>
-            <Mail size={15} style={{ flexShrink: 0 }} />
-            {lead.email ? (
-              <>
-                <a href={`mailto:${lead.email}`} style={{ color: 'var(--text-main)', fontWeight: 600, overflowWrap: 'break-word', minWidth: 0 }}>{lead.email}</a>
-                <CopyButton text={lead.email} label="Kopieer e-mailadres" />
-              </>
-            ) : <span>Geen e-mail</span>}
-          </div>
-          <div className="flex items-center gap-2 text-muted" style={{ minWidth: 0 }}>
-            <Globe size={15} style={{ flexShrink: 0 }} />
-            {lead.website ? (
-              <a
-                href={normalizeWebsite(lead.website) || lead.website}
-                target="_blank" rel="nofollow noopener noreferrer" referrerPolicy="no-referrer"
-                className="flex items-center gap-1"
-                style={{ color: 'var(--text-main)', fontWeight: 600, overflowWrap: 'break-word', minWidth: 0 }}
+        <div className="flex items-center justify-between" style={{ marginBottom: '10px' }}>
+          <div className="text-[10px] font-black uppercase text-muted tracking-widest">Contactgegevens</div>
+          {!editingFields ? (
+            <button
+              type="button"
+              className="btn btn-sm btn-outline"
+              onClick={startEditingFields}
+              style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+              title="Contactgegevens bewerken"
+            >
+              <Pencil size={12} /> Bewerken
+            </button>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button type="button" className="btn btn-sm btn-outline" onClick={() => setEditingFields(false)} disabled={savingFields}>
+                Annuleren
+              </button>
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                onClick={saveFields}
+                disabled={savingFields}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
               >
-                {displayWebsite(lead.website)} <ExternalLink size={12} style={{ flexShrink: 0 }} />
-              </a>
-            ) : <span>Geen website</span>}
-          </div>
-          <div className="flex items-center gap-2 text-muted" style={{ minWidth: 0 }}>
-            <MapPin size={15} style={{ flexShrink: 0 }} />
-            <span style={{ overflowWrap: 'break-word' }}>{[addressLine, cityLine].filter(Boolean).join(', ') || 'Geen adres'}</span>
-          </div>
-          <div className="flex items-center gap-2 text-muted" style={{ minWidth: 0 }}>
-            <User size={15} style={{ flexShrink: 0 }} />
-            <span style={{ overflowWrap: 'break-word' }}>{lead.contact_person || 'Geen contactpersoon'}</span>
-          </div>
-          <div className="flex items-center gap-2 text-muted" style={{ minWidth: 0 }}>
-            <Briefcase size={15} style={{ flexShrink: 0 }} />
-            <span style={{ overflowWrap: 'break-word' }}>{lead.function || 'Geen functie bekend'}</span>
-          </div>
-          <div className="flex items-center gap-2 text-muted" style={{ minWidth: 0 }}>
-            <Calendar size={15} style={{ flexShrink: 0 }} />
-            <span>Toegevoegd: {formatDateTime(lead.created_at)}</span>
-          </div>
-          <div className="flex items-center gap-2 text-muted" style={{ minWidth: 0 }}>
-            <User size={15} style={{ flexShrink: 0 }} />
-            <span>Toegewezen aan: {assignedName || 'Niemand'}</span>
-          </div>
+                {savingFields ? <LoadingSpinner size="sm" /> : <Check size={12} />} Opslaan
+              </button>
+            </div>
+          )}
         </div>
+
+        {!editingFields ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+            <div className="flex items-center gap-2 text-muted" style={{ minWidth: 0 }}>
+              <Phone size={15} style={{ flexShrink: 0 }} />
+              {lead.phone ? (
+                <>
+                  <a href={`tel:${lead.phone}`} style={{ color: 'var(--text-main)', fontWeight: 600, overflowWrap: 'break-word' }}>{lead.phone}</a>
+                  <CopyButton text={lead.phone} label="Kopieer telefoonnummer" />
+                </>
+              ) : <span>Geen telefoon</span>}
+            </div>
+            <div className="flex items-center gap-2 text-muted" style={{ minWidth: 0 }}>
+              <Mail size={15} style={{ flexShrink: 0 }} />
+              {lead.email ? (
+                <>
+                  <a href={`mailto:${lead.email}`} style={{ color: 'var(--text-main)', fontWeight: 600, overflowWrap: 'break-word', minWidth: 0 }}>{lead.email}</a>
+                  <CopyButton text={lead.email} label="Kopieer e-mailadres" />
+                </>
+              ) : <span>Geen e-mail</span>}
+            </div>
+            <div className="flex items-center gap-2 text-muted" style={{ minWidth: 0 }}>
+              <Globe size={15} style={{ flexShrink: 0 }} />
+              {lead.website ? (
+                <a
+                  href={normalizeWebsite(lead.website) || lead.website}
+                  target="_blank" rel="nofollow noopener noreferrer" referrerPolicy="no-referrer"
+                  className="flex items-center gap-1"
+                  style={{ color: 'var(--text-main)', fontWeight: 600, overflowWrap: 'break-word', minWidth: 0 }}
+                >
+                  {displayWebsite(lead.website)} <ExternalLink size={12} style={{ flexShrink: 0 }} />
+                </a>
+              ) : <span>Geen website</span>}
+            </div>
+            <div className="flex items-center gap-2 text-muted" style={{ minWidth: 0 }}>
+              <MapPin size={15} style={{ flexShrink: 0 }} />
+              <span style={{ overflowWrap: 'break-word' }}>{[addressLine, cityLine].filter(Boolean).join(', ') || 'Geen adres'}</span>
+            </div>
+            <div className="flex items-center gap-2 text-muted" style={{ minWidth: 0 }}>
+              <User size={15} style={{ flexShrink: 0 }} />
+              <span style={{ overflowWrap: 'break-word' }}>{lead.contact_person || 'Geen contactpersoon'}</span>
+            </div>
+            <div className="flex items-center gap-2 text-muted" style={{ minWidth: 0 }}>
+              <Briefcase size={15} style={{ flexShrink: 0 }} />
+              <span style={{ overflowWrap: 'break-word' }}>{lead.function || 'Geen functie bekend'}</span>
+            </div>
+            <div className="flex items-center gap-2 text-muted" style={{ minWidth: 0 }}>
+              <Calendar size={15} style={{ flexShrink: 0 }} />
+              <span>Toegevoegd: {formatDateTime(lead.created_at)}</span>
+            </div>
+            <div className="flex items-center gap-2 text-muted" style={{ minWidth: 0 }}>
+              <User size={15} style={{ flexShrink: 0 }} />
+              <span>Toegewezen aan: {assignedName || 'Niemand'}</span>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>
+            <div>
+              <label className="text-[10px] text-muted font-bold uppercase" style={{ display: 'block', marginBottom: '3px' }}>Telefoon</label>
+              <input style={inputStyle} value={fieldsDraft.phone || ''} onChange={e => setFieldsDraft(d => ({ ...d, phone: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted font-bold uppercase" style={{ display: 'block', marginBottom: '3px' }}>E-mail</label>
+              <input style={inputStyle} value={fieldsDraft.email || ''} onChange={e => setFieldsDraft(d => ({ ...d, email: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted font-bold uppercase" style={{ display: 'block', marginBottom: '3px' }}>Website</label>
+              <input style={inputStyle} value={fieldsDraft.website || ''} onChange={e => setFieldsDraft(d => ({ ...d, website: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted font-bold uppercase" style={{ display: 'block', marginBottom: '3px' }}>Contactpersoon</label>
+              <input style={inputStyle} value={fieldsDraft.contact_person || ''} onChange={e => setFieldsDraft(d => ({ ...d, contact_person: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted font-bold uppercase" style={{ display: 'block', marginBottom: '3px' }}>Functie</label>
+              <input style={inputStyle} value={fieldsDraft.function || ''} onChange={e => setFieldsDraft(d => ({ ...d, function: e.target.value }))} />
+            </div>
+            <div className="flex items-center gap-2" style={{ paddingTop: '18px' }}>
+              <input
+                type="checkbox"
+                id="lead-decision-maker"
+                checked={!!fieldsDraft.decision_maker}
+                onChange={e => setFieldsDraft(d => ({ ...d, decision_maker: e.target.checked }))}
+                style={{ width: '15px', height: '15px' }}
+              />
+              <label htmlFor="lead-decision-maker" className="text-sm font-bold">Beslisser</label>
+            </div>
+            <div>
+              <label className="text-[10px] text-muted font-bold uppercase" style={{ display: 'block', marginBottom: '3px' }}>Adres</label>
+              <input style={inputStyle} value={fieldsDraft.address || ''} onChange={e => setFieldsDraft(d => ({ ...d, address: e.target.value }))} placeholder="Straat" />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted font-bold uppercase" style={{ display: 'block', marginBottom: '3px' }}>Huisnummer</label>
+              <input style={inputStyle} value={fieldsDraft.house_number || ''} onChange={e => setFieldsDraft(d => ({ ...d, house_number: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted font-bold uppercase" style={{ display: 'block', marginBottom: '3px' }}>Postcode</label>
+              <input style={inputStyle} value={fieldsDraft.postal_code || ''} onChange={e => setFieldsDraft(d => ({ ...d, postal_code: e.target.value }))} />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted font-bold uppercase" style={{ display: 'block', marginBottom: '3px' }}>Plaats</label>
+              <input style={inputStyle} value={fieldsDraft.city || ''} onChange={e => setFieldsDraft(d => ({ ...d, city: e.target.value }))} />
+            </div>
+          </div>
+        )}
 
         {extras.length > 0 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '20px' }}>
@@ -156,19 +316,45 @@ export default function LeadDetailModal({ isOpen, onClose, lead, assignedName })
           </div>
         )}
 
-        {(lead.notes || '').trim() && (
-          <div style={{ marginBottom: '20px' }}>
-            <div className="text-[10px] font-black uppercase text-muted tracking-widest mb-2" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+        {/* v47: notities zijn met opzet direct bewerkbaar, zonder eerst op
+            "Bewerken" te hoeven klikken - dit moet het makkelijkste zijn.
+            Autosave bij wegklikken (blur); expliciete knop verschijnt ook
+            zodra er een niet-opgeslagen wijziging is. */}
+        <div style={{ marginBottom: '20px' }}>
+          <div className="flex items-center justify-between" style={{ marginBottom: '6px' }}>
+            <div className="text-[10px] font-black uppercase text-muted tracking-widest" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <StickyNote size={12} /> Notities
             </div>
-            <div style={{
-              padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)',
-              fontSize: '0.85rem', whiteSpace: 'pre-wrap', overflowWrap: 'break-word', maxHeight: '160px', overflowY: 'auto'
-            }}>
-              {lead.notes}
-            </div>
+            {notesDirty && (
+              <button
+                type="button"
+                className="btn btn-sm btn-primary"
+                onClick={saveNotes}
+                disabled={savingNotes}
+                style={{ display: 'flex', alignItems: 'center', gap: '5px' }}
+              >
+                {savingNotes ? <LoadingSpinner size="sm" /> : <Save size={12} />} Opslaan
+              </button>
+            )}
           </div>
-        )}
+          <textarea
+            value={notesValue}
+            onChange={e => setNotesValue(e.target.value)}
+            onBlur={saveNotes}
+            onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.currentTarget.blur() } }}
+            placeholder="Notitie toevoegen..."
+            rows={4}
+            style={{
+              width: '100%', padding: '12px', background: 'var(--bg-elevated)', borderRadius: 'var(--radius-sm)',
+              fontSize: '0.85rem', whiteSpace: 'pre-wrap', overflowWrap: 'break-word', resize: 'vertical',
+              border: notesDirty ? '1px solid var(--primary)' : '1px solid var(--border)', color: 'var(--text-main)',
+              fontFamily: 'inherit'
+            }}
+          />
+          <div className="text-[10px] text-muted" style={{ marginTop: '4px' }}>
+            {savingNotes ? 'Opslaan...' : notesDirty ? 'Niet-opgeslagen wijziging - wordt automatisch opgeslagen zodra je hier wegklikt' : ''}
+          </div>
+        </div>
 
         <div>
           <div className="text-[10px] font-black uppercase text-muted tracking-widest mb-2" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

@@ -115,7 +115,7 @@ export default function Payouts() {
             counts[lead.assigned_to][listKey] = { deals: 0, appointments: 0, pendingAppointments: 0 }
           }
           const c = counts[lead.assigned_to][listKey]
-          if (lead.status === 'deal') c.deals++
+          if (lead.status === 'deal' || lead.status === 'bruto_deal') c.deals++
           if (lead.status === 'afspraak_gemaakt') {
             if (lead.appointment_approved === true) c.appointments++
             else if (lead.appointment_approved === null || lead.appointment_approved === undefined) c.pendingAppointments++

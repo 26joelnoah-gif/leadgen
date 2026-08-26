@@ -61,6 +61,7 @@ export default function ActivityFeed() {
   const getIcon = (action) => {
     switch (action) {
       case 'deal': return <Award size={14} className="text-secondary" />
+      case 'bruto_deal': return <Award size={14} className="text-secondary" />
       case 'afspraak_gemaakt': return <Clock size={14} className="text-success" />
       case 'call': return <Phone size={14} className="text-primary" />
       default: return <Activity size={14} className="text-muted" />
@@ -72,6 +73,7 @@ export default function ActivityFeed() {
     const name = a.profiles?.full_name || 'Iemand'
     switch (a.action) {
       case 'deal': return <span><strong>{name}</strong> sloot een <strong>DEAL</strong>! 🏆</span>
+      case 'bruto_deal': return <span><strong>{name}</strong> sloot een <strong>DEAL</strong>! 🏆</span>
       case 'afspraak_gemaakt': return <span><strong>{name}</strong> maakte een afspraak 📅</span>
       case 'call': return <span><strong>{name}</strong> is aan het bellen 📞</span>
       case 'status_change': return <span><strong>{name}</strong> update een lead status</span>
@@ -97,7 +99,7 @@ export default function ActivityFeed() {
               animate={{ x: 0, opacity: 1 }}
               exit={{ x: -20, opacity: 0 }}
               transition={{ delay: i * 0.05 }}
-              style={{ fontSize: '0.8rem', padding: '8px', background: 'var(--bg-elevated)', borderRadius: '6px', borderLeft: `2px solid ${a.action === 'deal' ? 'var(--secondary)' : 'var(--border)'}` }}
+              style={{ fontSize: '0.8rem', padding: '8px', background: 'var(--bg-elevated)', borderRadius: '6px', borderLeft: `2px solid ${(a.action === 'deal' || a.action === 'bruto_deal') ? 'var(--secondary)' : 'var(--border)'}` }}
             >
               <div className="flex items-center gap-2 mb-1">
                 {getIcon(a.action)}

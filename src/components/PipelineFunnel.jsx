@@ -11,7 +11,7 @@ export default function PipelineFunnel({ leads = [], isDemoMode = false }) {
     { label: 'In behandeling', value: count(['geen_gehoor', 'mailbox', 'later_bellen', 'onjuiste_timing']), color: 'var(--info)' },
     { label: 'Terugbelafspraak', value: count(['terugbelafspraak']), color: 'var(--secondary)' },
     { label: 'Afspraak gemaakt', value: count(['afspraak_gemaakt']), color: 'var(--success)' },
-    { label: 'Deal', value: count(['deal']), color: 'var(--success)' }
+    { label: 'Deal', value: count(['deal', 'bruto_deal']), color: 'var(--success)' }
   ]
 
   const total = leads.length
