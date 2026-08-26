@@ -71,8 +71,12 @@ export default function Roosters() {
   const [submittedAt, setSubmittedAt] = useState(null)
 
   const isAdmin = profile?.role === 'admin'
-  const isManagerLead = profile?.role === 'manager' && !!profile?.can_manage_team
-  const canSeeTeam = isAdmin || isManagerLead
+  const isManagerRole = profile?.role === 'manager'
+  const isRecruiterRole = profile?.role === 'recruiter'
+  // v46: iedereen ziet alleen zijn eigen rooster; admin, elke manager en
+  // recruitment zien het rooster van iedereen binnen de eigen organisatie
+  // (RLS op public.availability dwingt dit ook af, dit is alleen de UI-gate).
+  const canSeeTeam = isAdmin || isManagerRole || isRecruiterRole
 
   const [view, setView] = useState('mine') // 'mine' | 'team'
   const [teamProfiles, setTeamProfiles] = useState([])
