@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
-import { Zap, Settings, LogOut, Phone, Menu, X, Sun, Moon } from 'lucide-react'
+import { Zap, Settings, LogOut, Phone, Menu, X, Sun, Moon, HelpCircle } from 'lucide-react'
 import Logo from './Logo'
 import AccountSettingsModal from './AccountSettingsModal'
 
@@ -24,12 +24,14 @@ export default function Header({ onOpenSettings }) {
   const navLinks = isRecruiter
     ? [
         { path: '/recruitment', label: 'Sollicitanten' },
-        { path: '/tba', label: 'TBA\'s' }
+        { path: '/tba', label: 'TBA\'s' },
+        { path: '/roosters', label: 'Roosters' }
       ]
     : [
         { path: '/', label: 'Dashboard' },
         { path: '/tba', label: 'TBA\'s' },
         { path: '/earnings', label: 'Verdiensten' },
+        { path: '/roosters', label: 'Roosters' },
         ...(isManager ? [
           { path: '/manager', label: 'Mijn Projecten' },
           { path: '/admin/reports', label: 'Rapportage' }
@@ -122,6 +124,15 @@ export default function Header({ onOpenSettings }) {
             title={theme === 'dark' ? 'Lichte weergave' : 'Donkere weergave'}
           >
             {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+
+          <button
+            onClick={() => window.dispatchEvent(new Event('leadgen:open-tutorial'))}
+            className="btn btn-sm btn-outline"
+            style={{ padding: '8px', minWidth: 'auto' }}
+            title="Uitleg / tutorial"
+          >
+            <HelpCircle size={16} />
           </button>
 
           <button

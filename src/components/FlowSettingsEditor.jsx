@@ -172,6 +172,40 @@ export default function FlowSettingsEditor() {
         </button>
       </div>
 
+      {/* v42: legenda - overzicht van alle afboekredenen die in de app bestaan */}
+      <div className="rounded-2xl border border-border p-4 mb-6" style={{ background: 'var(--bg-elevated)' }}>
+        <div className="text-[10px] font-black uppercase tracking-widest text-muted mb-3">Legenda - alle afboekredenen</div>
+        <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))' }}>
+          {FLOW_GROUPS.map(group => (
+            <div key={group.title}>
+              <div className="flex items-center gap-2 mb-2">
+                <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: group.color, display: 'inline-block' }} />
+                <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: group.color }}>{group.title}</span>
+              </div>
+              <div className="flex flex-col gap-2">
+                {group.types.map(t => {
+                  const details = getStatusDetails(t)
+                  return (
+                    <div key={t} className="flex items-start gap-2" title={details.description || details.label}>
+                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: details.color, display: 'inline-block', marginTop: '5px', flexShrink: 0 }} />
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-body">{details.label}</div>
+                        {details.description && <div className="text-[10px] text-muted leading-snug">{details.description}</div>}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+        <p className="text-[10px] text-muted mt-3 pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+          Eigen afboekredenen (onderaan deze pagina) zijn extra knoppen bovenop een van de vijf "Geen succes"-redenen hierboven -
+          ze tellen technisch mee als die basisreden (wachtrij/cooldown/toewijzing), maar krijgen een eigen knoptekst in het
+          belscherm en die exacte tekst komt in de notitie van het gesprek te staan.
+        </p>
+      </div>
+
       {/* Eén legenda voor alle rijen */}
       <div className="grid items-center gap-4 px-4 py-2 mb-1" style={{ gridTemplateColumns: 'minmax(0,1fr) 190px 150px 80px' }}>
         <span className="text-[10px] font-black text-muted uppercase tracking-widest">Afboekreden</span>

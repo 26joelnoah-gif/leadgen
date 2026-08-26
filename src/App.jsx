@@ -16,7 +16,9 @@ import Payouts from './pages/Payouts'
 import LeadManagement from './pages/LeadManagement'
 import Manager from './pages/Manager'
 import Recruitment from './pages/Recruitment'
+import Roosters from './pages/Roosters'
 import WorkInterface from './components/WorkInterface'
+import FeatureAwareness from './components/FeatureAwareness'
 
 // v33: waarschuw open tabbladen zodra er een nieuwe versie live staat.
 // Zonder dit draaien gebruikers dagenlang oude code omdat een webapp
@@ -121,6 +123,7 @@ function AppRoutes() {
   return (
     <>
       {user && <WorkInterface />}
+      {user && <FeatureAwareness />}
       <Routes>
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/setup" element={user ? <Setup /> : <Navigate to="/login" replace />} />
@@ -201,6 +204,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute requireAdmin allowManager>
             <Manager />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/roosters"
+        element={
+          <ProtectedRoute>
+            <Roosters />
           </ProtectedRoute>
         }
       />

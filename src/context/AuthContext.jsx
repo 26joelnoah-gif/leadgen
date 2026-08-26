@@ -193,10 +193,19 @@ export function AuthProvider({ children }) {
     }
   }, [isDemoMode, user?.id, profile?.organization_id])
 
+  // v44: optimistische lokale update van het profiel - gebruikt door
+  // FeatureAwareness zodra de tutorial gesloten wordt of een "nieuwe functie"
+  // gezien is, zodat de melding niet opnieuw verschijnt vóórdat de wijziging
+  // via een volgende fetchProfile() binnenkomt.
+  function updateProfileLocal(patch) {
+    setProfile(prev => (prev ? { ...prev, ...patch } : prev))
+  }
+
   return (
     <AuthContext.Provider value={{ 
       user, profile, loading, signIn, signOut, isDemoMode, 
-      isWorking, toggleWorkingMode, startWorkingWithList, workingListId, setWorkingListId, workingLead, setWorkingLead, sessionCallCount, logCall
+      isWorking, toggleWorkingMode, startWorkingWithList, workingListId, setWorkingListId, workingLead, setWorkingLead, sessionCallCount, logCall,
+      updateProfileLocal
     }}>
       {children}
     </AuthContext.Provider>
