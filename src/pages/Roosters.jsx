@@ -82,6 +82,8 @@ export default function Roosters() {
   const [teamProfiles, setTeamProfiles] = useState([])
   const [teamAvailability, setTeamAvailability] = useState([])
   const [teamLoading, setTeamLoading] = useState(false)
+  const [teams, setTeams] = useState([])
+  const [filterTeam, setFilterTeam] = useState('all') // team-id of 'all'
 
   const fetchMine = useCallback(async () => {
     if (!user?.id || isDemoMode) { setLoading(false); return }
@@ -140,6 +142,14 @@ export default function Roosters() {
         .eq('week_start', weekStartISO)
       if (availErr) throw availErr
       setTeamAvailability(avail || [])
+
+      // v47: teams + leden ophalen zodat het teamoverzicht per team gefilterd kan worden
+      const { data: teamsData, error: teamsErr } = await supabase
+        .from('teams')
+        .select('id, name, team_members(profile_id)')
+        .order('name', { ascending: true })
+      if (teamsErr) throw teamsErr
+      setTeams(teamsData || [])
     } catch (err) {
       console.error('Teamoverzicht ophalen mislukt:', err)
       toast('Teamoverzicht ophalen mislukt', 'error')
@@ -149,6 +159,18 @@ export default function Roosters() {
   }, [canSeeTeam, weekStartISO, isDemoMode, user?.id])
 
   useEffect(() => { if (view === 'team') fetchTeam() }, [view, fetchTeam])
+
+  const teamMemberIds = useMemo(() => {
+    const m = {}
+    teams.forEach(t => { m[t.id] = new Set((t.team_members || []).map(tm => tm.profile_id)) })
+    return m
+  }, [teams])
+
+  const visibleTeamProfiles = useMemo(() => {
+    if (filterTeam === 'all') return teamProfiles
+    const ids = teamMemberIds[filterTeam]
+    return teamProfiles.filter(p => ids?.has(p.id))
+  }, [teamProfiles, filterTeam, teamMemberIds])
 
   function updateRow(dayOfWeek, patch) {
     setRows(prev => prev.map(r => (r.day_of_week === dayOfWeek ? { ...r, ...patch } : r)))
@@ -319,10 +341,24 @@ export default function Roosters() {
 
         {view === 'team' && canSeeTeam && (
           <div className="card glass-panel" style={{ padding: '16px', overflowX: 'auto' }}>
+            <div className="flex items-center gap-2 mb-3" style={{ flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700 }}>Team</span>
+              <select
+                value={filterTeam}
+                onChange={e => setFilterTeam(e.target.value)}
+                title="Alleen het rooster van dit team tonen"
+                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.8rem', maxWidth: '220px' }}
+              >
+                <option value="all">Alle teams</option>
+                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
             {teamLoading ? (
               <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>Laden...</div>
-            ) : teamProfiles.length === 0 ? (
-              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>Geen teamleden gevonden.</div>
+            ) : visibleTeamProfiles.length === 0 ? (
+              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                {filterTeam === 'all' ? 'Geen teamleden gevonden.' : 'Niemand in dit team.'}
+              </div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
                 <thead>
@@ -336,7 +372,7 @@ export default function Roosters() {
                   </tr>
                 </thead>
                 <tbody>
-                  {teamProfiles.map(p => (
+                  {visibleTeamProfiles.map(p => (
                     <tr key={p.id} style={{ borderTop: '1px solid var(--border)' }}>
                       <td style={{ padding: '10px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{p.full_name || '-'}</td>
                       {DAYS.map(d => {
