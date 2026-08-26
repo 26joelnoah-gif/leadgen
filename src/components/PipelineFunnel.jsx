@@ -33,7 +33,7 @@ export default function PipelineFunnel({ leads = [], isDemoMode = false }) {
           const pct = total > 0 ? Math.round((stage.value / total) * 100) : 0
           const width = Math.max(stage.value > 0 ? 6 : 2, Math.round((stage.value / max) * 100))
           return (
-            <div key={stage.label} style={{ display: 'grid', gridTemplateColumns: '150px 1fr 90px', alignItems: 'center', gap: '14px' }}>
+            <div key={stage.label} style={{ display: 'grid', gridTemplateColumns: 'minmax(72px, 150px) 1fr minmax(52px, 90px)', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--text-muted)', textAlign: 'right' }}>
                 {stage.label}
               </span>

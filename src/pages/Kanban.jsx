@@ -42,6 +42,11 @@ export default function Kanban() {
     <div style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
       <Header />
       <div style={{ padding: '20px' }}>
+      <style>{`
+        @media (max-width: 700px) {
+          .kanban-cols { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>Agent Kanban</h1>
         {profile?.role === 'admin' && (
@@ -51,7 +56,7 @@ export default function Kanban() {
         )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+      <div className="kanban-cols" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
         {statuses.map(status => (
           <div key={status} style={{ background: 'var(--bg-card)', borderRadius: '12px', padding: '16px', minHeight: '400px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px', paddingBottom: '8px', borderBottom: `2px solid ${statusColors[status]}` }}>

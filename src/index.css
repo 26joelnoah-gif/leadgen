@@ -1054,9 +1054,88 @@ body::before {
   }
 }
 
+@media (max-width: 640px) {
+  /* Tabellen (Manager, Rapportage, Telemetrie, Payouts, projecten) - compacter
+     zodat er minder gescrold hoeft te worden; horizontaal blijft de tabel
+     scrollbaar binnen .table-container, deze regel maakt 'm alleen kleiner. */
+  .table th {
+    padding: 8px 10px;
+    font-size: 0.66rem;
+  }
+  .table td {
+    padding: 8px 10px;
+    font-size: 0.8rem;
+  }
+}
+
 @media (max-width: 480px) {
   .stats-grid {
     grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  body {
+    font-size: 13px;
+  }
+
+  .card {
+    padding: 14px;
+  }
+
+  .stat-card {
+    padding: 14px 16px;
+  }
+
+  .stat-card .number {
+    font-size: 1.5rem;
+  }
+
+  .stat-card .label {
+    font-size: 0.78rem;
+    margin-top: 4px;
+  }
+
+  .page-title {
+    font-size: 1.3rem;
+  }
+
+  .page-subtitle {
+    font-size: 0.82rem;
+  }
+
+  .modal {
+    padding: 16px;
+  }
+
+  .modal-header {
+    margin-bottom: 14px;
+    padding-bottom: 10px;
+  }
+
+  .modal-header h2 {
+    font-size: 1.05rem;
+  }
+
+  .btn {
+    padding: 8px 14px;
+    font-size: 0.85rem;
+  }
+
+  .btn-lg {
+    padding: 12px 20px;
+    font-size: 1rem;
+  }
+
+  .login-page {
+    padding: 12px;
+  }
+
+  .login-card {
+    padding: 24px 20px;
+  }
+
+  .login-card h1 {
+    font-size: 1.4rem;
   }
 }
 

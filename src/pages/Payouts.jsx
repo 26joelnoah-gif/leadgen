@@ -528,7 +528,7 @@ export default function Payouts() {
                       Geen resultaten in deze periode.
                     </p>
                   ) : (
-                    <div style={{ marginBottom: '16px', borderRadius: '8px', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                    <div style={{ marginBottom: '16px', borderRadius: '8px', border: '1px solid var(--border)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                         <thead>
                           <tr style={{ background: 'var(--bg-dark)', color: 'var(--text-muted)', textAlign: 'left' }}>

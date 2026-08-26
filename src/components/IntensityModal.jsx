@@ -187,7 +187,7 @@ export default function IntensityModal({ isOpen, onClose, targetUser, users = []
               Een blok van {windowMin} min telt als "werkend" bij {minActions}+ acties.
             </p>
 
-            <div style={{ maxHeight: '260px', overflowY: 'auto' }}>
+            <div style={{ maxHeight: '260px', overflowY: 'auto', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
               {result.blocks.length === 0 ? (
                 <p className="text-muted text-sm italic">Geen enkel {windowMin}-minutenblok haalde de drempel van {minActions} acties.</p>
               ) : (
