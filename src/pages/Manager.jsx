@@ -6,7 +6,7 @@ import { motion } from 'framer-motion'
 import {
   Users, PhoneCall, CheckCircle, Download, Clock, Filter, Calendar,
   TrendingUp, Phone, UserPlus, Layers, Upload, Zap, Euro, BarChart3, FastForward,
-  BookOpen, Sparkles, KeyRound
+  BookOpen, Sparkles, KeyRound, Trash2
 } from 'lucide-react'
 import EnrichResultsModal from '../components/EnrichResultsModal'
 import { getStatusDetails } from '../utils/statusUtils'
@@ -114,6 +114,8 @@ export default function Manager() {
   const [resultFilter, setResultFilter] = useState('afspraak_gemaakt')
   const [selectedResultIds, setSelectedResultIds] = useState([]) // v39: bulk verplaatsen/kopieren
   const [showResultMoveCopy, setShowResultMoveCopy] = useState(false)
+  const [confirmDeleteResultLeads, setConfirmDeleteResultLeads] = useState(false) // v49: klik-nogmaals bevestiging
+  const [deletingResultLeads, setDeletingResultLeads] = useState(false)
 
   // ===== Projectlijsten van deze manager laden =====
   async function fetchManagedLists() {
@@ -180,6 +182,33 @@ export default function Manager() {
   useEffect(() => {
     fetchResultLeads()
   }, [managedLists, isDemoMode, kpiOnly])
+
+  useEffect(() => { setConfirmDeleteResultLeads(false) }, [selectedResultIds])
+
+  // v49: geselecteerde leads handmatig verwijderen uit de leadlijst (soft
+  // delete via RPC delete_leads - zelfde autorisatiepatroon als v39
+  // move_or_copy_leads).
+  async function deleteSelectedResultLeads() {
+    if (selectedResultIds.length === 0) return
+    if (!confirmDeleteResultLeads) {
+      setConfirmDeleteResultLeads(true)
+      toast(`Klik nogmaals om ${selectedResultIds.length} lead(s) definitief te verwijderen`, 'info')
+      return
+    }
+    setConfirmDeleteResultLeads(false)
+    setDeletingResultLeads(true)
+    try {
+      const { data, error } = await supabase.rpc('delete_leads', { p_lead_ids: selectedResultIds })
+      if (error) throw error
+      toast(`${data ?? selectedResultIds.length} lead(s) verwijderd`, 'success')
+      setSelectedResultIds([])
+      fetchResultLeads()
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setDeletingResultLeads(false)
+    }
+  }
 
   // v27: manager (met leadbeheer-recht) of admin zet een geen-interesse-lead
   // terug in de belwachtrij voor een nieuwe poging
@@ -787,7 +816,15 @@ export default function Manager() {
                   <button className="btn btn-sm btn-primary" onClick={() => setShowResultMoveCopy(true)}>
                     Verplaatsen / kopieren naar andere lijst
                   </button>
-                  <button className="btn btn-sm btn-outline" onClick={() => setSelectedResultIds([])}>Selectie wissen</button>
+                  <button
+                    className="btn btn-sm btn-outline text-error hover:bg-error/10"
+                    onClick={deleteSelectedResultLeads}
+                    disabled={deletingResultLeads}
+                    title="Verwijdert de geselecteerde leads (soft delete, direct onzichtbaar overal)"
+                  >
+                    <Trash2 size={14} /> {confirmDeleteResultLeads ? 'Zeker weten? Klik nogmaals' : 'Verwijderen'}
+                  </button>
+                  <button className="btn btn-sm btn-outline" onClick={() => { setSelectedResultIds([]); setConfirmDeleteResultLeads(false) }}>Selectie wissen</button>
                 </div>
               </div>
             )}

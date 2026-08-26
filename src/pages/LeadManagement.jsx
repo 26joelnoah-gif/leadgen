@@ -61,6 +61,9 @@ export default function LeadManagement({ standalone = true }) {
   const [leads, setLeads] = useState([])
   const [selectedLeadIds, setSelectedLeadIds] = useState([]) // v39: bulk verplaatsen/kopieren
   const [showMoveCopy, setShowMoveCopy] = useState(false)
+  const [confirmDeleteLeads, setConfirmDeleteLeads] = useState(false) // v49: klik-nogmaals bevestiging
+  const [deletingLeads, setDeletingLeads] = useState(false)
+  useEffect(() => { setConfirmDeleteLeads(false) }, [selectedLeadIds])
   const [leadSearch, setLeadSearch] = useState('')
   const [loadingLeads, setLoadingLeads] = useState(false)
   const [dataSubTab, setDataSubTab] = useState('active') // 'active', 'archived', 'flows'
@@ -173,6 +176,32 @@ export default function LeadManagement({ standalone = true }) {
       toast(err.message, 'error')
     } finally {
       setLoadingLeads(false)
+    }
+  }
+
+  // v49: geselecteerde leads handmatig verwijderen uit de leadlijst (soft
+  // delete via RPC delete_leads - zelfde autorisatiepatroon als v39
+  // move_or_copy_leads). Klik-nogmaals bevestiging, zelfde UX als
+  // project/team verwijderen elders in dit scherm.
+  async function deleteSelectedLeads() {
+    if (selectedLeadIds.length === 0) return
+    if (!confirmDeleteLeads) {
+      setConfirmDeleteLeads(true)
+      toast(`Klik nogmaals om ${selectedLeadIds.length} lead(s) definitief te verwijderen`, 'info')
+      return
+    }
+    setConfirmDeleteLeads(false)
+    setDeletingLeads(true)
+    try {
+      const { data, error } = await supabase.rpc('delete_leads', { p_lead_ids: selectedLeadIds })
+      if (error) throw error
+      toast(`${data ?? selectedLeadIds.length} lead(s) verwijderd`, 'success')
+      setSelectedLeadIds([])
+      if (selectedList) fetchLeads(selectedList.id)
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setDeletingLeads(false)
     }
   }
 
@@ -729,7 +758,15 @@ export default function LeadManagement({ standalone = true }) {
                             <button className="btn btn-sm btn-primary" onClick={() => setShowMoveCopy(true)}>
                               Verplaatsen / kopieren naar andere lijst
                             </button>
-                            <button className="btn btn-sm btn-outline" onClick={() => setSelectedLeadIds([])}>Selectie wissen</button>
+                            <button
+                              className="btn btn-sm btn-outline text-error hover:bg-error/10"
+                              onClick={deleteSelectedLeads}
+                              disabled={deletingLeads}
+                              title="Verwijdert de geselecteerde leads (soft delete, direct onzichtbaar overal)"
+                            >
+                              <Trash2 size={14} /> {confirmDeleteLeads ? 'Zeker weten? Klik nogmaals' : 'Verwijderen'}
+                            </button>
+                            <button className="btn btn-sm btn-outline" onClick={() => { setSelectedLeadIds([]); setConfirmDeleteLeads(false) }}>Selectie wissen</button>
                           </div>
                         </div>
                       )}
