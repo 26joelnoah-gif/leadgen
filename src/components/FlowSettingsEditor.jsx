@@ -208,7 +208,7 @@ export default function FlowSettingsEditor() {
       </div>
 
       {/* Eén legenda voor alle rijen */}
-      <div className="grid items-center gap-4 px-4 py-2 mb-1" style={{ gridTemplateColumns: 'minmax(0,1fr) 190px 150px 80px' }}>
+      <div className="grid items-center gap-4 px-4 py-2 mb-1 flow-header-row flow-row-grid">
         <span className="text-[10px] font-black text-muted uppercase tracking-widest">Afboekreden</span>
         <span className="text-[10px] font-black text-muted uppercase tracking-widest">Lead komt te staan bij</span>
         <span className="text-[10px] font-black text-muted uppercase tracking-widest" style={{ textAlign: 'center' }}>Naam beller in notitie</span>
@@ -233,8 +233,8 @@ export default function FlowSettingsEditor() {
               {rows.map((flow, i) => (
                 <div
                   key={flow.id}
-                  className="grid items-center gap-4 px-4 py-3 bg-dark hover:bg-elevated transition-all"
-                  style={{ gridTemplateColumns: 'minmax(0,1fr) 190px 150px 80px', borderTop: i > 0 ? '1px solid var(--border)' : 'none', opacity: flow.is_active === false ? 0.45 : 1 }}
+                  className="grid items-center gap-4 px-4 py-3 bg-dark hover:bg-elevated transition-all flow-row-grid"
+                  style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', opacity: flow.is_active === false ? 0.45 : 1 }}
                 >
                   <div className="min-w-0">
                     <div className="font-bold text-body text-sm">{getStatusDetails(flow.disposition_type).label}</div>
@@ -253,17 +253,21 @@ export default function FlowSettingsEditor() {
                       </div>
                     )}
                   </div>
-                  <select
-                    value={flow.auto_assign_to}
-                    onChange={(e) => handleUpdateFlow(flow.disposition_type, { auto_assign_to: e.target.value })}
-                    className="text-xs font-bold"
-                    style={{ width: '100%' }}
-                  >
-                    <option value="agent">Blijft bij de beller</option>
-                    <option value="none">Terug naar de pool</option>
-                    <option value="keep">Niet aanpassen</option>
-                  </select>
-                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <div>
+                    <span className="flow-mobile-label">Lead komt te staan bij</span>
+                    <select
+                      value={flow.auto_assign_to}
+                      onChange={(e) => handleUpdateFlow(flow.disposition_type, { auto_assign_to: e.target.value })}
+                      className="text-xs font-bold"
+                      style={{ width: '100%' }}
+                    >
+                      <option value="agent">Blijft bij de beller</option>
+                      <option value="none">Terug naar de pool</option>
+                      <option value="keep">Niet aanpassen</option>
+                    </select>
+                  </div>
+                  <div className="flow-toggle-cell">
+                    <span className="flow-mobile-label">Naam beller in notitie</span>
                     <button
                       role="switch"
                       aria-checked={flow.append_agent_note}
@@ -283,7 +287,8 @@ export default function FlowSettingsEditor() {
                       }} />
                     </button>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <div className="flow-toggle-cell">
+                    <span className="flow-mobile-label">Actief</span>
                     <button
                       role="switch"
                       aria-checked={flow.is_active !== false}
@@ -331,8 +336,8 @@ export default function FlowSettingsEditor() {
           ) : customDispositions.map((c, i) => (
             <div
               key={c.id}
-              className="grid items-center gap-4 px-4 py-3 bg-dark hover:bg-elevated transition-all"
-              style={{ gridTemplateColumns: 'minmax(0,1fr) 190px auto', borderTop: i > 0 ? '1px solid var(--border)' : 'none', opacity: c.is_active ? 1 : 0.45 }}
+              className="grid items-center gap-4 px-4 py-3 bg-dark hover:bg-elevated transition-all flow-row-grid-custom"
+              style={{ borderTop: i > 0 ? '1px solid var(--border)' : 'none', opacity: c.is_active ? 1 : 0.45 }}
             >
               <div className="min-w-0 flex items-center gap-2">
                 {editingCustomId === c.id ? (

@@ -1210,3 +1210,65 @@ body::before {
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
+
+/* ===== MOBIELE WERKBAARHEID (2026-08-27) =====
+   Noah: "mobiele weergave moet echt beter, mensen (en ik als admin) moeten
+   makkelijker vanaf hun telefoon kunnen werken". Onderstaande lost concrete
+   knelpunten op die niet met de bestaande breakpoints hierboven werden
+   gedekt - los toevoegen i.p.v. de bestaande mobiele blokken herschrijven,
+   want andere agents werken tegelijk in dit bestand. */
+
+/* Safari op iOS zoomt automatisch in zodra een invoerveld met font-size
+   onder 16px focus krijgt. Bellers/managers typen de hele dag in velden
+   (notities, bedrag, naam...) - die zoom-in-en-uit-flikker maakt werken
+   vanaf de telefoon vervelend. !important is hier bewust: componenten
+   zetten zelf vaak een kleinere inline font-size (bv. 0.85rem). */
+@media (max-width: 768px) {
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Flow-instellingen (Admin > Projecten & Leads > Flows, en Manager):
+   de rijen hadden vaste kolombreedtes (190px + 150px + 80px) die op een
+   telefoon niet pasten - de omringende kaart knipt overflow af (overflow:
+   hidden), dus die kolommen waren onbereikbaar i.p.v. scrollbaar. Op
+   mobiel stapelen we de rij i.p.v. hem breder te laten zijn dan het scherm. */
+.flow-row-grid { grid-template-columns: minmax(0,1fr) 190px 150px 80px; }
+.flow-row-grid-custom { grid-template-columns: minmax(0,1fr) 190px auto; }
+.flow-mobile-label { display: none; }
+.flow-toggle-cell { display: flex; justify-content: center; }
+
+@media (max-width: 640px) {
+  .flow-row-grid,
+  .flow-row-grid-custom {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .flow-header-row { display: none; }
+  .flow-mobile-label {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .flow-toggle-cell {
+    justify-content: flex-start;
+    align-items: center;
+    gap: 8px;
+  }
+  .flow-toggle-cell .flow-mobile-label {
+    display: inline-block;
+    margin-bottom: 0;
+  }
+}
+
+/* Nieuwe Campagne-modal: type-keuze in 3 gelijke kolommen is op een smalle
+   telefoon te krap om te lezen (icoon+naam+omschrijving samengeperst). */
+.campaign-type-grid { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 480px) {
+  .campaign-type-grid { grid-template-columns: 1fr; }
+}
