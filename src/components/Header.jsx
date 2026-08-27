@@ -21,6 +21,9 @@ export default function Header({ onOpenSettings }) {
   const isBackoffice = profile?.role === 'backoffice'
 
   // v36: recruiter krijgt een eigen, kleine nav - geen sales-dashboard/verdiensten
+  // v51: admin kan de Verdiensten-tab per medewerker uitzetten
+  // (profiles.can_view_earnings, default true).
+  const canViewEarnings = profile?.can_view_earnings !== false
   const navLinks = isRecruiter
     ? [
         { path: '/recruitment', label: 'Sollicitanten' },
@@ -30,7 +33,7 @@ export default function Header({ onOpenSettings }) {
     : [
         { path: '/', label: 'Dashboard' },
         { path: '/tba', label: 'TBA\'s' },
-        { path: '/earnings', label: 'Verdiensten' },
+        ...(canViewEarnings ? [{ path: '/earnings', label: 'Verdiensten' }] : []),
         { path: '/roosters', label: 'Roosters' },
         ...(isManager ? [
           { path: '/manager', label: 'Mijn Projecten' },

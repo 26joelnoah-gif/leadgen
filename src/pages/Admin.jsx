@@ -658,6 +658,7 @@ export default function Admin() {
                             style={{ padding: '6px 10px', fontSize: '0.75rem', flex: 1 }}
                           >
                              <option value="employee">Beller</option>
+                             <option value="backoffice">Backoffice</option>
                              <option value="manager">Manager</option>
                              <option value="recruiter">Recruiter</option>
                              <option value="admin">Admin</option>
@@ -666,6 +667,18 @@ export default function Admin() {
                             <button onClick={() => setManagingUser(u)} className="btn btn-outline btn-sm" style={{ whiteSpace: 'nowrap' }}><Shield size={14}/> Projecten &amp; rechten</button>
                           )}
                        </div>
+                     )}
+                     {u.id !== user.id && (
+                       // v51: Verdiensten-tab per medewerker aan/uit - staat nu
+                       // standaard uit (Noah wilde 'm tijdelijk voor iedereen weg).
+                       <label className="mt-2 flex items-center gap-2 cursor-pointer select-none" style={{ fontSize: '0.72rem' }}>
+                          <input
+                             type="checkbox"
+                             checked={u.can_view_earnings !== false}
+                             onChange={e => handleUpdateFlow(u.id, { can_view_earnings: e.target.checked })}
+                          />
+                          <span className="text-muted font-bold uppercase tracking-widest text-[10px]">Verdiensten tonen</span>
+                       </label>
                      )}
                      {u.id !== user.id && orgs.length > 0 && (
                        <div className="mt-2 flex items-center gap-2">

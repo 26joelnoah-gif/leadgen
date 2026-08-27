@@ -6,10 +6,13 @@ import { motion, AnimatePresence } from 'framer-motion'
 export default function MobileNav({ profile }) {
   const [open, setOpen] = useState(false)
 
+  // v51: admin kan de Verdiensten-tab per medewerker uitzetten
+  // (profiles.can_view_earnings, default true).
+  const canViewEarnings = profile?.can_view_earnings !== false
   const links = [
     { to: '/', label: 'Dashboard' },
     { to: '/tba', label: 'TBA\'s' },
-    { to: '/earnings', label: 'Verdiensten' },
+    ...(canViewEarnings ? [{ to: '/earnings', label: 'Verdiensten' }] : []),
     ...(profile?.role === 'admin' ? [
       { to: '/admin/telemetry', label: 'Telemetrie' },
       { to: '/admin', label: 'Admin' },

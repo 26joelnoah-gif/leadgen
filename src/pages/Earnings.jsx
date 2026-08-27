@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { DollarSign, Zap, Copy, CheckCircle, Phone, PhoneOff, Calendar, Target, Trophy, Clock } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
@@ -199,6 +199,12 @@ export default function Earnings() {
     navigator.clipboard.writeText(invoiceText)
     setCopied(true)
     setTimeout(() => setCopied(false), 3000)
+  }
+
+  // v51: admin kan de Verdiensten-pagina per medewerker uitzetten
+  // (profiles.can_view_earnings) - direct naar / linken helpt dan niet.
+  if (profile?.can_view_earnings === false) {
+    return <Navigate to="/" replace />
   }
 
   return (
