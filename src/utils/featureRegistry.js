@@ -122,6 +122,13 @@ const BACKOFFICE_FEATURES_BASE = [
   { key: 'bo_earnings', group: 'Verdiensten', label: 'Verdiensten', description: 'Je eigen resultaten en verdiende bedrag.' }
 ]
 
+// v52: planning-account - alleen de roosterpagina, verder niets.
+const PLANNING_FEATURES = [
+  { key: 'pl_rooster', group: 'Rooster', label: 'Mijn beschikbaarheid', description: 'Geef per week door op welke dagen en tijden je kunt werken.' },
+  { key: 'pl_week', group: 'Rooster', label: 'Week vooruit/terug', description: 'Blader naar een andere week om die alvast in te vullen.' },
+  { key: 'pl_note', group: 'Rooster', label: 'Notitie per dag', description: 'Zet er een opmerking bij, bijvoorbeeld "kan pas vanaf 10:00".' }
+]
+
 // `extra.activeDispositionTypes` = disposition_type van elke flow_settings-rij
 // met is_active !== false (dus wat er daadwerkelijk als knop verschijnt).
 // `extra.customDispositions` = rijen uit custom_dispositions.
@@ -141,6 +148,8 @@ export function getFeaturesForProfile(profile, extra = {}) {
         ...dispositionFeatures(CALLER_BASE_DISPOSITIONS, activeTypes, true),
         ...customDispositionFeatures(customs, activeTypes)
       ]
+    case 'planning':
+      return PLANNING_FEATURES
     case 'backoffice':
       return [
         ...BACKOFFICE_FEATURES_BASE,
@@ -160,5 +169,6 @@ export const ROLE_LABELS = {
   manager: 'Manager',
   recruiter: 'Recruiter',
   backoffice: 'Backoffice',
+  planning: 'Planning',
   employee: 'Beller'
 }

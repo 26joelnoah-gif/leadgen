@@ -19,12 +19,16 @@ export default function Header({ onOpenSettings }) {
   const isManager = profile?.role === 'manager'
   const isRecruiter = profile?.role === 'recruiter'
   const isBackoffice = profile?.role === 'backoffice'
+  // v52: planning-account = alleen roosters doorgeven, geen enkele andere pagina.
+  const isPlanning = profile?.role === 'planning'
 
   // v36: recruiter krijgt een eigen, kleine nav - geen sales-dashboard/verdiensten
   // v51: admin kan de Verdiensten-tab per medewerker uitzetten
   // (profiles.can_view_earnings, default true).
   const canViewEarnings = profile?.can_view_earnings !== false
-  const navLinks = isRecruiter
+  const navLinks = isPlanning
+    ? [{ path: '/roosters', label: 'Roosters' }]
+    : isRecruiter
     ? [
         { path: '/recruitment', label: 'Sollicitanten' },
         { path: '/tba', label: 'TBA\'s' },

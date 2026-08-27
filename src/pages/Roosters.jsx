@@ -84,6 +84,11 @@ export default function Roosters() {
   const [teamLoading, setTeamLoading] = useState(false)
   const [teams, setTeams] = useState([])
   const [filterTeam, setFilterTeam] = useState('all') // team-id of 'all'
+  // v52: projecten (campagnes) erbij, zodat het overzicht per project te
+  // filteren is. Een project hangt aan teams (campaign_teams) en een team aan
+  // mensen (team_members), dus project -> teams -> profielen.
+  const [campaigns, setCampaigns] = useState([])
+  const [filterProject, setFilterProject] = useState('all') // campaign-id of 'all'
 
   const fetchMine = useCallback(async () => {
     if (!user?.id || isDemoMode) { setLoading(false); return }
@@ -134,7 +139,9 @@ export default function Roosters() {
         .eq('is_active', true)
         .order('full_name', { ascending: true })
       if (profErr) throw profErr
-      setTeamProfiles((profs || []).filter(p => p.id !== user?.id))
+      // v52: jezelf hoort ook in het overzicht - Noah wil het rooster van
+      // iedereen op een plek zien, niet iedereen behalve zichzelf.
+      setTeamProfiles(profs || [])
 
       const { data: avail, error: availErr } = await supabase
         .from('availability')
@@ -150,6 +157,14 @@ export default function Roosters() {
         .order('name', { ascending: true })
       if (teamsErr) throw teamsErr
       setTeams(teamsData || [])
+
+      const { data: campData, error: campErr } = await supabase
+        .from('campaigns')
+        .select('id, name, campaign_teams(team_id)')
+        .is('deleted_at', null)
+        .order('name', { ascending: true })
+      if (campErr) throw campErr
+      setCampaigns(campData || [])
     } catch (err) {
       console.error('Teamoverzicht ophalen mislukt:', err)
       toast('Teamoverzicht ophalen mislukt', 'error')
@@ -166,11 +181,52 @@ export default function Roosters() {
     return m
   }, [teams])
 
+  const projectTeamIds = useMemo(() => {
+    const m = {}
+    campaigns.forEach(c => { m[c.id] = new Set((c.campaign_teams || []).map(ct => ct.team_id)) })
+    return m
+  }, [campaigns])
+
+  // Alleen de teams die aan het gekozen project hangen in de team-dropdown.
+  const visibleTeams = useMemo(() => {
+    if (filterProject === 'all') return teams
+    const ids = projectTeamIds[filterProject]
+    return teams.filter(t => ids?.has(t.id))
+  }, [teams, filterProject, projectTeamIds])
+
+  // Staat het gekozen team niet in het gekozen project, dan het teamfilter
+  // terugzetten - anders krijg je een lege tabel zonder duidelijke reden.
+  useEffect(() => {
+    if (filterTeam !== 'all' && !visibleTeams.some(t => t.id === filterTeam)) setFilterTeam('all')
+  }, [filterTeam, visibleTeams])
+
+  const projectProfileIds = useMemo(() => {
+    if (filterProject === 'all') return null
+    const wanted = projectTeamIds[filterProject] || new Set()
+    const ids = new Set()
+    teams.forEach(t => {
+      if (!wanted.has(t.id)) return
+      ;(t.team_members || []).forEach(tm => ids.add(tm.profile_id))
+    })
+    return ids
+  }, [filterProject, projectTeamIds, teams])
+
   const visibleTeamProfiles = useMemo(() => {
-    if (filterTeam === 'all') return teamProfiles
-    const ids = teamMemberIds[filterTeam]
-    return teamProfiles.filter(p => ids?.has(p.id))
-  }, [teamProfiles, filterTeam, teamMemberIds])
+    let list = teamProfiles
+    if (projectProfileIds) list = list.filter(p => projectProfileIds.has(p.id))
+    if (filterTeam !== 'all') {
+      const ids = teamMemberIds[filterTeam]
+      list = list.filter(p => ids?.has(p.id))
+    }
+    return list
+  }, [teamProfiles, filterTeam, teamMemberIds, projectProfileIds])
+
+  // Aantal beschikbare mensen per dag, onder de tabel - dat is waar je bij het
+  // inplannen naar kijkt.
+  const dayTotals = useMemo(
+    () => DAYS.map(d => visibleTeamProfiles.filter(p => teamAvailability.some(a => a.user_id === p.id && a.day_of_week === d.key && a.available)).length),
+    [visibleTeamProfiles, teamAvailability]
+  )
 
   function updateRow(dayOfWeek, patch) {
     setRows(prev => prev.map(r => (r.day_of_week === dayOfWeek ? { ...r, ...patch } : r)))
@@ -280,6 +336,7 @@ export default function Roosters() {
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Van</span>
                           <input
                             type="time"
+                            step="900"
                             className="form-dark"
                             disabled={!row.available}
                             value={row.start_time}
@@ -289,6 +346,7 @@ export default function Roosters() {
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tot</span>
                           <input
                             type="time"
+                            step="900"
                             className="form-dark"
                             disabled={!row.available}
                             value={row.end_time}
@@ -342,6 +400,17 @@ export default function Roosters() {
         {view === 'team' && canSeeTeam && (
           <div className="card glass-panel" style={{ padding: '16px', overflowX: 'auto' }}>
             <div className="flex items-center gap-2 mb-3" style={{ flexWrap: 'wrap' }}>
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700 }}>Project</span>
+              <select
+                value={filterProject}
+                onChange={e => setFilterProject(e.target.value)}
+                title="Alleen de mensen tonen die via een team aan dit project hangen"
+                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.8rem', maxWidth: '220px' }}
+              >
+                <option value="all">Alle projecten</option>
+                {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+
               <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700 }}>Team</span>
               <select
                 value={filterTeam}
@@ -350,14 +419,20 @@ export default function Roosters() {
                 style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.8rem', maxWidth: '220px' }}
               >
                 <option value="all">Alle teams</option>
-                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                {visibleTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
+
+              <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                {visibleTeamProfiles.length} {visibleTeamProfiles.length === 1 ? 'persoon' : 'personen'}
+              </span>
             </div>
             {teamLoading ? (
               <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>Laden...</div>
             ) : visibleTeamProfiles.length === 0 ? (
               <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                {filterTeam === 'all' ? 'Geen teamleden gevonden.' : 'Niemand in dit team.'}
+                {filterProject !== 'all' && filterTeam === 'all'
+                  ? 'Niemand aan dit project gekoppeld. Hang er een team aan via Lead Beheer > Teams.'
+                  : filterTeam === 'all' ? 'Geen teamleden gevonden.' : 'Niemand in dit team.'}
               </div>
             ) : (
               <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '760px' }}>
@@ -374,7 +449,11 @@ export default function Roosters() {
                 <tbody>
                   {visibleTeamProfiles.map(p => (
                     <tr key={p.id} style={{ borderTop: '1px solid var(--border)' }}>
-                      <td style={{ padding: '10px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{p.full_name || '-'}</td>
+                      <td style={{ padding: '10px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
+                        {p.full_name || '-'}
+                        {p.id === user?.id && <span style={{ marginLeft: '6px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>(jij)</span>}
+                        {p.role === 'planning' && <span style={{ marginLeft: '6px', fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Planning</span>}
+                      </td>
                       {DAYS.map(d => {
                         const cell = teamCell(p.id, d.key)
                         const available = cell?.available
@@ -398,6 +477,16 @@ export default function Roosters() {
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr style={{ borderTop: '2px solid var(--border)' }}>
+                    <td style={{ padding: '10px', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>Beschikbaar</td>
+                    {DAYS.map((d, i) => (
+                      <td key={d.key} style={{ padding: '8px 6px', textAlign: 'center', fontWeight: 800, color: dayTotals[i] > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                        {dayTotals[i]}
+                      </td>
+                    ))}
+                  </tr>
+                </tfoot>
               </table>
             )}
           </div>

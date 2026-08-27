@@ -110,6 +110,7 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
                 <option value="backoffice">Backoffice</option>
                 <option value="manager">Manager</option>
                 <option value="recruiter">Recruiter</option>
+                <option value="planning">Planning (alleen rooster)</option>
                 <option value="admin">Admin</option>
               </select>
               {role === 'manager' && (
@@ -120,6 +121,11 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
               {role === 'recruiter' && (
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
                   Er wordt automatisch een sollicitatieproject "Sollicitanten" voor deze recruiter aangemaakt.
+                </p>
+              )}
+              {role === 'planning' && (
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  Dit account kan alleen zijn eigen rooster doorgeven, verder niets. Zet hem in een team (Lead Beheer &gt; Teams) om hem in het roosteroverzicht van een project mee te laten draaien.
                 </p>
               )}
               {role === 'backoffice' && (

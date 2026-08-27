@@ -66,7 +66,7 @@ function UpdateChecker() {
   )
 }
 
-function ProtectedRoute({ children, requireAdmin = false, allowManager = false }) {
+function ProtectedRoute({ children, requireAdmin = false, allowManager = false, allowPlanning = false }) {
   const { user, profile, loading, isDemoMode } = useAuth()
 
   if (loading) return (
@@ -95,6 +95,14 @@ function ProtectedRoute({ children, requireAdmin = false, allowManager = false }
 
   if (!user) return <Navigate to="/login" replace />
 
+  // v52: een planning-account mag alleen de roosterpagina zien. Alles wat
+  // hier binnenkomt zonder allowPlanning stuurt hem terug naar /roosters,
+  // dus ook een handmatig ingetypte URL. De DB (migration v52) sluit
+  // leads/lijsten/campagnes/chat voor deze rol apart af.
+  if (profile?.role === 'planning' && !allowPlanning) {
+    return <Navigate to="/roosters" replace />
+  }
+
   const roleOk = profile?.role === 'admin' || (allowManager && profile?.role === 'manager')
 
   if (requireAdmin && !roleOk) {
@@ -113,6 +121,7 @@ function ProtectedRoute({ children, requireAdmin = false, allowManager = false }
 // eigen sollicitanten-scherm (zelfde route "/", geen aparte diepe link nodig).
 function HomeRoute() {
   const { profile } = useAuth()
+  if (profile?.role === 'planning') return <Navigate to="/roosters" replace />
   if (profile?.role === 'recruiter') return <Navigate to="/recruitment" replace />
   return <Dashboard />
 }
@@ -210,7 +219,7 @@ function AppRoutes() {
       <Route
         path="/roosters"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute allowPlanning>
             <Roosters />
           </ProtectedRoute>
         }
