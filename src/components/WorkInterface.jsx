@@ -4,7 +4,7 @@ import {
   X, Phone, Mail, MapPin, User, Building2,
   Calendar, Clock, AlertCircle, CheckCircle2,
   ChevronRight, ChevronDown, Copy, Save, Users, Target, Ban,
-  BookOpen, Info, History, Tag
+  BookOpen, Info, History, Tag, Maximize2, Minimize2
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
@@ -168,6 +168,7 @@ export default function WorkInterface() {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024)
   const [showMobileDetails, setShowMobileDetails] = useState(false)
   const [dispositionNotes, setDispositionNotes] = useState('')
+  const [notesExpanded, setNotesExpanded] = useState(false)
   const [showDispositionModal, setShowDispositionModal] = useState(false)
   const [selectedDisposition, setSelectedDisposition] = useState(null)
   const [nextContactDate, setNextContactDate] = useState('')
@@ -559,8 +560,13 @@ export default function WorkInterface() {
 
                 {/* Notities voorop - dat is waar de beller mee werkt */}
                 <div style={{ background: 'var(--bg-card)', padding: '12px', borderRadius: '12px', border: '1px solid var(--border)' }}>
-                  <p style={{ color: 'var(--text-muted)', fontSize: '0.7rem', margin: '0 0 6px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>Notities</p>
-                  <textarea value={editableLead.notes || ''} onChange={e => setEditableLead({ ...editableLead, notes: e.target.value })} rows={4} style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.95rem', lineHeight: 1.4 }} placeholder="Notities en bijzonderheden..." />
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 6px' }}>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.7rem', margin: 0, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px' }}>Notities</p>
+                    <button type="button" onClick={() => setNotesExpanded(v => !v)} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', color: 'var(--primary)', fontWeight: 700, fontSize: '0.7rem', cursor: 'pointer', padding: '2px 4px' }}>
+                      {notesExpanded ? <><Minimize2 size={13} /> Inklappen</> : <><Maximize2 size={13} /> Uitklappen</>}
+                    </button>
+                  </div>
+                  <textarea value={editableLead.notes || ''} onChange={e => setEditableLead({ ...editableLead, notes: e.target.value })} rows={notesExpanded ? 14 : 6} style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.95rem', lineHeight: 1.4, resize: 'vertical' }} placeholder="Notities en bijzonderheden..." />
                   <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
                     <button onClick={saveLeadEdits} style={{ flex: 1, background: 'var(--primary)', color: 'var(--text-on-accent)', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
                       <Save size={14} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Opslaan
@@ -675,13 +681,18 @@ export default function WorkInterface() {
                   <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
                     <div style={{ background: 'var(--secondary)', color: 'var(--bg-dark)', padding: '8px 14px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', fontSize: '0.85rem' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><AlertCircle size={15} /> Notities & Geschiedenis</span>
-                      <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>Pogingen: {currentLead.contact_attempts || 0}</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>Pogingen: {currentLead.contact_attempts || 0}</span>
+                        <button type="button" onClick={() => setNotesExpanded(v => !v)} title={notesExpanded ? 'Notitieveld inklappen' : 'Notitieveld uitklappen'} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.15)', border: 'none', color: 'inherit', fontWeight: 700, fontSize: '0.7rem', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px' }}>
+                          {notesExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
+                        </button>
+                      </span>
                     </div>
                     <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px', flex: 1, minHeight: 0 }}>
                       <textarea
                         value={editableLead.notes || ''}
                         onChange={e => setEditableLead({...editableLead, notes: e.target.value})}
-                        style={{ width: '100%', flex: 1, minHeight: '90px', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem', lineHeight: '1.5', resize: 'none' }}
+                        style={{ width: '100%', flex: 1, minHeight: notesExpanded ? '340px' : '150px', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem', lineHeight: '1.5', resize: 'vertical', transition: 'min-height 0.15s ease' }}
                         placeholder="Voer hier alle relevante gespreksnotities in..."
                       />
                       <button onClick={saveLeadEdits} style={{ alignSelf: 'flex-end', background: 'var(--primary)', color: 'var(--text-on-accent)', border: 'none', padding: '8px 18px', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}>
@@ -794,6 +805,7 @@ export default function WorkInterface() {
                         <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>Wanneer moet er teruggebeld worden?</label>
                         <input
                           type="datetime-local"
+                          step="900"
                           value={nextContactDate}
                           onChange={e => setNextContactDate(e.target.value)}
                           style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }}

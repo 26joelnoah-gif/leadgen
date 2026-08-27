@@ -592,6 +592,7 @@ export default function Recruitment() {
                 <label>Wanneer terugbellen?</label>
                 <input
                   type="datetime-local"
+                  step="900"
                   value={tbaPrompt.value}
                   onChange={e => setTbaPrompt(prev => ({ ...prev, value: e.target.value }))}
                 />
