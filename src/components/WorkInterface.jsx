@@ -79,9 +79,42 @@ export default function WorkInterface() {
   const { isWorking, toggleWorkingMode, workingLead, workingListId, sessionCallCount, profile, user } = useAuth()
   const { leads, updateLeadStatus, logActivity, handleLeadDisposition, claimNextLead, claimNextBackofficeLead, releaseMyLeads } = useLeads()
 
-  // v38: backoffice medewerkers werken de al gemaakte sales (status 'deal')
-  // af om de monteur in te plannen - eigen wachtrij/claim-functie/knoppen.
-  const isBackoffice = profile?.role === 'backoffice'
+  // v29: briefing van het project (belscript + projectinfo) als inklapbare tabs.
+  // De open/dicht-stand blijft staan tijdens de hele belsessie.
+  const [briefing, setBriefing] = useState(null)
+  const [briefingTab, setBriefingTab] = useState(null) // null | 'script' | 'info'
+  // v36: type van de campagne ('sales' | 'recruitment') - bepaalt of de
+  // dispositie-knoppen en veldlabels als sollicitant-tekst getoond worden.
+  const [isRecruitmentCampaign, setIsRecruitmentCampaign] = useState(false)
+  // v47: type van de campagne bepaalt of een live-gesloten 'DEAL' meteen
+  // moet doorstromen naar bruto_deal (backoffice moet de monteur nog
+  // inplannen) i.p.v. de gewone eindstatus 'deal'.
+  const [isBackofficeCampaign, setIsBackofficeCampaign] = useState(false)
+  useEffect(() => {
+    const listId = workingListId || workingLead?.lead_list_id
+    if (!isWorking || !listId) { setBriefing(null); setIsRecruitmentCampaign(false); setIsBackofficeCampaign(false); return }
+    let cancelled = false
+    supabase.from('lead_lists').select('campaign_id, campaigns(type)').eq('id', listId).maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return
+        setIsRecruitmentCampaign(data?.campaigns?.type === 'recruitment')
+        setIsBackofficeCampaign(data?.campaigns?.type === 'backoffice')
+        if (!data?.campaign_id) { setBriefing(null); return }
+        supabase.from('campaign_briefings')
+          .select('call_script, project_info')
+          .eq('campaign_id', data.campaign_id)
+          .maybeSingle()
+          .then(({ data: b }) => { if (!cancelled) setBriefing(b || null) })
+      })
+    return () => { cancelled = true }
+  }, [isWorking, workingListId, workingLead?.lead_list_id])
+
+  // v38/v50: backoffice-gedrag (wachtrij, claim-functie, knoppenset) volgt
+  // sinds v50 het PROJECTTYPE waarin je op dit moment belt, niet meer de
+  // rol van je account - zo kan een gewone beller die aan een backoffice-
+  // project is gekoppeld daar gewoon bellen, zonder rolwissel. Rol
+  // 'backoffice' blijft daarnaast ook werken (dedicated backoffice-account).
+  const isBackofficeMode = isBackofficeCampaign || profile?.role === 'backoffice'
 
   // Belwachtrij: leads uit de projectlijst die nu belbaar zijn.
   // Afgeronde statussen vallen eruit, en leads met een terugbelmoment
@@ -93,7 +126,7 @@ export default function WorkInterface() {
   const listLeads = workingListId
     ? leads.filter(l =>
         l.lead_list_id === workingListId &&
-        (isBackoffice ? l.status === 'bruto_deal' : !DONE_STATUSES.includes(l.status)) &&
+        (isBackofficeMode ? l.status === 'bruto_deal' : !DONE_STATUSES.includes(l.status)) &&
         (!l.next_contact_date || new Date(l.next_contact_date) <= new Date()) &&
         (!l.locked_by || l.locked_by === user?.id || !l.locked_at || (Date.now() - new Date(l.locked_at).getTime()) > LOCK_TTL_MS)
       )
@@ -112,14 +145,14 @@ export default function WorkInterface() {
     if (!isWorking || !workingListId || workingLead) return
     let cancelled = false
     setClaiming(true)
-    const claimFn = isBackoffice ? claimNextBackofficeLead : claimNextLead
+    const claimFn = isBackofficeMode ? claimNextBackofficeLead : claimNextLead
     claimFn(workingListId).then(lead => {
       if (cancelled) return
       setClaimedLead(lead)
       setClaiming(false)
     })
     return () => { cancelled = true }
-  }, [isWorking, workingListId, isBackoffice])
+  }, [isWorking, workingListId, isBackofficeMode])
 
   // Bij het sluiten van de belmodus: alle eigen locks vrijgeven,
   // zodat collega's de niet-afgehandelde lead direct kunnen oppakken
@@ -193,36 +226,6 @@ export default function WorkInterface() {
       .then(({ data }) => { if (!cancelled && data?.name) setListDisplayName(data.name) })
     return () => { cancelled = true }
   }, [workingListId])
-
-  // v29: briefing van het project (belscript + projectinfo) als inklapbare tabs.
-  // De open/dicht-stand blijft staan tijdens de hele belsessie.
-  const [briefing, setBriefing] = useState(null)
-  const [briefingTab, setBriefingTab] = useState(null) // null | 'script' | 'info'
-  // v36: type van de campagne ('sales' | 'recruitment') - bepaalt of de
-  // dispositie-knoppen en veldlabels als sollicitant-tekst getoond worden.
-  const [isRecruitmentCampaign, setIsRecruitmentCampaign] = useState(false)
-  // v47: type van de campagne bepaalt of een live-gesloten 'DEAL' meteen
-  // moet doorstromen naar bruto_deal (backoffice moet de monteur nog
-  // inplannen) i.p.v. de gewone eindstatus 'deal'.
-  const [isBackofficeCampaign, setIsBackofficeCampaign] = useState(false)
-  useEffect(() => {
-    const listId = workingListId || workingLead?.lead_list_id
-    if (!isWorking || !listId) { setBriefing(null); setIsRecruitmentCampaign(false); setIsBackofficeCampaign(false); return }
-    let cancelled = false
-    supabase.from('lead_lists').select('campaign_id, campaigns(type)').eq('id', listId).maybeSingle()
-      .then(({ data }) => {
-        if (cancelled) return
-        setIsRecruitmentCampaign(data?.campaigns?.type === 'recruitment')
-        setIsBackofficeCampaign(data?.campaigns?.type === 'backoffice')
-        if (!data?.campaign_id) { setBriefing(null); return }
-        supabase.from('campaign_briefings')
-          .select('call_script, project_info')
-          .eq('campaign_id', data.campaign_id)
-          .maybeSingle()
-          .then(({ data: b }) => { if (!cancelled) setBriefing(b || null) })
-      })
-    return () => { cancelled = true }
-  }, [isWorking, workingListId, workingLead?.lead_list_id])
 
   // v29: gespreksgeschiedenis van deze lead (ook gesprekken van collega's),
   // zodat de beller kan aanknopen bij het vorige gesprek
@@ -318,7 +321,7 @@ export default function WorkInterface() {
   const dLabel = (id, fallback) => (isRecruitmentCampaign && RECRUITMENT_BUTTON_LABELS[id]) || fallback
   // v38: backoffice-medewerkers bellen al gemaakte sales om de monteur in te
   // plannen - eigen, kleinere knoppenset i.p.v. de sales-dispositielijst.
-  const dispositions = isBackoffice ? [
+  const dispositions = isBackofficeMode ? [
     { id: 'monteur_ingepland', label: 'MONTEUR INGEPLAND', color: '#10B981', icon: <CheckCircle2 size={18} /> },
     { id: 'wil_annuleren', label: 'WIL ANNULEREN', color: '#EF4444', icon: <Ban size={18} /> },
     { id: 'terugbelafspraak', label: 'TBA (Terugbel)', color: '#8B5CF6', icon: <Clock size={18} /> },
@@ -340,7 +343,7 @@ export default function WorkInterface() {
   // v41: eigen afboekredenen worden extra quick-knoppen naast de vaste set -
   // alleen in de sales/recruitment-knoppenset (niet backoffice), en verborgen
   // zodra de onderliggende basisreden zelf is uitgezet.
-  const customButtons = isBackoffice ? [] : customReasons
+  const customButtons = isBackofficeMode ? [] : customReasons
     .filter(c => !disabledDispositions.includes(c.base_status))
     .map(c => ({
       id: `custom:${c.id}`,
@@ -388,7 +391,7 @@ export default function WorkInterface() {
         // slaat leads over die een collega net heeft geclaimd
         setClaimedLead(null)
         setClaiming(true)
-        const claimFn = isBackoffice ? claimNextBackofficeLead : claimNextLead
+        const claimFn = isBackofficeMode ? claimNextBackofficeLead : claimNextLead
         const nextLead = await claimFn(workingListId)
         setClaimedLead(nextLead)
         setClaiming(false)
@@ -458,7 +461,7 @@ export default function WorkInterface() {
             <div className="flex items-center gap-4">
                <h2 style={{ margin: 0, fontSize: '1.2rem', display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 700 }}>
                  <Phone size={18} />
-                 {isBackoffice ? 'Backoffice - Monteur inplannen' : 'Belmodus'}
+                 {isBackofficeMode ? 'Backoffice - Monteur inplannen' : 'Belmodus'}
                </h2>
                <span style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>Vandaag: {todayCalls}</span>
                {dailyTarget > 0 && (
@@ -591,7 +594,7 @@ export default function WorkInterface() {
                       ['Extra info 1', 'extra_info1'], ['Extra info 2', 'extra_info2'], ['Extra info 3', 'extra_info3']
                     ].map(([label, field]) => (
                       <div key={field}>
-                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{isRecruitmentCampaign ? (RECRUITMENT_FIELD_LABELS[label] || label) : (isBackoffice ? (BACKOFFICE_FIELD_LABELS[label] || label) : label)}</label>
+                        <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{isRecruitmentCampaign ? (RECRUITMENT_FIELD_LABELS[label] || label) : (isBackofficeMode ? (BACKOFFICE_FIELD_LABELS[label] || label) : label)}</label>
                         <input type="text" value={editableLead[field] || ''} onChange={e => setEditableLead({ ...editableLead, [field]: e.target.value })} placeholder="..." style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem' }} />
                       </div>
                     ))}
@@ -609,7 +612,7 @@ export default function WorkInterface() {
                   </div>
                   <div style={{ padding: '14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 14px', alignContent: 'start' }}>
                     <div>
-                      <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{isRecruitmentCampaign ? RECRUITMENT_FIELD_LABELS.Bedrijfsnaam : (isBackoffice ? BACKOFFICE_FIELD_LABELS.Bedrijfsnaam : 'Bedrijfsnaam')}</label>
+                      <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{isRecruitmentCampaign ? RECRUITMENT_FIELD_LABELS.Bedrijfsnaam : (isBackofficeMode ? BACKOFFICE_FIELD_LABELS.Bedrijfsnaam : 'Bedrijfsnaam')}</label>
                       <input type="text" value={editableLead.name || ''} onChange={e => setEditableLead({...editableLead, name: e.target.value})} style={{ ...{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem' }, fontWeight: 600 }}/>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px' }}>
