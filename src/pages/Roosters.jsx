@@ -47,6 +47,32 @@ function weekLabel(monday) {
   return `${fmt(monday)} - ${fmt(sunday)} ${sunday.getFullYear()}`
 }
 
+// v53: beschikbaarheid is per kwartier in te plannen. De uren blijven wat ze
+// waren (00:00 t/m 23:45), er komen alleen :15/:30/:45 bij. Bewust een select
+// i.p.v. <input type="time" step="900">: die step wordt alleen door de
+// Chrome-picker gerespecteerd, op Safari/mobiel kon je er nog elk willekeurig
+// minuut in typen.
+const QUARTERS = (() => {
+  const out = []
+  for (let h = 0; h < 24; h++) {
+    for (const m of [0, 15, 30, 45]) {
+      out.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
+    }
+  }
+  return out
+})()
+
+// Oude waarden (bijv. 09:20 uit de tijd dat elk minuut mocht) naar het
+// dichtstbijzijnde kwartier, anders staat de select leeg.
+function snapToQuarter(hhmm) {
+  if (!hhmm) return ''
+  const [h, m] = hhmm.split(':').map(Number)
+  if (Number.isNaN(h) || Number.isNaN(m)) return ''
+  let total = Math.round((h * 60 + m) / 15) * 15
+  if (total >= 24 * 60) total = 23 * 60 + 45
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`
+}
+
 function emptyRows() {
   return DAYS.map(d => ({
     day_of_week: d.key,
@@ -108,8 +134,8 @@ export default function Roosters() {
           base[idx] = {
             day_of_week: row.day_of_week,
             available: !!row.available,
-            start_time: row.start_time ? row.start_time.slice(0, 5) : '',
-            end_time: row.end_time ? row.end_time.slice(0, 5) : '',
+            start_time: snapToQuarter(row.start_time ? row.start_time.slice(0, 5) : ''),
+            end_time: snapToQuarter(row.end_time ? row.end_time.slice(0, 5) : ''),
             note: row.note || '',
             noteOpen: !!row.note
           }
@@ -334,25 +360,27 @@ export default function Roosters() {
 
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', opacity: row.available ? 1 : 0.4 }}>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Van</span>
-                          <input
-                            type="time"
-                            step="900"
+                          <select
                             className="form-dark"
                             disabled={!row.available}
                             value={row.start_time}
                             onChange={e => updateRow(row.day_of_week, { start_time: e.target.value })}
                             style={{ padding: '6px 8px', width: '110px' }}
-                          />
+                          >
+                            <option value="">--:--</option>
+                            {QUARTERS.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Tot</span>
-                          <input
-                            type="time"
-                            step="900"
+                          <select
                             className="form-dark"
                             disabled={!row.available}
                             value={row.end_time}
                             onChange={e => updateRow(row.day_of_week, { end_time: e.target.value })}
                             style={{ padding: '6px 8px', width: '110px' }}
-                          />
+                          >
+                            <option value="">--:--</option>
+                            {QUARTERS.map(t => <option key={t} value={t}>{t}</option>)}
+                          </select>
                         </div>
 
                         <button
