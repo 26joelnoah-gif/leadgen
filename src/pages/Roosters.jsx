@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../components/Toast'
 import Header from '../components/Header'
+import { ROLE_LABELS } from '../utils/featureRegistry'
 
 // v44: Roosters - wekelijkse beschikbaarheid. Elke medewerker vult voor
 // zichzelf per dag aan/uit + van/tot + notitie in en dient de week in.
@@ -115,6 +116,9 @@ export default function Roosters() {
   // mensen (team_members), dus project -> teams -> profielen.
   const [campaigns, setCampaigns] = useState([])
   const [filterProject, setFilterProject] = useState('all') // campaign-id of 'all'
+  // v54: filter op soort werknemer (profiles.role), zodat je bijv. in een keer
+  // alle planning-accounts los kan bekijken.
+  const [filterRole, setFilterRole] = useState('all') // rol of 'all'
 
   const fetchMine = useCallback(async () => {
     if (!user?.id || isDemoMode) { setLoading(false); return }
@@ -237,6 +241,15 @@ export default function Roosters() {
     return ids
   }, [filterProject, projectTeamIds, teams])
 
+  // Alleen de soorten die daadwerkelijk in de organisatie voorkomen in de
+  // dropdown, in een vaste volgorde.
+  const ROLE_ORDER = ['employee', 'backoffice', 'planning', 'recruiter', 'manager', 'admin']
+  const rolesInView = useMemo(() => {
+    const present = new Set(teamProfiles.map(p => p.role).filter(Boolean))
+    return ROLE_ORDER.filter(r => present.has(r)).concat([...present].filter(r => !ROLE_ORDER.includes(r)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teamProfiles])
+
   const visibleTeamProfiles = useMemo(() => {
     let list = teamProfiles
     if (projectProfileIds) list = list.filter(p => projectProfileIds.has(p.id))
@@ -244,8 +257,9 @@ export default function Roosters() {
       const ids = teamMemberIds[filterTeam]
       list = list.filter(p => ids?.has(p.id))
     }
+    if (filterRole !== 'all') list = list.filter(p => p.role === filterRole)
     return list
-  }, [teamProfiles, filterTeam, teamMemberIds, projectProfileIds])
+  }, [teamProfiles, filterTeam, teamMemberIds, projectProfileIds, filterRole])
 
   // Aantal beschikbare mensen per dag, onder de tabel - dat is waar je bij het
   // inplannen naar kijkt.
@@ -450,6 +464,17 @@ export default function Roosters() {
                 {visibleTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
 
+              <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 700 }}>Soort</span>
+              <select
+                value={filterRole}
+                onChange={e => setFilterRole(e.target.value)}
+                title="Alleen dit soort werknemers tonen"
+                style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.8rem', maxWidth: '200px' }}
+              >
+                <option value="all">Alle soorten</option>
+                {rolesInView.map(r => <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>)}
+              </select>
+
               <span style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                 {visibleTeamProfiles.length} {visibleTeamProfiles.length === 1 ? 'persoon' : 'personen'}
               </span>
@@ -458,7 +483,9 @@ export default function Roosters() {
               <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>Laden...</div>
             ) : visibleTeamProfiles.length === 0 ? (
               <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)' }}>
-                {filterProject !== 'all' && filterTeam === 'all'
+                {filterRole !== 'all'
+                  ? `Geen werknemers van het soort "${ROLE_LABELS[filterRole] || filterRole}" in deze selectie.`
+                  : filterProject !== 'all' && filterTeam === 'all'
                   ? 'Niemand aan dit project gekoppeld. Hang er een team aan via Lead Beheer > Teams.'
                   : filterTeam === 'all' ? 'Geen teamleden gevonden.' : 'Niemand in dit team.'}
               </div>
@@ -467,6 +494,7 @@ export default function Roosters() {
                 <thead>
                   <tr>
                     <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-muted)', fontSize: '0.78rem', fontWeight: 700, textTransform: 'uppercase' }}>Naam</th>
+                    <th style={{ textAlign: 'left', padding: '8px 10px', color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase' }}>Soort</th>
                     {DAYS.map(d => (
                       <th key={d.key} style={{ textAlign: 'center', padding: '8px 6px', color: 'var(--text-muted)', fontSize: '0.72rem', fontWeight: 700, textTransform: 'uppercase' }}>
                         {d.label.slice(0, 2)}
@@ -480,7 +508,11 @@ export default function Roosters() {
                       <td style={{ padding: '10px', fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                         {p.full_name || '-'}
                         {p.id === user?.id && <span style={{ marginLeft: '6px', fontSize: '0.7rem', fontWeight: 700, color: 'var(--text-muted)' }}>(jij)</span>}
-                        {p.role === 'planning' && <span style={{ marginLeft: '6px', fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Planning</span>}
+                      </td>
+                      <td style={{ padding: '10px', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: '0.62rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                          {ROLE_LABELS[p.role] || p.role || '-'}
+                        </span>
                       </td>
                       {DAYS.map(d => {
                         const cell = teamCell(p.id, d.key)
@@ -507,7 +539,7 @@ export default function Roosters() {
                 </tbody>
                 <tfoot>
                   <tr style={{ borderTop: '2px solid var(--border)' }}>
-                    <td style={{ padding: '10px', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>Beschikbaar</td>
+                    <td colSpan={2} style={{ padding: '10px', fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>Beschikbaar</td>
                     {DAYS.map((d, i) => (
                       <td key={d.key} style={{ padding: '8px 6px', textAlign: 'center', fontWeight: 800, color: dayTotals[i] > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                         {dayTotals[i]}
