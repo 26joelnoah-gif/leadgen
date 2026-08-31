@@ -683,6 +683,19 @@ export default function Admin() {
                           <span className="text-muted font-bold uppercase tracking-widest text-[10px]">Verdiensten tonen</span>
                        </label>
                      )}
+                     {u.id !== user.id && (
+                       // v55: teamoverzicht in Roosters ook zichtbaar maken voor dit
+                       // account (profiles.can_view_schedules, standaard uit) - bijv.
+                       // voor een planning-account dat de roosters moet kunnen inzien.
+                       <label className="mt-2 flex items-center gap-2 cursor-pointer select-none" style={{ fontSize: '0.72rem' }}>
+                          <input
+                             type="checkbox"
+                             checked={u.can_view_schedules === true}
+                             onChange={e => handleUpdateFlow(u.id, { can_view_schedules: e.target.checked })}
+                          />
+                          <span className="text-muted font-bold uppercase tracking-widest text-[10px]">Teamroosters inzien</span>
+                       </label>
+                     )}
                      {u.id !== user.id && orgs.length > 0 && (
                        <div className="mt-2 flex items-center gap-2">
                           <span className="text-[10px] text-muted font-black uppercase tracking-widest">Org</span>

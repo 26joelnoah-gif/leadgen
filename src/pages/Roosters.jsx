@@ -103,7 +103,10 @@ export default function Roosters() {
   // v46: iedereen ziet alleen zijn eigen rooster; admin, elke manager en
   // recruitment zien het rooster van iedereen binnen de eigen organisatie
   // (RLS op public.availability dwingt dit ook af, dit is alleen de UI-gate).
-  const canSeeTeam = isAdmin || isManagerRole || isRecruiterRole
+  // v55: het vinkje "Teamroosters inzien" (Admin > Team, profiles.can_view_schedules)
+  // kan dit ook openzetten, bijv. voor een planning-account. RLS (availability_select)
+  // dwingt hetzelfde af; dit is alleen de UI-gate.
+  const canSeeTeam = isAdmin || isManagerRole || isRecruiterRole || profile?.can_view_schedules === true
 
   const [view, setView] = useState('mine') // 'mine' | 'team'
   const [teamProfiles, setTeamProfiles] = useState([])
