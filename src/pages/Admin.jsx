@@ -3,6 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
+import { useLeadSources } from '../hooks/useLeadSources'
+import { SourceSelect, ManageSourcesModal } from '../components/LeadSources'
 import Header from '../components/Header'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -10,7 +12,7 @@ import {
   Plus, Users, Settings, UserPlus, Phone, PhoneOff, Mail,
   UserCheck, Shield, Activity, Download, Play, Zap, Upload,
   X, CheckCircle, AlertTriangle, Bell, Megaphone, Target,
-  DollarSign, Calendar, List, ChevronRight, Layers, Trash2, Search, KeyRound
+  DollarSign, Calendar, List, ChevronRight, Layers, Trash2, Search, KeyRound, Tag
 } from 'lucide-react'
 import { STATUS_MAP } from '../utils/statusUtils'
 import { exportToCSV } from '../utils/exportUtils'
@@ -82,6 +84,8 @@ export default function Admin() {
   const [expandedAssignments, setExpandedAssignments] = useState({}) // per user-id: toon leadlijsten
   const [showLeadList, setShowLeadList] = useState(false)
   const [showImport, setShowImport] = useState(false)
+  const [showSources, setShowSources] = useState(false) // v56: beheerde bronnen
+  const { sources: managedSources, addSource, renameSource, removeSource } = useLeadSources()
   const [importMode, setImportMode] = useState('import') // v32.1: 'import' of 'enrich'
   const [systemSettings, setSystemSettings] = useState(getSettings)
   // v31: organisaties (fundament voor klant-omgevingen) + org-beheerpaneel
@@ -411,6 +415,7 @@ export default function Admin() {
                    <button className="btn btn-primary" onClick={() => { setImportMode('enrich'); setShowImport(true) }}><Zap size={18} /> Leads verrijken</button>
                    <button className="btn btn-outline" onClick={() => setShowAddLead(true)}><Plus size={18} /> Nieuwe lead</button>
                    <button className="btn btn-outline" onClick={() => setShowCampaign(true)}><Megaphone size={18}/> Campagne</button>
+                   <button className="btn btn-outline" onClick={() => setShowSources(true)} title="Bronnen aanmaken, hernoemen of verwijderen"><Tag size={18}/> Bronnen</button>
                 </div>
              </div>
 
@@ -779,11 +784,13 @@ export default function Admin() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="form-group">
                        <label className="text-[10px] font-black uppercase text-muted tracking-widest mb-2 block">Bron</label>
-                       <select className="form-dark w-full" value={newLead.lead_source} onChange={e => setNewLead({...newLead, lead_source: e.target.value})}>
-                          <option value="cold">Cold Call</option>
-                          <option value="linkedin">LinkedIn</option>
-                          <option value="referral">Referral</option>
-                       </select>
+                       <SourceSelect
+                          className="form-dark w-full"
+                          value={newLead.lead_source}
+                          onChange={v => setNewLead({...newLead, lead_source: v})}
+                          sources={managedSources}
+                          onAdd={addSource}
+                       />
                     </div>
                     <div className="form-group">
                        <label className="text-[10px] font-black uppercase text-muted tracking-widest mb-2 block">Beller (Optioneel)</label>
@@ -821,6 +828,14 @@ export default function Admin() {
       <CampaignModal isOpen={showCampaign} onClose={() => setShowCampaign(false)} />
       <LeadListModal isOpen={showLeadList} onClose={() => setShowLeadList(false)} />
       <ImportLeadsModal isOpen={showImport} initialMode={importMode} onClose={() => setShowImport(false)} onImported={() => { fetchData(); fetchLeadLists() }} />
+      <ManageSourcesModal
+        isOpen={showSources}
+        onClose={() => setShowSources(false)}
+        sources={managedSources}
+        onAdd={addSource}
+        onRename={async (id, name) => { await renameSource(id, name); fetchData() }}
+        onRemove={removeSource}
+      />
       <NewProjectWizard isOpen={showNewProject} onClose={() => setShowNewProject(false)} onCreated={() => { fetchData(); fetchLeadLists() }} />
 
       <style jsx>{`

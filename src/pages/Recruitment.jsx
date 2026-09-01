@@ -1,16 +1,19 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Navigate, Link } from 'react-router-dom'
+import { Navigate, Link, useSearchParams } from 'react-router-dom'
 import {
   Plus, Phone, Search, X, UserPlus, Users, Clock, RefreshCw, ExternalLink,
-  LayoutGrid, List as ListIcon, Download, Upload, AlertTriangle, Filter
+  LayoutGrid, List as ListIcon, Download, Upload, AlertTriangle, Filter, Tag,
+  CalendarDays, ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
 import { useLeadLists } from '../hooks/useLeadLists'
+import { useLeadSources } from '../hooks/useLeadSources'
+import { SourceSelect, ManageSourcesModal } from '../components/LeadSources'
 import { supabase } from '../lib/supabase'
 import { getStatusDetails } from '../utils/statusUtils'
-import { formatDateTime } from '../utils/dateUtils'
+import { formatDateTime, formatTime } from '../utils/dateUtils'
 import { exportToCSV } from '../utils/exportUtils'
 import { parseApplicantCSV, normalizePhoneForDedup } from '../utils/importUtils'
 import Header from '../components/Header'
@@ -21,18 +24,19 @@ import { useToast } from '../components/Toast'
 // v36: recruiter-thuisbasis. Een sollicitant is gewoon een lead in het
 // (automatisch aangemaakte) recruitment-project van deze recruiter -
 // zelfde belwachtrij/TBA/call_logs-infrastructuur als sales, alleen
-// hier verpakt met sollicitant-taal, een kanban-bord, vrije bronnen
-// (filter + eigen "source" typen) en een eigen import/export.
-const EMPTY_FORM = { name: '', phone: '', email: '', function: '', lead_source: '', notes: '', cv_link: '' }
-const DEFAULT_SOURCE_SUGGESTIONS = ['Sollicitatie', 'Indeed', 'LinkedIn', 'Referral', 'Website']
+// hier verpakt met sollicitant-taal, een kanban-bord, beheerde bronnen
+// (v56: tabel lead_sources - aanmaken/hernoemen/verwijderen + filter met
+// aantallen) en een eigen import/export.
+const EMPTY_FORM = { name: '', phone: '', email: '', function: '', lead_source: '', notes: '', cv_link: '', appointment_at: '' }
 
 // Kanban-kolommen. dropStatus = status die gezet wordt als je een kaart hier
-// op laat vallen; needsDate = vraagt eerst om een terugbelmoment (TBA).
+// op laat vallen; needsDate = vraagt eerst om een datum: het terugbelmoment
+// (TBA -> next_contact_date) of het gesprek zelf (v57 -> appointment_at).
 const BOARD_COLUMNS = [
   { id: 'new', label: 'Nieuw', statuses: ['new'], dropStatus: 'new', color: 'var(--info)' },
   { id: 'followup', label: 'Opvolgen', statuses: ['later_bellen', 'geen_gehoor', 'mailbox', 'onjuiste_timing'], dropStatus: 'later_bellen', color: 'var(--warning)' },
-  { id: 'tba', label: 'TBA', statuses: ['terugbelafspraak'], dropStatus: 'terugbelafspraak', color: 'var(--secondary)', needsDate: true },
-  { id: 'interview', label: 'Gesprek gepland', statuses: ['afspraak_gemaakt'], dropStatus: 'afspraak_gemaakt', color: 'var(--primary)' },
+  { id: 'tba', label: 'TBA', statuses: ['terugbelafspraak'], dropStatus: 'terugbelafspraak', color: 'var(--secondary)', needsDate: true, dateField: 'next_contact_date', dateTitle: 'Terugbelmoment', dateLabel: 'Wanneer terugbellen?', dateButton: 'TBA instellen' },
+  { id: 'interview', label: 'Gesprek gepland', statuses: ['afspraak_gemaakt'], dropStatus: 'afspraak_gemaakt', color: 'var(--primary)', needsDate: true, dateField: 'appointment_at', dateTitle: 'Gesprek inplannen', dateLabel: 'Wanneer is het gesprek?', dateButton: 'Gesprek inplannen' },
   { id: 'hired', label: 'Aangenomen', statuses: ['deal'], dropStatus: 'deal', color: 'var(--success)' },
   { id: 'cold', label: 'Koud', statuses: ['cold'], dropStatus: 'cold', color: 'var(--text-muted)' },
   { id: 'rejected', label: 'Afgewezen', statuses: ['geen_interesse', 'verkeerd_nummer', 'blacklist'], dropStatus: 'geen_interesse', color: 'var(--danger)' }
@@ -46,18 +50,56 @@ function defaultTbaDateTimeLocal() {
   return d.toISOString().slice(0, 16)
 }
 
+// ISO (UTC) -> waarde voor een <input type="datetime-local"> in lokale tijd
+function toLocalInput(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d)) return ''
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+  return d.toISOString().slice(0, 16)
+}
+
+// v57: agenda-helpers (weekweergave, maandag t/m zondag)
+function startOfWeek(date) {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  const day = (d.getDay() + 6) % 7 // ma = 0
+  d.setDate(d.getDate() - day)
+  return d
+}
+function addDays(date, n) {
+  const d = new Date(date)
+  d.setDate(d.getDate() + n)
+  return d
+}
+function sameDay(a, b) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
+}
+const DAY_NAMES = ['ma', 'di', 'wo', 'do', 'vr', 'za', 'zo']
+// Statussen waarbij een ooit geplande gespreksdatum niet meer in de agenda hoort
+const AGENDA_HIDDEN_STATUSES = ['geen_interesse', 'verkeerd_nummer', 'blacklist', 'cold']
+
 export default function Recruitment() {
   const { user, profile, toggleWorkingMode, startWorkingWithList, logCall } = useAuth()
   const { leads, loading: leadsLoading, fetchLeads, updateLeadStatus, logActivity } = useLeads()
   const { leadLists, loading: listsLoading } = useLeadLists()
   const toast = useToast()
 
-  const [view, setView] = useState('board') // 'board' | 'list'
+  // v57: 'agenda' is de derde weergave; via ?view=agenda direct te openen
+  // (nav-link "Agenda" in de header).
+  const [searchParams] = useSearchParams()
+  const [view, setView] = useState(searchParams.get('view') === 'agenda' ? 'agenda' : 'board') // 'board' | 'list' | 'agenda'
+  useEffect(() => {
+    if (searchParams.get('view') === 'agenda') setView('agenda')
+  }, [searchParams])
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
   const [showNew, setShowNew] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [creating, setCreating] = useState(false)
   const [search, setSearch] = useState('')
   const [sourceFilter, setSourceFilter] = useState('')
+  const [showSources, setShowSources] = useState(false)
+  const { sources: managedSources, addSource, renameSource, removeSource } = useLeadSources()
 
   const [showImport, setShowImport] = useState(false)
   const [importText, setImportText] = useState('')
@@ -67,7 +109,8 @@ export default function Recruitment() {
 
   const [draggingId, setDraggingId] = useState(null)
   const [dragOverColumn, setDragOverColumn] = useState(null)
-  const [tbaPrompt, setTbaPrompt] = useState(null) // { leadId, value }
+  // Datum-prompt bij slepen naar TBA of Gesprek gepland: { leadId, value, column }
+  const [datePrompt, setDatePrompt] = useState(null)
 
   const [editLead, setEditLead] = useState(null)
   const [editForm, setEditForm] = useState(EMPTY_FORM)
@@ -95,19 +138,71 @@ export default function Recruitment() {
     [leads, homeList]
   )
 
-  // Alle bronnen die deze recruiter ooit heeft gebruikt - basis voor het
-  // filter-dropdown én de suggesties bij "Nieuwe sollicitant" / import.
-  const sources = useMemo(() => {
-    const byLower = new Map()
+  // v57: de agenda kijkt over ALLE recruitment-lijsten die deze gebruiker mag
+  // zien - voor de recruiter is dat zijn eigen lijst, voor admin die van alle
+  // recruiters. Gesprekken (appointment_at) zijn voor iedereen met toegang
+  // zichtbaar; terugbelmomenten blijven prive van de beller (v27/v36f), dus
+  // alleen de eigen TBA's staan in de agenda.
+  const agendaItems = useMemo(() => {
+    const listIds = new Set(recruitmentLists.map(l => l.id))
+    const items = []
+    leads.forEach(l => {
+      if (!listIds.has(l.lead_list_id)) return
+      if (l.appointment_at && !AGENDA_HIDDEN_STATUSES.includes(l.status)) {
+        items.push({ id: `i-${l.id}`, kind: 'interview', at: new Date(l.appointment_at), lead: l })
+      }
+      if (l.status === 'terugbelafspraak' && l.next_contact_date && l.assigned_to === user?.id) {
+        items.push({ id: `t-${l.id}`, kind: 'tba', at: new Date(l.next_contact_date), lead: l })
+      }
+    })
+    return items.filter(i => !isNaN(i.at)).sort((a, b) => a.at - b.at)
+  }, [leads, recruitmentLists, user?.id])
+
+  // "Gesprek gepland" zonder datum: staat op het bord maar nog niet in de agenda
+  const unscheduledInterviews = useMemo(
+    () => baseApplicants.filter(l => l.status === 'afspraak_gemaakt' && !l.appointment_at),
+    [baseApplicants]
+  )
+
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart])
+  const weekItems = useMemo(() => {
+    const end = addDays(weekStart, 7)
+    return agendaItems.filter(i => i.at >= weekStart && i.at < end)
+  }, [agendaItems, weekStart])
+  const upcomingCount = useMemo(() => {
+    const now = new Date()
+    return agendaItems.filter(i => i.kind === 'interview' && i.at >= now).length
+  }, [agendaItems])
+
+  // Aantal sollicitanten per bron (hoofdletter-ongevoelig) - voor het filter
+  // en de beheer-modal.
+  const sourceCounts = useMemo(() => {
+    const m = new Map()
+    baseApplicants.forEach(l => {
+      const k = (l.lead_source || '').trim().toLowerCase()
+      if (k) m.set(k, (m.get(k) || 0) + 1)
+    })
+    return m
+  }, [baseApplicants])
+
+  // Filter-opties: de beheerde bronnen, aangevuld met bron-teksten die nog
+  // op sollicitanten staan maar (niet meer) in de beheerde lijst zitten -
+  // anders kun je die sollicitanten niet meer terugvinden via het filter.
+  const filterSources = useMemo(() => {
+    const seen = new Set()
+    const out = []
+    managedSources.forEach(s => {
+      const k = s.name.trim().toLowerCase()
+      if (!seen.has(k)) { seen.add(k); out.push({ name: s.name, count: sourceCounts.get(k) || 0, managed: true }) }
+    })
     baseApplicants.forEach(l => {
       const v = (l.lead_source || '').trim()
-      if (v && !byLower.has(v.toLowerCase())) byLower.set(v.toLowerCase(), v)
+      const k = v.toLowerCase()
+      if (v && !seen.has(k)) { seen.add(k); out.push({ name: v, count: sourceCounts.get(k) || 0, managed: false }) }
     })
-    DEFAULT_SOURCE_SUGGESTIONS.forEach(v => {
-      if (!byLower.has(v.toLowerCase())) byLower.set(v.toLowerCase(), v)
-    })
-    return Array.from(byLower.values()).sort((a, b) => a.localeCompare(b))
-  }, [baseApplicants])
+    return out.sort((a, b) => a.name.localeCompare(b.name))
+  }, [managedSources, baseApplicants, sourceCounts])
+  const legacySourceValues = useMemo(() => filterSources.filter(f => !f.managed).map(f => f.name), [filterSources])
 
   const applicants = useMemo(() => {
     let list = baseApplicants
@@ -178,7 +273,8 @@ export default function Recruitment() {
       function: lead.function || '',
       lead_source: lead.lead_source || '',
       notes: lead.notes || '',
-      cv_link: lead.extra_info1 || ''
+      cv_link: lead.extra_info1 || '',
+      appointment_at: toLocalInput(lead.appointment_at)
     })
     setEditLead(lead)
   }
@@ -188,18 +284,26 @@ export default function Recruitment() {
     if (!editLead || !editForm.name.trim() || !editForm.phone.trim()) return
     setSavingEdit(true)
     try {
-      const { error } = await supabase.from('leads').update({
+      // v57: gespreksdatum. Wordt er voor het eerst een datum gezet terwijl
+      // de sollicitant nog niet op "Gesprek gepland"/"Aangenomen" staat, dan
+      // schuift hij mee naar Gesprek gepland - een datum plannen IS inplannen.
+      const appointmentIso = editForm.appointment_at ? new Date(editForm.appointment_at).toISOString() : null
+      const updates = {
         name: editForm.name.trim(),
         phone: editForm.phone.trim(),
         email: editForm.email.trim() || null,
         function: editForm.function.trim() || null,
         notes: editForm.notes.trim() || '',
         lead_source: editForm.lead_source.trim() || null,
-        extra_info1: editForm.cv_link.trim() || null
-      }).eq('id', editLead.id)
+        extra_info1: editForm.cv_link.trim() || null,
+        appointment_at: appointmentIso
+      }
+      const becomesScheduled = !!appointmentIso && !editLead.appointment_at && !['afspraak_gemaakt', 'deal'].includes(editLead.status)
+      if (becomesScheduled) updates.status = 'afspraak_gemaakt'
+      const { error } = await supabase.from('leads').update(updates).eq('id', editLead.id)
       if (error) throw error
-      toast('Sollicitant bijgewerkt', 'success')
-      logActivity(editLead.id, 'edit', 'Gegevens bijgewerkt')
+      toast(becomesScheduled ? 'Gesprek ingepland' : 'Sollicitant bijgewerkt', 'success')
+      logActivity(editLead.id, becomesScheduled ? 'status_change' : 'edit', becomesScheduled ? `Gesprek ingepland op ${formatDateTime(appointmentIso)}` : 'Gegevens bijgewerkt')
       setEditLead(null)
       fetchLeads()
     } catch (err) {
@@ -225,6 +329,7 @@ export default function Recruitment() {
       Status: getStatusDetails(l.status, true).label,
       Toegevoegd: formatDateTime(l.created_at),
       Terugbelmoment: l.status === 'terugbelafspraak' ? formatDateTime(l.next_contact_date) : '',
+      Gesprek: l.appointment_at ? formatDateTime(l.appointment_at) : '',
       Notities: (l.notes || '').replace(/\n/g, ' | ')
     }))
     const suffix = sourceFilter ? sourceFilter.toLowerCase().replace(/[^a-z0-9]+/g, '_') : 'alle_bronnen'
@@ -245,17 +350,26 @@ export default function Recruitment() {
     const lead = baseApplicants.find(l => l.id === leadId)
     if (!lead || column.statuses.includes(lead.status)) return
     if (column.needsDate) {
-      setTbaPrompt({ leadId, value: defaultTbaDateTimeLocal() })
+      openDatePrompt(lead, column)
       return
     }
     moveApplicant(leadId, column.dropStatus)
   }
 
-  function confirmTba() {
-    if (!tbaPrompt?.value) return
-    const iso = new Date(tbaPrompt.value).toISOString()
-    moveApplicant(tbaPrompt.leadId, 'terugbelafspraak', { next_contact_date: iso })
-    setTbaPrompt(null)
+  function openDatePrompt(lead, column) {
+    const existing = toLocalInput(lead[column.dateField])
+    setDatePrompt({ leadId: lead.id, value: existing || defaultTbaDateTimeLocal(), column })
+  }
+
+  function confirmDatePrompt() {
+    if (!datePrompt?.value) return
+    const { leadId, column } = datePrompt
+    const iso = new Date(datePrompt.value).toISOString()
+    const extra = { [column.dateField]: iso }
+    // Gesprek plannen: een eventueel nog openstaand terugbelmoment vervalt
+    if (column.dateField === 'appointment_at') extra.next_contact_date = null
+    moveApplicant(leadId, column.dropStatus, extra)
+    setDatePrompt(null)
   }
 
   // ---------- Import ----------
@@ -313,6 +427,10 @@ export default function Recruitment() {
       }))
       const { error } = await supabase.from('leads').insert(payload)
       if (error) throw error
+      // v56: bronnen uit de import-rijen die nog niet bestaan worden meteen
+      // beheerde bronnen, zodat ze direct in het filter en de dropdowns staan.
+      const newNames = new Set(payload.map(r => r.lead_source).filter(Boolean))
+      for (const n of newNames) { try { await addSource(n) } catch { /* best effort */ } }
       toast(`${payload.length} sollicitant${payload.length === 1 ? '' : 'en'} geïmporteerd`, 'success')
       setImportText('')
       setImportSource('')
@@ -405,9 +523,12 @@ export default function Recruitment() {
               <div className="flex items-center gap-2" style={{ flex: '0 0 auto' }}>
                 <Filter size={16} style={{ color: 'var(--text-muted)' }} />
                 <select value={sourceFilter} onChange={e => setSourceFilter(e.target.value)} style={{ padding: '9px 12px', minWidth: '160px' }}>
-                  <option value="">Alle bronnen</option>
-                  {sources.map(s => <option key={s} value={s}>{s}</option>)}
+                  <option value="">Alle bronnen ({baseApplicants.length})</option>
+                  {filterSources.map(s => <option key={s.name} value={s.name}>{s.name} ({s.count})</option>)}
                 </select>
+                <button className="btn btn-outline btn-sm" onClick={() => setShowSources(true)} title="Bronnen aanmaken, hernoemen of verwijderen">
+                  <Tag size={15} /> Bronnen
+                </button>
               </div>
 
               <div className="flex" style={{ background: 'var(--bg-elevated)', borderRadius: '8px', padding: '3px', gap: '2px' }}>
@@ -635,16 +756,14 @@ export default function Recruitment() {
                 <div className="grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="form-group">
                     <label>Bron</label>
-                    <input
-                      type="text"
-                      list="recruiter-sources"
+                    <SourceSelect
                       value={form.lead_source}
-                      onChange={e => setForm({ ...form, lead_source: e.target.value })}
-                      placeholder="Typ of kies een bron..."
+                      onChange={v => setForm({ ...form, lead_source: v })}
+                      sources={managedSources}
+                      onAdd={addSource}
+                      allowEmpty
+                      emptyLabel="Kies een bron..."
                     />
-                    <datalist id="recruiter-sources">
-                      {sources.map(s => <option key={s} value={s} />)}
-                    </datalist>
                   </div>
                   <div className="form-group">
                     <label>CV / LinkedIn-link</label>
@@ -696,16 +815,15 @@ export default function Recruitment() {
                 <div className="grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="form-group">
                     <label>Bron</label>
-                    <input
-                      type="text"
-                      list="recruiter-sources-edit"
+                    <SourceSelect
                       value={editForm.lead_source}
-                      onChange={e => setEditForm({ ...editForm, lead_source: e.target.value })}
-                      placeholder="Typ of kies een bron..."
+                      onChange={v => setEditForm({ ...editForm, lead_source: v })}
+                      sources={managedSources}
+                      onAdd={addSource}
+                      allowEmpty
+                      emptyLabel="Geen bron"
+                      extraValues={legacySourceValues}
                     />
-                    <datalist id="recruiter-sources-edit">
-                      {sources.map(s => <option key={s} value={s} />)}
-                    </datalist>
                   </div>
                   <div className="form-group">
                     <label>CV / LinkedIn-link</label>
@@ -762,12 +880,13 @@ export default function Recruitment() {
 
               <div className="form-group">
                 <label>Standaardbron (als een rij geen bron heeft)</label>
-                <input
-                  type="text"
-                  list="recruiter-sources"
+                <SourceSelect
                   value={importSource}
-                  onChange={e => setImportSource(e.target.value)}
-                  placeholder="bv. Indeed-bulkimport"
+                  onChange={setImportSource}
+                  sources={managedSources}
+                  onAdd={addSource}
+                  allowEmpty
+                  emptyLabel="Geen standaardbron (wordt 'import')"
                 />
               </div>
 
@@ -805,6 +924,17 @@ export default function Recruitment() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* v56: bronnen beheren */}
+      <ManageSourcesModal
+        isOpen={showSources}
+        onClose={() => setShowSources(false)}
+        sources={managedSources}
+        counts={sourceCounts}
+        onAdd={addSource}
+        onRename={async (id, name) => { await renameSource(id, name); fetchLeads() }}
+        onRemove={removeSource}
+      />
     </motion.div>
   )
 }

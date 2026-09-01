@@ -8,6 +8,8 @@ import { useLeads } from '../hooks/useLeads'
 import { levelInfo } from '../utils/xpUtils'
 import { effectiveSeconds } from '../utils/callTimeUtils'
 import { useLeadLists } from '../hooks/useLeadLists'
+import { useLeadSources } from '../hooks/useLeadSources'
+import { SourceSelect } from '../components/LeadSources'
 import { STATUS_MAP } from '../utils/statusUtils'
 import TeamLeaderboard from '../components/TeamLeaderboard'
 import Chat from '../components/Chat'
@@ -26,6 +28,7 @@ export default function Dashboard() {
   const toast = useToast()
   const { leads, fetchLeads, createLead } = useLeads()
   const { leadLists, loading: leadListsLoading } = useLeadLists()
+  const { sources: managedSources, addSource } = useLeadSources() // v56: beheerde bronnen
   const [showNewLeadModal, setShowNewLeadModal] = useState(false)
   const [newLead, setNewLead] = useState({
     name: '',
@@ -433,11 +436,13 @@ export default function Dashboard() {
                 <div className="grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                   <div className="form-group">
                     <label>Bron</label>
-                    <select value={newLead.lead_source} onChange={e => setNewLead({...newLead, lead_source: e.target.value})} style={{ padding: '14px 16px', fontSize: '1rem' }}>
-                      <option value="cold">Cold Call</option>
-                      <option value="linkedin">LinkedIn</option>
-                      <option value="referral">Referral</option>
-                    </select>
+                    <SourceSelect
+                      value={newLead.lead_source}
+                      onChange={v => setNewLead({...newLead, lead_source: v})}
+                      sources={managedSources}
+                      onAdd={addSource}
+                      style={{ padding: '14px 16px', fontSize: '1rem' }}
+                    />
                   </div>
                   <div className="form-group">
                     <label>Toewijzen aan</label>

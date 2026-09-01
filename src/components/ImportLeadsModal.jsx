@@ -4,6 +4,8 @@ import { X, Upload, ClipboardPaste, FileSpreadsheet, ArrowRight, ArrowLeft, Chec
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
+import { useLeadSources } from '../hooks/useLeadSources'
+import { SourceSelect } from './LeadSources'
 import { normalizeWebsite, displayWebsite } from '../utils/urlUtils'
 import { useToast } from './Toast'
 
@@ -218,7 +220,6 @@ function guessFieldForColumn(values) {
 // v40: standaardbron voor deze import - zelfde vrije-tekst-aanpak als Recruitment.jsx,
 // met de bestaande vaste codes (cold/linkedin/referral) als suggestie zodat oude en
 // nieuwe leads dezelfde waarden gebruiken.
-const DEFAULT_SOURCE_SUGGESTIONS = ['cold', 'linkedin', 'referral']
 
 export default function ImportLeadsModal({ isOpen, onClose, onImported, initialMode = 'import' }) {
   const { user, profile, isDemoMode } = useAuth()
@@ -245,7 +246,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
   const [targetListId, setTargetListId] = useState('')
   const [newListName, setNewListName] = useState('')
   const [importSource, setImportSource] = useState('') // v40: bron die voor de hele import geldt
-  const [sourceSuggestions, setSourceSuggestions] = useState(DEFAULT_SOURCE_SUGGESTIONS)
+  const { sources: managedSources, addSource } = useLeadSources() // v56: beheerde bronnen
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState(null)
   const [fileName, setFileName] = useState('')
@@ -268,17 +269,6 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
       .then(({ data }) => setCampaigns(data || []))
     supabase.from('teams').select('id, name').order('name')
       .then(({ data }) => setTeams(data || []))
-    // v40: bronnen die al eerder gebruikt zijn, als suggestie bij "Standaardbron"
-    supabase.from('leads').select('lead_source').not('lead_source', 'is', null).limit(3000)
-      .then(({ data }) => {
-        const byLower = new Map()
-        DEFAULT_SOURCE_SUGGESTIONS.forEach(v => byLower.set(v.toLowerCase(), v))
-        ;(data || []).forEach(d => {
-          const v = (d.lead_source || '').trim()
-          if (v && !byLower.has(v.toLowerCase())) byLower.set(v.toLowerCase(), v)
-        })
-        setSourceSuggestions(Array.from(byLower.values()).sort((a, b) => a.localeCompare(b)))
-      })
   }, [isOpen, isDemoMode])
 
   function reset() {
@@ -719,6 +709,10 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         inserted += chunk.length
       }
 
+      // v56: bronnen uit de import die nog niet bestaan worden beheerde bronnen
+      const newSourceNames = new Set(toInsert.map(l => l.lead_source).filter(Boolean))
+      for (const n of newSourceNames) { try { await addSource(n) } catch { /* best effort */ } }
+
       await fetchLeadLists()
       setResult({
         inserted,
@@ -876,17 +870,15 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                       <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 800, marginBottom: '10px', color: 'var(--text-primary)', fontSize: '0.9rem' }}>
                         <Sparkles size={15} style={{ color: 'var(--primary)' }} /> 3. Bron (optioneel)
                       </label>
-                      <input
-                        type="text"
-                        list="import-source-suggestions"
+                      <SourceSelect
                         value={importSource}
-                        onChange={e => setImportSource(e.target.value)}
-                        placeholder="bv. cold, linkedin, referral, beurs..."
+                        onChange={setImportSource}
+                        sources={managedSources}
+                        onAdd={addSource}
+                        allowEmpty
+                        emptyLabel="Geen standaardbron (wordt 'cold')"
                         style={{ width: '100%', padding: '11px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600 }}
                       />
-                      <datalist id="import-source-suggestions">
-                        {sourceSuggestions.map(s => <option key={s} value={s} />)}
-                      </datalist>
                       <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                         Geldt voor de hele import. Map hierboven een kolom op "Bron" als de bron per rij verschilt - die overschrijft dit veld dan per lead.
                       </p>
