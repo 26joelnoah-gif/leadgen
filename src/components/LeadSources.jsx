@@ -239,13 +239,13 @@ export function ManageSourcesModal({ isOpen, onClose, sources = [], counts, onAd
                           <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                             {n ? `${n} lead${n === 1 ? '' : 's'} houden hun bron-tekst.` : 'Verwijderen?'}
                           </span>
-                          <button type="button" className="btn btn-sm" onClick={() => handleRemove(s.id)} disabled={busy} style={{ background: '#EF4444', color: '#fff' }} title="Definitief verwijderen"><Trash2 size={14} /></button>
+                          <button type="button" className="btn btn-sm" onClick={() => handleRemove(s.id)} disabled={busy} style={{ background: '#EF4444', color: '#fff', fontWeight: 700, whiteSpace: 'nowrap' }} title="Definitief verwijderen"><Trash2 size={14} /> Ja, verwijderen</button>
                           <button type="button" className="btn btn-outline btn-sm" onClick={() => setConfirmId(null)} title="Annuleren"><X size={14} /></button>
                         </>
                       ) : (
                         <>
                           <button type="button" className="btn btn-outline btn-sm" onClick={() => { setEditingId(s.id); setEditName(s.name); setConfirmId(null) }} title="Hernoemen"><Pencil size={14} /></button>
-                          <button type="button" className="btn btn-outline btn-sm" onClick={() => { setConfirmId(s.id); setEditingId(null) }} title="Verwijderen"><Trash2 size={14} /></button>
+                          <button type="button" className="btn btn-outline btn-sm" onClick={() => { setConfirmId(s.id); setEditingId(null) }} title="Verwijderen" style={{ color: '#EF4444' }}><Trash2 size={14} /></button>
                         </>
                       )}
                     </div>

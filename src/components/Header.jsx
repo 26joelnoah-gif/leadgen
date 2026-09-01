@@ -33,6 +33,8 @@ export default function Header({ onOpenSettings }) {
         { path: '/recruitment', label: 'Sollicitanten' },
         // v57: agenda met ingeplande gesprekken (zelfde pagina, ?view=agenda)
         { path: '/recruitment?view=agenda', label: 'Agenda' },
+        // v58: referral-overzicht (zelfde pagina, ?view=referrals)
+        { path: '/recruitment?view=referrals', label: 'Referrals' },
         { path: '/tba', label: 'TBA\'s' },
         { path: '/roosters', label: 'Roosters' }
       ]

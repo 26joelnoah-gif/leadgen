@@ -4,13 +4,14 @@ import { Navigate, Link, useSearchParams } from 'react-router-dom'
 import {
   Plus, Phone, Search, X, UserPlus, Users, Clock, RefreshCw, ExternalLink,
   LayoutGrid, List as ListIcon, Download, Upload, AlertTriangle, Filter, Tag,
-  CalendarDays, ChevronLeft, ChevronRight
+  CalendarDays, ChevronLeft, ChevronRight, Gift
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
 import { useLeadLists } from '../hooks/useLeadLists'
 import { useLeadSources } from '../hooks/useLeadSources'
 import { SourceSelect, ManageSourcesModal } from '../components/LeadSources'
+import ReferralOverview from '../components/ReferralOverview'
 import { supabase } from '../lib/supabase'
 import { getStatusDetails } from '../utils/statusUtils'
 import { formatDateTime, formatTime } from '../utils/dateUtils'
@@ -27,7 +28,7 @@ import { useToast } from '../components/Toast'
 // hier verpakt met sollicitant-taal, een kanban-bord, beheerde bronnen
 // (v56: tabel lead_sources - aanmaken/hernoemen/verwijderen + filter met
 // aantallen) en een eigen import/export.
-const EMPTY_FORM = { name: '', phone: '', email: '', function: '', lead_source: '', notes: '', cv_link: '', appointment_at: '' }
+const EMPTY_FORM = { name: '', phone: '', email: '', function: '', lead_source: '', notes: '', cv_link: '', appointment_at: '', referred_by: '' }
 
 // Kanban-kolommen. dropStatus = status die gezet wordt als je een kaart hier
 // op laat vallen; needsDate = vraagt eerst om een datum: het terugbelmoment
@@ -88,9 +89,13 @@ export default function Recruitment() {
   // v57: 'agenda' is de derde weergave; via ?view=agenda direct te openen
   // (nav-link "Agenda" in de header).
   const [searchParams] = useSearchParams()
-  const [view, setView] = useState(searchParams.get('view') === 'agenda' ? 'agenda' : 'board') // 'board' | 'list' | 'agenda'
+  // v58: 'referrals' is de vierde weergave (?view=referrals, nav-link "Referrals").
+  const VIEW_PARAMS = ['agenda', 'referrals']
+  const initialView = VIEW_PARAMS.includes(searchParams.get('view')) ? searchParams.get('view') : 'board'
+  const [view, setView] = useState(initialView) // 'board' | 'list' | 'agenda' | 'referrals'
   useEffect(() => {
-    if (searchParams.get('view') === 'agenda') setView('agenda')
+    const v = searchParams.get('view')
+    if (VIEW_PARAMS.includes(v)) setView(v)
   }, [searchParams])
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
   const [showNew, setShowNew] = useState(false)
@@ -100,6 +105,18 @@ export default function Recruitment() {
   const [sourceFilter, setSourceFilter] = useState('')
   const [showSources, setShowSources] = useState(false)
   const { sources: managedSources, addSource, renameSource, removeSource } = useLeadSources()
+
+  // v58: referrals. Verwijzer = bestaande medewerker (profiel in de org);
+  // roosterdagen van aangenomen referrals via RPC referral_roster_days.
+  const [orgProfiles, setOrgProfiles] = useState([])
+  const [rosterDays, setRosterDays] = useState(() => new Map())
+  const [rosterLoading, setRosterLoading] = useState(false)
+  useEffect(() => {
+    let alive = true
+    supabase.from('profiles').select('id, full_name, email, role, is_active').order('full_name')
+      .then(({ data }) => { if (alive) setOrgProfiles(data || []) })
+    return () => { alive = false }
+  }, [])
 
   const [showImport, setShowImport] = useState(false)
   const [importText, setImportText] = useState('')
@@ -137,6 +154,46 @@ export default function Recruitment() {
     () => (homeList ? leads.filter(l => l.lead_list_id === homeList.id) : leads),
     [leads, homeList]
   )
+
+  const hiredProfileKey = useMemo(
+    () => [...new Set(baseApplicants.filter(l => l.referred_by && l.hired_profile_id).map(l => l.hired_profile_id))].sort().join(','),
+    [baseApplicants]
+  )
+  useEffect(() => {
+    if (!hiredProfileKey) { setRosterDays(new Map()); return }
+    let alive = true
+    setRosterLoading(true)
+    supabase.rpc('referral_roster_days', { p_profile_ids: hiredProfileKey.split(',') })
+      .then(({ data, error }) => {
+        if (!alive) return
+        if (error) { console.error('referral_roster_days', error); return }
+        setRosterDays(new Map((data || []).map(r => [r.profile_id, r.days])))
+      })
+      .finally(() => { if (alive) setRosterLoading(false) })
+    return () => { alive = false }
+  }, [hiredProfileKey])
+
+  const referralCount = useMemo(() => baseApplicants.filter(l => l.referred_by).length, [baseApplicants])
+  const canApproveReferral = profile?.role === 'recruiter' || profile?.role === 'admin'
+
+  async function handleLinkHiredProfile(lead, profileId) {
+    const { error } = await supabase.from('leads').update({ hired_profile_id: profileId }).eq('id', lead.id)
+    if (error) { toast(error.message, 'error'); return }
+    const p = orgProfiles.find(x => x.id === profileId)
+    toast(profileId ? `Gekoppeld aan ${p?.full_name || 'account'}` : 'Koppeling verwijderd', 'success')
+    logActivity(lead.id, 'edit', profileId ? `Gekoppeld aan medewerkersaccount ${p?.full_name || ''}`.trim() : 'Koppeling met medewerkersaccount verwijderd')
+    fetchLeads()
+  }
+
+  async function handleApproveReferralBonus(lead) {
+    const { error } = await supabase.from('leads')
+      .update({ referral_bonus_approved_at: new Date().toISOString(), referral_bonus_approved_by: user.id })
+      .eq('id', lead.id)
+    if (error) { toast(error.message, 'error'); return }
+    toast('Referralbonus goedgekeurd', 'success')
+    logActivity(lead.id, 'edit', 'Referralbonus goedgekeurd')
+    fetchLeads()
+  }
 
   // v57: de agenda kijkt over ALLE recruitment-lijsten die deze gebruiker mag
   // zien - voor de recruiter is dat zijn eigen lijst, voor admin die van alle
@@ -246,6 +303,7 @@ export default function Recruitment() {
         notes: form.notes.trim() || '',
         lead_source: form.lead_source.trim() || 'sollicitatie',
         extra_info1: form.cv_link.trim() || null,
+        referred_by: form.referred_by || null,
         status: 'new',
         assigned_to: user.id,
         created_by: user.id,
@@ -274,7 +332,8 @@ export default function Recruitment() {
       lead_source: lead.lead_source || '',
       notes: lead.notes || '',
       cv_link: lead.extra_info1 || '',
-      appointment_at: toLocalInput(lead.appointment_at)
+      appointment_at: toLocalInput(lead.appointment_at),
+      referred_by: lead.referred_by || ''
     })
     setEditLead(lead)
   }
@@ -296,7 +355,8 @@ export default function Recruitment() {
         notes: editForm.notes.trim() || '',
         lead_source: editForm.lead_source.trim() || null,
         extra_info1: editForm.cv_link.trim() || null,
-        appointment_at: appointmentIso
+        appointment_at: appointmentIso,
+        referred_by: editForm.referred_by || null
       }
       const becomesScheduled = !!appointmentIso && !editLead.appointment_at && !['afspraak_gemaakt', 'deal'].includes(editLead.status)
       if (becomesScheduled) updates.status = 'afspraak_gemaakt'
@@ -556,6 +616,14 @@ export default function Recruitment() {
                 >
                   <CalendarDays size={15} /> Agenda{upcomingCount > 0 ? ` (${upcomingCount})` : ''}
                 </button>
+                <button
+                  onClick={() => setView('referrals')}
+                  className="btn btn-sm"
+                  style={{ background: view === 'referrals' ? 'var(--primary)' : 'transparent', color: view === 'referrals' ? 'var(--text-on-accent)' : 'var(--text-muted)' }}
+                  title="Referrals: aangedragen sollicitanten, roosterdagen en bonus-goedkeuring"
+                >
+                  <Gift size={15} /> Referrals{referralCount > 0 ? ` (${referralCount})` : ''}
+                </button>
               </div>
 
               <button className="btn btn-outline btn-sm" onClick={handleExportCSV} disabled={!applicants.length}>
@@ -565,6 +633,17 @@ export default function Recruitment() {
 
             {loading ? (
               <LoadingSpinner size="large" />
+            ) : view === 'referrals' ? (
+              <ReferralOverview
+                applicants={applicants}
+                profiles={orgProfiles}
+                rosterDays={rosterDays}
+                rosterLoading={rosterLoading}
+                canApprove={canApproveReferral}
+                onLinkProfile={handleLinkHiredProfile}
+                onApprove={handleApproveReferralBonus}
+                onOpenLead={openEdit}
+              />
             ) : view === 'agenda' ? (
               <div>
                 <div className="card flex items-center justify-between mb-3" style={{ padding: '12px 16px', gap: '12px', flexWrap: 'wrap' }}>
@@ -886,6 +965,15 @@ export default function Recruitment() {
                   </div>
                 </div>
                 <div className="form-group">
+                  <label>Aangedragen door (referral)</label>
+                  <select value={form.referred_by} onChange={e => setForm({ ...form, referred_by: e.target.value })}>
+                    <option value="">Niet via een medewerker</option>
+                    {orgProfiles.filter(p => p.is_active !== false).map(p => (
+                      <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
                   <label>Motivatie / notities</label>
                   <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} placeholder="Extra informatie over deze sollicitant..." rows={4} />
                 </div>
@@ -954,6 +1042,15 @@ export default function Recruitment() {
                     onChange={e => setEditForm({ ...editForm, appointment_at: e.target.value })}
                   />
                   <small className="text-muted" style={{ fontSize: '0.72rem' }}>Zichtbaar in de agenda. Datum kiezen zet de sollicitant op "Gesprek gepland"; leegmaken haalt hem uit de agenda.</small>
+                </div>
+                <div className="form-group">
+                  <label>Aangedragen door (referral)</label>
+                  <select value={editForm.referred_by} onChange={e => setEditForm({ ...editForm, referred_by: e.target.value })}>
+                    <option value="">Niet via een medewerker</option>
+                    {orgProfiles.filter(p => p.is_active !== false || p.id === editForm.referred_by).map(p => (
+                      <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
+                    ))}
+                  </select>
                 </div>
                 <div className="form-group">
                   <label>Motivatie / notities</label>
