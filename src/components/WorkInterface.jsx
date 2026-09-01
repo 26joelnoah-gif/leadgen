@@ -800,9 +800,13 @@ export default function WorkInterface() {
                   </h2>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {(selectedDisposition === 'terugbelafspraak' || selectedDisposition === 'later_bellen') && (
+                    {(selectedDisposition === 'terugbelafspraak' || selectedDisposition === 'later_bellen' || (isRecruitmentCampaign && selectedDisposition === 'afspraak_gemaakt')) && (
                       <div>
-                        <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>Wanneer moet er teruggebeld worden?</label>
+                        {/* v57: in recruitment-modus is de datum bij GESPREK GEPLAND het
+                            gesprek zelf (leads.appointment_at, zichtbaar in de agenda) */}
+                        <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>
+                          {selectedDisposition === 'afspraak_gemaakt' ? 'Wanneer is het gesprek?' : 'Wanneer moet er teruggebeld worden?'}
+                        </label>
                         <input
                           type="datetime-local"
                           step="900"

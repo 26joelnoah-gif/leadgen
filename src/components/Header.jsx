@@ -31,6 +31,8 @@ export default function Header({ onOpenSettings }) {
     : isRecruiter
     ? [
         { path: '/recruitment', label: 'Sollicitanten' },
+        // v57: agenda met ingeplande gesprekken (zelfde pagina, ?view=agenda)
+        { path: '/recruitment?view=agenda', label: 'Agenda' },
         { path: '/tba', label: 'TBA\'s' },
         { path: '/roosters', label: 'Roosters' }
       ]
@@ -53,9 +55,19 @@ export default function Header({ onOpenSettings }) {
     { path: '/admin/payouts', label: 'Payouts' },
     { path: '/admin/telemetry', label: 'Telemetrie' },
     { path: '/kanban', label: 'Kanban' },
+    // v57: admin kan de sollicitanten + agenda van de recruiter(s) inzien
+    { path: '/recruitment', label: 'Sollicitanten' },
   ]
 
-  const isActive = (path) => location.pathname === path
+  // Links met een query (bv. ?view=agenda) zijn alleen actief als die query
+  // ook echt in de URL staat; de kale variant is dan juist niet actief.
+  const isActive = (path) => {
+    const [p, q] = path.split('?')
+    if (location.pathname !== p) return false
+    if (q) return location.search.includes(q)
+    const sibling = [...navLinks, ...adminLinks].some(l => l.path.startsWith(`${p}?`) && location.search.includes(l.path.split('?')[1]))
+    return !sibling
+  }
 
   return (
     <header className="header">

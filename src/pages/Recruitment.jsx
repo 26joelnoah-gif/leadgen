@@ -453,7 +453,7 @@ export default function Recruitment() {
         <div className="page-header flex justify-between items-end" style={{ flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <h1>Sollicitanten</h1>
-            <p>Voeg sollicitanten toe of laad ze in, houd het bord bij en bel na - inclusief terugbelafspraken (TBA's).</p>
+            <p>Voeg sollicitanten toe of laad ze in, houd het bord bij, bel na en plan gesprekken in de agenda.</p>
           </div>
           <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
             <button className="btn btn-outline btn-sm" onClick={fetchLeads}>
@@ -548,6 +548,14 @@ export default function Recruitment() {
                 >
                   <ListIcon size={15} /> Lijst
                 </button>
+                <button
+                  onClick={() => setView('agenda')}
+                  className="btn btn-sm"
+                  style={{ background: view === 'agenda' ? 'var(--primary)' : 'transparent', color: view === 'agenda' ? 'var(--text-on-accent)' : 'var(--text-muted)' }}
+                  title="Agenda: ingeplande gesprekken en terugbelmomenten"
+                >
+                  <CalendarDays size={15} /> Agenda{upcomingCount > 0 ? ` (${upcomingCount})` : ''}
+                </button>
               </div>
 
               <button className="btn btn-outline btn-sm" onClick={handleExportCSV} disabled={!applicants.length}>
@@ -557,6 +565,102 @@ export default function Recruitment() {
 
             {loading ? (
               <LoadingSpinner size="large" />
+            ) : view === 'agenda' ? (
+              <div>
+                <div className="card flex items-center justify-between mb-3" style={{ padding: '12px 16px', gap: '12px', flexWrap: 'wrap' }}>
+                  <div className="flex items-center gap-2">
+                    <button className="btn btn-outline btn-sm" onClick={() => setWeekStart(addDays(weekStart, -7))} title="Vorige week"><ChevronLeft size={16} /></button>
+                    <button className="btn btn-outline btn-sm" onClick={() => setWeekStart(startOfWeek(new Date()))}>Vandaag</button>
+                    <button className="btn btn-outline btn-sm" onClick={() => setWeekStart(addDays(weekStart, 7))} title="Volgende week"><ChevronRight size={16} /></button>
+                    <strong style={{ marginLeft: '8px', fontSize: '0.95rem' }}>
+                      {weekDays[0].toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })} - {weekDays[6].toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    </strong>
+                    <span className="text-muted" style={{ fontSize: '0.8rem' }}>· {weekItems.length} item{weekItems.length === 1 ? '' : 's'}</span>
+                  </div>
+                  <div className="flex items-center gap-3" style={{ fontSize: '0.75rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+                    <span className="flex items-center gap-1"><span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--primary)', display: 'inline-block' }} /> Gesprek</span>
+                    <span className="flex items-center gap-1"><span style={{ width: 10, height: 10, borderRadius: 3, background: 'var(--secondary)', display: 'inline-block' }} /> Terugbellen (alleen eigen TBA's)</span>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(120px, 1fr))', gap: '8px', overflowX: 'auto', paddingBottom: '8px' }}>
+                  {weekDays.map(day => {
+                    const isToday = sameDay(day, new Date())
+                    const dayItems = weekItems.filter(i => sameDay(i.at, day))
+                    return (
+                      <div
+                        key={day.toISOString()}
+                        style={{
+                          minWidth: 0, background: 'var(--bg-card)', border: `1px solid ${isToday ? 'var(--primary)' : 'var(--border)'}`,
+                          borderRadius: '10px', padding: '7px', minHeight: '220px', display: 'flex', flexDirection: 'column'
+                        }}
+                      >
+                        <div style={{ padding: '3px 4px 8px', borderBottom: `2px solid ${isToday ? 'var(--primary)' : 'var(--border)'}`, marginBottom: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                          <span style={{ fontWeight: 800, fontSize: '0.72rem', color: isToday ? 'var(--primary)' : 'var(--text-muted)', textTransform: 'uppercase' }}>
+                            {DAY_NAMES[(day.getDay() + 6) % 7]}
+                          </span>
+                          <span style={{ fontWeight: 800, fontSize: '0.95rem', color: isToday ? 'var(--primary)' : 'var(--text-primary)' }}>{day.getDate()}</span>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', flex: 1 }}>
+                          {dayItems.map(item => {
+                            const color = item.kind === 'interview' ? 'var(--primary)' : 'var(--secondary)'
+                            const past = item.at < new Date()
+                            return (
+                              <div
+                                key={item.id}
+                                onClick={() => openEdit(item.lead)}
+                                title={item.kind === 'interview' ? 'Gesprek - klik om te bewerken' : 'Terugbelmoment - klik om te bewerken'}
+                                style={{
+                                  background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderLeft: `3px solid ${color}`,
+                                  borderRadius: '7px', padding: '6px 7px', cursor: 'pointer', opacity: past ? 0.6 : 1
+                                }}
+                              >
+                                <div style={{ fontWeight: 800, fontSize: '0.7rem', color }}>
+                                  {formatTime(item.at)} · {item.kind === 'interview' ? 'Gesprek' : 'Terugbellen'}
+                                </div>
+                                <div style={{ fontWeight: 700, fontSize: '0.74rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.lead.name}</div>
+                                {item.lead.function && <div className="text-muted" style={{ fontSize: '0.62rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.lead.function}</div>}
+                                {item.kind === 'interview' && item.lead.status === 'deal' && (
+                                  <div style={{ fontSize: '0.6rem', color: 'var(--success)', fontWeight: 700, marginTop: '2px' }}>Aangenomen</div>
+                                )}
+                                <button
+                                  onClick={e => { e.stopPropagation(); handleCall(item.lead) }}
+                                  className="btn btn-success btn-sm"
+                                  style={{ marginTop: '5px', width: '100%', padding: '3px', fontSize: '0.62rem' }}
+                                >
+                                  <Phone size={10} /> Bel
+                                </button>
+                              </div>
+                            )
+                          })}
+                          {dayItems.length === 0 && (
+                            <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textAlign: 'center', padding: '14px 4px', opacity: 0.5 }}>-</div>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {unscheduledInterviews.length > 0 && (
+                  <div className="card mt-3" style={{ padding: '14px 16px' }}>
+                    <div className="flex items-center gap-2" style={{ fontWeight: 800, fontSize: '0.85rem', marginBottom: '8px' }}>
+                      <AlertTriangle size={14} style={{ color: 'var(--warning)' }} />
+                      Gesprek gepland, maar nog zonder datum ({unscheduledInterviews.length})
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {unscheduledInterviews.map(l => (
+                        <div key={l.id} className="flex items-center justify-between" style={{ gap: '10px', fontSize: '0.82rem', flexWrap: 'wrap' }}>
+                          <span><strong>{l.name}</strong>{l.function ? ` · ${l.function}` : ''} · {l.phone}</span>
+                          <button className="btn btn-outline btn-sm" onClick={() => openDatePrompt(l, BOARD_COLUMNS.find(c => c.id === 'interview'))}>
+                            <CalendarDays size={13} /> Datum kiezen
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : applicants.length === 0 ? (
               <EmptyState
                 icon={Users}
@@ -610,6 +714,11 @@ export default function Recruitment() {
                             {lead.status === 'terugbelafspraak' && lead.next_contact_date && (
                               <div style={{ fontSize: '0.6rem', marginTop: '3px', color: 'var(--secondary)', fontWeight: 700 }}>
                                 <Clock size={9} style={{ verticalAlign: '-1px', marginRight: '2px' }} />{formatDateTime(lead.next_contact_date)}
+                              </div>
+                            )}
+                            {lead.status === 'afspraak_gemaakt' && (
+                              <div style={{ fontSize: '0.6rem', marginTop: '3px', color: lead.appointment_at ? 'var(--primary)' : 'var(--warning)', fontWeight: 700 }}>
+                                <CalendarDays size={9} style={{ verticalAlign: '-1px', marginRight: '2px' }} />{lead.appointment_at ? formatDateTime(lead.appointment_at) : 'Nog geen datum'}
                               </div>
                             )}
                             <button
@@ -678,6 +787,12 @@ export default function Recruitment() {
                               Terugbellen: {formatDateTime(lead.next_contact_date)}
                             </div>
                           )}
+                          {lead.appointment_at && !AGENDA_HIDDEN_STATUSES.includes(lead.status) && (
+                            <div style={{ fontSize: '0.78rem', marginTop: '4px', color: 'var(--primary)', fontWeight: 700 }}>
+                              <CalendarDays size={12} style={{ verticalAlign: '-1px', marginRight: '4px' }} />
+                              Gesprek: {formatDateTime(lead.appointment_at)}
+                            </div>
+                          )}
                         </div>
                         <div className="text-muted" style={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                           Toegevoegd {formatDateTime(lead.created_at)}
@@ -700,27 +815,27 @@ export default function Recruitment() {
         )}
       </main>
 
-      {/* TBA-datum vragen bij het slepen van een kaart naar de TBA-kolom */}
+      {/* Datum vragen bij slepen naar TBA (terugbelmoment) of Gesprek gepland (v57: gespreksdatum) */}
       <AnimatePresence>
-        {tbaPrompt && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="modal-overlay" onClick={() => setTbaPrompt(null)}>
+        {datePrompt && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="modal-overlay" onClick={() => setDatePrompt(null)}>
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="modal" style={{ maxWidth: '380px' }} onClick={e => e.stopPropagation()}>
               <div className="modal-header">
-                <h2><Clock size={18} /> Terugbelmoment</h2>
-                <button className="modal-close" onClick={() => setTbaPrompt(null)}><X size={18} /></button>
+                <h2>{datePrompt.column.dateField === 'appointment_at' ? <CalendarDays size={18} /> : <Clock size={18} />} {datePrompt.column.dateTitle}</h2>
+                <button className="modal-close" onClick={() => setDatePrompt(null)}><X size={18} /></button>
               </div>
               <div className="form-group">
-                <label>Wanneer terugbellen?</label>
+                <label>{datePrompt.column.dateLabel}</label>
                 <input
                   type="datetime-local"
                   step="900"
-                  value={tbaPrompt.value}
-                  onChange={e => setTbaPrompt(prev => ({ ...prev, value: e.target.value }))}
+                  value={datePrompt.value}
+                  onChange={e => setDatePrompt(prev => ({ ...prev, value: e.target.value }))}
                 />
               </div>
               <div className="flex gap-2" style={{ marginTop: '16px' }}>
-                <button type="button" className="btn btn-outline" onClick={() => setTbaPrompt(null)} style={{ flex: 1 }}>Annuleren</button>
-                <button type="button" className="btn btn-secondary" onClick={confirmTba} style={{ flex: 1 }}>TBA instellen</button>
+                <button type="button" className="btn btn-outline" onClick={() => setDatePrompt(null)} style={{ flex: 1 }}>Annuleren</button>
+                <button type="button" className="btn btn-secondary" onClick={confirmDatePrompt} style={{ flex: 1 }}>{datePrompt.column.dateButton}</button>
               </div>
             </motion.div>
           </motion.div>
@@ -829,6 +944,16 @@ export default function Recruitment() {
                     <label>CV / LinkedIn-link</label>
                     <input type="text" value={editForm.cv_link} onChange={e => setEditForm({ ...editForm, cv_link: e.target.value })} placeholder="https://..." />
                   </div>
+                </div>
+                <div className="form-group">
+                  <label>Gesprek op (datum/tijd)</label>
+                  <input
+                    type="datetime-local"
+                    step="900"
+                    value={editForm.appointment_at}
+                    onChange={e => setEditForm({ ...editForm, appointment_at: e.target.value })}
+                  />
+                  <small className="text-muted" style={{ fontSize: '0.72rem' }}>Zichtbaar in de agenda. Datum kiezen zet de sollicitant op "Gesprek gepland"; leegmaken haalt hem uit de agenda.</small>
                 </div>
                 <div className="form-group">
                   <label>Motivatie / notities</label>

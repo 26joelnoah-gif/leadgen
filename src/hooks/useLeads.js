@@ -303,6 +303,15 @@ export function useLeads() {
       updated_at: new Date().toISOString()
     }
 
+    // v57: bij "afspraak/gesprek gepland" is de meegegeven datum het moment
+    // van het gesprek zelf, niet een terugbelmoment. Die gaat naar
+    // appointment_at (voedt de recruitment-agenda) en next_contact_date
+    // blijft leeg, zodat de wachtrij-logica er niets mee doet.
+    if (dispositionType === 'afspraak_gemaakt') {
+      updates.appointment_at = nextDate || currentLead.appointment_at || null
+      updates.next_contact_date = null
+    }
+
     // Herbel-logica (v27):
     // - later bellen: het kwam gewoon niet uit -> morgen opnieuw proberen
     //   (tenzij de beller zelf een datum koos)
