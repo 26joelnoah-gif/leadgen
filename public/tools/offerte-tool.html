@@ -158,6 +158,8 @@
     #doc .sigbox img{height:80px;border-bottom:1px solid #999}
     #doc .small{font-size:10px;color:#666}
     #doc .pb{page-break-before:always}
+    #doc .vw{column-count:2;column-gap:18px;font-size:8.5px;line-height:1.35;color:#333}
+    #doc .vw p{margin:0 0 5px;break-inside:avoid}
   }
 </style>
 </head>
@@ -247,6 +249,7 @@
   <section class="card" id="akkoord">
     <h2><span class="n">8</span>Akkoord & handtekening</h2>
     <div class="akk" id="akktekst" style="margin-top:10px"></div>
+    <details style="margin-top:8px"><summary style="cursor:pointer;color:var(--muted);font-size:13px">Voorwaarden (staan volledig op de offerte)</summary><div class="akk" id="vwtekst" style="margin-top:8px;max-height:260px"></div></details>
     <div class="grid" style="margin-top:10px">
       <div><label class="f">Naam ondertekenaar *</label><input type="text" id="s_naam" placeholder="Naam zoals op het contract" oninput="chkSign()"></div>
       <div><label class="f">Functie</label><input type="text" id="s_functie" placeholder="Eigenaar" oninput="save()"></div>
@@ -357,7 +360,26 @@ const SPEC = {
 /* Referentie Dr. Shawarma (gemeten in Supabase, kiosk-orders 17 aug–3 sep 2026) */
 const REF = { naam:"Dr. Shawarma", omzet:61000, best:116, bon:17.60, bonLift:0.10, urenPerDag:2, abo:400 };
 
-const AKKOORD = `Door te ondertekenen gaat de klant akkoord met deze offerte van ReachConnect voor het bestelplatform, zoals hierboven gespecificeerd. Prijzen zijn exclusief btw. Het eenmalige bedrag wordt bij akkoord gefactureerd; het maandabonnement gaat in bij livegang en is maandelijks opzegbaar. Het abonnement omvat hosting, storingsbewaking, updates en support. Er wordt geen commissie per bestelling gerekend. Hardware wordt niet door ReachConnect geleverd; de klant schaft apparatuur aan volgens de meegeleverde specificatielijst, waarna installatie wordt ingepland. Meerwerk buiten deze offerte wordt vooraf afgestemd (€75 per uur). De in de offerte getoonde besparingen, opbrengsten en terugverdientijd zijn indicatief; werkelijke resultaten kunnen verschillen en vormen geen garantie of onderdeel van de overeenkomst. Op deze overeenkomst zijn de algemene voorwaarden van ReachConnect van toepassing. Deze offerte is 14 dagen geldig. De klant ontvangt een e-mailbevestiging met deze offerte, de handtekening en het tijdstip van ondertekening.`;
+/* Kleine letters op de offerte. Bron: verkoop/VOORWAARDEN_OFFERTE.md (4 sep 2026). Juridisch laten checken. */
+const VOORWAARDEN = [
+  ["Toepasselijkheid", "Deze voorwaarden gelden voor de offerte, de overeenkomst en alle leveringen van ReachConnect (hierna: wij) aan de klant. Afwijkingen gelden alleen als ze schriftelijk zijn overeengekomen. Inkoop- of andere voorwaarden van de klant zijn niet van toepassing."],
+  ["Wat wij leveren", "Wij leveren software (het bestelplatform), de inrichting daarvan en een maandabonnement voor hosting, bewaking, updates en support, zoals in de offerte omschreven. Wij leveren geen hardware. De klant schaft apparatuur zelf aan volgens onze specificatielijst en is verantwoordelijk voor de geschiktheid, werking, internetverbinding, stroom en het beheer daarvan."],
+  ["Prijzen en betaling", "Alle prijzen zijn exclusief btw. Het eenmalige bedrag wordt bij akkoord gefactureerd en is betaalbaar binnen 14 dagen; wij plannen de inrichting in na ontvangst van betaling. Het maandabonnement gaat in bij livegang en wordt maandelijks vooraf gefactureerd. Bij te late betaling mogen wij de dienst opschorten na een herinnering met een termijn van 7 dagen. Wij mogen het maandtarief jaarlijks aanpassen met een aankondiging van ten minste 30 dagen."],
+  ["Looptijd en opzegging", "Het abonnement loopt voor onbepaalde tijd en is door beide partijen maandelijks opzegbaar met een opzegtermijn van één kalendermaand. Na beëindiging wordt de dienst uitgeschakeld; de klant kan tot 30 dagen na beëindiging een export van zijn gegevens (menu, bestellingen, klantgegevens) opvragen. Het eenmalige bedrag wordt niet terugbetaald."],
+  ["Beschikbaarheid en support (best effort)", "Wij spannen ons in om de dienst zo goed mogelijk beschikbaar te houden en storingen snel te verhelpen, maar garanderen geen ononderbroken werking, geen minimale beschikbaarheid en geen reactie- of oplostijden. Support wordt op werkdagen op afstand geleverd; support op locatie en meerwerk worden vooraf afgestemd en apart in rekening gebracht tegen het in de offerte genoemde uurtarief. Onderhoud kondigen wij waar mogelijk vooraf aan."],
+  ["Diensten van derden", "De dienst maakt gebruik van diensten van derden, waaronder hosting, betaaldiensten (zoals Mollie), pinterminals, cash-automaten, printers en netwerken. Storingen, wijzigingen, kosten of beëindiging bij die derden vallen buiten onze invloed en verantwoordelijkheid. De klant sluit zelf de overeenkomsten met betaaldienstverleners en hardwareleveranciers en draagt de daaraan verbonden kosten en transactiekosten."],
+  ["Verantwoordelijkheden van de klant", "De klant is verantwoordelijk voor de juistheid van menu, prijzen, allergeneninformatie, openingstijden, bezorgzones en andere inhoud, voor het naleven van wet- en regelgeving (waaronder fiscale, consumenten- en privacyregels) en voor het zorgvuldig gebruik van inloggegevens en apparaatsleutels. Wij zijn niet aansprakelijk voor gevolgen van onjuiste of onvolledige inhoud die de klant heeft ingevoerd."],
+  ["Indicatieve cijfers", "Alle in de offerte of het gesprek getoonde besparingen, opbrengsten, terugverdientijden en vergelijkingen zijn indicatief, gebaseerd op door de klant opgegeven cijfers en op ervaringen bij andere klanten. Zij vormen geen garantie en geen onderdeel van de overeenkomst; werkelijke resultaten kunnen afwijken."],
+  ["Aansprakelijkheid", "Onze aansprakelijkheid voor schade, uit welke hoofde ook, is beperkt tot vergoeding van directe schade tot maximaal het bedrag dat de klant in de drie maanden voorafgaand aan de schadeveroorzakende gebeurtenis aan maandabonnement heeft betaald. Wij zijn nooit aansprakelijk voor indirecte of gevolgschade, waaronder gederfde omzet of winst, gemiste bestellingen, verlies van gegevens, bedrijfsstagnatie, boetes of reputatieschade, noch voor schade door storingen bij derden, door hardware, internet- of stroomuitval, of door handelen van de klant of zijn personeel. Deze beperkingen gelden niet voor schade die het gevolg is van opzet of bewuste roekeloosheid van onze leiding. Een aanspraak vervalt als deze niet binnen 3 maanden na ontdekking schriftelijk aan ons is gemeld."],
+  ["Overmacht", "Wij hoeven niet na te komen als dat wordt verhinderd door omstandigheden buiten onze macht, waaronder storingen bij hosting-, betaal- of netwerkleveranciers, cyberaanvallen, ziekte, overheidsmaatregelen en stroom- of internetuitval."],
+  ["Eigendom en gebruiksrecht", "De software, de inrichting en alle daarin opgenomen intellectuele eigendomsrechten blijven van ReachConnect. De klant krijgt voor de duur van het abonnement een niet-overdraagbaar gebruiksrecht voor de eigen zaak. Gegevens en inhoud die de klant invoert (menu, foto's, klant- en bestelgegevens) blijven eigendom van de klant. De klant mag de software niet kopiëren, doorverkopen of aan derden beschikbaar stellen."],
+  ["Gegevens en privacy", "Wij verwerken persoonsgegevens van de klant en diens klanten uitsluitend voor het leveren van de dienst, binnen de EU, en treffen passende beveiligingsmaatregelen. De klant is verwerkingsverantwoordelijke voor de gegevens van zijn klanten; op verzoek sluiten wij een verwerkersovereenkomst. Wij maken dagelijks back-ups, maar de klant blijft zelf verantwoordelijk voor het bewaren van gegevens die hij nodig heeft voor zijn administratie."],
+  ["Referentie", "De klant stemt ermee in dat wij de naam en het logo van de zaak als referentie mogen noemen. De klant kan hier op elk moment schriftelijk bezwaar tegen maken."],
+  ["Elektronische ondertekening", "De klant erkent dat een handtekening op het scherm van de offerte-tool, met naam, datum en tijdstip en de e-mailbevestiging aan de klant, geldt als rechtsgeldige ondertekening van deze overeenkomst."],
+  ["Toepasselijk recht", "Op de overeenkomst is Nederlands recht van toepassing. Geschillen worden voorgelegd aan de bevoegde rechter in het arrondissement waar ReachConnect is gevestigd, nadat partijen hebben geprobeerd er in overleg uit te komen. Deze offerte is 14 dagen geldig."],
+];
+
+const AKKOORD = `Door te ondertekenen gaat de klant akkoord met deze offerte van ReachConnect voor het bestelplatform, zoals hierboven gespecificeerd. Prijzen zijn exclusief btw. Het eenmalige bedrag wordt bij akkoord gefactureerd; het maandabonnement gaat in bij livegang en is maandelijks opzegbaar. Het abonnement omvat hosting, storingsbewaking, updates en support. Er wordt geen commissie per bestelling gerekend. Hardware wordt niet door ReachConnect geleverd; de klant schaft apparatuur aan volgens de meegeleverde specificatielijst, waarna installatie wordt ingepland. Meerwerk buiten deze offerte wordt vooraf afgestemd (€75 per uur). De in de offerte getoonde besparingen, opbrengsten en terugverdientijd zijn indicatief; werkelijke resultaten kunnen verschillen en vormen geen garantie of onderdeel van de overeenkomst. Op deze overeenkomst zijn de voorwaarden van toepassing die in deze offerte zijn opgenomen; de klant verklaart die te hebben gelezen. Deze offerte is 14 dagen geldig. De klant ontvangt een e-mailbevestiging met deze offerte, de handtekening en het tijdstip van ondertekening.`;
 
 
 </script>
@@ -581,6 +603,7 @@ function buildDoc(){
     h+=`</table><div class="kv"><div><div class="k">Netto per maand na abonnement</div><div class="v">${eur(r.netto)}</div></div>${S.signed?'':`<div><div class="k">Terugverdiend in</div><div class="v">${r.tvt? r.tvt+' maanden':'–'}</div></div>`}<div><div class="k">Over 3 jaar</div><div class="v">${eur(r.drie)}</div></div></div>
       <div class="small" style="margin-top:6px">De getoonde besparingen en opbrengsten zijn indicatief en gebaseerd op de door u opgegeven cijfers en op praktijkcijfers van een bestaande klant. Werkelijke resultaten kunnen verschillen en zijn geen onderdeel van deze overeenkomst.</div>`;
   }
+  h+=`<h2>Voorwaarden</h2><div class="vw">${VOORWAARDEN.map((v,i)=>`<p><b>${i+1}. ${v[0]}.</b> ${v[1]}</p>`).join('')}</div>`;
   h+=`<h2>Akkoord</h2><div class="box">${AKKOORD}</div>`;
   if(S.signed){
     h+=`<div class="sigbox"><img src="${S.signed.png}" alt="handtekening"><div><b>${S.signed.door}</b>${S.signed.functie?', '+S.signed.functie:''}<br>${val('k_zaak')}<br><span class="small">Ondertekend op ${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL')} via de ReachConnect dealtool · offerte ${S.nummer}</span></div></div>`;
@@ -629,7 +652,7 @@ function applyMode(){ document.body.classList.toggle('klant',S.klantmodus); el('
 /* ===== init ===== */
 (function(){
   const had=load(); if(!S.nummer) S.nummer=nummer();
-  renderPk(); renderMods(); renderUps(); renderSpec(); renderPosts(); el('akktekst').textContent=AKKOORD; el('refline').textContent=`Referentie ${REF.naam} (gemeten): ${eur(REF.omzet)} omzet/mnd via de zuil, ${REF.best} bestellingen/dag, gemiddelde bon ${eur2(REF.bon)}, +${Math.round(REF.bonLift*100)}% bon door de menu-popup.`;
+  renderPk(); renderMods(); renderUps(); renderSpec(); renderPosts(); el('akktekst').textContent=AKKOORD; el('vwtekst').innerHTML=VOORWAARDEN.map((v,i)=>`<p style="margin:0 0 8px"><b>${i+1}. ${v[0]}.</b> ${v[1]}</p>`).join(''); el('refline').textContent=`Referentie ${REF.naam} (gemeten): ${eur(REF.omzet)} omzet/mnd via de zuil, ${REF.best} bestellingen/dag, gemiddelde bon ${eur2(REF.bon)}, +${Math.round(REF.bonLift*100)}% bon door de menu-popup.`;
   initSig(); calc(); applyMode();
   if(S.signed){ renderSigned(); lockAll(); const img=new Image(); img.onload=()=>{ ctx.drawImage(img,0,0,el('sig').clientWidth,180); }; img.src=S.signed.png; hasSig=true; el('sighint').style.display='none'; }
   window.addEventListener('resize',()=>{ if(!hasSig) initSig(); });
