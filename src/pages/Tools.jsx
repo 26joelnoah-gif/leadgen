@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { FileSignature, ExternalLink, RefreshCw } from 'lucide-react'
+import { FileSignature, ExternalLink, RefreshCw, Presentation } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import Header from '../components/Header'
@@ -64,6 +64,21 @@ export default function Tools() {
           </div>
           <a className="btn btn-primary" href="/tools/offerte-tool.html" style={{ whiteSpace: 'nowrap' }}>
             Nieuwe offerte <ExternalLink size={16} />
+          </a>
+        </div>
+
+        <div className="glass-panel mb-3" style={{ padding: '20px', display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
+            <Presentation size={24} />
+          </div>
+          <div style={{ flex: 1, minWidth: 220 }}>
+            <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>Klantpresentatie bestelplatform</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+              De presentatie met Dr. Shawarma als voorbeeld: wat het systeem is, wat het de zaak oplevert en hoe de uitrol gaat. Laat zien vóór je de offerte opent.
+            </div>
+          </div>
+          <a className="btn btn-outline" href="/tools/presentatie-bestelplatform.pdf" target="_blank" rel="noopener" style={{ whiteSpace: 'nowrap' }}>
+            Open presentatie <ExternalLink size={16} />
           </a>
         </div>
 
