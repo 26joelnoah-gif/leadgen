@@ -17,6 +17,7 @@ import LeadManagement from './pages/LeadManagement'
 import Manager from './pages/Manager'
 import Recruitment from './pages/Recruitment'
 import Roosters from './pages/Roosters'
+import Tools from './pages/Tools'
 import WorkInterface from './components/WorkInterface'
 import FeatureAwareness from './components/FeatureAwareness'
 
@@ -221,6 +222,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute allowPlanning>
             <Roosters />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/tools"
+        element={
+          <ProtectedRoute>
+            <Tools />
           </ProtectedRoute>
         }
       />

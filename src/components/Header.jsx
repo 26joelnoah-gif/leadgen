@@ -43,6 +43,8 @@ export default function Header({ onOpenSettings }) {
         { path: '/tba', label: 'TBA\'s' },
         ...(canViewEarnings ? [{ path: '/earnings', label: 'Verdiensten' }] : []),
         { path: '/roosters', label: 'Roosters' },
+        // v59: offerte-tool bestelplatform + overzicht eigen offertes
+        { path: '/tools', label: 'Tools' },
         ...(isManager ? [
           { path: '/manager', label: 'Mijn Projecten' },
           { path: '/admin/reports', label: 'Rapportage' }
@@ -57,6 +59,7 @@ export default function Header({ onOpenSettings }) {
     { path: '/admin/payouts', label: 'Payouts' },
     { path: '/admin/telemetry', label: 'Telemetrie' },
     { path: '/kanban', label: 'Kanban' },
+    { path: '/tools', label: 'Tools' },
     // v57: admin kan de sollicitanten + agenda van de recruiter(s) inzien
     { path: '/recruitment', label: 'Sollicitanten' },
   ]

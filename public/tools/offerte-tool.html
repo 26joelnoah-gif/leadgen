@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ReachConnect · Offerte bestelplatform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#111111; --panel:#1a1a1a; --panel2:#222222; --line:#2e2e2e; --line2:#3a3a3a;
+    --txt:#ffffff; --muted:#a8a8a8; --acc:#00ff95; --acc-dark:#00c975; --acc-ink:#0b1a12;
+    --warn:#ffb020; --err:#ff5c5c; --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);font-family:Poppins,system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
+  a{color:var(--acc)}
+  h1,h2,h3{margin:0;font-weight:600;line-height:1.2}
+  h1{font-size:20px}
+  h2{font-size:16px;letter-spacing:.2px}
+  h2 .n{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--acc);color:var(--acc-ink);font-size:12px;font-weight:700;margin-right:8px;vertical-align:middle}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  header{position:sticky;top:0;z-index:20;background:rgba(17,17,17,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;gap:12px}
+  .logo{font-weight:700;font-size:17px;white-space:nowrap;letter-spacing:.5px}
+  .logo b{color:var(--acc)}
+  .hdr-right{margin-left:auto;display:flex;gap:6px;flex-wrap:nowrap;align-items:center;font-size:12px;color:var(--muted)}
+  .chip{white-space:nowrap;border:1px solid var(--line2);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--txt);background:var(--panel)}
+  .chip.on{background:var(--acc);color:var(--acc-ink);border-color:var(--acc);font-weight:600}
+  main{max-width:820px;margin:0 auto;padding:16px 16px 140px}
+  section.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:520px){.grid{grid-template-columns:1fr}}
+  label.f{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  input[type=text],input[type=email],input[type=tel],input[type=number],select,textarea{
+    width:100%;background:var(--panel2);border:1px solid var(--line2);color:var(--txt);border-radius:10px;padding:11px 12px;font:inherit;font-size:16px}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--acc)}
+  /* pakketten */
+  .pk{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+  @media(max-width:520px){.pk{grid-template-columns:1fr}}
+  .pk label{display:block;border:2px solid var(--line2);border-radius:12px;padding:14px;cursor:pointer;background:var(--panel2)}
+  .pk label.sel{border-color:var(--acc);box-shadow:0 0 0 3px rgba(0,255,149,.15)}
+  .pk input{display:none}
+  .pk .t{font-weight:600;font-size:16px}
+  .pk .p{color:var(--acc);font-weight:700;font-size:20px;margin:4px 0}
+  .pk .p small{color:var(--muted);font-weight:500;font-size:13px}
+  .pk ul{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:13px}
+  /* rijen */
+  .row{display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid var(--line)}
+  .row:first-of-type{border-top:0}
+  .row .info{flex:1;min-width:0}
+  .row .nm{font-weight:500}
+  .row .ds{color:var(--muted);font-size:12px}
+  .row .pr{white-space:nowrap;font-weight:600;font-size:14px;text-align:right;min-width:70px}
+  .row .pr small{display:block;color:var(--muted);font-weight:400;font-size:11px}
+  .qty{display:flex;align-items:center;border:1px solid var(--line2);border-radius:999px;overflow:hidden;background:var(--panel2)}
+  .qty button{width:38px;height:38px;border:0;background:transparent;color:var(--txt);font-size:20px;line-height:1;cursor:pointer}
+  .qty button:active{background:var(--line2)}
+  .qty span{min-width:26px;text-align:center;font-weight:600}
+  .sw{position:relative;width:48px;height:28px;flex:none}
+  .sw input{opacity:0;width:0;height:0;position:absolute}
+  .sw i{position:absolute;inset:0;background:var(--line2);border-radius:999px;transition:.15s}
+  .sw i:before{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.15s}
+  .sw input:checked+i{background:var(--acc)}
+  .sw input:checked+i:before{transform:translateX(20px);background:var(--acc-ink)}
+  .row.off .info{opacity:.55}
+  .tag{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;background:rgba(0,255,149,.12);color:var(--acc);border-radius:6px;padding:2px 6px;margin-left:6px;vertical-align:middle}
+  /* roi */
+  .roi-in{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  @media(max-width:520px){.roi-in{grid-template-columns:1fr 1fr}}
+  .roi-in .full{grid-column:1/-1}
+  .post{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:8px;background:var(--panel2)}
+  .post .hd{display:flex;align-items:center;gap:10px}
+  .post .hd .info{flex:1}
+  .post .hd .nm{font-weight:500}
+  .post .hd .val{font-weight:600;color:var(--acc);white-space:nowrap}
+  .post .body{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;align-items:center;font-size:13px;color:var(--muted)}
+  .post .body input{width:72px;padding:7px 8px;font-size:14px}
+  .post .body select{width:auto;padding:7px 9px;font-size:14px}
+  .post.off .body{display:none}
+  .post.off .hd .info,.post.off .hd .val{opacity:.5}
+  .res{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+  @media(max-width:520px){.res{grid-template-columns:1fr 1fr}.res .wide{grid-column:1/-1}.bar{padding-left:12px;padding-right:12px;gap:8px}.bar .v{font-size:14px}}
+  .res div{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .res .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .res .v{font-size:22px;font-weight:700;color:var(--acc);margin-top:2px}
+  .res .v.neg{color:var(--err)}
+  .note{font-size:12px;color:var(--muted);margin-top:8px}
+  .src{font-size:11px;color:var(--muted);opacity:.85}
+  .warn{background:rgba(255,176,32,.12);border:1px solid rgba(255,176,32,.4);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:13px;margin-top:10px}
+  /* totals */
+  .tot{border-top:1px solid var(--line);margin-top:6px;padding-top:6px}
+  .trow{display:flex;justify-content:space-between;padding:6px 0;font-size:14px}
+  .trow.big{font-size:18px;font-weight:700;border-top:1px solid var(--line2);margin-top:4px;padding-top:10px}
+  .trow.big .r{color:var(--acc)}
+  .trow .l{color:var(--muted)}
+  .trow.big .l{color:var(--txt)}
+  /* akkoord */
+  .akk{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:13px;color:var(--muted);max-height:180px;overflow:auto}
+  .sig{margin-top:10px;background:#fff;border-radius:12px;position:relative;touch-action:none}
+  .sig canvas{display:block;width:100%;height:180px;border-radius:12px}
+  .sig .hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;color:#999;font-size:12px;pointer-events:none}
+  .sig .line{position:absolute;left:24px;right:24px;bottom:40px;border-top:1px dashed #bbb;pointer-events:none}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:12px;padding:13px 18px;font:inherit;font-weight:600;font-size:15px;cursor:pointer;background:var(--panel2);color:var(--txt);border:1px solid var(--line2)}
+  .btn.acc{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
+  .btn.acc:active{background:var(--acc-dark)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.sm{padding:8px 12px;font-size:13px;border-radius:10px}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  /* sticky bar */
+  .bar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#0d0d0d;border-top:1px solid var(--line2);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:flex;align-items:center;gap:12px}
+  .bar .b{flex:1;min-width:0}
+  .bar .k{font-size:9px;white-space:nowrap;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .bar .v{font-size:15px;font-weight:700;white-space:nowrap}
+  .bar .v.acc{color:var(--acc)}
+  .bar .btn{flex:none}
+  .signed{background:rgba(0,255,149,.1);border:1px solid var(--acc);border-radius:12px;padding:12px;margin-top:12px}
+  .signed b{color:var(--acc)}
+  .lock{pointer-events:none;opacity:.6}
+  .vk{border:1px dashed var(--line2);border-radius:12px;padding:12px;margin-top:12px;font-size:13px}
+  .vk .c{color:var(--acc);font-weight:600}
+  body.klant .vk,body.klant .vk-only,body.klant #backLink,body.klant #dbState{display:none!important}
+  .spec .row .ds{font-size:12px}
+  .hidden{display:none!important}
+  .seg{display:flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden}
+  .seg button{flex:1;border:0;background:var(--panel2);color:var(--txt);padding:10px;font:inherit;cursor:pointer}
+  .seg button.on{background:var(--acc);color:var(--acc-ink);font-weight:600}
+  table.ct{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px}
+  .ct th{text-align:left;color:var(--muted);font-weight:500;border-bottom:1px solid var(--line2);padding:6px 4px}
+  .ct td{padding:7px 4px;border-bottom:1px solid var(--line)}
+  .ct .r{text-align:right;white-space:nowrap}
+  .ct tr.tt td{font-weight:700;color:var(--acc);border-top:1px solid var(--line2)}
+  body.cmode #mainview,body.cmode .bar{display:none!important}
+  body.cmode #cview{display:block!important}
+  body.cmode #modeBtn{display:none}
+  /* document (print) */
+  #doc{display:none}
+  @media print{
+    @page{margin:14mm}
+    body{background:#fff;color:#111;font-size:12px}
+    header,main,.bar{display:none!important}
+    #doc{display:block;font-family:Poppins,Arial,sans-serif;color:#111}
+    #doc .dh{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #00c975;padding-bottom:10px;margin-bottom:16px}
+    #doc .dh .logo{font-size:22px;color:#111}
+    #doc .dh .logo b{color:#00a862}
+    #doc .dh .meta{text-align:right;font-size:11px;color:#555}
+    #doc h2{font-size:14px;margin:16px 0 6px;color:#111;border-bottom:1px solid #ddd;padding-bottom:4px}
+    #doc table{width:100%;border-collapse:collapse;font-size:12px}
+    #doc th{text-align:left;color:#555;font-weight:500;border-bottom:1px solid #ccc;padding:5px 4px}
+    #doc td{padding:5px 4px;border-bottom:1px solid #eee;vertical-align:top}
+    #doc .r{text-align:right;white-space:nowrap}
+    #doc .tt td{font-weight:700;border-top:2px solid #111;border-bottom:0}
+    #doc .box{border:1px solid #ddd;border-radius:6px;padding:10px;margin-top:8px;font-size:11px;color:#333}
+    #doc .kv{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px}
+    #doc .kv div{border:1px solid #ddd;border-radius:6px;padding:8px}
+    #doc .kv .k{font-size:10px;color:#666;text-transform:uppercase}
+    #doc .kv .v{font-size:16px;font-weight:700;color:#00a862}
+    #doc .sigbox{display:flex;gap:20px;margin-top:10px;align-items:flex-end}
+    #doc .sigbox img{height:80px;border-bottom:1px solid #999}
+    #doc .small{font-size:10px;color:#666}
+    #doc .pb{page-break-before:always}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Reach<b>Connect</b></div>
+  <div class="hdr-right">
+    <a class="chip" href="/tools" id="backLink" style="text-decoration:none">← LeadGen</a>
+    <span id="h_nr" class="chip">RC-…</span>
+    <span id="dbState" class="chip" title="Opslag in LeadGen">…</span>
+    <button class="chip vk-only" id="cBtn" onclick="toggleC()">Commissie</button>
+    <button class="chip" id="modeBtn" onclick="toggleMode()">Klantweergave</button>
+  </div>
+</header>
+
+<main id="mainview">
+  <!-- 0 klant -->
+  <section class="card">
+    <h2><span class="n">1</span>Zaak & contact</h2>
+    <div class="grid" style="margin-top:12px">
+      <div><label class="f">Naam van de zaak *</label><input type="text" id="k_zaak" placeholder="bv. Dr. Shawarma" oninput="save()"></div>
+      <div><label class="f">Contactpersoon</label><input type="text" id="k_naam" placeholder="Voor- en achternaam" oninput="save()"></div>
+      <div><label class="f">E-mail (voor de offerte)</label><input type="email" id="k_mail" placeholder="naam@zaak.nl" oninput="save()"></div>
+      <div><label class="f">Telefoon</label><input type="tel" id="k_tel" placeholder="06…" oninput="save()"></div>
+      <div class="full" style="grid-column:1/-1"><label class="f">Adres</label><input type="text" id="k_adres" placeholder="Straat 1, 1234 AB Plaats" oninput="save()"></div>
+      <div class="vk-only"><label class="f">Accountmanager</label><input type="text" id="v_naam" placeholder="Jouw naam" oninput="save()"></div>
+    </div>
+  </section>
+
+  <!-- 1 pakket -->
+  <section class="card">
+    <h2><span class="n">2</span>Pakket</h2>
+    <div class="sub">Software, inrichting en abonnement. Geen hardware: de klant koopt apparatuur zelf via onze specificatielijst (stap 5).</div>
+    <div class="pk" id="pk"></div>
+  </section>
+
+  <!-- 2 stations -->
+  <section class="card">
+    <h2><span class="n">3</span>Extra stations & modules <span class="sub" style="display:inline">eenmalig</span></h2>
+    <div id="mods"></div>
+  </section>
+
+  <!-- 3 upsell -->
+  <section class="card">
+    <h2><span class="n">4</span>Marketing & vindbaarheid <span class="sub" style="display:inline">per maand</span></h2>
+    <div id="ups"></div>
+  </section>
+
+  <!-- 4 speclijst -->
+  <section class="card spec">
+    <h2><span class="n">5</span>Hardware: specificatielijst</h2>
+    <div class="sub">De klant koopt zelf. Vink af dat de klant de lijst voor elk station heeft ontvangen; installatie wordt pas ingepland als de apparatuur er is.</div>
+    <div id="spec"></div>
+  </section>
+
+  <!-- 5 ROI -->
+  <section class="card">
+    <h2><span class="n">6</span>Wat levert het op?</h2>
+    <div class="sub">Vul de situatie van de zaak in. Elke post kan aan of uit; de aannames staan open en zijn aanpasbaar. Standaardwaarden zijn afgeleid van de gemeten cijfers bij Dr. Shawarma en schalen mee met de omzet: minder omzet = langzamer terugverdiend.</div>
+    <div class="note" id="refline"></div>
+    <div class="roi-in" style="margin-top:12px">
+      <div><label class="f">Omzet per maand (€)</label><input type="number" id="r_omzet" placeholder="25000" inputmode="numeric" oninput="calc()"></div>
+      <div><label class="f">Bestellingen per dag</label><input type="number" id="r_best" placeholder="80" inputmode="numeric" oninput="calc()"></div>
+      <div><label class="f">Gemiddelde bon (€)</label><input type="number" id="r_bon" placeholder="auto" inputmode="decimal" step="0.5" oninput="calc()"></div>
+      <div><label class="f">Omzet via Thuisbezorgd/Uber per maand (€)</label><input type="number" id="r_platform" placeholder="8000" inputmode="numeric" oninput="calc()"></div>
+    </div>
+    <div id="posts"></div>
+    <div class="res" id="res"></div>
+    <div class="warn hidden vk-only" id="roiwarn">Abonnement is hoger dan de aangevinkte besparing. Vink meer posten aan of pas de invoer aan.</div>
+    <div class="note">Aannames zijn indicatief; de klant ziet exact dezelfde invoer en aannames terug op de offerte.</div>
+  </section>
+
+  <!-- 6 overzicht -->
+  <section class="card">
+    <h2><span class="n">7</span>Overzicht</h2>
+    <div id="ovz" style="margin-top:8px"></div>
+    <div class="vk">
+      <div class="grid">
+        <div><label class="f">Korting eenmalig (€, max 10%)</label><input type="number" id="v_korting" value="0" inputmode="numeric" oninput="calc()"></div>
+        <div><label class="f">Interne notitie</label><input type="text" id="v_notitie" oninput="save()"></div>
+      </div>
+      <div style="margin-top:10px">Jouw commissie: <span class="c" id="c1">€0</span> eenmalig (20% pakket + modules) + <span class="c" id="c2">€0</span>/mnd doorlopend (20% maandbedrag). Alleen zichtbaar in accountmanager-weergave. De knop <b>Commissie</b> bovenin opent de commissie-calculator met maandplanning.</div>
+    </div>
+  </section>
+
+  <!-- 7 akkoord -->
+  <section class="card" id="akkoord">
+    <h2><span class="n">8</span>Akkoord & handtekening</h2>
+    <div class="akk" id="akktekst" style="margin-top:10px"></div>
+    <div class="grid" style="margin-top:10px">
+      <div><label class="f">Naam ondertekenaar *</label><input type="text" id="s_naam" placeholder="Naam zoals op het contract" oninput="chkSign()"></div>
+      <div><label class="f">Functie</label><input type="text" id="s_functie" placeholder="Eigenaar" oninput="save()"></div>
+    </div>
+    <div class="sig" id="sigwrap">
+      <canvas id="sig"></canvas>
+      <div class="line"></div>
+      <div class="hint" id="sighint">Teken hier met vinger of pen</div>
+    </div>
+    <div class="btns">
+      <button class="btn sm" onclick="clearSig()">Wis handtekening</button>
+      <button class="btn acc" id="signBtn" onclick="sign()" disabled>Akkoord en ondertekenen</button>
+    </div>
+    <div class="signed hidden" id="signedbox"></div>
+    <div class="btns">
+      <button class="btn" onclick="showDoc()">Bekijk / print offerte (PDF)</button>
+      <button class="btn vk-only" onclick="exportJson()">Exporteer deal (JSON)</button>
+      <button class="btn vk-only" onclick="nieuw()">Nieuwe offerte</button>
+    </div>
+    <div class="note vk-only">Prototype: de deal wordt lokaal op dit apparaat bewaard. Opslag in Supabase, PDF en mail via Resend volgen in de dealtool (zie docs/DEALTOOL_SPEC.md).</div>
+  </section>
+</main>
+
+<main id="cview" class="hidden">
+  <section class="card">
+    <h2><span class="n">A</span>Wat verdien je aan één deal?</h2>
+    <div class="sub">Commissie: 20% over het eenmalige bedrag (pakket + modules, na korting) en 20% over het maandbedrag, elke maand zolang de klant blijft.</div>
+    <div class="seg" id="seg" style="margin-top:12px"></div>
+    <div id="c_mods"></div>
+    <div id="c_ups"></div>
+    <div class="grid"><div><label class="f">Korting eenmalig (€)</label><input type="number" id="c_korting" value="0" inputmode="numeric" oninput="ccalc()"></div></div>
+    <div class="res">
+      <div><div class="k">Eenmalig voor jou</div><div class="v" id="d_een">€0</div></div>
+      <div><div class="k">Per maand voor jou</div><div class="v" id="d_mnd">€0</div></div>
+      <div><div class="k">Jaar 1 totaal</div><div class="v" id="d_jaar">€0</div></div>
+    </div>
+    <div class="note" id="d_txt"></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">B</span>Maandplanning</h2>
+    <div class="sub">Hoeveel deals sluit je per maand, en wat bouw je dan op? Het maandbedrag stapelt: elke deal blijft doorbetalen.</div>
+    <div class="grid">
+      <div><label class="f">Deals Klein per maand</label><input type="number" id="n_klein" value="1" min="0" inputmode="numeric" oninput="ccalc()"></div>
+      <div><label class="f">Deals Standaard per maand</label><input type="number" id="n_std" value="1" min="0" inputmode="numeric" oninput="ccalc()"></div>
+      <div><label class="f">Gem. eenmalig extra per deal (€)</label><input type="number" id="extra_een" value="1000" min="0" inputmode="numeric" oninput="ccalc()"></div>
+      <div><label class="f">Gem. extra per maand per deal (€)</label><input type="number" id="extra_mnd" value="50" min="0" inputmode="numeric" oninput="ccalc()"></div>
+      <div><label class="f">Klanten die na jaar 1 blijven (%)</label><input type="number" id="churn" value="90" min="0" max="100" inputmode="numeric" oninput="ccalc()"></div>
+      <div><label class="f">Horizon</label><select id="hor" onchange="ccalc()"><option value="6">6 maanden</option><option value="12" selected>12 maanden</option><option value="24">24 maanden</option></select></div>
+    </div>
+    <div class="res">
+      <div><div class="k">Eenmalig per maand</div><div class="v" id="m_een">€0</div></div>
+      <div><div class="k">Doorlopend na horizon</div><div class="v" id="m_rec">€0/mnd</div></div>
+      <div><div class="k">Totaal over horizon</div><div class="v" id="m_tot">€0</div></div>
+    </div>
+    <table id="tbl" class="ct"></table>
+    <div class="note">Extra per deal: bijvoorbeeld 1 extra zuil (€1.000, +€25/mnd) of een cash-koppeling (€2.250, +€50/mnd). Commissie wordt uitgekeerd na betaling door de klant; maandcommissie zolang het abonnement loopt.</div>
+  </section>
+</main>
+
+<div class="bar">
+  <div class="b"><div class="k">Eenmalig</div><div class="v acc" id="b_een">€0</div></div>
+  <div class="b"><div class="k">Per maand</div><div class="v" id="b_mnd">€0</div></div>
+  <div class="b"><div class="k">Terugverdiend</div><div class="v" id="b_tvt">–</div></div>
+  <button class="btn acc sm" id="barBtn" style="padding:8px 12px" onclick="barAction()">Naar akkoord</button>
+</div>
+
+<div id="doc"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+/* ===== PRIJSMODEL — bron van waarheid: verkoop/PRIJSMODEL.md. Wijzig prijzen hier én daar. ===== */
+/* ===== PRIJSMODEL (bron: verkoop/PRIJSMODEL.md, versie 2026-09-04) ===== */
+const PRIJSMODEL_VERSIE = "2026-09-04";
+const BTW = 0.21;
+const COMMISSIE = 0.20;
+const KORTING_MAX = 0.10;
+const PAKKETTEN = [
+  {id:"klein", naam:"Klein", sub:"Eenmanszaak, snackbar, zaak zonder zuil", eenmalig:3500, mnd:150,
+   incl:["Website met menu, SEO-basis","Online bestellen (afhalen) via iDEAL / Apple Pay","QR-bestellen aan tafel (gratis optie)","Kassascherm balie","Inrichting 2 TV-menuborden","Beheeromgeving: menu, acties, allergenen, voorraad, omzet, kortingscodes, nieuwsbrief","Menu-invoer, training, promotiemateriaal","Gratis erbij: Google-reviews kaartje + 1.000 flyers voor bij de bestellingen","Installatie op afstand"],
+   stations:{zuil:0,keuken:0,status:0,tv:2}, bezorgen:false},
+  {id:"standaard", naam:"Standaard", sub:"Zaak met balie én zuil, 1 keuken", eenmalig:7500, mnd:200,
+   incl:["Alles van Klein, plus bezorgen (zones, tarieven, postcodecheck)","Inrichting 1 bestelzuil incl. pinterminal-koppeling","Inrichting 1 keukenscherm + bonprinter","Inrichting 1 statusbord","Inrichting 2 TV-menuborden","Installatie op locatie"],
+   stations:{zuil:1,keuken:1,status:1,tv:2}, bezorgen:true},
+];
+const MODULES = [
+  {id:"zuil",   naam:"Extra bestelzuil (inrichting)", sub:"Incl. pinterminal-koppeling, bonrouting en bewaking", prijs:1000, mnd:25, max:5, qty:0, station:true, voordeel:"Minder rij aan de balie, upsell-popup verhoogt de bon"},
+  {id:"keuken", naam:"Extra keukenscherm (inrichting)", sub:"Eigen bon per station + bonprinter-aansturing", prijs:750, mnd:25, max:4, qty:0, station:true, voordeel:"Minder fouten, kortere bereidingstijd"},
+  {id:"status", naam:"Extra statusbord", sub:"Volgnummers in bereiding / klaar · vereist een keukenscherm", prijs:250, mnd:0, max:3, qty:0, station:true, needs:"keuken", voordeel:"Minder vragen aan de balie"},
+  {id:"tv",     naam:"Extra TV-menubord", sub:"Prijswijziging binnen 1 minuut op alle schermen", prijs:150, mnd:0, max:6, qty:0, station:true, voordeel:"Geen drukwerk meer"},
+  {id:"cash",   naam:"Cash-automaat-koppeling", sub:"EcoCash: contant op de zuil, wachtrijscherm, storingsbewaking", prijs:2250, mnd:50, max:1, qty:0, station:true, voordeel:"Geen kasverschil, personeel raakt geen geld aan"},
+  {id:"taal",   naam:"Extra taal", sub:"Volledige vertaling zuil + site · gratis", prijs:0, mnd:0, max:4, qty:0, voordeel:"Bereikt anderstalige klanten"},
+  {id:"bezorg", naam:"Bezorgen-module", sub:"Bezorgzones, tarieven, postcodecheck (bij Standaard inbegrepen)", prijs:500, mnd:0, max:1, qty:0, alleenKlein:true, voordeel:"Eigen bezorging zonder platformcommissie"},
+  {id:"foto",   naam:"Menufoto's / content", sub:"Foto's of AI-beeld van het menu voor zuil, site en menuborden", prijs:350, mnd:0, max:1, qty:0, voordeel:"Foto's verkopen: hogere bon"},
+];
+const UPSELL = [
+  {id:"mkt_basis", naam:"Marketing Basis", sub:"1 actiecampagne met kortingscode per maand + nieuwsbrief", prijs:75, on:false, excl:"mkt_plus"},
+  {id:"mkt_plus",  naam:"Marketing Plus", sub:"Basis + 2 social posts per maand in huisstijl", prijs:175, on:false, excl:"mkt_basis"},
+  {id:"seo",       naam:"SEO / Google-profiel", sub:"Onderhoud vindbaarheid, Google Bedrijfsprofiel, reviews", prijs:100, on:false},
+];
+const SPEC = {
+  zuil:"Bestelzuil: tablet/scherm ≥15\" met touch in kiosk-behuizing, Chrome/Edge kiosk-modus, pinterminal via PinVandaag (Yomani), vaste netwerkverbinding of stabiele wifi",
+  keuken:"Keukenscherm: tablet of TV met browser, Windows-(mini-)pc voor de print-agent, bonprinter ESC/POS (netwerk of USB)",
+  status:"Statusbord: elke TV met browser (smart-TV, Fire TV Stick of Chromecast)",
+  tv:"TV-menubord: elke TV met browser (smart-TV, Fire TV Stick of Chromecast)",
+  cash:"Cash-automaat: EcoCash, door de klant besteld bij de leverancier; wij koppelen",
+};
+/* Referentie Dr. Shawarma (gemeten in Supabase, kiosk-orders 17 aug–3 sep 2026) */
+const REF = { naam:"Dr. Shawarma", omzet:61000, best:116, bon:17.60, bonLift:0.10, urenPerDag:2, abo:400 };
+
+const AKKOORD = `Door te ondertekenen gaat de klant akkoord met deze offerte van ReachConnect voor het bestelplatform, zoals hierboven gespecificeerd. Prijzen zijn exclusief btw. Het eenmalige bedrag wordt bij akkoord gefactureerd; het maandabonnement gaat in bij livegang en is maandelijks opzegbaar. Het abonnement omvat hosting, storingsbewaking, updates en support. Er wordt geen commissie per bestelling gerekend. Hardware wordt niet door ReachConnect geleverd; de klant schaft apparatuur aan volgens de meegeleverde specificatielijst, waarna installatie wordt ingepland. Meerwerk buiten deze offerte wordt vooraf afgestemd (€75 per uur). Op deze overeenkomst zijn de algemene voorwaarden van ReachConnect van toepassing. Deze offerte is 14 dagen geldig. De klant ontvangt een e-mailbevestiging met deze offerte, de handtekening en het tijdstip van ondertekening.`;
+
+
+</script>
+<script>
+/* ROI-posten */
+const POSTS = [
+  {id:"comm", naam:"Commissie bezorgplatforms", on:true, p:{pct:14, shift:30},
+   ui:p=>`commissie <input type=number id=p_comm_pct value="${p.pct}" min=0 max=40 step=0.5>% · verschuift naar eigen kanaal <input type=number id=p_comm_shift value="${p.shift}" min=0 max=100>%`,
+   read:p=>{p.pct=+val('p_comm_pct');p.shift=+val('p_comm_shift');},
+   calc:(p,i)=> i.platform * (p.pct/100) * (p.shift/100),
+   uitleg:p=>`Platformomzet × ${p.pct}% commissie × ${p.shift}% verschuiving naar eigen kanaal (wordt bij ${REF.naam} nu gemeten)`},
+  {id:"abo", naam:"Vervangen software-abonnementen", on:true, p:{bedrag:null},
+   ui:p=>`huidige kosten kassa, bestelsite, zuil-software, menuborden: € <input type=number id=p_abo value="${p.bedrag??''}" placeholder="auto" min=0>/mnd <span class="src">(auto: €150 klein, €250 middel, €400 groot)</span>`,
+   read:p=>{const b=val('p_abo'); p.bedrag = b===''? null : +b;},
+   eff:(p,i)=> p.bedrag!=null ? p.bedrag : (i.omzet<15000?150: i.omzet<30000?250:400),
+   calc:(p,i)=> POSTS_eff('abo',p,i),
+   uitleg:(p,i)=>`Huidige abonnementen €${POSTS_eff('abo',p,i)}/mnd vervallen`},
+  {id:"uren", naam:"Personeelsuren aan de balie", on:true, needsZuil:true, p:{uren:null, loon:15}, auto:true,
+   ui:p=>`bespaard <input type=number id=p_uren value="${p.uren??''}" placeholder="auto" min=0 step=0.5> uur/dag × € <input type=number id=p_loon value="${p.loon}" min=0> per uur <span class="src">(auto: ${REF.urenPerDag} uur bij ${eur(REF.omzet)} omzet, schaalt mee)</span>`,
+   read:p=>{const u=val('p_uren'); p.uren = u===''? null : +u; p.loon=+val('p_loon');},
+   eff:(p,i)=> p.uren!=null ? p.uren : Math.round(Math.min(REF.urenPerDag*2, REF.urenPerDag * (i.omzet/REF.omzet))*2)/2,
+   calc:(p,i)=> POSTS_eff('uren',p,i) * p.loon * 30,
+   uitleg:(p,i)=>`${POSTS_eff('uren',p,i)} uur/dag × €${p.loon} × 30 dagen`},
+  {id:"bon", naam:"Hogere gemiddelde bon (menu-popup op de zuil)", on:true, needsZuil:true, p:{pct:10, marge:60},
+   ui:p=>`+ <input type=number id=p_bonpct value="${p.pct}" min=0 max=30 step=1>% per bon × brutomarge <input type=number id=p_bmarge value="${p.marge}" min=0 max=100>% <span class="src">(gemeten bij ${REF.naam}: +${Math.round(REF.bonLift*100)}%, van €16,00 naar ${eur2(REF.bon)})</span>`,
+   read:p=>{p.pct=+val('p_bonpct');p.marge=+val('p_bmarge');},
+   calc:(p,i)=> i.best * 30 * i.bon * (p.pct/100) * (p.marge/100),
+   uitleg:p=>`${'{best}'} bestellingen/dag × 30 × gem. bon × ${p.pct}% × ${p.marge}% marge (referentie ${REF.naam}: +${Math.round(REF.bonLift*100)}%)`},
+  {id:"door", naam:"Extra doorloop in piekuren", on:true, p:{pct:10, marge:60},
+   ui:p=>`<select id=p_door><option value=10 ${p.pct==10?'selected':''}>10% meer bestellingen</option><option value=20 ${p.pct==20?'selected':''}>20% meer bestellingen</option></select> · brutomarge <input type=number id=p_marge value="${p.marge}" min=0 max=100>%`,
+   read:p=>{p.pct=+val('p_door');p.marge=+val('p_marge');},
+   calc:(p,i)=> i.best * 30 * i.bon * (p.pct/100) * (p.marge/100),
+   uitleg:p=>`${'{best}'} bestellingen/dag × 30 × gem. bon × ${p.pct}% × ${p.marge}% marge`},
+  {id:"ups", naam:"Extra omzet uit marketing / SEO", on:false, needsUpsell:true, p:{omzet:0, marge:60},
+   ui:p=>`verwachte extra omzet € <input type=number id=p_ups value="${p.omzet}" min=0>/mnd × marge <input type=number id=p_umarge value="${p.marge}" min=0 max=100>%`,
+   read:p=>{p.omzet=+val('p_ups');p.marge=+val('p_umarge');},
+   calc:(p,i)=> p.omzet * (p.marge/100),
+   uitleg:p=>`€${p.omzet} extra omzet × ${p.marge}% marge (inschatting)`},
+];
+
+function POSTS_eff(id,p,i){ const post=POSTS.find(x=>x.id===id); return post.eff(p,i); }
+
+/* ===== state ===== */
+let S = { nummer:null, pakket:"standaard", signed:null, klantmodus:false };
+const eur = n => "€" + Math.round(n).toLocaleString("nl-NL");
+const eur2 = n => "€" + n.toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2});
+const val = id => { const e=document.getElementById(id); return e? e.value : ""; };
+const el = id => document.getElementById(id);
+const pk = () => PAKKETTEN.find(p=>p.id===S.pakket);
+
+function nummer(){ const d=new Date(); return "RC-"+d.getFullYear()+"-"+String(Math.floor(Math.random()*9000)+1000)+"P"; } // P = prototype; echte reeks komt uit Supabase
+
+/* ===== render ===== */
+function renderPk(){
+  el('pk').innerHTML = PAKKETTEN.map(p=>`
+    <label class="${S.pakket===p.id?'sel':''}"><input type="radio" name="pk" value="${p.id}" ${S.pakket===p.id?'checked':''} onchange="setPk('${p.id}')">
+      <div class="t">${p.naam}</div>
+      <div class="p">${eur(p.eenmalig)} <small>eenmalig · ${eur(p.mnd)}/mnd</small></div>
+      <div class="sub">${p.sub}</div>
+      <ul>${p.incl.map(i=>`<li>${i}</li>`).join('')}</ul>
+    </label>`).join('');
+}
+function setPk(id){ S.pakket=id; if(id==='standaard'){ const b=MODULES.find(m=>m.id==='bezorg'); b.qty=0; } MODULES.forEach(x=>{ if(x.needs && x.qty && !(stationCounts()[x.needs]>0)) x.qty=0; }); renderPk(); renderMods(); renderSpec(); calc(); }
+function renderMods(){
+  el('mods').innerHTML = MODULES.filter(m=>!(m.alleenKlein && S.pakket!=='klein')).map((m)=>{
+    const i=MODULES.indexOf(m);
+    return `<div class="row ${m.qty?'':'off'}">
+      <div class="info"><div class="nm">${m.naam}${m.station?'<span class="tag">station</span>':''}</div><div class="ds">${m.sub}</div></div>
+      <div class="pr">${m.prijs? eur(m.prijs):'gratis'}${m.mnd?`<small>+${eur(m.mnd)}/mnd</small>`:''}</div>
+      <div class="qty"><button onclick="chQty(${i},-1)">−</button><span>${m.qty}</span><button onclick="chQty(${i},1)">+</button></div>
+    </div>`;}).join('');
+}
+function chQty(i,d){ const m=MODULES[i];
+  if(d>0 && m.needs && !(stationCounts()[m.needs]>0)){ alert('Een statusbord werkt alleen samen met een keukenscherm. Voeg eerst een keukenscherm toe.'); return; }
+  m.qty=Math.min(m.max,Math.max(0,m.qty+d));
+  MODULES.forEach(x=>{ if(x.needs && x.qty && !(stationCounts()[x.needs]>0)) x.qty=0; });
+  renderMods(); renderSpec(); calc(); }
+function renderUps(){
+  el('ups').innerHTML = UPSELL.map((u,i)=>`<div class="row ${u.on?'':'off'}">
+      <div class="info"><div class="nm">${u.naam}</div><div class="ds">${u.sub}</div></div>
+      <div class="pr">${eur(u.prijs)}<small>per maand</small></div>
+      <label class="sw"><input type="checkbox" ${u.on?'checked':''} onchange="setUp(${i},this.checked)"><i></i></label>
+    </div>`).join('');
+}
+function setUp(i,on){ const u=UPSELL[i]; u.on=on; if(on&&u.excl){ UPSELL.find(x=>x.id===u.excl).on=false; } const p=POSTS.find(p=>p.id==='ups'); if(on) p.on=true; renderUps(); renderPosts(); calc(); }
+function stationCounts(){
+  const c={...pk().stations, cash:0};
+  MODULES.forEach(m=>{ if(m.station&&m.qty) c[m.id]=(c[m.id]||0)+m.qty; });
+  return c;
+}
+let specOk = {};
+function renderSpec(){
+  const c=stationCounts(); const keys=Object.keys(SPEC).filter(k=>c[k]>0);
+  if(!keys.length){ el('spec').innerHTML=`<div class="note">Geen stations gekozen: geen hardware nodig. Kassascherm draait op een bestaande pc of tablet.</div>`; return; }
+  el('spec').innerHTML = keys.map(k=>`<div class="row ${specOk[k]?'':'off'}">
+      <div class="info"><div class="nm">${c[k]}× ${k==='tv'?'TV-menubord':k==='status'?'Statusbord':k==='zuil'?'Bestelzuil':k==='keuken'?'Keukenscherm':'Cash-automaat'}</div><div class="ds">${SPEC[k]}</div></div>
+      <label class="sw"><input type="checkbox" ${specOk[k]?'checked':''} onchange="specOk['${k}']=this.checked;renderSpec();save()"><i></i></label>
+    </div>`).join('') + `<div class="note">Lijst ontvangen = klant weet wat hij moet kopen. Installatie op locatie na bevestiging dat alles er is.</div>`;
+}
+function renderPosts(){
+  const c=stationCounts(); const hasZuil=c.zuil>0; const hasUps=UPSELL.some(u=>u.on);
+  el('posts').innerHTML = POSTS.map((p,i)=>{
+    const hide = (p.needsZuil&&!hasZuil) || (p.needsUpsell&&!hasUps);
+    if(hide) return '';
+    return `<div class="post ${p.on?'':'off'}" id="post_${p.id}">
+      <div class="hd"><label class="sw"><input type="checkbox" ${p.on?'checked':''} onchange="POSTS[${i}].on=this.checked;renderPosts();calc()"><i></i></label>
+        <div class="info"><div class="nm">${p.naam}</div></div><div class="val" id="pv_${p.id}">€0</div></div>
+      <div class="body">${p.ui(p.p)}</div>
+    </div>`;
+  }).join('');
+  el('posts').querySelectorAll('input,select').forEach(x=>{ if(x.type!=='checkbox') x.addEventListener('input',calc); });
+}
+
+/* ===== rekenen ===== */
+function totals(){
+  const p=pk();
+  const regels=[{type:'pakket',id:p.id,naam:`Pakket ${p.naam}`,aantal:1,prijs:p.eenmalig,totaal:p.eenmalig}];
+  let een=p.eenmalig, mnd=p.mnd;
+  MODULES.forEach(m=>{ if(m.qty && !(m.alleenKlein&&S.pakket!=='klein')){ regels.push({type:'module',id:m.id,naam:m.naam,aantal:m.qty,prijs:m.prijs,totaal:m.prijs*m.qty,mnd:m.mnd*m.qty}); een+=m.prijs*m.qty; mnd+=m.mnd*m.qty; } });
+  const ups=[]; UPSELL.forEach(u=>{ if(u.on){ ups.push({type:'upsell',id:u.id,naam:u.naam,prijs:u.prijs}); mnd+=u.prijs; } });
+  let korting=Math.max(0,+val('v_korting')||0); const kmax=Math.floor(een*KORTING_MAX); const kortingTeHoog=korting>kmax;
+  const eenNet=een-Math.min(korting,een);
+  return {regels,ups,een,korting,kmax,kortingTeHoog,eenNet,btw:eenNet*BTW,incl:eenNet*(1+BTW),mnd,mndPakket:p.mnd};
+}
+function roi(t){
+  const i={ omzet:+val('r_omzet')||0, best:+val('r_best')||0, platform:+val('r_platform')||0 };
+  const bonIn=+val('r_bon'); i.bon = bonIn>0 ? bonIn : (i.best>0 && i.omzet>0 ? i.omzet/(i.best*30) : (i.omzet>0 ? REF.bon : 0));
+  if(!i.best && i.omzet>0 && i.bon>0){ i.best = Math.round(i.omzet/(i.bon*30)); el('r_best').placeholder = i.best; }
+  if(!bonIn && i.bon) el('r_bon').placeholder = i.bon.toFixed(2);
+  const c=stationCounts(); const hasZuil=c.zuil>0; const hasUps=UPSELL.some(u=>u.on);
+  let bruto=0; const posten=[];
+  POSTS.forEach(p=>{
+    const hide=(p.needsZuil&&!hasZuil)||(p.needsUpsell&&!hasUps);
+    if(hide) return;
+    try{ p.read(p.p); }catch(e){}
+    const v = p.calc(p.p,i)||0;
+    const pv=el('pv_'+p.id); if(pv) pv.textContent = eur(v)+"/mnd";
+    if(p.on){ bruto+=v; posten.push({id:p.id,naam:p.naam,bedrag:Math.round(v),uitleg:p.uitleg(p.p,i).replace('{best}',i.best)}); }
+  });
+  const netto=bruto-t.mnd; const tvt = netto>0 ? Math.ceil(t.eenNet/netto) : null; const drie = netto*36 - t.eenNet;
+  return {invoer:i,posten,bruto,netto,tvt,drie};
+}
+let last=null;
+function calc(){
+  const t=totals(); const r=roi(t); last={t,r};
+  el('b_een').textContent=eur(t.eenNet); el('b_mnd').textContent=eur(t.mnd);
+  el('b_tvt').textContent = r.tvt? r.tvt+" mnd" : (r.bruto>0? "–" : "vul ROI in");
+  el('res').innerHTML = `
+    <div><div class="k">Besparing / mnd</div><div class="v">${eur(r.bruto)}</div></div>
+    <div><div class="k">Netto / mnd na abonnement</div><div class="v ${r.netto<0?'neg':''}">${eur(r.netto)}</div></div>
+    <div><div class="k">Terugverdiend in</div><div class="v">${r.tvt? r.tvt+' mnd':'–'}</div></div>
+    <div class="wide" style="grid-column:1/-1"><div class="k">Over 3 jaar houdt u over</div><div class="v ${r.drie<0?'neg':''}">${eur(r.drie)}</div></div>`;
+  el('roiwarn').classList.toggle('hidden', !(r.bruto>0 && r.netto<=0));
+  // overzicht
+  let rows = t.regels.map(x=>`<div class="trow"><span class="l">${x.aantal>1?x.aantal+'× ':''}${x.naam}</span><span class="r">${eur(x.totaal)}</span></div>`).join('');
+  rows += `<div class="tot">`;
+  if(t.korting>0) rows += `<div class="trow"><span class="l">Korting</span><span class="r">− ${eur(Math.min(t.korting,t.een))}</span></div>`;
+  rows += `<div class="trow"><span class="l">Eenmalig ex btw</span><span class="r">${eur(t.eenNet)}</span></div>
+    <div class="trow"><span class="l">Btw 21%</span><span class="r">${eur2(t.btw)}</span></div>
+    <div class="trow big"><span class="l">Eenmalig incl. btw</span><span class="r">${eur2(t.incl)}</span></div></div>
+    <div class="tot"><div class="trow"><span class="l">Abonnement pakket ${pk().naam}</span><span class="r">${eur(t.mndPakket)}/mnd</span></div>`;
+  t.regels.filter(x=>x.mnd).forEach(x=>{ rows += `<div class="trow"><span class="l">${x.aantal>1?x.aantal+'× ':''}${x.naam.replace(' (inrichting)','')}</span><span class="r">+${eur(x.mnd)}/mnd</span></div>`; });
+  t.ups.forEach(u=>{ rows += `<div class="trow"><span class="l">${u.naam}</span><span class="r">+${eur(u.prijs)}/mnd</span></div>`; });
+  rows += `<div class="trow big"><span class="l">Per maand ex btw</span><span class="r">${eur(t.mnd)}</span></div></div>`;
+  if(t.kortingTeHoog) rows += `<div class="warn vk-only">Korting boven ${eur(t.kmax)} (10%): offerte blijft concept tot Noah akkoord geeft.</div>`;
+  el('ovz').innerHTML = rows;
+  el('c1').textContent = eur((t.een-Math.min(t.korting,t.een))*COMMISSIE); el('c2').textContent = eur(t.mnd*COMMISSIE);
+  el('h_nr').textContent = S.nummer;
+  chkSign(); save();
+}
+
+/* ===== handtekening ===== */
+let ctx, drawing=false, hasSig=false, ratio=1;
+function initSig(){
+  const c=el('sig'); ratio=Math.max(1,window.devicePixelRatio||1);
+  const w=c.clientWidth, h=180; c.width=w*ratio; c.height=h*ratio; c.style.height=h+'px';
+  ctx=c.getContext('2d'); ctx.scale(ratio,ratio); ctx.lineWidth=2.2; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#111';
+  const pos=e=>{ const r=c.getBoundingClientRect(); const t=e.touches?e.touches[0]:e; return [t.clientX-r.left, t.clientY-r.top]; };
+  const start=e=>{ if(S.signed) return; drawing=true; ctx.beginPath(); ctx.moveTo(...pos(e)); e.preventDefault(); };
+  const move=e=>{ if(!drawing) return; ctx.lineTo(...pos(e)); ctx.stroke(); hasSig=true; el('sighint').style.display='none'; chkSign(); e.preventDefault(); };
+  const end=()=>{ drawing=false; };
+  c.addEventListener('pointerdown',start); c.addEventListener('pointermove',move); window.addEventListener('pointerup',end);
+}
+function clearSig(){ if(S.signed) return; const c=el('sig'); ctx.clearRect(0,0,c.width,c.height); hasSig=false; el('sighint').style.display=''; chkSign(); }
+function chkSign(){ const ok = hasSig && val('s_naam').trim().length>1 && val('k_zaak').trim().length>0 && !S.signed; el('signBtn').disabled=!ok; }
+function sign(){
+  if(S.signed) return;
+  const now=new Date();
+  S.signed={ door:val('s_naam'), functie:val('s_functie'), op:now.toISOString(), png:el('sig').toDataURL('image/png'), ua:navigator.userAgent, tekst:AKKOORD, snapshot:JSON.parse(JSON.stringify(last)) };
+  renderSigned(); lockAll(); save(); dbSave(true);
+}
+function renderSigned(){
+  if(!S.signed) return; const d=new Date(S.signed.op);
+  el('signedbox').classList.remove('hidden');
+  el('signedbox').innerHTML = `<b>Ondertekend</b> door ${S.signed.door}${S.signed.functie?' ('+S.signed.functie+')':''} op ${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})} · offerte ${S.nummer}.<br><span class="note">Deze offerte is nu vergrendeld. Print of bewaar de PDF en mail hem naar de klant.</span>`;
+  el('signBtn').textContent='Ondertekend'; el('signBtn').disabled=true; el('barBtn').textContent='Print / PDF';
+}
+function lockAll(){ document.querySelectorAll('main section.card').forEach((s,i)=>{ if(s.id!=='akkoord') s.classList.add('lock'); }); el('sigwrap').classList.add('lock'); el('s_naam').disabled=true; el('s_functie').disabled=true; }
+
+/* ===== document / print ===== */
+function showDoc(){ buildDoc(); window.print(); }
+function buildDoc(){
+  const {t,r}=last; const d=S.signed? new Date(S.signed.op): new Date();
+  const c=stationCounts();
+  const specKeys=Object.keys(SPEC).filter(k=>c[k]>0);
+  let h=`<div class="dh"><div><div class="logo">Reach<b>Connect</b></div><div class="small">Bestelplatform voor horeca · offertes@reachconnect.nl</div></div>
+    <div class="meta"><b>Offerte ${S.nummer}</b><br>Datum ${new Date().toLocaleDateString('nl-NL')}<br>Geldig 14 dagen<br>Accountmanager: ${val('v_naam')||'—'}</div></div>
+    <h2>Klant</h2><div><b>${val('k_zaak')}</b><br>${[val('k_naam'),val('k_adres'),val('k_mail'),val('k_tel')].filter(Boolean).join('<br>')}</div>
+    <h2>Eenmalig</h2><table><tr><th>Omschrijving</th><th class="r">Aantal</th><th class="r">Prijs</th><th class="r">Totaal</th></tr>`;
+  t.regels.forEach(x=>{ h+=`<tr><td>${x.naam}${x.type==='pakket'?'<br><span class="small">'+pk().incl.join(' · ')+'</span>':''}</td><td class="r">${x.aantal}</td><td class="r">${eur(x.prijs)}</td><td class="r">${eur(x.totaal)}</td></tr>`; });
+  if(t.korting>0) h+=`<tr><td colspan=3>Korting</td><td class="r">− ${eur(Math.min(t.korting,t.een))}</td></tr>`;
+  h+=`<tr><td colspan=3>Subtotaal ex btw</td><td class="r">${eur(t.eenNet)}</td></tr><tr><td colspan=3>Btw 21%</td><td class="r">${eur2(t.btw)}</td></tr><tr class="tt"><td colspan=3>Eenmalig incl. btw</td><td class="r">${eur2(t.incl)}</td></tr></table>
+    <h2>Maandabonnement</h2><table><tr><td>Pakket ${pk().naam}: hosting, storingsbewaking 24/7, updates, support</td><td class="r">${eur(t.mndPakket)}</td></tr>`;
+  t.regels.filter(x=>x.mnd).forEach(x=>{ h+=`<tr><td>${x.aantal}× ${x.naam.replace(' (inrichting)','')}</td><td class="r">${eur(x.mnd)}</td></tr>`; });
+  t.ups.forEach(u=>{ h+=`<tr><td>${u.naam}</td><td class="r">${eur(u.prijs)}</td></tr>`; });
+  h+=`<tr class="tt"><td>Per maand ex btw · maandelijks opzegbaar · geen commissie per bestelling</td><td class="r">${eur(t.mnd)}</td></tr></table>`;
+  if(r.posten.length){
+    h+=`<h2>Wat het oplevert (indicatief, op basis van uw eigen cijfers)</h2><div class="small">Invoer: omzet ${eur(r.invoer.omzet)}/mnd · ${r.invoer.best} bestellingen/dag · gem. bon ${eur2(r.invoer.bon)} · via bezorgplatforms ${eur(r.invoer.platform)}/mnd</div>
+      <table><tr><th>Post</th><th>Aanname</th><th class="r">Per maand</th></tr>`;
+    r.posten.forEach(p=>{ h+=`<tr><td>${p.naam}</td><td class="small">${p.uitleg}</td><td class="r">${eur(p.bedrag)}</td></tr>`; });
+    h+=`</table><div class="kv"><div><div class="k">Netto per maand na abonnement</div><div class="v">${eur(r.netto)}</div></div><div><div class="k">Terugverdiend in</div><div class="v">${r.tvt? r.tvt+' maanden':'–'}</div></div><div><div class="k">Over 3 jaar</div><div class="v">${eur(r.drie)}</div></div></div>`;
+  }
+  h+=`<h2>Akkoord</h2><div class="box">${AKKOORD}</div>`;
+  if(S.signed){
+    h+=`<div class="sigbox"><img src="${S.signed.png}" alt="handtekening"><div><b>${S.signed.door}</b>${S.signed.functie?', '+S.signed.functie:''}<br>${val('k_zaak')}<br><span class="small">Ondertekend op ${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL')} via de ReachConnect dealtool · offerte ${S.nummer}</span></div></div>`;
+  } else {
+    h+=`<div class="sigbox"><div style="width:220px;height:80px;border-bottom:1px solid #999"></div><div>Naam:<br>Datum:</div></div>`;
+  }
+  if(specKeys.length){
+    h+=`<div class="pb"></div><h2>Bijlage: specificatielijst hardware (door de klant aan te schaffen)</h2><table><tr><th>Station</th><th>Specificatie</th><th>Lijst ontvangen</th></tr>`;
+    specKeys.forEach(k=>{ h+=`<tr><td>${c[k]}× ${k}</td><td>${SPEC[k]}</td><td>${specOk[k]?'ja':'nee'}</td></tr>`; });
+    h+=`</table><div class="small">Installatie op locatie wordt ingepland zodra de apparatuur aanwezig en aangesloten is. Twijfel over een model? Stuur de link vooraf naar offertes@reachconnect.nl.</div>`;
+  }
+  el('doc').innerHTML=h;
+}
+
+/* ===== opslag (prototype: localStorage) ===== */
+function save(){
+  const data={ S, mods:MODULES.map(m=>m.qty), ups:UPSELL.map(u=>u.on), posts:POSTS.map(p=>({on:p.on,p:p.p})), specOk,
+    f:['k_zaak','k_naam','k_mail','k_tel','k_adres','v_naam','v_korting','v_notitie','r_omzet','r_best','r_bon','r_platform','s_naam','s_functie'].reduce((a,id)=>(a[id]=val(id),a),{}) };
+  try{ localStorage.setItem('rc_offerte', JSON.stringify(data)); }catch(e){}
+  dbQueue();
+}
+function load(){
+  try{ const d=JSON.parse(localStorage.getItem('rc_offerte')||'null'); if(!d) return false;
+    S=d.S; MODULES.forEach((m,i)=>m.qty=d.mods[i]||0); UPSELL.forEach((u,i)=>u.on=!!d.ups[i]); POSTS.forEach((p,i)=>{ if(d.posts[i]){ p.on=d.posts[i].on; Object.assign(p.p,d.posts[i].p);} }); specOk=d.specOk||{};
+    Object.entries(d.f).forEach(([id,v])=>{ const e=el(id); if(e) e.value=v; }); return true; }catch(e){ return false; }
+}
+function dealPayload(){
+  return { nummer:S.nummer, prijsmodel_versie:PRIJSMODEL_VERSIE, status:S.signed?'getekend':'concept', accountmanager:val('v_naam'),
+    klant:{zaak:val('k_zaak'),contact:val('k_naam'),email:val('k_mail'),telefoon:val('k_tel'),adres:val('k_adres')},
+    pakket:S.pakket, regels:last.t.regels, upsell:last.t.ups, korting:last.t.korting, eenmalig_ex:last.t.eenNet, btw:last.t.btw, eenmalig_incl:last.t.incl, maandbedrag_ex:last.t.mnd,
+    roi:last.r, speclijst:specOk, notitie:val('v_notitie'), akkoord:S.signed };
+}
+function exportJson(){
+  const data=dealPayload();
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${S.nummer}_${(val('k_zaak')||'offerte').replace(/[^\w]+/g,'_')}.json`; a.click();
+}
+function nieuw(){
+  if(!confirm('Nieuwe offerte starten? De huidige blijft alleen bewaard als je hem eerst geëxporteerd of geprint hebt.')) return;
+  localStorage.removeItem('rc_offerte'); localStorage.removeItem('rc_dbid'); location.reload();
+}
+function barAction(){ if(S.signed) showDoc(); else document.getElementById('akkoord').scrollIntoView({behavior:'smooth'}); }
+function toggleC(){ document.body.classList.toggle('cmode'); const on=document.body.classList.contains('cmode'); el('cBtn').classList.toggle('on',on); el('cBtn').textContent = on? '← Offerte':'Commissie'; window.scrollTo(0,0); }
+function toggleMode(){ if(document.body.classList.contains('cmode')) toggleC(); S.klantmodus=!S.klantmodus; applyMode(); save(); }
+function applyMode(){ document.body.classList.toggle('klant',S.klantmodus); el('modeBtn').textContent = S.klantmodus? 'Accountmanager' : 'Klantweergave'; el('modeBtn').classList.toggle('on',S.klantmodus); }
+
+/* ===== init ===== */
+(function(){
+  const had=load(); if(!S.nummer) S.nummer=nummer();
+  renderPk(); renderMods(); renderUps(); renderSpec(); renderPosts(); el('akktekst').textContent=AKKOORD; el('refline').textContent=`Referentie ${REF.naam} (gemeten): ${eur(REF.omzet)} omzet/mnd via de zuil, ${REF.best} bestellingen/dag, gemiddelde bon ${eur2(REF.bon)}, +${Math.round(REF.bonLift*100)}% bon door de menu-popup.`;
+  initSig(); calc(); applyMode();
+  if(S.signed){ renderSigned(); lockAll(); const img=new Image(); img.onload=()=>{ ctx.drawImage(img,0,0,el('sig').clientWidth,180); }; img.src=S.signed.png; hasSig=true; el('sighint').style.display='none'; }
+  window.addEventListener('resize',()=>{ if(!hasSig) initSig(); });
+})();
+
+/* ===== commissie-calculator (alleen accountmanager) ===== */
+let cpakket="standaard";
+const CMODULES = MODULES.map(m=>({...m, qty:0})); const CUPSELL = UPSELL.map(u=>({...u, on:false}));
+function ccounts(){ const c={...PAKKETTEN.find(p=>p.id===cpakket).stations}; CMODULES.forEach(m=>{ if(m.station&&m.qty) c[m.id]=(c[m.id]||0)+m.qty; }); return c; }
+function crenderSeg(){ el('seg').innerHTML = PAKKETTEN.map(p=>`<button class="${cpakket===p.id?'on':''}" onclick="cpakket='${p.id}';crenderAll()">${p.naam} · ${eur(p.eenmalig)} + ${eur(p.mnd)}/mnd</button>`).join(''); }
+function crenderMods(){
+  el('c_mods').innerHTML = CMODULES.filter(m=>!(m.alleenKlein&&cpakket!=='klein')).map(m=>{ const i=CMODULES.indexOf(m); return `<div class="row ${m.qty?'':'off'}">
+    <div class="info"><div class="nm">${m.naam}</div><div class="ds">${m.sub}</div></div>
+    <div class="pr">${m.prijs?eur(m.prijs):'gratis'}${m.mnd?`<small>+${eur(m.mnd)}/mnd</small>`:''}</div>
+    <div class="qty"><button onclick="cch(${i},-1)">−</button><span>${m.qty}</span><button onclick="cch(${i},1)">+</button></div></div>`; }).join('');
+}
+function cch(i,d){ const m=CMODULES[i]; if(d>0&&m.needs&&!(ccounts()[m.needs]>0)){ alert('Een statusbord werkt alleen samen met een keukenscherm.'); return; } m.qty=Math.min(m.max,Math.max(0,m.qty+d)); CMODULES.forEach(x=>{ if(x.needs&&x.qty&&!(ccounts()[x.needs]>0)) x.qty=0; }); crenderMods(); ccalc(); }
+function crenderUps(){ el('c_ups').innerHTML = CUPSELL.map((u,i)=>`<div class="row ${u.on?'':'off'}"><div class="info"><div class="nm">${u.naam}</div><div class="ds">${u.sub}</div></div><div class="pr">${eur(u.prijs)}<small>per maand</small></div><label class="sw"><input type="checkbox" ${u.on?'checked':''} onchange="csetUp(${i},this.checked)"><i></i></label></div>`).join(''); }
+function csetUp(i,on){ const u=CUPSELL[i]; u.on=on; if(on&&u.excl) CUPSELL.find(x=>x.id===u.excl).on=false; crenderUps(); ccalc(); }
+function crenderAll(){ if(cpakket==='standaard') CMODULES.find(m=>m.id==='bezorg').qty=0; CMODULES.forEach(x=>{ if(x.needs&&x.qty&&!(ccounts()[x.needs]>0)) x.qty=0; }); crenderSeg(); crenderMods(); crenderUps(); ccalc(); }
+function ccalc(){
+  const p=PAKKETTEN.find(x=>x.id===cpakket);
+  let een=p.eenmalig, mnd=p.mnd;
+  CMODULES.forEach(m=>{ if(m.qty&&!(m.alleenKlein&&cpakket!=='klein')){ een+=m.prijs*m.qty; mnd+=m.mnd*m.qty; } });
+  CUPSELL.forEach(u=>{ if(u.on) mnd+=u.prijs; });
+  const k=Math.min(een, Math.max(0,+val('c_korting')||0)); const eenNet=een-k;
+  const c1=eenNet*COMMISSIE, c2=mnd*COMMISSIE;
+  el('d_een').textContent=eur(c1); el('d_mnd').textContent=eur(c2)+"/mnd"; el('d_jaar').textContent=eur(c1+c2*12);
+  el('d_txt').textContent=`Deal: ${eur(eenNet)} eenmalig + ${eur(mnd)}/mnd voor de klant → ${eur(c1)} + ${eur(c2)}/mnd voor jou. Na 12 maanden ${eur(c1+c2*12)}, na 24 maanden ${eur(c1+c2*24)}.`;
+  const nk=+val('n_klein')||0, ns=+val('n_std')||0, xe=+val('extra_een')||0, xm=+val('extra_mnd')||0, keep=(+val('churn')||0)/100, H=+val('hor');
+  const pk=PAKKETTEN.find(x=>x.id==='klein'), ps=PAKKETTEN.find(x=>x.id==='standaard');
+  const eenPerMaand = (nk*(pk.eenmalig+xe) + ns*(ps.eenmalig+xe))*COMMISSIE;
+  const mndPerDeal = { k:(pk.mnd+xm)*COMMISSIE, s:(ps.mnd+xm)*COMMISSIE };
+  let rows='', tot=0, rec=0; const deals=[];
+  for(let m=1;m<=H;m++){
+    for(let j=0;j<nk;j++) deals.push({t:m,v:mndPerDeal.k}); for(let j=0;j<ns;j++) deals.push({t:m,v:mndPerDeal.s});
+    rec = deals.reduce((a,d)=> a + d.v * (m-d.t>=12 ? keep : 1), 0);
+    const maand = eenPerMaand + rec; tot+=maand;
+    rows += `<tr><td>Maand ${m}</td><td class="r">${eur(eenPerMaand)}</td><td class="r">${eur(rec)}</td><td class="r">${eur(maand)}</td><td class="r">${eur(tot)}</td></tr>`;
+  }
+  el('m_een').textContent=eur(eenPerMaand); el('m_rec').textContent=eur(rec)+"/mnd"; el('m_tot').textContent=eur(tot);
+  el('tbl').innerHTML = `<tr><th>Maand</th><th class="r">Eenmalig</th><th class="r">Doorlopend</th><th class="r">Totaal</th><th class="r">Cumulatief</th></tr>${rows}<tr class="tt"><td>Totaal ${H} mnd</td><td class="r">${eur(eenPerMaand*H)}</td><td class="r">${eur(tot-eenPerMaand*H)}</td><td class="r">${eur(tot)}</td><td class="r"></td></tr>`;
+}
+crenderAll();
+
+/* ===== LeadGen-koppeling: opslag met de ingelogde sessie (zelfde origin, zelfde localStorage) ===== */
+const LG = { url:"https://zboyxwwrbtpjnlgquhzs.supabase.co", anon:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpib3l4d3dyYnRwam5sZ3F1aHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwMjUxMzMsImV4cCI6MjA5MTYwMTEzM30.1YWu29OCZlHQrijnVFFAU1T2W_lqDw0A9ImoaLbyM9U" };
+var sb=null, lgUser=null, dbId=null, dbTimer=null, dbBusy=false, dbDirty=false;
+function dbState(txt, ok){ const e=el('dbState'); if(!e) return; e.textContent=txt; e.style.borderColor = ok===false? 'var(--err)' : ok? 'var(--acc)':'var(--line2)'; e.style.color = ok===false? 'var(--err)' : ok? 'var(--acc)':'var(--muted)'; }
+async function lgInit(){
+  try{ dbId = localStorage.getItem('rc_dbid')||null; }catch(e){}
+  if(!window.supabase || !LG.url.startsWith('http')){ dbState('los bestand', null); return; }
+  try{
+    sb = window.supabase.createClient(LG.url, LG.anon);
+    const { data:{ session } } = await sb.auth.getSession();
+    if(!session){ dbState('niet ingelogd', false); el('backLink').textContent='Inloggen'; el('backLink').href='/login'; return; }
+    lgUser = session.user;
+    const { data: prof } = await sb.from('profiles').select('full_name').eq('id', lgUser.id).maybeSingle();
+    const naam = prof?.full_name || lgUser.email;
+    const v=el('v_naam'); if(v){ v.value = naam; v.readOnly = true; }
+    dbState('opslag aan', true);
+    if(S.signed && !dbId) dbSave(true);
+  }catch(e){ dbState('opslag niet beschikbaar', false); }
+}
+function dbQueue(){ if(!sb||!lgUser) return; dbDirty=true; clearTimeout(dbTimer); dbTimer=setTimeout(()=>dbSave(false), 1500); }
+async function dbSave(force){
+  if(!sb||!lgUser||!last) return;
+  if(!val('k_zaak').trim()) return;               // pas opslaan als er een zaak is
+  if(dbBusy){ dbDirty=true; return; }
+  dbBusy=true; dbDirty=false;
+  const d=dealPayload();
+  const row={ user_id:lgUser.id, nummer:d.nummer, status:d.status, prijsmodel_versie:d.prijsmodel_versie, accountmanager:d.accountmanager,
+    zaak_naam:d.klant.zaak, contact_naam:d.klant.contact, email:d.klant.email, telefoon:d.klant.telefoon, adres:d.klant.adres,
+    pakket:d.pakket, regels:d.regels, upsell:d.upsell, korting:d.korting, eenmalig_ex:d.eenmalig_ex, btw:d.btw, eenmalig_incl:d.eenmalig_incl,
+    maandbedrag_ex:d.maandbedrag_ex, roi:d.roi, speclijst:d.speclijst, notitie:d.notitie, akkoord:d.akkoord, getekend_op: d.akkoord? d.akkoord.op : null };
+  try{
+    dbState('opslaan…', null);
+    let res;
+    if(dbId){ res = await sb.from('offertes').update(row).eq('id', dbId).select('id').maybeSingle(); if(res.error) throw res.error; if(!res.data){ dbId=null; } }
+    if(!dbId){
+      res = await sb.from('offertes').insert(row).select('id').single();
+      if(res.error && String(res.error.message||'').includes('offertes_org_nummer_uniq')){ S.nummer=nummer(); el('h_nr').textContent=S.nummer; dbBusy=false; return dbSave(force); }
+      if(res.error) throw res.error;
+      dbId=res.data.id; try{ localStorage.setItem('rc_dbid', dbId); }catch(e){}
+    }
+    dbState(d.status==='getekend'?'getekend · opgeslagen':'opgeslagen', true);
+  }catch(e){
+    console.error('offerte opslaan mislukt', e);
+    dbState('opslaan mislukt', false);
+    if(force) alert('De offerte kon niet in LeadGen worden opgeslagen ('+(e.message||e)+'). Exporteer de deal als JSON en stuur hem naar Noah.');
+  }finally{ dbBusy=false; if(dbDirty) dbQueue(); }
+}
+lgInit();
+</script>
+</body>
+</html>

@@ -13,6 +13,7 @@ export default function MobileNav({ profile }) {
     { to: '/', label: 'Dashboard' },
     { to: '/tba', label: 'TBA\'s' },
     ...(canViewEarnings ? [{ to: '/earnings', label: 'Verdiensten' }] : []),
+    { to: '/tools', label: 'Tools' },
     ...(profile?.role === 'admin' ? [
       { to: '/admin/telemetry', label: 'Telemetrie' },
       { to: '/admin', label: 'Admin' },
