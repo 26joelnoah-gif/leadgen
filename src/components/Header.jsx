@@ -5,6 +5,7 @@ import { useTheme } from '../context/ThemeContext'
 import { Zap, Settings, LogOut, Phone, Menu, X, Sun, Moon, HelpCircle } from 'lucide-react'
 import Logo from './Logo'
 import AccountSettingsModal from './AccountSettingsModal'
+import { useToolAccess } from '../hooks/useToolAccess'
 
 export default function Header({ onOpenSettings }) {
   const { profile, signOut, sessionCallCount, toggleWorkingMode, isWorking } = useAuth()
@@ -14,6 +15,8 @@ export default function Header({ onOpenSettings }) {
   // v35: "Mijn account" (o.a. eigen wachtwoord wijzigen) - overal beschikbaar
   // via het tandwiel, ongeacht of een pagina zelf nog onOpenSettings gebruikt.
   const [showAccount, setShowAccount] = useState(false)
+  // v60: tab Tools alleen als er via een project tools aan je hangen (admin altijd)
+  const { hasTools } = useToolAccess()
 
   const isAdmin = profile?.role === 'admin'
   const isManager = profile?.role === 'manager'
@@ -44,7 +47,8 @@ export default function Header({ onOpenSettings }) {
         ...(canViewEarnings ? [{ path: '/earnings', label: 'Verdiensten' }] : []),
         { path: '/roosters', label: 'Roosters' },
         // v59: offerte-tool bestelplatform + overzicht eigen offertes
-        { path: '/tools', label: 'Tools' },
+        // v60: alleen zichtbaar als een project van jou tools heeft (campaign_tools)
+        ...(hasTools ? [{ path: '/tools', label: 'Tools' }] : []),
         ...(isManager ? [
           { path: '/manager', label: 'Mijn Projecten' },
           { path: '/admin/reports', label: 'Rapportage' }

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Menu, X } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useToolAccess } from '../hooks/useToolAccess'
 
 export default function MobileNav({ profile }) {
   const [open, setOpen] = useState(false)
@@ -9,11 +10,13 @@ export default function MobileNav({ profile }) {
   // v51: admin kan de Verdiensten-tab per medewerker uitzetten
   // (profiles.can_view_earnings, default true).
   const canViewEarnings = profile?.can_view_earnings !== false
+  // v60: Tools alleen als een project van jou tools heeft (admin altijd)
+  const { hasTools } = useToolAccess()
   const links = [
     { to: '/', label: 'Dashboard' },
     { to: '/tba', label: 'TBA\'s' },
     ...(canViewEarnings ? [{ to: '/earnings', label: 'Verdiensten' }] : []),
-    { to: '/tools', label: 'Tools' },
+    ...(hasTools ? [{ to: '/tools', label: 'Tools' }] : []),
     ...(profile?.role === 'admin' ? [
       { to: '/admin/telemetry', label: 'Telemetrie' },
       { to: '/admin', label: 'Admin' },

@@ -18,6 +18,7 @@ import Manager from './pages/Manager'
 import Recruitment from './pages/Recruitment'
 import Roosters from './pages/Roosters'
 import Tools from './pages/Tools'
+import { useToolAccess } from './hooks/useToolAccess'
 import WorkInterface from './components/WorkInterface'
 import FeatureAwareness from './components/FeatureAwareness'
 
@@ -65,6 +66,15 @@ function UpdateChecker() {
       </button>
     </div>
   )
+}
+
+// v60: /tools alleen voor wie via een project tools heeft (campaign_tools) of admin is.
+// Handmatig ingetypte URL zonder recht gaat terug naar het dashboard.
+function ToolsGate({ children }) {
+  const { toolKeys, loading } = useToolAccess()
+  if (loading) return null
+  if (toolKeys.length === 0) return <Navigate to="/" replace />
+  return children
 }
 
 function ProtectedRoute({ children, requireAdmin = false, allowManager = false, allowPlanning = false }) {
@@ -229,7 +239,9 @@ function AppRoutes() {
         path="/tools"
         element={
           <ProtectedRoute>
-            <Tools />
+            <ToolsGate>
+              <Tools />
+            </ToolsGate>
           </ProtectedRoute>
         }
       />

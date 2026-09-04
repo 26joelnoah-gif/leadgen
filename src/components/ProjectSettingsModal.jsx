@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { X, Settings, Check, Trash2, Pause, Play, Layers } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useToast } from './Toast'
+import { TOOLS } from '../lib/tools'
 
 // Uitgebreid instellingenpaneel per project (campagne) - vervangt de krappe
 // inline chip-rijtjes op de projectkaart in Projecten & Leads. Hier kan een
@@ -54,6 +55,8 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   const [projectType, setProjectType] = useState('sales')
   const [selectedManagers, setSelectedManagers] = useState([])
   const [selectedTeams, setSelectedTeams] = useState([])
+  // v60: tools per project (campaign_tools) - wie aan het project hangt ziet ze in de tab Tools
+  const [selectedTools, setSelectedTools] = useState([])
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -69,10 +72,12 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
     setLoading(true)
     Promise.all([
       supabase.from('campaign_managers').select('manager_id').eq('campaign_id', campaign.id),
-      supabase.from('campaign_teams').select('team_id').eq('campaign_id', campaign.id)
-    ]).then(([mRes, tRes]) => {
+      supabase.from('campaign_teams').select('team_id').eq('campaign_id', campaign.id),
+      supabase.from('campaign_tools').select('tool_key').eq('campaign_id', campaign.id)
+    ]).then(([mRes, tRes, toolRes]) => {
       setSelectedManagers((mRes.data || []).map(r => r.manager_id))
       setSelectedTeams((tRes.data || []).map(r => r.team_id))
+      setSelectedTools((toolRes.data || []).map(r => r.tool_key))
       setLoading(false)
     })
   }, [isOpen, campaign?.id])
@@ -86,6 +91,9 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   }
   function toggleTeam(id) {
     setSelectedTeams(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+  function toggleTool(key) {
+    setSelectedTools(prev => prev.includes(key) ? prev.filter(x => x !== key) : [...prev, key])
   }
 
   async function handleSave() {
@@ -135,6 +143,20 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       }
       if (removeTeams.length) {
         const { error } = await supabase.from('campaign_teams').delete().eq('campaign_id', campaign.id).in('team_id', removeTeams)
+        if (error) throw error
+      }
+
+      // v60: tools - zelfde verschil-logica
+      const { data: curTools } = await supabase.from('campaign_tools').select('tool_key').eq('campaign_id', campaign.id)
+      const curToolKeys = new Set((curTools || []).map(r => r.tool_key))
+      const addTools = selectedTools.filter(k => !curToolKeys.has(k))
+      const removeTools = [...curToolKeys].filter(k => !selectedTools.includes(k))
+      if (addTools.length) {
+        const { error } = await supabase.from('campaign_tools').insert(addTools.map(k => ({ campaign_id: campaign.id, tool_key: k })))
+        if (error) throw error
+      }
+      if (removeTools.length) {
+        const { error } = await supabase.from('campaign_tools').delete().eq('campaign_id', campaign.id).in('tool_key', removeTools)
         if (error) throw error
       }
 
@@ -249,6 +271,17 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
                 onToggle={toggleTeam}
                 emptyText="Nog geen teams aangemaakt."
               />
+            </div>
+
+            <div>
+              <label className={labelStyle}>Tools - zichtbaar in de tab Tools voor iedereen aan dit project</label>
+              <CheckList
+                items={TOOLS.map(t => ({ id: t.key, label: t.label }))}
+                selected={selectedTools}
+                onToggle={toggleTool}
+                emptyText="Nog geen tools beschikbaar."
+              />
+              <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>Geldt voor de managers en de teamleden van dit project; admin ziet altijd alle tools.</p>
             </div>
 
             <div className="text-muted" style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}>

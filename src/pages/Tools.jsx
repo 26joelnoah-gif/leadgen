@@ -4,6 +4,12 @@ import { FileSignature, ExternalLink, RefreshCw, Presentation } from 'lucide-rea
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import Header from '../components/Header'
+import { TOOLS } from '../lib/tools'
+import { useToolAccess } from '../hooks/useToolAccess'
+
+// v60: welke kaarten hier staan bepaalt campaign_tools (per project, via
+// useToolAccess); het register van tools staat in src/lib/tools.js.
+const ICONS = { FileSignature, Presentation }
 
 // v59: Tools voor accountmanagers. De offerte-tool van het bestelplatform
 // (ReachConnect) is een statische pagina in public/tools/; hij leest de
@@ -22,9 +28,12 @@ export default function Tools() {
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const isAdmin = profile?.role === 'admin' || profile?.role === 'manager'
+  const { toolKeys } = useToolAccess()
+  const myTools = TOOLS.filter(t => toolKeys.includes(t.key))
+  const hasOfferte = toolKeys.includes('offerte_bestelplatform')
 
   async function load() {
-    if (!user?.id || isDemoMode) { setLoading(false); return }
+    if (!user?.id || isDemoMode || !hasOfferte) { setLoading(false); return }
     setLoading(true)
     const { data, error } = await supabase
       .from('offertes')
@@ -34,7 +43,7 @@ export default function Tools() {
     if (!error) setRows(data || [])
     setLoading(false)
   }
-  useEffect(() => { load() }, [user?.id])
+  useEffect(() => { load() }, [user?.id, hasOfferte])
 
   const getekend = rows.filter(r => r.status === 'getekend' || r.status === 'verzonden')
   const somEenmalig = getekend.reduce((a, r) => a + Number(r.eenmalig_ex || 0), 0)
@@ -51,37 +60,31 @@ export default function Tools() {
           </div>
         </div>
 
-        <div className="glass-panel mb-3" style={{ padding: '20px', display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(0,255,149,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#00ff95' }}>
-            <FileSignature size={24} />
-          </div>
-          <div style={{ flex: 1, minWidth: 220 }}>
-            <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>Offerte-tool bestelplatform</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              Pakket en modules kiezen, ROI laten zien, klant tekent op het scherm. Werkt het best op telefoon of tablet.
-              Na tekenen: "Print / PDF" en de PDF mailen naar de klant en naar Noah.
+        {myTools.map(t => {
+          const Icon = ICONS[t.icon] || FileSignature
+          return (
+            <div key={t.key} className="glass-panel mb-3" style={{ padding: '20px', display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: t.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: t.color }}>
+                <Icon size={24} />
+              </div>
+              <div style={{ flex: 1, minWidth: 220 }}>
+                <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>{t.label}</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{t.description}</div>
+              </div>
+              <a
+                className={`btn ${t.primary ? 'btn-primary' : 'btn-outline'}`}
+                href={t.href}
+                target={t.newTab ? '_blank' : undefined}
+                rel={t.newTab ? 'noopener' : undefined}
+                style={{ whiteSpace: 'nowrap' }}
+              >
+                {t.cta} <ExternalLink size={16} />
+              </a>
             </div>
-          </div>
-          <a className="btn btn-primary" href="/tools/offerte-tool.html" style={{ whiteSpace: 'nowrap' }}>
-            Nieuwe offerte <ExternalLink size={16} />
-          </a>
-        </div>
+          )
+        })}
 
-        <div className="glass-panel mb-3" style={{ padding: '20px', display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ width: 48, height: 48, borderRadius: 12, background: 'rgba(59,130,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)' }}>
-            <Presentation size={24} />
-          </div>
-          <div style={{ flex: 1, minWidth: 220 }}>
-            <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>Klantpresentatie bestelplatform</div>
-            <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-              De presentatie met Dr. Shawarma als voorbeeld: wat het systeem is, wat het de zaak oplevert en hoe de uitrol gaat. Laat zien vóór je de offerte opent.
-            </div>
-          </div>
-          <a className="btn btn-outline" href="/tools/presentatie-bestelplatform.pdf" target="_blank" rel="noopener" style={{ whiteSpace: 'nowrap' }}>
-            Open presentatie <ExternalLink size={16} />
-          </a>
-        </div>
-
+        {hasOfferte && (
         <div className="glass-panel" style={{ padding: '20px' }}>
           <div className="flex justify-between items-center mb-2" style={{ gap: 12, flexWrap: 'wrap' }}>
             <div>
@@ -131,6 +134,7 @@ export default function Tools() {
             De tool bewaart de lopende offerte ook op het apparaat zelf; een nieuwe offerte start je in de tool met "Nieuwe offerte" (accountmanager-weergave).
           </p>
         </div>
+        )}
       </main>
     </motion.div>
   )
