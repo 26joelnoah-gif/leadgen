@@ -227,7 +227,7 @@
     <div id="posts"></div>
     <div class="res" id="res"></div>
     <div class="warn hidden vk-only" id="roiwarn">Abonnement is hoger dan de aangevinkte besparing. Vink meer posten aan of pas de invoer aan.</div>
-    <div class="note">Aannames zijn indicatief; de klant ziet exact dezelfde invoer en aannames terug op de offerte.</div>
+    <div class="note">Indicatief: resultaten kunnen verschillen. De klant ziet dezelfde invoer en aannames terug op de offerte; de terugverdientijd staat niet op de getekende offerte.</div>
   </section>
 
   <!-- 6 overzicht -->
@@ -357,7 +357,7 @@ const SPEC = {
 /* Referentie Dr. Shawarma (gemeten in Supabase, kiosk-orders 17 aug–3 sep 2026) */
 const REF = { naam:"Dr. Shawarma", omzet:61000, best:116, bon:17.60, bonLift:0.10, urenPerDag:2, abo:400 };
 
-const AKKOORD = `Door te ondertekenen gaat de klant akkoord met deze offerte van ReachConnect voor het bestelplatform, zoals hierboven gespecificeerd. Prijzen zijn exclusief btw. Het eenmalige bedrag wordt bij akkoord gefactureerd; het maandabonnement gaat in bij livegang en is maandelijks opzegbaar. Het abonnement omvat hosting, storingsbewaking, updates en support. Er wordt geen commissie per bestelling gerekend. Hardware wordt niet door ReachConnect geleverd; de klant schaft apparatuur aan volgens de meegeleverde specificatielijst, waarna installatie wordt ingepland. Meerwerk buiten deze offerte wordt vooraf afgestemd (€75 per uur). Op deze overeenkomst zijn de algemene voorwaarden van ReachConnect van toepassing. Deze offerte is 14 dagen geldig. De klant ontvangt een e-mailbevestiging met deze offerte, de handtekening en het tijdstip van ondertekening.`;
+const AKKOORD = `Door te ondertekenen gaat de klant akkoord met deze offerte van ReachConnect voor het bestelplatform, zoals hierboven gespecificeerd. Prijzen zijn exclusief btw. Het eenmalige bedrag wordt bij akkoord gefactureerd; het maandabonnement gaat in bij livegang en is maandelijks opzegbaar. Het abonnement omvat hosting, storingsbewaking, updates en support. Er wordt geen commissie per bestelling gerekend. Hardware wordt niet door ReachConnect geleverd; de klant schaft apparatuur aan volgens de meegeleverde specificatielijst, waarna installatie wordt ingepland. Meerwerk buiten deze offerte wordt vooraf afgestemd (€75 per uur). De in de offerte getoonde besparingen, opbrengsten en terugverdientijd zijn indicatief; werkelijke resultaten kunnen verschillen en vormen geen garantie of onderdeel van de overeenkomst. Op deze overeenkomst zijn de algemene voorwaarden van ReachConnect van toepassing. Deze offerte is 14 dagen geldig. De klant ontvangt een e-mailbevestiging met deze offerte, de handtekening en het tijdstip van ondertekening.`;
 
 
 </script>
@@ -578,7 +578,8 @@ function buildDoc(){
     h+=`<h2>Wat het oplevert (indicatief, op basis van uw eigen cijfers)</h2><div class="small">Invoer: omzet ${eur(r.invoer.omzet)}/mnd · ${r.invoer.best} bestellingen/dag · gem. bon ${eur2(r.invoer.bon)} · via bezorgplatforms ${eur(r.invoer.platform)}/mnd</div>
       <table><tr><th>Post</th><th>Aanname</th><th class="r">Per maand</th></tr>`;
     r.posten.forEach(p=>{ h+=`<tr><td>${p.naam}</td><td class="small">${p.uitleg}</td><td class="r">${eur(p.bedrag)}</td></tr>`; });
-    h+=`</table><div class="kv"><div><div class="k">Netto per maand na abonnement</div><div class="v">${eur(r.netto)}</div></div><div><div class="k">Terugverdiend in</div><div class="v">${r.tvt? r.tvt+' maanden':'–'}</div></div><div><div class="k">Over 3 jaar</div><div class="v">${eur(r.drie)}</div></div></div>`;
+    h+=`</table><div class="kv"><div><div class="k">Netto per maand na abonnement</div><div class="v">${eur(r.netto)}</div></div>${S.signed?'':`<div><div class="k">Terugverdiend in</div><div class="v">${r.tvt? r.tvt+' maanden':'–'}</div></div>`}<div><div class="k">Over 3 jaar</div><div class="v">${eur(r.drie)}</div></div></div>
+      <div class="small" style="margin-top:6px">De getoonde besparingen en opbrengsten zijn indicatief en gebaseerd op de door u opgegeven cijfers en op praktijkcijfers van een bestaande klant. Werkelijke resultaten kunnen verschillen en zijn geen onderdeel van deze overeenkomst.</div>`;
   }
   h+=`<h2>Akkoord</h2><div class="box">${AKKOORD}</div>`;
   if(S.signed){
