@@ -6,6 +6,7 @@ import { Zap, Settings, LogOut, Phone, Menu, X, Sun, Moon, HelpCircle } from 'lu
 import Logo from './Logo'
 import AccountSettingsModal from './AccountSettingsModal'
 import { useToolAccess } from '../hooks/useToolAccess'
+import { useLeadBoardAccess } from '../hooks/useLeadBoardAccess'
 
 export default function Header({ onOpenSettings }) {
   const { profile, signOut, sessionCallCount, toggleWorkingMode, isWorking } = useAuth()
@@ -17,6 +18,8 @@ export default function Header({ onOpenSettings }) {
   const [showAccount, setShowAccount] = useState(false)
   // v60: tab Tools alleen als er via een project tools aan je hangen (admin altijd)
   const { hasTools } = useToolAccess()
+  // v62: tab Leads (gedeelde leadlijst) zodra je minimaal 1 bellijst kunt zien
+  const { hasLeadBoard } = useLeadBoardAccess()
 
   const isAdmin = profile?.role === 'admin'
   const isManager = profile?.role === 'manager'
@@ -34,6 +37,7 @@ export default function Header({ onOpenSettings }) {
   const navLinks = isPlanning
     ? [
         { path: '/roosters', label: 'Roosters' },
+        ...(hasLeadBoard ? [{ path: '/leads', label: 'Leads' }] : []),
         ...(hasTools ? [{ path: '/tools', label: 'Tools' }] : []),
       ]
     : isRecruiter
@@ -45,10 +49,12 @@ export default function Header({ onOpenSettings }) {
         { path: '/recruitment?view=referrals', label: 'Referrals' },
         { path: '/tba', label: 'TBA\'s' },
         { path: '/roosters', label: 'Roosters' },
+        ...(hasLeadBoard ? [{ path: '/leads', label: 'Leads' }] : []),
         ...(hasTools ? [{ path: '/tools', label: 'Tools' }] : []),
       ]
     : [
         { path: '/', label: 'Dashboard' },
+        ...(hasLeadBoard ? [{ path: '/leads', label: 'Leads' }] : []),
         { path: '/tba', label: 'TBA\'s' },
         ...(canViewEarnings ? [{ path: '/earnings', label: 'Verdiensten' }] : []),
         { path: '/roosters', label: 'Roosters' },

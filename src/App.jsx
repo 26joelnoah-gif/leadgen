@@ -18,6 +18,7 @@ import Manager from './pages/Manager'
 import Recruitment from './pages/Recruitment'
 import Roosters from './pages/Roosters'
 import Tools from './pages/Tools'
+import LeadBoard from './pages/LeadBoard'
 import { useToolAccess } from './hooks/useToolAccess'
 import WorkInterface from './components/WorkInterface'
 import FeatureAwareness from './components/FeatureAwareness'
@@ -244,6 +245,16 @@ function AppRoutes() {
             <ToolsGate>
               <Tools />
             </ToolsGate>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/leads"
+        element={
+          // v62: gedeelde leadlijst - ook voor planning-accounts (DB laat
+          // alleen leads door van projecten met planning_can_view_leads)
+          <ProtectedRoute allowPlanning>
+            <LeadBoard />
           </ProtectedRoute>
         }
       />
