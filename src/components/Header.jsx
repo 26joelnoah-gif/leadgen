@@ -29,8 +29,13 @@ export default function Header({ onOpenSettings }) {
   // v51: admin kan de Verdiensten-tab per medewerker uitzetten
   // (profiles.can_view_earnings, default true).
   const canViewEarnings = profile?.can_view_earnings !== false
+  // v61: planning en recruiter krijgen ook de tab Tools als een project van
+  // hen tools heeft (campaign_tools via hun team) - verder blijft hun nav klein.
   const navLinks = isPlanning
-    ? [{ path: '/roosters', label: 'Roosters' }]
+    ? [
+        { path: '/roosters', label: 'Roosters' },
+        ...(hasTools ? [{ path: '/tools', label: 'Tools' }] : []),
+      ]
     : isRecruiter
     ? [
         { path: '/recruitment', label: 'Sollicitanten' },
@@ -39,7 +44,8 @@ export default function Header({ onOpenSettings }) {
         // v58: referral-overzicht (zelfde pagina, ?view=referrals)
         { path: '/recruitment?view=referrals', label: 'Referrals' },
         { path: '/tba', label: 'TBA\'s' },
-        { path: '/roosters', label: 'Roosters' }
+        { path: '/roosters', label: 'Roosters' },
+        ...(hasTools ? [{ path: '/tools', label: 'Tools' }] : []),
       ]
     : [
         { path: '/', label: 'Dashboard' },

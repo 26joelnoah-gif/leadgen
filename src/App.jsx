@@ -238,7 +238,9 @@ function AppRoutes() {
       <Route
         path="/tools"
         element={
-          <ProtectedRoute>
+          // v61: planning mag hier wel heen; ToolsGate checkt via my_tool_keys
+          // of er echt tools aan zijn project hangen.
+          <ProtectedRoute allowPlanning>
             <ToolsGate>
               <Tools />
             </ToolsGate>
