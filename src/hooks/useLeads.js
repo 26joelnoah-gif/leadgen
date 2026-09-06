@@ -283,7 +283,15 @@ export function useLeads() {
   // v41: customDispositionId - wanneer de beller een eigen afboekreden koos
   // (WorkInterface), zodat call_logs herleidbaar blijft naar de eigen reden.
   async function handleLeadDisposition(leadId, currentListName, dispositionType, notes, nextDate = null, callMeta = null, customDispositionId = null) {
-    const currentLead = leads.find(l => l.id === leadId)
+    // v63: altijd de VERSE rij uit de database gebruiken, niet de cache.
+    // Tussen het laden van de lijst en het afboeken kan de lead verrijkt
+    // of door een collega aangepast zijn (o.a. notities); met de cache
+    // zouden die wijzigingen hier worden overschreven.
+    let currentLead = leads.find(l => l.id === leadId)
+    if (!isDemoMode) {
+      const { data: fresh } = await supabase.from('leads').select('*').eq('id', leadId).maybeSingle()
+      if (fresh) currentLead = fresh
+    }
     if (!currentLead) return
     const agentName = profile?.full_name || user?.email || 'Onbekend'
 

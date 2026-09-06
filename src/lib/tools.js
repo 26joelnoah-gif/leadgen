@@ -27,6 +27,30 @@ export const TOOLS = [
     primary: false,
     newTab: true,
   },
+  {
+    key: 'commissie_teamtool',
+    label: 'Commissie berekenen',
+    description: 'Teamtool: de commissieladder (12,5% tot 20% op deals én orderwaarde per maand), wat één deal je oplevert, je maandplanning, de traineebonus en de salesmanager-regeling. Alleen voor het team, nooit aan de klant laten zien.',
+    href: '/tools/commissie.html',
+    cta: 'Bereken commissie',
+    icon: 'Calculator',
+    color: '#ffb020',
+    bg: 'rgba(255,176,32,0.12)',
+    primary: false,
+    newTab: true,
+  },
+  {
+    key: 'outside',
+    label: 'Outside (buitendienst)',
+    description: 'Kaart en lijst van de leads in je project, gesorteerd op afstand vanaf waar je staat. Klik op een adres voor bellen, route, afboeken aan de deur en de offerte. Werkt op de telefoon.',
+    href: '/outside',
+    cta: 'Open Outside',
+    icon: 'MapPin',
+    color: '#5BB98C',
+    bg: 'rgba(91,185,140,0.15)',
+    primary: true,
+    newTab: false,
+  },
 ]
 
 export const ALL_TOOL_KEYS = TOOLS.map(t => t.key)

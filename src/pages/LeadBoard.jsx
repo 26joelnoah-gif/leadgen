@@ -1,13 +1,16 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox } from 'lucide-react'
+import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
+import { useGeolocation } from '../hooks/useGeolocation'
 import { useToast } from '../components/Toast'
 import { getStatusDetails } from '../utils/statusUtils'
+import { distanceM, formatDistance, distanceBand } from '../utils/geoUtils'
 import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
+import LeadMap from '../components/LeadMap'
 
 // v62: gedeelde Leadlijst. Iedereen die in een project zit (team, manager,
 // planning-account met projectvlag) ziet ALLE leads van de gekozen lijst en
@@ -15,14 +18,20 @@ import EmptyState from '../components/EmptyState'
 // vergrendeld en gaat open in het belscherm (WorkInterface, single-lead-modus).
 // Collega's zien "In behandeling door <naam>" en kunnen die lead niet openen.
 // Sluiten of afboeken geeft de lock weer vrij (release_my_leads / disposition).
+//
+// v64 (Outside, stap 1): accountmanager zet "Locatie aan" -> elke lead krijgt
+// een afstand (leads.lat/lng, gevuld door Edge Function geocode-leads), de lijst
+// sorteert op dichtbij-eerst en er is een kaartweergave (LeadMap).
 const LOCK_TTL_MS = 10 * 60 * 1000
 const POLL_MS = 8000
 const DONE_STATUSES = ['deal', 'bruto_deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer', 'cold', 'blacklist', 'monteur_ingepland', 'wil_annuleren']
 
 export default function LeadBoard() {
-  const { user, isWorking, toggleWorkingMode } = useAuth()
+  const { user, profile, isWorking, toggleWorkingMode } = useAuth()
   const { leadLists, loading: listsLoading } = useLeadLists()
   const toast = useToast()
+  const geo = useGeolocation()
+  const isStaff = profile?.role === 'admin' || profile?.role === 'manager'
 
   // Alleen bel-/acquisitielijsten; sollicitanten horen op de wervingspagina
   const lists = useMemo(
@@ -40,13 +49,19 @@ export default function LeadBoard() {
   const [filter, setFilter] = useState('open')
   const [search, setSearch] = useState('')
   const [claimingId, setClaimingId] = useState(null)
+  const [view, setView] = useState(() => {
+    try { return localStorage.getItem('leadgen-leads-view') === 'map' ? 'map' : 'list' } catch { return 'list' }
+  })
+  const [sortBy, setSortBy] = useState('distance') // 'distance' | 'order'
+  const [geocoding, setGeocoding] = useState(false)
+  useEffect(() => { try { localStorage.setItem('leadgen-leads-view', view) } catch { /* privémodus */ } }, [view])
 
   const load = useCallback(async (silent = false) => {
     if (!listId) return
     if (!silent) setLoading(true)
     const [{ data: rows, error }, { data: locks }] = await Promise.all([
       supabase.from('leads')
-        .select('id, name, phone, city, address, house_number, contact_person, status, locked_by, locked_at, next_contact_date, contact_attempts, created_at')
+        .select('id, name, phone, city, address, house_number, contact_person, status, locked_by, locked_at, next_contact_date, contact_attempts, created_at, lat, lng')
         .eq('lead_list_id', listId)
         .is('deleted_at', null)
         .order('created_at', { ascending: true }),
@@ -68,12 +83,13 @@ export default function LeadBoard() {
     return () => clearInterval(t)
   }, [listId, load])
   useEffect(() => { if (!isWorking) load(true) }, [isWorking]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (geo.error) toast(geo.error, 'error') }, [geo.error]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isLockedByOther = (l) =>
-    l.locked_by && l.locked_by !== user?.id && l.locked_at &&
-    (Date.now() - new Date(l.locked_at).getTime()) < LOCK_TTL_MS
+  const isLockedByOther = useCallback((l) =>
+    !!(l.locked_by && l.locked_by !== user?.id && l.locked_at &&
+    (Date.now() - new Date(l.locked_at).getTime()) < LOCK_TTL_MS), [user?.id])
 
-  async function openLead(lead) {
+  const openLead = useCallback(async (lead) => {
     if (claimingId || isWorking) return
     setClaimingId(lead.id)
     const { data, error } = await supabase.rpc('claim_lead', { p_lead_id: lead.id })
@@ -87,15 +103,36 @@ export default function LeadBoard() {
     }
     setLeads(prev => prev.map(l => l.id === row.id ? { ...l, locked_by: row.locked_by, locked_at: row.locked_at } : l))
     toggleWorkingMode(row)
+  }, [claimingId, isWorking, lockNames, toast, load, toggleWorkingMode])
+
+  // v64: leads zonder coordinaten alsnog laten geocoderen (admin/manager)
+  const missingCoords = leads.filter(l => l.lat == null).length
+  async function geocodeList() {
+    if (!listId || geocoding) return
+    setGeocoding(true)
+    const { data, error } = await supabase.functions.invoke('geocode-leads', { body: { list_id: listId } })
+    setGeocoding(false)
+    if (error) { toast('Coördinaten ophalen mislukt', 'error'); return }
+    toast(`${data?.ok || 0} adressen gevonden${data?.failed ? `, ${data.failed} niet gevonden` : ''}`, 'success')
+    load(true)
   }
 
+  const pos = geo.enabled ? geo.position : null
   const q = search.trim().toLowerCase()
-  const visible = leads.filter(l => {
-    if (filter === 'open' && DONE_STATUSES.includes(l.status)) return false
-    if (filter === 'done' && !DONE_STATUSES.includes(l.status)) return false
-    if (!q) return true
-    return [l.name, l.phone, l.city, l.address, l.contact_person].some(v => (v || '').toLowerCase().includes(q))
-  })
+  const visible = useMemo(() => {
+    const rows = leads
+      .filter(l => {
+        if (filter === 'open' && DONE_STATUSES.includes(l.status)) return false
+        if (filter === 'done' && !DONE_STATUSES.includes(l.status)) return false
+        if (!q) return true
+        return [l.name, l.phone, l.city, l.address, l.contact_person].some(v => (v || '').toLowerCase().includes(q))
+      })
+      .map(l => ({ ...l, _distance: pos ? distanceM(pos.lat, pos.lng, l.lat, l.lng) : null }))
+    if (pos && sortBy === 'distance') {
+      rows.sort((a, b) => (a._distance ?? Infinity) - (b._distance ?? Infinity))
+    }
+    return rows
+  }, [leads, filter, q, pos, sortBy])
   const openCount = leads.filter(l => !DONE_STATUSES.includes(l.status)).length
   const busyCount = leads.filter(isLockedByOther).length
 
@@ -110,9 +147,21 @@ export default function LeadBoard() {
               Iedereen in het project ziet dezelfde lijst. Open je een lead, dan is hij tijdelijk niet beschikbaar voor je collega's.
             </p>
           </div>
-          <button type="button" className="btn btn-sm btn-outline" onClick={() => load()} disabled={loading}>
-            <RefreshCw size={14} /> Verversen
-          </button>
+          <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+            {geo.supported && (
+              <button
+                type="button"
+                className={`btn btn-sm ${geo.enabled ? 'btn-secondary' : 'btn-outline'}`}
+                onClick={geo.toggle}
+                title={geo.enabled ? 'Locatie uitzetten' : 'Zet je locatie aan om afstanden te zien'}
+              >
+                <Navigation size={14} /> {geo.enabled ? (geo.locating ? 'Locatie zoeken...' : 'Locatie aan') : 'Locatie aan'}
+              </button>
+            )}
+            <button type="button" className="btn btn-sm btn-outline" onClick={() => load()} disabled={loading}>
+              <RefreshCw size={14} /> Verversen
+            </button>
+          </div>
         </div>
 
         {listsLoading ? (
@@ -144,16 +193,55 @@ export default function LeadBoard() {
                   </button>
                 ))}
               </div>
+              <div className="flex gap-2" style={{ marginLeft: 'auto' }}>
+                {pos && (
+                  <button type="button" onClick={() => setSortBy(s => s === 'distance' ? 'order' : 'distance')} className="btn btn-sm btn-outline" style={{ borderRadius: 20 }} title="Sortering wisselen">
+                    <Compass size={14} /> {sortBy === 'distance' ? 'Dichtbij eerst' : 'Lijstvolgorde'}
+                  </button>
+                )}
+                <div style={{ display: 'inline-flex', border: '1px solid var(--border-subtle)', borderRadius: 20, overflow: 'hidden' }}>
+                  <button type="button" onClick={() => setView('list')} className={`btn btn-sm ${view === 'list' ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 0, border: 0 }} title="Lijst">
+                    <List size={14} /> Lijst
+                  </button>
+                  <button type="button" onClick={() => setView('map')} className={`btn btn-sm ${view === 'map' ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 0, border: 0 }} title="Kaart">
+                    <MapIcon size={14} /> Kaart
+                  </button>
+                </div>
+              </div>
             </div>
 
-            {busyCount > 0 && (
-              <p className="text-muted mb-2" style={{ fontSize: '0.8rem' }}>
-                <Lock size={12} style={{ verticalAlign: -2 }} /> {busyCount} lead{busyCount === 1 ? '' : 's'} nu in behandeling bij collega's
-              </p>
-            )}
+            <div className="flex items-center mb-2" style={{ gap: 12, flexWrap: 'wrap', fontSize: '0.8rem' }}>
+              {busyCount > 0 && (
+                <span className="text-muted">
+                  <Lock size={12} style={{ verticalAlign: -2 }} /> {busyCount} lead{busyCount === 1 ? '' : 's'} nu in behandeling bij collega's
+                </span>
+              )}
+              {geo.supported && !geo.enabled && (
+                <span className="text-muted"><Navigation size={12} style={{ verticalAlign: -2 }} /> Zet "Locatie aan" om te zien hoe ver elke lead van je vandaan is.</span>
+              )}
+              {missingCoords > 0 && (
+                <span className="text-muted">
+                  <MapPin size={12} style={{ verticalAlign: -2 }} /> {missingCoords} lead{missingCoords === 1 ? '' : 's'} zonder coördinaten
+                  {isStaff && (
+                    <button type="button" className="btn btn-sm btn-outline" style={{ marginLeft: 8 }} onClick={geocodeList} disabled={geocoding}>
+                      {geocoding ? 'Bezig...' : 'Coördinaten ophalen'}
+                    </button>
+                  )}
+                </span>
+              )}
+            </div>
 
             {loading && leads.length === 0 ? (
               <LoadingSpinner />
+            ) : view === 'map' ? (
+              <LeadMap
+                leads={visible}
+                position={pos}
+                lockNames={lockNames}
+                isLockedByOther={isLockedByOther}
+                onOpen={openLead}
+                height={Math.max(420, (typeof window !== 'undefined' ? window.innerHeight : 800) - 300)}
+              />
             ) : visible.length === 0 ? (
               <EmptyState icon={Inbox} title="Geen leads" message={filter === 'open' ? 'Alle leads in deze lijst zijn afgerond.' : 'Niets gevonden.'} />
             ) : (
@@ -164,6 +252,7 @@ export default function LeadBoard() {
                   const st = getStatusDetails(lead.status)
                   const done = DONE_STATUSES.includes(lead.status)
                   const place = [lead.address && `${lead.address} ${lead.house_number || ''}`.trim(), lead.city].filter(Boolean).join(', ')
+                  const band = distanceBand(lead._distance)
                   return (
                     <button
                       key={lead.id}
@@ -189,6 +278,19 @@ export default function LeadBoard() {
                           {(lead.contact_attempts || 0) > 0 && <span>{lead.contact_attempts}x gebeld</span>}
                         </div>
                       </div>
+                      {pos && (
+                        <span
+                          title={band === 'far' ? 'Ver weg' : band === 'near' ? 'Dichtbij' : ''}
+                          style={{
+                            display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap',
+                            padding: '4px 10px', borderRadius: 'var(--radius-full)',
+                            color: band === 'far' ? 'var(--warning)' : band === 'near' ? 'var(--success)' : 'var(--text-secondary)',
+                            background: band === 'far' ? 'var(--warning-bg)' : band === 'near' ? 'var(--success-bg)' : 'var(--bg-elevated)'
+                          }}
+                        >
+                          <Navigation size={11} /> {lead._distance == null ? 'geen adres' : formatDistance(lead._distance)}
+                        </span>
+                      )}
                       {busy ? (
                         <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', fontWeight: 700, color: 'var(--warning)', background: 'var(--warning-bg)', padding: '4px 10px', borderRadius: 'var(--radius-full)', whiteSpace: 'nowrap' }}>
                           <Lock size={12} /> {lockNames[lead.id] ? `Bij ${lockNames[lead.id]}` : 'In behandeling'}

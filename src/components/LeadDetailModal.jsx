@@ -10,6 +10,8 @@ import { formatDateTime } from '../utils/dateUtils'
 import { normalizeWebsite, displayWebsite } from '../utils/urlUtils'
 import { useToast } from './Toast'
 import CopyButton from './CopyButton'
+import { OffertesBlok } from './OfferteStatus'
+import { useProjectTools } from '../hooks/useProjectTools'
 import LoadingSpinner from './LoadingSpinner'
 
 function fmtDuration(sec) {
@@ -42,6 +44,9 @@ function fieldsFromLead(lead) {
 // zitten achter een "Bewerken"-knop zodat je niet per ongeluk iets wijzigt.
 export default function LeadDetailModal({ isOpen, onClose, lead, assignedName, onUpdated }) {
   const toast = useToast()
+  // v66: "Offerte maken" alleen als de offerte-tool in het project van deze lead aanstaat
+  const { hasTool } = useProjectTools(lead?.lead_list_id)
+  const canMakeOfferte = hasTool('offerte_bestelplatform')
   const [callLogs, setCallLogs] = useState([])
   const [loading, setLoading] = useState(false)
 
@@ -354,6 +359,11 @@ export default function LeadDetailModal({ isOpen, onClose, lead, assignedName, o
           <div className="text-[10px] text-muted" style={{ marginTop: '4px' }}>
             {savingNotes ? 'Opslaan...' : notesDirty ? 'Niet-opgeslagen wijziging - wordt automatisch opgeslagen zodra je hier wegklikt' : ''}
           </div>
+        </div>
+
+        {/* v65: offertes van deze lead (status, verstuurd/geopend/getekend, acties) */}
+        <div style={{ marginBottom: '20px' }}>
+          <OffertesBlok lead={lead} canCreate={canMakeOfferte} />
         </div>
 
         <div>

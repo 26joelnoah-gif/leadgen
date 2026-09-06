@@ -1,0 +1,155 @@
+/* =====================================================================
+   OUTSIDE (v64) — buitendienst-tool, altijd licht. Zie OUTSIDE_STYLEGUIDE.md.
+   Kleuren zijn VOORLOPIG (mint/blauw); worden vervangen door de
+   ReachConnect-huisstijl zodra de kleurcodes er zijn. Alleen dit blok
+   aanpassen, de componenten lezen de tokens.
+   ===================================================================== */
+[data-tool="outside"] {
+  color-scheme: light;
+
+  --outside-brand:        #5BB98C;
+  --outside-brand-dark:   #3E9A6E;
+  --outside-brand-soft:   #E6F4EC;
+  --outside-tint:         #EEF5F2;
+
+  --bg-page:      var(--outside-tint);
+  --bg-surface:   #FFFFFF;
+  --bg-card:      #FFFFFF;
+  --bg-elevated:  #F3F6F5;
+  --bg-dark:      var(--outside-tint);
+
+  --text-primary:   #1F2A2E;
+  --text-secondary: #6B7A80;
+  --text-muted:     #6B7A80;
+  --text-on-accent: #FFFFFF;
+
+  --border-subtle: #E3EAE7;
+  --border-strong: #C9D4CF;
+  --border: #E3EAE7;
+
+  --accent:       #2F8FDB;
+  --accent-hover: #2477BA;
+  --accent-soft:  rgba(47, 143, 219, 0.12);
+  --primary: var(--accent);
+
+  --btn-neutral:       #6E7C82;
+  --btn-neutral-hover: #59666B;
+
+  --success: #2E9E6B;  --success-bg: rgba(46, 158, 107, 0.12);
+  --warning: #E6A100;  --warning-bg: rgba(230, 161, 0, 0.14);
+  --danger:  #D64545;  --danger-bg:  rgba(214, 69, 69, 0.10);
+  --info:    #2F8FDB;  --info-bg:    rgba(47, 143, 219, 0.10);
+
+  --status-new:         #2F80ED;
+  --status-open:        #F2C94C;
+  --status-appointment: #9B51E0;
+  --status-sale:        #27AE60;
+  --status-closed:      #BDC7C3;
+
+  --shadow-sm: 0 1px 2px rgba(31, 42, 46, 0.06);
+  --shadow-md: 0 2px 8px rgba(31, 42, 46, 0.08);
+  --shadow-lg: 0 8px 24px rgba(31, 42, 46, 0.12);
+  --page-glow: none;
+  --glass: rgba(255,255,255,0.92);
+
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-size: 16px;
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  z-index: 50;
+}
+
+/* Header */
+.os-header {
+  flex: none; height: 56px; background: var(--outside-brand); color: #fff;
+  display: flex; align-items: center; gap: 8px; padding: 0 8px;
+  padding-top: env(safe-area-inset-top);
+  box-sizing: content-box;
+}
+.os-header .os-title { font-family: var(--font-display, Outfit, sans-serif); font-weight: 600; font-size: 20px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.os-iconbtn {
+  width: 44px; height: 44px; border-radius: 8px; border: none; background: transparent; color: #fff;
+  display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex: none;
+}
+.os-iconbtn:active { background: rgba(255,255,255,0.18); }
+.os-iconbtn.is-active { background: rgba(255,255,255,0.22); }
+.os-legend { flex: none; height: 3px; display: grid; grid-template-columns: repeat(4, 1fr); }
+.os-legend i:nth-child(1) { background: var(--status-new); }
+.os-legend i:nth-child(2) { background: var(--status-open); }
+.os-legend i:nth-child(3) { background: var(--status-appointment); }
+.os-legend i:nth-child(4) { background: var(--status-sale); }
+
+/* Project-select in de header */
+.os-header select {
+  background: rgba(255,255,255,0.18); color: #fff; border: none; border-radius: 8px; height: 40px;
+  padding: 0 10px; font-size: 16px; font-weight: 600; max-width: 46vw; text-overflow: ellipsis;
+}
+.os-header select option { color: #1F2A2E; }
+
+/* Zoekrij */
+.os-toolbar { flex: none; background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle); padding: 8px; display: flex; gap: 8px; align-items: center; }
+.os-search { flex: 1; display: flex; align-items: center; gap: 8px; height: 44px; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0 10px; background: #fff; color: var(--text-secondary); }
+.os-search input { flex: 1; border: none; outline: none; background: transparent; font-size: 16px; color: var(--text-primary); min-width: 0; }
+.os-toolbar .os-neutral { width: 44px; height: 44px; border-radius: 8px; border: none; background: var(--btn-neutral); color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex: none; }
+.os-toolbar .os-neutral.is-active { background: var(--accent); }
+
+/* Filterchips */
+.os-chips { flex: none; display: flex; gap: 6px; padding: 8px; overflow-x: auto; background: var(--bg-surface); border-bottom: 1px solid var(--border-subtle); scrollbar-width: none; }
+.os-chips::-webkit-scrollbar { display: none; }
+.os-chip { flex: none; height: 32px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--border-strong); background: #fff; color: var(--text-primary); font-size: 14px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.os-chip.is-active { background: var(--outside-brand-soft); border-color: var(--outside-brand); color: var(--outside-brand-dark); }
+.os-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+
+/* Body */
+.os-body { flex: 1; min-height: 0; position: relative; }
+.os-map { position: absolute; inset: 0; }
+.os-list { position: absolute; inset: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 96px; }
+.os-group-head { position: sticky; top: 0; z-index: 1; height: 36px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px; background: var(--bg-elevated); color: var(--text-secondary); font-size: 14px; font-weight: 600; border-bottom: 1px solid var(--border-subtle); }
+.os-row { display: flex; align-items: center; gap: 12px; min-height: 72px; padding: 8px 12px; background: #fff; border-bottom: 1px solid var(--border-subtle); cursor: pointer; text-align: left; width: 100%; border-left: none; border-right: none; border-top: none; }
+.os-row:active, .os-row.is-selected { background: var(--outside-brand-soft); }
+.os-row .os-nr { width: 52px; flex: none; font-size: 18px; font-weight: 500; }
+.os-row .os-main { flex: 1; min-width: 0; }
+.os-row .os-name { font-size: 18px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.os-row .os-name.is-unknown { color: var(--text-secondary); font-weight: 400; }
+.os-row .os-meta { font-size: 14px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.os-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--bg-elevated); color: var(--text-secondary); font-size: 12px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.os-empty { padding: 40px 24px; text-align: center; color: var(--text-secondary); font-size: 16px; }
+
+/* Kaart-knoppen */
+.os-mapbtn { position: absolute; width: 44px; height: 44px; border-radius: 8px; border: none; background: #fff; color: var(--text-primary); box-shadow: var(--shadow-md); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2; }
+.os-mapbtn.is-active { color: var(--accent); }
+
+/* Sheet met geselecteerde lead */
+.os-sheet { position: absolute; left: 0; right: 0; bottom: 0; background: #fff; border-radius: 16px 16px 0 0; box-shadow: var(--shadow-lg); padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); z-index: 3; max-height: 70%; overflow-y: auto; }
+.os-sheet .os-handle { width: 36px; height: 4px; border-radius: 2px; background: var(--border-strong); margin: 0 auto 10px; }
+.os-sheet h3 { font-size: 20px; font-weight: 600; margin: 0; }
+.os-sheet .os-sub { color: var(--text-secondary); font-size: 14px; margin-top: 2px; }
+.os-statuschip { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 13px; font-weight: 600; }
+.os-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 12px 0; }
+.os-secondary { height: 48px; border-radius: 12px; border: 1px solid var(--border-strong); background: #fff; color: var(--text-primary); font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; text-decoration: none; }
+.os-secondary:disabled { opacity: 0.4; cursor: default; }
+.os-dispo { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.os-dispo button { height: 56px; border-radius: 12px; border: 2px solid var(--border-subtle); background: #fff; color: var(--text-primary); font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
+.os-dispo button:disabled { opacity: 0.5; }
+.os-primary { width: 100%; height: 52px; border-radius: 12px; border: none; background: var(--accent); color: #fff; font-size: 17px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; text-decoration: none; }
+.os-primary:active { background: var(--accent-hover); }
+
+/* Meldingen */
+.os-notice { margin: 12px; padding: 12px 14px; border-radius: 12px; background: var(--warning-bg); color: #7a5600; font-size: 14px; line-height: 1.4; }
+.os-progress { flex: none; background: var(--outside-brand-soft); color: var(--outside-brand-dark); font-size: 13px; font-weight: 600; padding: 6px 12px; text-align: center; }
+
+/* Contactkaart-modal binnen Outside: modal-overlay uit index.css leest de tokens, prima */
+
+/* v65: opt-in-formulier in de sheet */
+.os-dispo button.is-optin { grid-column: 1 / -1; border-color: var(--outside-brand); color: var(--outside-brand-dark); background: var(--outside-brand-soft); }
+.os-optin { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.os-optin-head { display: flex; align-items: center; justify-content: space-between; font-size: 17px; }
+.os-optin label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--text-secondary); font-weight: 600; }
+.os-optin input:not([type="checkbox"]), .os-optin select { height: 48px; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 0 12px; font-size: 16px; color: var(--text-primary); background: #fff; }
+.os-optin input:focus, .os-optin select:focus { outline: none; border-color: var(--accent); }
+.os-consent { flex-direction: row !important; align-items: flex-start; gap: 10px !important; padding: 12px; border: 2px solid var(--border-subtle); border-radius: 12px; font-weight: 500 !important; color: var(--text-primary) !important; line-height: 1.35; }
+.os-consent.is-on { border-color: var(--outside-brand); background: var(--outside-brand-soft); }
+.os-consent input { width: 22px; height: 22px; margin-top: 2px; flex: none; accent-color: var(--outside-brand); }
+.os-primary:disabled { opacity: 0.45; cursor: default; }

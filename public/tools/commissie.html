@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ReachConnect · Teamtools · Commissie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#111111; --panel:#1a1a1a; --panel2:#222222; --line:#2e2e2e; --line2:#3a3a3a;
+    --txt:#ffffff; --muted:#a8a8a8; --acc:#00ff95; --acc-dark:#00c975; --acc-ink:#0b1a12;
+    --warn:#ffb020; --err:#ff5c5c; --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--txt);font-family:Poppins,system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
+  h1,h2,h3{margin:0;font-weight:600;line-height:1.2}
+  h2{font-size:16px;letter-spacing:.2px}
+  h2 .n{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--acc);color:var(--acc-ink);font-size:12px;font-weight:700;margin-right:8px;vertical-align:middle}
+  .sub{color:var(--muted);font-size:13px;margin-top:4px}
+  header{position:sticky;top:0;z-index:20;background:rgba(17,17,17,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;gap:12px}
+  .logo{font-weight:700;font-size:17px;white-space:nowrap;letter-spacing:.5px}
+  .logo b{color:var(--acc)}
+  .hdr-right{margin-left:auto;display:flex;gap:6px;align-items:center;font-size:12px;color:var(--muted)}
+  .chip{white-space:nowrap;border:1px solid var(--line2);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--txt);background:var(--panel)}
+  main{max-width:820px;margin:0 auto;padding:16px 16px 60px}
+  section.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+  @media(max-width:520px){.grid{grid-template-columns:1fr}}
+  label.f{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  input[type=number],select{width:100%;background:var(--panel2);border:1px solid var(--line2);color:var(--txt);border-radius:10px;padding:11px 12px;font:inherit;font-size:16px}
+  input:focus,select:focus{outline:none;border-color:var(--acc)}
+  .seg{display:flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden;margin-top:12px}
+  .seg button{flex:1;border:0;background:var(--panel2);color:var(--txt);padding:10px;font:inherit;cursor:pointer}
+  .seg button.on{background:var(--acc);color:var(--acc-ink);font-weight:600}
+  .row{display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid var(--line)}
+  .row .info{flex:1;min-width:0}
+  .row .nm{font-weight:500}
+  .row .ds{color:var(--muted);font-size:12px}
+  .row .pr{white-space:nowrap;font-weight:600;font-size:14px;text-align:right;min-width:70px}
+  .row .pr small{display:block;color:var(--muted);font-weight:400;font-size:11px}
+  .row.off .info{opacity:.55}
+  .qty{display:flex;align-items:center;border:1px solid var(--line2);border-radius:999px;overflow:hidden;background:var(--panel2)}
+  .qty button{width:38px;height:38px;border:0;background:transparent;color:var(--txt);font-size:20px;line-height:1;cursor:pointer}
+  .qty span{min-width:26px;text-align:center;font-weight:600}
+  .sw{position:relative;width:48px;height:28px;flex:none}
+  .sw input{opacity:0;width:0;height:0;position:absolute}
+  .sw i{position:absolute;inset:0;background:var(--line2);border-radius:999px;transition:.15s}
+  .sw i:before{content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.15s}
+  .sw input:checked+i{background:var(--acc)}
+  .sw input:checked+i:before{transform:translateX(20px);background:var(--acc-ink)}
+  .res{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}
+  @media(max-width:520px){.res{grid-template-columns:1fr 1fr}}
+  .res .wide{grid-column:1/-1}
+  .res>div{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px}
+  .res .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .res .v{font-size:22px;font-weight:700;color:var(--acc);margin-top:2px}
+  .note{font-size:12px;color:var(--muted);margin-top:8px}
+  .warn{font-size:12px;color:var(--warn);margin-top:8px}
+  table.ct{width:100%;border-collapse:collapse;font-size:13px;margin-top:12px}
+  .ct th{text-align:left;color:var(--muted);font-weight:500;border-bottom:1px solid var(--line2);padding:6px 4px}
+  .ct td{padding:7px 4px;border-bottom:1px solid var(--line)}
+  .ct .r{text-align:right;white-space:nowrap}
+  .ct tr.tt td{font-weight:600;border-top:2px solid var(--line2)}
+  .tblwrap{overflow-x:auto}
+  /* ladder */
+  .lad{margin-top:12px}
+  .rung{display:grid;grid-template-columns:76px 1fr auto;gap:10px;align-items:center;border:1px solid var(--line2);border-radius:12px;padding:10px 12px;background:var(--panel2)}
+  .rung .pct{font-size:24px;font-weight:700;color:var(--muted);line-height:1}
+  .rung .req{font-size:13px} .rung .req small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+  .rung .st{font-size:12px;color:var(--muted);text-align:right;white-space:nowrap}
+  .rung.done{border-color:var(--acc-dark)} .rung.done .pct{color:var(--acc-dark)} .rung.done .st{color:var(--acc-dark)}
+  .rung.now{background:var(--acc);border-color:var(--acc)} .rung.now .pct,.rung.now .req,.rung.now .req small,.rung.now .st{color:var(--acc-ink)}
+  .rung.now .st{font-weight:600}
+  .rung.role{border-style:dashed;grid-template-columns:76px 1fr auto} .rung.role .pct{font-size:13px;font-weight:600;letter-spacing:.3px;text-transform:uppercase}
+  .rung.role.now{border-style:solid}
+  .rail{height:28px;width:4px;margin-left:36px;background:var(--line2);border-radius:2px;position:relative;overflow:hidden}
+  .rail i{position:absolute;bottom:0;left:0;right:0;background:var(--acc)}
+  .rail.dash{background:repeating-linear-gradient(to bottom,var(--line2) 0 4px,transparent 4px 8px)}
+  .pill{display:inline-block;font-size:10px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;background:rgba(0,255,149,.12);color:var(--acc);border-radius:6px;padding:2px 6px;margin-left:6px;vertical-align:middle}
+  .rung.now .pill{background:rgba(11,26,18,.15);color:var(--acc-ink)}
+  @media(max-width:520px){.rung{grid-template-columns:64px 1fr}.rung .st{grid-column:1/-1;text-align:left}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">Reach<b>Connect</b></div>
+  <div class="hdr-right"><span class="chip">Teamtools</span><span class="chip">Commissie</span></div>
+</header>
+
+<main>
+  <section class="card">
+    <h2><span class="n">A</span>Commissieladder</h2>
+    <div class="sub">Je klimt per kalendermaand. Een trede haal je als je in die maand <b>zowel</b> het aantal deals <b>als</b> de totale orderwaarde (eenmalig, na korting) haalt. De trede geldt met terugwerkende kracht voor <b>alle</b> deals van die maand: over de orderwaarde én over het maandbedrag, elke maand zolang de klant blijft.</div>
+    <div class="grid">
+      <div><label class="f">Deals deze maand</label><input type="number" id="n" value="1" min="0" max="60" inputmode="numeric" oninput="calc()"></div>
+      <div><label class="f">Orderwaarde deze maand (€, eenmalig na korting)</label><input type="number" id="oz" value="3500" min="0" step="100" inputmode="numeric" oninput="calc()"></div>
+    </div>
+    <div class="lad" id="ladder"></div>
+    <div class="note">Commissie wordt uitgekeerd na betaling door de klant; het percentage van de maand waarin je de deal sloot blijft aan die deal gekoppeld. Maandcommissie start de maand ná de deal (livegang) en loopt zolang het abonnement loopt.</div>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">B</span>Trainee opleiden</h2>
+    <div class="sub">Vanaf de trede van <b id="tr_vanaf">17,5%</b> mag je een trainee opleiden. Je verdient dan <b id="tr_pct">2,5%</b> over de orderwaarde van de deals van je trainee, bovenop je eigen commissie.</div>
+    <div class="row" style="border-top:0;margin-top:6px">
+      <div class="info"><div class="nm">Ik leid een trainee op</div><div class="ds" id="tr_ds">Beschikbaar vanaf 17,5%</div></div>
+      <label class="sw"><input type="checkbox" id="tr_on" onchange="calc()"><i></i></label>
+    </div>
+    <div class="grid" id="tr_grid" style="display:none">
+      <div><label class="f">Orderwaarde trainee deze maand (€)</label><input type="number" id="tr_oz" value="7000" min="0" step="100" inputmode="numeric" oninput="calc()"></div>
+      <div><label class="f">Gem. orderwaarde trainee per maand (planning, €)</label><input type="number" id="tr_ozm" value="7000" min="0" step="100" inputmode="numeric" oninput="calc()"></div>
+    </div>
+    <div class="res" id="tr_res" style="display:none">
+      <div><div class="k">Traineebonus deze maand</div><div class="v" id="tr_v">€0</div></div>
+    </div>
+    <div class="warn" id="tr_warn" style="display:none">Je zit nog onder de trede waar de traineebonus geldt; de bonus telt pas mee vanaf 17,5%.</div>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">C</span>Wat verdien je aan één deal?</h2>
+    <div class="sub">Stel de deal samen; de trede komt uit de ladder hierboven (deals en orderwaarde deze maand).</div>
+    <div class="seg" id="seg"></div>
+    <div id="mods"></div>
+    <div id="ups"></div>
+    <div class="grid"><div><label class="f">Korting eenmalig (€)</label><input type="number" id="korting" value="0" min="0" inputmode="numeric" oninput="calc()"></div></div>
+    <div class="res">
+      <div><div class="k">Trede</div><div class="v" id="d_pct">12,5%</div></div>
+      <div><div class="k">Eenmalig voor jou</div><div class="v" id="d_een">€0</div></div>
+      <div><div class="k">Per maand voor jou</div><div class="v" id="d_mnd">€0</div></div>
+      <div class="wide"><div class="k">Jaar 1 totaal (eenmalig + 12 mnd)</div><div class="v" id="d_jaar">€0</div></div>
+    </div>
+    <div class="note" id="d_txt"></div>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">D</span>Maandplanning</h2>
+    <div class="sub">Hoeveel deals sluit je per maand, en wat bouw je dan op? Deals en orderwaarde per maand bepalen je trede; het maandbedrag stapelt omdat elke klant blijft doorbetalen.</div>
+    <div class="grid">
+      <div><label class="f">Deals Klein per maand</label><input type="number" id="n_klein" value="1" min="0" inputmode="numeric" oninput="calc()"></div>
+      <div><label class="f">Deals Standaard per maand</label><input type="number" id="n_std" value="1" min="0" inputmode="numeric" oninput="calc()"></div>
+      <div><label class="f">Gem. eenmalig extra per deal (€)</label><input type="number" id="extra_een" value="0" min="0" inputmode="numeric" oninput="calc()"></div>
+      <div><label class="f">Gem. extra per maand per deal (€)</label><input type="number" id="extra_mnd" value="0" min="0" inputmode="numeric" oninput="calc()"></div>
+      <div><label class="f">Klanten die na jaar 1 blijven (%)</label><input type="number" id="churn" value="90" min="0" max="100" inputmode="numeric" oninput="calc()"></div>
+      <div><label class="f">Horizon</label><select id="hor" onchange="calc()"><option value="6">6 maanden</option><option value="12" selected>12 maanden</option><option value="24">24 maanden</option></select></div>
+    </div>
+    <div class="res">
+      <div><div class="k">Trede bij dit tempo</div><div class="v" id="m_pct">–</div></div>
+      <div><div class="k">Eenmalig per maand</div><div class="v" id="m_een">€0</div></div>
+      <div><div class="k">Doorlopend na horizon</div><div class="v" id="m_rec">€0/mnd</div></div>
+      <div class="wide"><div class="k">Totaal over horizon</div><div class="v" id="m_tot">€0</div></div>
+    </div>
+    <div class="lad" id="ladder_m"></div>
+    <div class="tblwrap"><table id="tbl" class="ct"></table></div>
+    <div class="note">Extra per deal: bijvoorbeeld 1 extra zuil (€1.000, +€25/mnd) of een cash-koppeling (€2.250, +€50/mnd). Na 12 betaalde maanden rekenen we met het retentiepercentage.</div>
+  </section>
+
+  <section class="card">
+    <h2><span class="n">E</span>Salesmanager</h2>
+    <div class="sub">De salesmanager staat boven de ladder: geen eigen trede, maar <b id="sm_pct">5%</b> over de orderwaarde en het maandbedrag van het <b>eigen team</b> (eigen deals tellen via de ladder).</div>
+    <div class="grid">
+      <div><label class="f">Orderwaarde team deze maand (€)</label><input type="number" id="sm_oz" value="40000" min="0" step="500" inputmode="numeric" oninput="calc()"></div>
+      <div><label class="f">Nieuw maandbedrag team deze maand (€/mnd)</label><input type="number" id="sm_mnd" value="1800" min="0" step="50" inputmode="numeric" oninput="calc()"></div>
+    </div>
+    <div class="res">
+      <div><div class="k">Eenmalig over team</div><div class="v" id="sm_een">€0</div></div>
+      <div><div class="k">Doorlopend erbij</div><div class="v" id="sm_rec">€0/mnd</div></div>
+      <div><div class="k">Na 12 mnd (deze maand)</div><div class="v" id="sm_jaar">€0</div></div>
+    </div>
+    <div class="warn" id="sm_warn">Het salesmanager-percentage is nog niet vastgesteld; 5% is een rekenvoorbeeld. Pas <code>SALESMANAGER.pct</code> bovenin het bestand aan.</div>
+  </section>
+
+  <div class="note">Prijzen: verkoop/PRIJSMODEL.md (horeca platform), versie <span id="pmv"></span>. Bij een prijswijziging het blok PRIJSMODEL in dit bestand meenemen.</div>
+</main>
+
+<script>
+/* ===== COMMISSIEREGELS — bron van waarheid voor het team. Wijzig hier. ===== */
+/* Ladder: onderste trede is de instap. Een hogere trede vereist in dezelfde kalendermaand ZOWEL het aantal deals
+   ALS de totale orderwaarde (eenmalig, na korting). De behaalde trede geldt met terugwerkende kracht voor alle
+   deals van die maand, over de orderwaarde én over het maandbedrag zolang het abonnement loopt. */
+const STAFFEL = [
+  {pct:12.5, deals:1, omzet:0},
+  {pct:15,   deals:3, omzet:12000},
+  {pct:17.5, deals:5, omzet:22000},
+  {pct:20,   deals:8, omzet:36000},
+];
+/* Trainee opleiden: toegestaan vanaf trede-index `vanaf` (0 = 12,5%, 2 = 17,5%); bonus over de orderwaarde van de trainee. */
+const TRAINEE = {vanaf:2, pct:2.5};
+/* Salesmanager: rol boven de ladder; percentage over orderwaarde én maandbedrag van het eigen team. NOG VAST TE STELLEN. */
+const SALESMANAGER = {pct:5, vastgesteld:false};
+
+/* ===== PRIJSMODEL (bron: verkoop/PRIJSMODEL.md, versie 2026-09-04) ===== */
+const PRIJSMODEL_VERSIE = "2026-09-04";
+const PAKKETTEN = [
+  {id:"klein", naam:"Klein", eenmalig:3500, mnd:150},
+  {id:"standaard", naam:"Standaard", eenmalig:7500, mnd:200},
+];
+const MODULES = [
+  {id:"zuil",   naam:"Extra bestelzuil (inrichting)", sub:"Incl. pinterminal-koppeling", prijs:1000, mnd:25, max:5},
+  {id:"keuken", naam:"Extra keukenscherm (inrichting)", sub:"Eigen bon per station + bonprinter", prijs:750, mnd:25, max:4},
+  {id:"status", naam:"Extra statusbord", sub:"Alleen i.c.m. een keukenscherm", prijs:250, mnd:0, max:3},
+  {id:"tv",     naam:"Extra TV-menubord", sub:"", prijs:150, mnd:0, max:6},
+  {id:"cash",   naam:"Cash-automaat-koppeling", sub:"EcoCash", prijs:2250, mnd:50, max:1},
+  {id:"bezorg", naam:"Bezorgen-module", sub:"Alleen bij Klein (bij Standaard inbegrepen)", prijs:500, mnd:0, max:1, alleenKlein:true},
+  {id:"foto",   naam:"Menufoto's / content", sub:"", prijs:350, mnd:0, max:1},
+];
+const UPSELL = [
+  {id:"mkb", naam:"Marketing Basis", sub:"1 actiecampagne per maand + nieuwsbrief", prijs:75, excl:"mkp"},
+  {id:"mkp", naam:"Marketing Plus", sub:"Basis + 2 social posts per maand", prijs:175, excl:"mkb"},
+  {id:"seo", naam:"SEO / Google-profiel", sub:"", prijs:100},
+];
+
+/* ===== helpers ===== */
+const el = id => document.getElementById(id);
+const val = id => { const e=el(id); return e? e.value : ""; };
+const eur = n => "€" + Math.round(n).toLocaleString("nl-NL");
+const pctTxt = f => (f*100).toLocaleString("nl-NL",{maximumFractionDigits:1})+"%";
+function trede(n,omzet){ if(n<1) return -1; let i=0; STAFFEL.forEach((t,k)=>{ if(n>=t.deals&&omzet>=t.omzet) i=k; }); return i; }
+const pctOf = i => i<0?0:STAFFEL[i].pct/100;
+
+/* ===== ladder ===== */
+function renderLadder(id, n, omzet, opts){
+  opts=opts||{}; const cur=trede(n,omzet); let h='';
+  // salesmanager als rol bovenaan
+  h+=`<div class="rung role"><div class="pct">Sales­manager</div><div class="req">Rol, geen trede: ${SALESMANAGER.pct}% over orderwaarde én maandbedrag van het eigen team<small>eigen deals via de ladder · benoeming door Noah</small></div><div class="st"></div></div><div class="rail dash"></div>`;
+  for(let k=STAFFEL.length-1;k>=0;k--){
+    const t=STAFFEL[k], f=t.pct/100;
+    const cls = k<cur?'done': k===cur?'now':'';
+    let st='';
+    if(k<cur) st='behaald ✓';
+    else if(k===cur) st='jij staat hier';
+    else if(k===cur+1){ const dd=Math.max(0,t.deals-n), dz=Math.max(0,t.omzet-omzet); st='nog '+[dd?`${dd} deal${dd>1?'s':''}`:'', dz?eur(dz):''].filter(Boolean).join(' en '); }
+    const req = k===0 ? `vanaf je eerste deal` : `${t.deals} deals én ${eur(t.omzet)} orderwaarde`;
+    const pill = k>=TRAINEE.vanaf ? `<span class="pill">+ trainee ${pctTxt(TRAINEE.pct/100)}</span>` : '';
+    h+=`<div class="rung ${cls}"><div class="pct">${pctTxt(f)}</div><div class="req">${req}${pill}<small>Klein ${eur(PAKKETTEN[0].eenmalig*f)} · Standaard ${eur(PAKKETTEN[1].eenmalig*f)} eenmalig · ${eur(PAKKETTEN[0].mnd*f)} / ${eur(PAKKETTEN[1].mnd*f)} per maand</small></div><div class="st">${st}</div></div>`;
+    if(k>0){ const lo=STAFFEL[k-1]; let pr=0;
+      if(k-1<cur) pr=1; else if(k-1===cur){ const pd=(n-lo.deals)/Math.max(1,t.deals-lo.deals), pz=t.omzet>lo.omzet?(omzet-lo.omzet)/(t.omzet-lo.omzet):1; pr=Math.max(0,Math.min(1,Math.min(pd,pz))); }
+      h+=`<div class="rail"><i style="height:${Math.round(pr*100)}%"></i></div>`; }
+  }
+  el(id).innerHTML=h;
+}
+
+/* ===== deal-samensteller ===== */
+let pakket="standaard";
+const M = MODULES.map(m=>({...m, qty:0})); const U = UPSELL.map(u=>({...u, on:false}));
+function renderSeg(){ el('seg').innerHTML = PAKKETTEN.map(p=>`<button class="${pakket===p.id?'on':''}" onclick="pakket='${p.id}';if(pakket!=='klein')M.find(m=>m.id==='bezorg').qty=0;renderAll()">${p.naam} · ${eur(p.eenmalig)} + ${eur(p.mnd)}/mnd</button>`).join(''); }
+function renderMods(){
+  el('mods').innerHTML = M.filter(m=>!(m.alleenKlein&&pakket!=='klein')).map(m=>{ const i=M.indexOf(m); return `<div class="row ${m.qty?'':'off'}">
+    <div class="info"><div class="nm">${m.naam}</div><div class="ds">${m.sub}</div></div>
+    <div class="pr">${eur(m.prijs)}${m.mnd?`<small>+${eur(m.mnd)}/mnd</small>`:''}</div>
+    <div class="qty"><button onclick="ch(${i},-1)">−</button><span>${m.qty}</span><button onclick="ch(${i},1)">+</button></div></div>`; }).join('');
+}
+function ch(i,d){ const m=M[i]; m.qty=Math.min(m.max,Math.max(0,m.qty+d)); renderMods(); calc(); }
+function renderUps(){ el('ups').innerHTML = U.map((u,i)=>`<div class="row ${u.on?'':'off'}"><div class="info"><div class="nm">${u.naam}</div><div class="ds">${u.sub}</div></div><div class="pr">${eur(u.prijs)}<small>per maand</small></div><label class="sw"><input type="checkbox" ${u.on?'checked':''} onchange="setUp(${i},this.checked)"><i></i></label></div>`).join(''); }
+function setUp(i,on){ const u=U[i]; u.on=on; if(on&&u.excl) U.find(x=>x.id===u.excl).on=false; renderUps(); calc(); }
+function renderAll(){ renderSeg(); renderMods(); renderUps(); calc(); }
+
+/* ===== rekenen ===== */
+function calc(){
+  /* A — ladder */
+  const n=Math.max(0,+val('n')||0), oz=Math.max(0,+val('oz')||0), ti=trede(n,oz), f=pctOf(ti);
+  renderLadder('ladder', n, oz);
+
+  /* B — trainee */
+  const trOn=el('tr_on').checked, trOk=ti>=TRAINEE.vanaf;
+  el('tr_vanaf').textContent=pctTxt(STAFFEL[TRAINEE.vanaf].pct/100); el('tr_pct').textContent=pctTxt(TRAINEE.pct/100);
+  el('tr_ds').textContent = trOk ? 'Je zit op '+pctTxt(f)+' — de bonus geldt' : 'Beschikbaar vanaf '+pctTxt(STAFFEL[TRAINEE.vanaf].pct/100)+' (nu '+(ti<0?'geen trede':pctTxt(f))+')';
+  el('tr_grid').style.display = trOn?'':'none'; el('tr_res').style.display = trOn?'':'none'; el('tr_warn').style.display = (trOn&&!trOk)?'':'none';
+  const trBonus = (trOn&&trOk) ? (+val('tr_oz')||0)*TRAINEE.pct/100 : 0;
+  el('tr_v').textContent=eur(trBonus);
+
+  /* C — één deal */
+  const p=PAKKETTEN.find(x=>x.id===pakket);
+  let een=p.eenmalig, mnd=p.mnd;
+  M.forEach(m=>{ if(m.qty&&!(m.alleenKlein&&pakket!=='klein')){ een+=m.prijs*m.qty; mnd+=m.mnd*m.qty; } });
+  U.forEach(u=>{ if(u.on) mnd+=u.prijs; });
+  const k=Math.min(een, Math.max(0,+val('korting')||0)); const eenNet=een-k;
+  const fd = ti<0 ? pctOf(0) : f; // zonder deals deze maand: reken met de instaptrede
+  const c1=eenNet*fd, c2=mnd*fd;
+  el('d_pct').textContent=pctTxt(fd); el('d_een').textContent=eur(c1); el('d_mnd').textContent=eur(c2)+"/mnd"; el('d_jaar').textContent=eur(c1+c2*12);
+  const fmax=STAFFEL[STAFFEL.length-1].pct/100;
+  el('d_txt').textContent=`Deal: ${eur(eenNet)} eenmalig + ${eur(mnd)}/mnd voor de klant → op ${pctTxt(fd)} is dat ${eur(c1)} + ${eur(c2)}/mnd voor jou; na 12 maanden ${eur(c1+c2*12)}, na 24 maanden ${eur(c1+c2*24)}.`+(fd<fmax?` Op de hoogste trede (${pctTxt(fmax)}) zou dezelfde deal ${eur(eenNet*fmax)} + ${eur(mnd*fmax)}/mnd opleveren.`:'');
+
+  /* D — maandplanning */
+  const nk=Math.max(0,+val('n_klein')||0), ns=Math.max(0,+val('n_std')||0), xe=+val('extra_een')||0, xm=+val('extra_mnd')||0, keep=Math.min(1,Math.max(0,(+val('churn')||0)/100)), H=+val('hor');
+  const pk=PAKKETTEN[0], ps=PAKKETTEN[1];
+  const nm=nk+ns, ozM=nk*(pk.eenmalig+xe)+ns*(ps.eenmalig+xe), tm=trede(nm,ozM), fm=pctOf(tm);
+  renderLadder('ladder_m', nm, ozM);
+  const trM = (trOn && tm>=TRAINEE.vanaf) ? (+val('tr_ozm')||0)*TRAINEE.pct/100 : 0;
+  const eenPerMaand = ozM*fm + trM;
+  const mndNieuw = (nk*(pk.mnd+xm)+ns*(ps.mnd+xm))*fm;
+  let rows='', tot=0, eenTot=0, recTot=0;
+  for(let m=1;m<=H;m++){
+    let rec=0; for(let j=1;j<m;j++){ const betaald=m-j; rec += mndNieuw*(betaald>12?keep:1); }
+    const maand=eenPerMaand+rec; tot+=maand; eenTot+=eenPerMaand; recTot+=rec;
+    rows += `<tr><td>Maand ${m}</td><td class="r">${nm}</td><td class="r">${pctTxt(fm)}</td><td class="r">${eur(eenPerMaand)}</td><td class="r">${eur(rec)}</td><td class="r">${eur(maand)}</td><td class="r">${eur(tot)}</td></tr>`;
+  }
+  let recNa=0; for(let j=1;j<=H;j++){ const betaald=H+1-j; recNa += mndNieuw*(betaald>12?keep:1); }
+  el('m_pct').textContent = nm? pctTxt(fm)+` (${nm} deal${nm>1?'s':''} · ${eur(ozM)}/mnd)` : '–';
+  el('m_een').textContent=eur(eenPerMaand)+(trM?` incl. ${eur(trM)} trainee`:''); el('m_rec').textContent=eur(recNa)+"/mnd"; el('m_tot').textContent=eur(tot);
+  el('tbl').innerHTML = `<tr><th>Maand</th><th class="r">Deals</th><th class="r">Trede</th><th class="r">Eenmalig${trM?' + trainee':''}</th><th class="r">Doorlopend</th><th class="r">Totaal</th><th class="r">Cumulatief</th></tr>${rows}<tr class="tt"><td>Totaal ${H} mnd</td><td class="r">${nm*H}</td><td class="r"></td><td class="r">${eur(eenTot)}</td><td class="r">${eur(recTot)}</td><td class="r">${eur(tot)}</td><td class="r"></td></tr>`;
+
+  /* E — salesmanager */
+  const sf=SALESMANAGER.pct/100, so=+val('sm_oz')||0, sm=+val('sm_mnd')||0;
+  el('sm_pct').textContent=pctTxt(sf); el('sm_een').textContent=eur(so*sf); el('sm_rec').textContent=eur(sm*sf)+"/mnd"; el('sm_jaar').textContent=eur(so*sf+sm*sf*12);
+  el('sm_warn').style.display = SALESMANAGER.vastgesteld?'none':'';
+  el('pmv').textContent=PRIJSMODEL_VERSIE;
+}
+renderAll();
+</script>
+</body>
+</html>

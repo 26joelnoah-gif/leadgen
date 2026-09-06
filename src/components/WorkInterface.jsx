@@ -4,13 +4,15 @@ import {
   X, Phone, Mail, MapPin, User, Building2,
   Calendar, Clock, AlertCircle, CheckCircle2,
   ChevronRight, ChevronDown, Copy, Save, Users, Target, Ban,
-  BookOpen, Info, History, Tag, Maximize2, Minimize2
+  BookOpen, Info, History, Tag, Maximize2, Minimize2, FileSignature
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
 import { supabase } from '../lib/supabase'
 import { normalizeWebsite, displayWebsite } from '../utils/urlUtils'
 import { getStatusDetails, RECRUITMENT_LABELS } from '../utils/statusUtils'
+import { OfferteBriefing } from './OfferteStatus'
+import { useProjectTools, offerteHrefForLead } from '../hooks/useProjectTools'
 
 // v36: labels van de dispositie-knoppen (footer) voor recruitment-projecten.
 // Zelfde status-keys/logica als sales, alleen de tekst op de knop wijkt af.
@@ -116,6 +118,11 @@ export default function WorkInterface() {
   // 'backoffice' blijft daarnaast ook werken (dedicated backoffice-account).
   const isBackofficeMode = isBackofficeCampaign || profile?.role === 'backoffice'
 
+  // v66: offerte-tool aan in dit project? Dan een "Offerte maken"-knop bij de
+  // lead, voorgevuld (?lead=). Nieuw tabblad, zodat het belscherm blijft staan.
+  const { hasTool } = useProjectTools(workingListId || workingLead?.lead_list_id)
+  const canMakeOfferte = hasTool('offerte_bestelplatform')
+
   // Belwachtrij: leads uit de projectlijst die nu belbaar zijn.
   // Afgeronde statussen vallen eruit, en leads met een terugbelmoment
   // in de toekomst (TBA / later bellen / geen gehoor) wachten tot hun datum.
@@ -137,7 +144,13 @@ export default function WorkInterface() {
   // nooit dezelfde lead - ook niet als ze exact tegelijk klikken.
   const [claimedLead, setClaimedLead] = useState(null)
   const [claiming, setClaiming] = useState(false)
-  const currentLead = workingLead || claimedLead || null
+  // v63: liveLead = de meest recente versie van de lead uit de database
+  // (verse fetch bij openen + realtime-updates, bv. na AI-verrijking of
+  // een aanpassing door een collega). Zolang die bij dezelfde lead hoort,
+  // wint hij van de (mogelijk verouderde) cache-versie.
+  const [liveLead, setLiveLead] = useState(null)
+  const baseLead = workingLead || claimedLead || null
+  const currentLead = (liveLead && baseLead && liveLead.id === baseLead.id) ? liveLead : baseLead
   const [listDisplayName, setListDisplayName] = useState('')
 
   // Claim de eerste lead zodra de belmodus in lijstmodus opent
@@ -185,11 +198,55 @@ export default function WorkInterface() {
     return () => window.removeEventListener('resize', handleResize)
   }, [])
 
+  // v63: baseline = laatst bekende databaseversie van de lead. Wordt
+  // gebruikt om (a) alleen de door de beller GEWIJZIGDE velden op te slaan
+  // en (b) verse data alleen te mergen in velden die de beller nog niet
+  // zelf heeft aangepast.
+  const baselineRef = useRef(null)
+  const applyFreshLead = (fresh) => {
+    if (!fresh) return
+    const prevBase = baselineRef.current || {}
+    baselineRef.current = fresh
+    setLiveLead(fresh)
+    setEditableLead(prev => {
+      if (!prev || prev.id !== fresh.id) return fresh
+      const next = { ...prev }
+      Object.keys(fresh).forEach(key => {
+        const untouched = (prev[key] ?? '') === (prevBase[key] ?? '')
+        if (untouched) next[key] = fresh[key]
+      })
+      return next
+    })
+  }
+
   useEffect(() => {
-    if (currentLead) setEditableLead(currentLead)
+    if (currentLead) {
+      baselineRef.current = currentLead
+      setEditableLead(currentLead)
+    }
     // Start de timer voor deze lead: tijd tot dispositie = afhandeltijd
     leadStartRef.current = new Date().toISOString()
   }, [currentLead?.id])
+
+  // v63: bij openen van een lead de verse rij ophalen en daarna live
+  // meeluisteren op wijzigingen (realtime, tabel leads staat in de publicatie).
+  useEffect(() => {
+    const leadId = baseLead?.id
+    if (!isWorking || !leadId) { setLiveLead(null); return }
+    let cancelled = false
+    supabase.from('leads').select('*').eq('id', leadId).maybeSingle()
+      .then(({ data }) => { if (!cancelled && data) applyFreshLead(data) })
+    const channel = supabase
+      .channel('work-lead-' + leadId)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leads', filter: `id=eq.${leadId}` }, payload => {
+        if (!cancelled && payload.new) applyFreshLead(payload.new)
+      })
+      .subscribe()
+    return () => {
+      cancelled = true
+      supabase.removeChannel(channel)
+    }
+  }, [isWorking, baseLead?.id])
 
   // Haal calls-van-vandaag + dagtarget op zodra de belmodus opent
   useEffect(() => {
@@ -310,8 +367,19 @@ export default function WorkInterface() {
     const cleaned = editableLead.website
       ? { ...editableLead, website: normalizeWebsite(editableLead.website) }
       : editableLead
-    const error = await updateLeadStatus(currentLead.id, currentLead.status, cleaned)
+    // v63: alleen de velden meesturen die de beller zelf heeft gewijzigd,
+    // zodat intussen verrijkte/aangepaste velden niet worden overschreven.
+    const base = baselineRef.current || currentLead || {}
+    const changed = {}
+    Object.keys(cleaned).forEach(key => {
+      if (['id', 'created_at', 'updated_at', 'lead_lists'].includes(key)) return
+      if ((cleaned[key] ?? '') !== (base[key] ?? '')) changed[key] = cleaned[key]
+    })
+    if (Object.keys(changed).length === 0) return
+    const error = await updateLeadStatus(currentLead.id, currentLead.status, changed)
     if (!error) {
+      baselineRef.current = { ...base, ...changed }
+      setLiveLead(prev => (prev && prev.id === currentLead.id) ? { ...prev, ...changed } : prev)
       logActivity(currentLead.id, 'edit', 'Lead gegevens gewijzigd')
     }
   }
@@ -492,10 +560,26 @@ export default function WorkInterface() {
                  {currentLead.phone && <CopyButton text={currentLead.phone} label="Telefoonnummer Kopiëren" />}
                </div>
             </div>
-            <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-               &gt; {listName}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {canMakeOfferte && !isRecruitmentCampaign && (
+                <a href={offerteHrefForLead(currentLead.id)} target="_blank" rel="noopener" className="btn btn-outline btn-sm"
+                   title="Opent de offerte-tool, voorgevuld met de gegevens van deze lead"
+                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                  <FileSignature size={14} /> Offerte maken
+                </a>
+              )}
+              <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                 &gt; {listName}
+              </div>
             </div>
           </div>
+
+          {/* v65: open of getekende offerte van deze lead, live uit public.offertes */}
+          {!isRecruitmentCampaign && (
+            <div style={{ padding: isMobile ? '8px 12px 0' : '8px 24px 0' }}>
+              <OfferteBriefing leadId={currentLead.id} />
+            </div>
+          )}
 
           {/* v29: briefing-tabs - belscript en projectinfo, inklapbaar */}
           {(briefing?.call_script || briefing?.project_info) && (

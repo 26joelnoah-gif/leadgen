@@ -82,3 +82,23 @@ Twee-zijdig platform:
   campagne van het type 'backoffice' (WorkInterface) zetten beide
   'bruto_deal'. Recruitment gebruikt 'deal' nog gewoon voor "aangenomen"
   - andere betekenis van dezelfde status-key, bewust ongemoeid.
+
+- **OFFERTE-TEKENLINK (v65, 2026-09-06, GEBOUWD):** offertes op
+  afstand tekenen via /tekenen/<token>. Migratie toegepast, Edge Functions
+  offerte-send/offerte-sign live, end-to-end getest. Secrets nog zetten:
+  RESEND_API_KEY, RESEND_FROM, APP_URL. Spec: docs/OFFERTE_TEKENLINK_SPEC.md.
+  Twee regels: het tekenen (offerte-send / offerte-sign Edge Functions +
+  tekenpagina) werkt ALLEEN met de kolommen van public.offertes en kent geen
+  pakketten/prijsmodel; afzender en branding komen uit organizations/profiles,
+  nooit hardcoded. offertes.lead_id koppelt aan de lead; nieuwe lead-status
+  offerte_verzonden (geen eindstatus, komt terug via next_contact_date);
+  tekenen via link zet lead automatisch op bruto_deal/deal met call_log
+  source='offerte_remote' en duration 0.
+
+- **OFFERTE VANUIT LEAD PER PROJECT (v66, 2026-09-06):** "Offerte maken"
+  staat nu in het belscherm (WorkInterface, sub-header, nieuw tabblad), op de
+  contactkaart en in Outside, en verschijnt ALLEEN als offerte_bestelplatform
+  in campaign_tools van het project van die lead staat (admin altijd). Hook:
+  src/hooks/useProjectTools.js (lead_list_id -> campaign_id -> campaign_tools)
+  + offerteHrefForLead(). useToolAccess (union) blijft alleen voor de Tools-tab.
+  De tool zelf vult naam/contact/mail/tel/adres al in via ?lead= (v65).

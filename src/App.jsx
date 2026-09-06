@@ -19,6 +19,8 @@ import Recruitment from './pages/Recruitment'
 import Roosters from './pages/Roosters'
 import Tools from './pages/Tools'
 import LeadBoard from './pages/LeadBoard'
+import Outside from './pages/Outside'
+import Tekenen from './pages/Tekenen'
 import { useToolAccess } from './hooks/useToolAccess'
 import WorkInterface from './components/WorkInterface'
 import FeatureAwareness from './components/FeatureAwareness'
@@ -75,6 +77,14 @@ function ToolsGate({ children }) {
   const { toolKeys, loading } = useToolAccess()
   if (loading) return null
   if (toolKeys.length === 0) return <Navigate to="/" replace />
+  return children
+}
+
+// v64: /outside alleen voor wie de tool 'outside' via een project heeft (admin altijd).
+function OutsideGate({ children }) {
+  const { toolKeys, loading } = useToolAccess()
+  if (loading) return null
+  if (!toolKeys.includes('outside')) return <Navigate to="/" replace />
   return children
 }
 
@@ -146,6 +156,8 @@ function AppRoutes() {
       {user && <WorkInterface />}
       {user && <FeatureAwareness />}
       <Routes>
+      {/* v65: publieke tekenpagina voor klanten, bewust buiten ProtectedRoute */}
+      <Route path="/tekenen/:token" element={<Tekenen />} />
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/setup" element={user ? <Setup /> : <Navigate to="/login" replace />} />
       <Route
@@ -245,6 +257,16 @@ function AppRoutes() {
             <ToolsGate>
               <Tools />
             </ToolsGate>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/outside"
+        element={
+          <ProtectedRoute>
+            <OutsideGate>
+              <Outside />
+            </OutsideGate>
           </ProtectedRoute>
         }
       />

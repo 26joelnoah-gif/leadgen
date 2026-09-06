@@ -1,32 +1,38 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { FileSignature, ExternalLink, RefreshCw, Presentation } from 'lucide-react'
+import { FileSignature, ExternalLink, RefreshCw, Presentation, Calculator, MapPin } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import Header from '../components/Header'
 import { TOOLS } from '../lib/tools'
 import { useToolAccess } from '../hooks/useToolAccess'
+import { OfferteChip, OPEN_OFFERTE_STATUSSEN } from '../components/OfferteStatus'
 
 // v60: welke kaarten hier staan bepaalt campaign_tools (per project, via
 // useToolAccess); het register van tools staat in src/lib/tools.js.
-const ICONS = { FileSignature, Presentation }
+const ICONS = { FileSignature, Presentation, Calculator, MapPin }
 
 // v59: Tools voor accountmanagers. De offerte-tool van het bestelplatform
 // (ReachConnect) is een statische pagina in public/tools/; hij leest de
 // LeadGen-sessie uit localStorage (zelfde origin) en slaat elke offerte op in
 // public.offertes. Deze pagina is alleen de ingang + het overzicht.
 const eur = (n) => '€' + Math.round(Number(n) || 0).toLocaleString('nl-NL')
-const STATUS = {
-  concept: { label: 'Concept', color: 'var(--text-muted)' },
-  getekend: { label: 'Getekend', color: '#22c55e' },
-  verzonden: { label: 'Verzonden', color: 'var(--primary)' },
-  geannuleerd: { label: 'Geannuleerd', color: '#ef4444' },
-}
+// v65: statussen en chips komen uit OfferteStatus.jsx (één bron voor
+// contactkaart, belscherm en dit overzicht).
+const FILTERS = [
+  { id: 'open', label: 'Wacht op klant', test: r => ['verzonden', 'geopend'].includes(r.status) },
+  { id: 'getekend', label: 'Getekend', test: r => r.status === 'getekend' },
+  { id: 'verloopt', label: 'Verloopt deze week', test: r => ['verzonden', 'geopend'].includes(r.status) && r.sign_token_expires_at && (new Date(r.sign_token_expires_at) - Date.now()) < 7 * 86400000 },
+  { id: 'concept', label: 'Concept', test: r => r.status === 'concept' },
+  { id: 'alle', label: 'Alle', test: () => true },
+]
+const dd = (iso) => iso ? new Date(iso).toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit' }) : '—'
 
 export default function Tools() {
   const { user, profile, isDemoMode } = useAuth()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState('alle')
   const isAdmin = profile?.role === 'admin' || profile?.role === 'manager'
   const { toolKeys } = useToolAccess()
   const myTools = TOOLS.filter(t => toolKeys.includes(t.key))
@@ -37,7 +43,7 @@ export default function Tools() {
     setLoading(true)
     const { data, error } = await supabase
       .from('offertes')
-      .select('id, nummer, status, zaak_naam, accountmanager, pakket, eenmalig_ex, maandbedrag_ex, getekend_op, created_at, updated_at')
+      .select('id, nummer, status, zaak_naam, accountmanager, pakket, eenmalig_ex, maandbedrag_ex, getekend_op, verzonden_op, geopend_op, geopend_aantal, sign_token_expires_at, lead_id, created_at, updated_at')
       .order('updated_at', { ascending: false })
       .limit(200)
     if (!error) setRows(data || [])
@@ -45,9 +51,11 @@ export default function Tools() {
   }
   useEffect(() => { load() }, [user?.id, hasOfferte])
 
-  const getekend = rows.filter(r => r.status === 'getekend' || r.status === 'verzonden')
+  const getekend = rows.filter(r => r.status === 'getekend')
   const somEenmalig = getekend.reduce((a, r) => a + Number(r.eenmalig_ex || 0), 0)
   const somMaand = getekend.reduce((a, r) => a + Number(r.maandbedrag_ex || 0), 0)
+  const openCount = rows.filter(r => OPEN_OFFERTE_STATUSSEN.includes(r.status)).length
+  const shown = rows.filter((FILTERS.find(f => f.id === filter) || FILTERS[4]).test)
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
@@ -90,39 +98,48 @@ export default function Tools() {
             <div>
               <div style={{ fontWeight: 700 }}>{isAdmin ? 'Alle offertes' : 'Mijn offertes'}</div>
               <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                {getekend.length} getekend · {eur(somEenmalig)} eenmalig · {eur(somMaand)}/mnd
+                {getekend.length} getekend · {eur(somEenmalig)} eenmalig · {eur(somMaand)}/mnd · {openCount} wacht op klant
               </div>
             </div>
             <button className="btn btn-outline btn-sm" onClick={load}><RefreshCw size={14} /> Vernieuwen</button>
           </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+            {FILTERS.map(f => {
+              const n = rows.filter(f.test).length
+              return (
+                <button key={f.id} className={`btn btn-sm ${filter === f.id ? 'btn-primary' : 'btn-outline'}`} onClick={() => setFilter(f.id)}>
+                  {f.label} <span style={{ opacity: 0.7 }}>{n}</span>
+                </button>
+              )
+            })}
+          </div>
           {loading ? (
             <p style={{ color: 'var(--text-muted)' }}>Laden…</p>
-          ) : rows.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)' }}>Nog geen offertes. Start er een met de knop hierboven.</p>
+          ) : shown.length === 0 ? (
+            <p style={{ color: 'var(--text-muted)' }}>{rows.length === 0 ? 'Nog geen offertes. Start er een met de knop hierboven.' : 'Geen offertes in dit filter.'}</p>
           ) : (
             <div className="table-container">
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Nummer</th><th>Zaak</th>{isAdmin && <th>Accountmanager</th>}<th>Pakket</th>
-                    <th style={{ textAlign: 'right' }}>Eenmalig</th><th style={{ textAlign: 'right' }}>Per maand</th><th>Status</th><th>Laatst</th>
+                    <th>Nummer</th><th>Zaak</th>{isAdmin && <th>Accountmanager</th>}
+                    <th style={{ textAlign: 'right' }}>Eenmalig</th><th style={{ textAlign: 'right' }}>Per maand</th><th>Status</th><th>Verstuurd</th><th>Geopend</th><th>Geldig tot</th><th>Getekend</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(r => {
-                    const st = STATUS[r.status] || STATUS.concept
+                  {shown.map(r => {
                     return (
                       <tr key={r.id}>
                         <td className="mono-num">{r.nummer}</td>
                         <td>{r.zaak_naam}</td>
                         {isAdmin && <td>{r.accountmanager || '—'}</td>}
-                        <td style={{ textTransform: 'capitalize' }}>{r.pakket}</td>
                         <td style={{ textAlign: 'right' }}>{eur(r.eenmalig_ex)}</td>
                         <td style={{ textAlign: 'right' }}>{eur(r.maandbedrag_ex)}</td>
-                        <td><span style={{ color: st.color, fontWeight: 600 }}>{st.label}</span></td>
-                        <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                          {new Date(r.getekend_op || r.updated_at).toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                        </td>
+                        <td><OfferteChip status={r.status} /></td>
+                        <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{dd(r.verzonden_op)}</td>
+                        <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{r.geopend_op ? `${dd(r.geopend_op)}${r.geopend_aantal > 1 ? ` (${r.geopend_aantal}×)` : ''}` : '—'}</td>
+                        <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{['verzonden', 'geopend'].includes(r.status) ? dd(r.sign_token_expires_at) : '—'}</td>
+                        <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{dd(r.getekend_op)}</td>
                       </tr>
                     )
                   })}
@@ -131,7 +148,7 @@ export default function Tools() {
             </div>
           )}
           <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: 12 }}>
-            De tool bewaart de lopende offerte ook op het apparaat zelf; een nieuwe offerte start je in de tool met "Nieuwe offerte" (accountmanager-weergave).
+            Een offerte maak je het best vanuit de contactkaart van de lead ("Offerte maken"): dan zien bellers de status ook in het belscherm. Herinneren of intrekken doe je op diezelfde contactkaart.
           </p>
         </div>
         )}

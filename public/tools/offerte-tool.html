@@ -129,9 +129,6 @@
   .ct td{padding:7px 4px;border-bottom:1px solid var(--line)}
   .ct .r{text-align:right;white-space:nowrap}
   .ct tr.tt td{font-weight:700;color:var(--acc);border-top:1px solid var(--line2)}
-  body.cmode #mainview,body.cmode .bar{display:none!important}
-  body.cmode #cview{display:block!important}
-  body.cmode #modeBtn{display:none}
   /* document (print) */
   #doc{display:none}
   @media print{
@@ -170,7 +167,6 @@
     <a class="chip" href="/tools" id="backLink" style="text-decoration:none">← LeadGen</a>
     <span id="h_nr" class="chip">RC-…</span>
     <span id="dbState" class="chip" title="Opslag in LeadGen">…</span>
-    <button class="chip vk-only" id="cBtn" onclick="toggleC()">Commissie</button>
     <button class="chip" id="modeBtn" onclick="toggleMode()">Klantweergave</button>
   </div>
 </header>
@@ -180,9 +176,9 @@
   <section class="card">
     <h2><span class="n">1</span>Zaak & contact</h2>
     <div class="grid" style="margin-top:12px">
-      <div><label class="f">Naam van de zaak *</label><input type="text" id="k_zaak" placeholder="bv. Dr. Shawarma" oninput="save()"></div>
+      <div><label class="f">Naam van de zaak *</label><input type="text" id="k_zaak" placeholder="bv. Dr. Shawarma" oninput="save();chkSign()"></div>
       <div><label class="f">Contactpersoon</label><input type="text" id="k_naam" placeholder="Voor- en achternaam" oninput="save()"></div>
-      <div><label class="f">E-mail (voor de offerte)</label><input type="email" id="k_mail" placeholder="naam@zaak.nl" oninput="save()"></div>
+      <div><label class="f">E-mail (voor de offerte)</label><input type="email" id="k_mail" placeholder="naam@zaak.nl" oninput="save();chkSend()"></div>
       <div><label class="f">Telefoon</label><input type="tel" id="k_tel" placeholder="06…" oninput="save()"></div>
       <div class="full" style="grid-column:1/-1"><label class="f">Adres</label><input type="text" id="k_adres" placeholder="Straat 1, 1234 AB Plaats" oninput="save()"></div>
       <div class="vk-only"><label class="f">Accountmanager</label><input type="text" id="v_naam" placeholder="Jouw naam" oninput="save()"></div>
@@ -229,7 +225,7 @@
     <div id="posts"></div>
     <div class="res" id="res"></div>
     <div class="warn hidden vk-only" id="roiwarn">Abonnement is hoger dan de aangevinkte besparing. Vink meer posten aan of pas de invoer aan.</div>
-    <div class="note">Indicatief: resultaten kunnen verschillen. De klant ziet dezelfde invoer en aannames terug op de offerte; de terugverdientijd staat niet op de getekende offerte.</div>
+    <div class="note">Indicatief: resultaten kunnen verschillen. De klant ziet dezelfde invoer en aannames terug op de offerte; de terugverdientijd staat niet op de offerte (alleen in het gesprek).</div>
   </section>
 
   <!-- 6 overzicht -->
@@ -241,7 +237,7 @@
         <div><label class="f">Korting eenmalig (€, max 10%)</label><input type="number" id="v_korting" value="0" inputmode="numeric" oninput="calc()"></div>
         <div><label class="f">Interne notitie</label><input type="text" id="v_notitie" oninput="save()"></div>
       </div>
-      <div style="margin-top:10px">Jouw commissie: <span class="c" id="c1">€0</span> eenmalig (20% pakket + modules) + <span class="c" id="c2">€0</span>/mnd doorlopend (20% maandbedrag). Alleen zichtbaar in accountmanager-weergave. De knop <b>Commissie</b> bovenin opent de commissie-calculator met maandplanning.</div>
+      <div class="note vk-only">Je commissie reken je uit in de teamtool <b>Commissie</b> (LeadGen → Tools).</div>
     </div>
   </section>
 
@@ -262,53 +258,20 @@
     <div class="btns">
       <button class="btn sm" onclick="clearSig()">Wis handtekening</button>
       <button class="btn acc" id="signBtn" onclick="sign()" disabled>Akkoord en ondertekenen</button>
+      <button class="btn vk-only" id="sendBtn" onclick="sendForSign()" disabled title="Mailt de klant een link om thuis te tekenen">Verstuur ter ondertekening</button>
     </div>
     <div class="signed hidden" id="signedbox"></div>
+    <div class="signed hidden" id="sentbox"></div>
     <div class="btns">
       <button class="btn" onclick="showDoc()">Bekijk / print offerte (PDF)</button>
       <button class="btn vk-only" onclick="exportJson()">Exporteer deal (JSON)</button>
       <button class="btn vk-only" onclick="nieuw()">Nieuwe offerte</button>
     </div>
-    <div class="note vk-only">Prototype: de deal wordt lokaal op dit apparaat bewaard. Opslag in Supabase, PDF en mail via Resend volgen in de dealtool (zie docs/DEALTOOL_SPEC.md).</div>
+    <div class="note vk-only">Tekent de klant nu niet? Vul het e-mailadres in en kies "Verstuur ter ondertekening": de klant krijgt een link om thuis te tekenen en LeadGen volgt de status (verzonden, geopend, getekend).</div>
   </section>
 </main>
 
-<main id="cview" class="hidden">
-  <section class="card">
-    <h2><span class="n">A</span>Wat verdien je aan één deal?</h2>
-    <div class="sub">Commissie: 20% over het eenmalige bedrag (pakket + modules, na korting) en 20% over het maandbedrag, elke maand zolang de klant blijft.</div>
-    <div class="seg" id="seg" style="margin-top:12px"></div>
-    <div id="c_mods"></div>
-    <div id="c_ups"></div>
-    <div class="grid"><div><label class="f">Korting eenmalig (€)</label><input type="number" id="c_korting" value="0" inputmode="numeric" oninput="ccalc()"></div></div>
-    <div class="res">
-      <div><div class="k">Eenmalig voor jou</div><div class="v" id="d_een">€0</div></div>
-      <div><div class="k">Per maand voor jou</div><div class="v" id="d_mnd">€0</div></div>
-      <div><div class="k">Jaar 1 totaal</div><div class="v" id="d_jaar">€0</div></div>
-    </div>
-    <div class="note" id="d_txt"></div>
-  </section>
 
-  <section class="card">
-    <h2><span class="n">B</span>Maandplanning</h2>
-    <div class="sub">Hoeveel deals sluit je per maand, en wat bouw je dan op? Het maandbedrag stapelt: elke deal blijft doorbetalen.</div>
-    <div class="grid">
-      <div><label class="f">Deals Klein per maand</label><input type="number" id="n_klein" value="1" min="0" inputmode="numeric" oninput="ccalc()"></div>
-      <div><label class="f">Deals Standaard per maand</label><input type="number" id="n_std" value="1" min="0" inputmode="numeric" oninput="ccalc()"></div>
-      <div><label class="f">Gem. eenmalig extra per deal (€)</label><input type="number" id="extra_een" value="1000" min="0" inputmode="numeric" oninput="ccalc()"></div>
-      <div><label class="f">Gem. extra per maand per deal (€)</label><input type="number" id="extra_mnd" value="50" min="0" inputmode="numeric" oninput="ccalc()"></div>
-      <div><label class="f">Klanten die na jaar 1 blijven (%)</label><input type="number" id="churn" value="90" min="0" max="100" inputmode="numeric" oninput="ccalc()"></div>
-      <div><label class="f">Horizon</label><select id="hor" onchange="ccalc()"><option value="6">6 maanden</option><option value="12" selected>12 maanden</option><option value="24">24 maanden</option></select></div>
-    </div>
-    <div class="res">
-      <div><div class="k">Eenmalig per maand</div><div class="v" id="m_een">€0</div></div>
-      <div><div class="k">Doorlopend na horizon</div><div class="v" id="m_rec">€0/mnd</div></div>
-      <div><div class="k">Totaal over horizon</div><div class="v" id="m_tot">€0</div></div>
-    </div>
-    <table id="tbl" class="ct"></table>
-    <div class="note">Extra per deal: bijvoorbeeld 1 extra zuil (€1.000, +€25/mnd) of een cash-koppeling (€2.250, +€50/mnd). Commissie wordt uitgekeerd na betaling door de klant; maandcommissie zolang het abonnement loopt.</div>
-  </section>
-</main>
 
 <div class="bar">
   <div class="b"><div class="k">Eenmalig</div><div class="v acc" id="b_een">€0</div></div>
@@ -325,7 +288,6 @@
 /* ===== PRIJSMODEL (bron: verkoop/PRIJSMODEL.md, versie 2026-09-04) ===== */
 const PRIJSMODEL_VERSIE = "2026-09-04";
 const BTW = 0.21;
-const COMMISSIE = 0.20;
 const KORTING_MAX = 0.10;
 const PAKKETTEN = [
   {id:"klein", naam:"Klein", sub:"Eenmanszaak, snackbar, zaak zonder zuil", eenmalig:3500, mnd:150,
@@ -369,7 +331,7 @@ const VOORWAARDEN = [
   ["Beschikbaarheid en support (best effort)", "Wij spannen ons in om de dienst zo goed mogelijk beschikbaar te houden en storingen snel te verhelpen, maar garanderen geen ononderbroken werking, geen minimale beschikbaarheid en geen reactie- of oplostijden. Support wordt op werkdagen op afstand geleverd; support op locatie en meerwerk worden vooraf afgestemd en apart in rekening gebracht tegen het in de offerte genoemde uurtarief. Onderhoud kondigen wij waar mogelijk vooraf aan."],
   ["Diensten van derden", "De dienst maakt gebruik van diensten van derden, waaronder hosting, betaaldiensten (zoals Mollie), pinterminals, cash-automaten, printers en netwerken. Storingen, wijzigingen, kosten of beëindiging bij die derden vallen buiten onze invloed en verantwoordelijkheid. De klant sluit zelf de overeenkomsten met betaaldienstverleners en hardwareleveranciers en draagt de daaraan verbonden kosten en transactiekosten."],
   ["Verantwoordelijkheden van de klant", "De klant is verantwoordelijk voor de juistheid van menu, prijzen, allergeneninformatie, openingstijden, bezorgzones en andere inhoud, voor het naleven van wet- en regelgeving (waaronder fiscale, consumenten- en privacyregels) en voor het zorgvuldig gebruik van inloggegevens en apparaatsleutels. Wij zijn niet aansprakelijk voor gevolgen van onjuiste of onvolledige inhoud die de klant heeft ingevoerd."],
-  ["Indicatieve cijfers", "Alle in de offerte of het gesprek getoonde besparingen, opbrengsten, terugverdientijden en vergelijkingen zijn indicatief, gebaseerd op door de klant opgegeven cijfers en op ervaringen bij andere klanten. Zij vormen geen garantie en geen onderdeel van de overeenkomst; werkelijke resultaten kunnen afwijken."],
+  ["Indicatieve cijfers", "Alle in de offerte of het gesprek getoonde besparingen, opbrengsten en vergelijkingen zijn indicatief, gebaseerd op door de klant opgegeven cijfers en op ervaringen bij andere klanten. Zij vormen geen garantie en geen onderdeel van de overeenkomst; werkelijke resultaten kunnen afwijken."],
   ["Aansprakelijkheid", "Onze aansprakelijkheid voor schade, uit welke hoofde ook, is beperkt tot vergoeding van directe schade tot maximaal het bedrag dat de klant in de drie maanden voorafgaand aan de schadeveroorzakende gebeurtenis aan maandabonnement heeft betaald. Wij zijn nooit aansprakelijk voor indirecte of gevolgschade, waaronder gederfde omzet of winst, gemiste bestellingen, verlies van gegevens, bedrijfsstagnatie, boetes of reputatieschade, noch voor schade door storingen bij derden, door hardware, internet- of stroomuitval, of door handelen van de klant of zijn personeel. Deze beperkingen gelden niet voor schade die het gevolg is van opzet of bewuste roekeloosheid van onze leiding. Een aanspraak vervalt als deze niet binnen 3 maanden na ontdekking schriftelijk aan ons is gemeld."],
   ["Overmacht", "Wij hoeven niet na te komen als dat wordt verhinderd door omstandigheden buiten onze macht, waaronder storingen bij hosting-, betaal- of netwerkleveranciers, cyberaanvallen, ziekte, overheidsmaatregelen en stroom- of internetuitval."],
   ["Eigendom en gebruiksrecht", "De software, de inrichting en alle daarin opgenomen intellectuele eigendomsrechten blijven van ReachConnect. De klant krijgt voor de duur van het abonnement een niet-overdraagbaar gebruiksrecht voor de eigen zaak. Gegevens en inhoud die de klant invoert (menu, foto's, klant- en bestelgegevens) blijven eigendom van de klant. De klant mag de software niet kopiëren, doorverkopen of aan derden beschikbaar stellen."],
@@ -379,7 +341,7 @@ const VOORWAARDEN = [
   ["Toepasselijk recht", "Op de overeenkomst is Nederlands recht van toepassing. Geschillen worden voorgelegd aan de bevoegde rechter in het arrondissement waar ReachConnect is gevestigd, nadat partijen hebben geprobeerd er in overleg uit te komen. Deze offerte is 14 dagen geldig."],
 ];
 
-const AKKOORD = `Door te ondertekenen gaat de klant akkoord met deze offerte van ReachConnect voor het bestelplatform, zoals hierboven gespecificeerd. Prijzen zijn exclusief btw. Het eenmalige bedrag wordt bij akkoord gefactureerd; het maandabonnement gaat in bij livegang en is maandelijks opzegbaar. Het abonnement omvat hosting, storingsbewaking, updates en support. Er wordt geen commissie per bestelling gerekend. Hardware wordt niet door ReachConnect geleverd; de klant schaft apparatuur aan volgens de meegeleverde specificatielijst, waarna installatie wordt ingepland. Meerwerk buiten deze offerte wordt vooraf afgestemd (€75 per uur). De in de offerte getoonde besparingen, opbrengsten en terugverdientijd zijn indicatief; werkelijke resultaten kunnen verschillen en vormen geen garantie of onderdeel van de overeenkomst. Op deze overeenkomst zijn de voorwaarden van toepassing die in deze offerte zijn opgenomen; de klant verklaart die te hebben gelezen. Deze offerte is 14 dagen geldig. De klant ontvangt een e-mailbevestiging met deze offerte, de handtekening en het tijdstip van ondertekening.`;
+const AKKOORD = `Door te ondertekenen gaat de klant akkoord met deze offerte van ReachConnect voor het bestelplatform, zoals hierboven gespecificeerd. Prijzen zijn exclusief btw. Het eenmalige bedrag wordt bij akkoord gefactureerd; het maandabonnement gaat in bij livegang en is maandelijks opzegbaar. Het abonnement omvat hosting, storingsbewaking, updates en support. Er wordt geen commissie per bestelling gerekend. Hardware wordt niet door ReachConnect geleverd; de klant schaft apparatuur aan volgens de meegeleverde specificatielijst, waarna installatie wordt ingepland. Meerwerk buiten deze offerte wordt vooraf afgestemd (€75 per uur). De in de offerte getoonde besparingen en opbrengsten zijn indicatief; werkelijke resultaten kunnen verschillen en vormen geen garantie of onderdeel van de overeenkomst. Op deze overeenkomst zijn de voorwaarden van toepassing die in deze offerte zijn opgenomen; de klant verklaart die te hebben gelezen. Deze offerte is 14 dagen geldig. De klant ontvangt een e-mailbevestiging met deze offerte, de handtekening en het tijdstip van ondertekening.`;
 
 
 </script>
@@ -423,7 +385,7 @@ const POSTS = [
 function POSTS_eff(id,p,i){ const post=POSTS.find(x=>x.id===id); return post.eff(p,i); }
 
 /* ===== state ===== */
-let S = { nummer:null, pakket:"standaard", signed:null, klantmodus:false };
+let S = { nummer:null, pakket:"standaard", signed:null, klantmodus:false, lead_id:null, verzonden:null };
 const eur = n => "€" + Math.round(n).toLocaleString("nl-NL");
 const eur2 = n => "€" + n.toLocaleString("nl-NL",{minimumFractionDigits:2,maximumFractionDigits:2});
 const val = id => { const e=document.getElementById(id); return e? e.value : ""; };
@@ -546,7 +508,6 @@ function calc(){
   rows += `<div class="trow big"><span class="l">Per maand ex btw</span><span class="r">${eur(t.mnd)}</span></div></div>`;
   if(t.kortingTeHoog) rows += `<div class="warn vk-only">Korting boven ${eur(t.kmax)} (10%): offerte blijft concept tot Noah akkoord geeft.</div>`;
   el('ovz').innerHTML = rows;
-  el('c1').textContent = eur((t.een-Math.min(t.korting,t.een))*COMMISSIE); el('c2').textContent = eur(t.mnd*COMMISSIE);
   el('h_nr').textContent = S.nummer;
   chkSign(); save();
 }
@@ -564,11 +525,12 @@ function initSig(){
   c.addEventListener('pointerdown',start); c.addEventListener('pointermove',move); window.addEventListener('pointerup',end);
 }
 function clearSig(){ if(S.signed) return; const c=el('sig'); ctx.clearRect(0,0,c.width,c.height); hasSig=false; el('sighint').style.display=''; chkSign(); }
-function chkSign(){ const ok = hasSig && val('s_naam').trim().length>1 && val('k_zaak').trim().length>0 && !S.signed; el('signBtn').disabled=!ok; }
+function chkSign(){ const ok = hasSig && val('s_naam').trim().length>1 && val('k_zaak').trim().length>0 && !S.signed && !S.verzonden; el('signBtn').disabled=!ok; chkSend(); }
+function chkSend(){ const b=el('sendBtn'); if(!b) return; const mailOk=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val('k_mail').trim()); b.disabled = !(sb && lgUser && mailOk && val('k_zaak').trim().length>0 && !S.signed && !S.verzonden); }
 function sign(){
   if(S.signed) return;
   const now=new Date();
-  S.signed={ door:val('s_naam'), functie:val('s_functie'), op:now.toISOString(), png:el('sig').toDataURL('image/png'), ua:navigator.userAgent, tekst:AKKOORD, snapshot:JSON.parse(JSON.stringify(last)) };
+  S.signed={ door:val('s_naam'), functie:val('s_functie'), op:now.toISOString(), png:el('sig').toDataURL('image/png'), ua:navigator.userAgent, tekst:AKKOORD, methode:'op_locatie', snapshot:JSON.parse(JSON.stringify(last)) };
   renderSigned(); lockAll(); save(); dbSave(true);
 }
 function renderSigned(){
@@ -600,7 +562,7 @@ function buildDoc(){
     h+=`<h2>Wat het oplevert (indicatief, op basis van uw eigen cijfers)</h2><div class="small">Invoer: omzet ${eur(r.invoer.omzet)}/mnd · ${r.invoer.best} bestellingen/dag · gem. bon ${eur2(r.invoer.bon)} · via bezorgplatforms ${eur(r.invoer.platform)}/mnd</div>
       <table><tr><th>Post</th><th>Aanname</th><th class="r">Per maand</th></tr>`;
     r.posten.forEach(p=>{ h+=`<tr><td>${p.naam}</td><td class="small">${p.uitleg}</td><td class="r">${eur(p.bedrag)}</td></tr>`; });
-    h+=`</table><div class="kv"><div><div class="k">Netto per maand na abonnement</div><div class="v">${eur(r.netto)}</div></div>${S.signed?'':`<div><div class="k">Terugverdiend in</div><div class="v">${r.tvt? r.tvt+' maanden':'–'}</div></div>`}<div><div class="k">Over 3 jaar</div><div class="v">${eur(r.drie)}</div></div></div>
+    h+=`</table><div class="kv"><div><div class="k">Netto per maand na abonnement</div><div class="v">${eur(r.netto)}</div></div><div><div class="k">Over 3 jaar</div><div class="v">${eur(r.drie)}</div></div></div>
       <div class="small" style="margin-top:6px">De getoonde besparingen en opbrengsten zijn indicatief en gebaseerd op de door u opgegeven cijfers en op praktijkcijfers van een bestaande klant. Werkelijke resultaten kunnen verschillen en zijn geen onderdeel van deze overeenkomst.</div>`;
   }
   h+=`<h2>Voorwaarden</h2><div class="vw">${VOORWAARDEN.map((v,i)=>`<p><b>${i+1}. ${v[0]}.</b> ${v[1]}</p>`).join('')}</div>`;
@@ -631,7 +593,7 @@ function load(){
     Object.entries(d.f).forEach(([id,v])=>{ const e=el(id); if(e) e.value=v; }); return true; }catch(e){ return false; }
 }
 function dealPayload(){
-  return { nummer:S.nummer, prijsmodel_versie:PRIJSMODEL_VERSIE, status:S.signed?'getekend':'concept', accountmanager:val('v_naam'),
+  return { nummer:S.nummer, lead_id:S.lead_id||null, prijsmodel_versie:PRIJSMODEL_VERSIE, status:S.signed?'getekend':(S.verzonden?'verzonden':'concept'), accountmanager:val('v_naam'),
     klant:{zaak:val('k_zaak'),contact:val('k_naam'),email:val('k_mail'),telefoon:val('k_tel'),adres:val('k_adres')},
     pakket:S.pakket, regels:last.t.regels, upsell:last.t.ups, korting:last.t.korting, eenmalig_ex:last.t.eenNet, btw:last.t.btw, eenmalig_incl:last.t.incl, maandbedrag_ex:last.t.mnd,
     roi:last.r, speclijst:specOk, notitie:val('v_notitie'), akkoord:S.signed };
@@ -645,58 +607,29 @@ function nieuw(){
   localStorage.removeItem('rc_offerte'); localStorage.removeItem('rc_dbid'); location.reload();
 }
 function barAction(){ if(S.signed) showDoc(); else document.getElementById('akkoord').scrollIntoView({behavior:'smooth'}); }
-function toggleC(){ document.body.classList.toggle('cmode'); const on=document.body.classList.contains('cmode'); el('cBtn').classList.toggle('on',on); el('cBtn').textContent = on? '← Offerte':'Commissie'; window.scrollTo(0,0); }
-function toggleMode(){ if(document.body.classList.contains('cmode')) toggleC(); S.klantmodus=!S.klantmodus; applyMode(); save(); }
+function toggleMode(){ S.klantmodus=!S.klantmodus; applyMode(); save(); }
 function applyMode(){ document.body.classList.toggle('klant',S.klantmodus); el('modeBtn').textContent = S.klantmodus? 'Accountmanager' : 'Klantweergave'; el('modeBtn').classList.toggle('on',S.klantmodus); }
 
 /* ===== init ===== */
 (function(){
-  const had=load(); if(!S.nummer) S.nummer=nummer();
+  // v65: geopend vanuit een lead (contactkaart / Outside)? Dan hoort deze offerte bij die lead.
+  const leadParam = new URLSearchParams(location.search).get('lead');
+  let had=load();
+  if(leadParam && S.lead_id!==leadParam){
+    try{ localStorage.removeItem('rc_offerte'); localStorage.removeItem('rc_dbid'); }catch(e){}
+    S = { nummer:null, pakket:"standaard", signed:null, klantmodus:false, lead_id:leadParam, verzonden:null };
+    MODULES.forEach(m=>m.qty=0); UPSELL.forEach(u=>u.on=false); specOk={}; had=false;
+    ['k_zaak','k_naam','k_mail','k_tel','k_adres','v_korting','v_notitie','s_naam','s_functie'].forEach(id=>{ const e=el(id); if(e) e.value=''; });
+  }
+  if(!S.nummer) S.nummer=nummer();
   renderPk(); renderMods(); renderUps(); renderSpec(); renderPosts(); el('akktekst').textContent=AKKOORD; el('vwtekst').innerHTML=VOORWAARDEN.map((v,i)=>`<p style="margin:0 0 8px"><b>${i+1}. ${v[0]}.</b> ${v[1]}</p>`).join(''); el('refline').textContent=`Referentie ${REF.naam} (gemeten): ${eur(REF.omzet)} omzet/mnd via de zuil, ${REF.best} bestellingen/dag, gemiddelde bon ${eur2(REF.bon)}, +${Math.round(REF.bonLift*100)}% bon door de menu-popup.`;
   initSig(); calc(); applyMode();
   if(S.signed){ renderSigned(); lockAll(); const img=new Image(); img.onload=()=>{ ctx.drawImage(img,0,0,el('sig').clientWidth,180); }; img.src=S.signed.png; hasSig=true; el('sighint').style.display='none'; }
+  if(S.verzonden){ renderSent(); lockAll(); }
   window.addEventListener('resize',()=>{ if(!hasSig) initSig(); });
 })();
 
-/* ===== commissie-calculator (alleen accountmanager) ===== */
-let cpakket="standaard";
-const CMODULES = MODULES.map(m=>({...m, qty:0})); const CUPSELL = UPSELL.map(u=>({...u, on:false}));
-function ccounts(){ const c={...PAKKETTEN.find(p=>p.id===cpakket).stations}; CMODULES.forEach(m=>{ if(m.station&&m.qty) c[m.id]=(c[m.id]||0)+m.qty; }); return c; }
-function crenderSeg(){ el('seg').innerHTML = PAKKETTEN.map(p=>`<button class="${cpakket===p.id?'on':''}" onclick="cpakket='${p.id}';crenderAll()">${p.naam} · ${eur(p.eenmalig)} + ${eur(p.mnd)}/mnd</button>`).join(''); }
-function crenderMods(){
-  el('c_mods').innerHTML = CMODULES.filter(m=>!(m.alleenKlein&&cpakket!=='klein')).map(m=>{ const i=CMODULES.indexOf(m); return `<div class="row ${m.qty?'':'off'}">
-    <div class="info"><div class="nm">${m.naam}</div><div class="ds">${m.sub}</div></div>
-    <div class="pr">${m.prijs?eur(m.prijs):'gratis'}${m.mnd?`<small>+${eur(m.mnd)}/mnd</small>`:''}</div>
-    <div class="qty"><button onclick="cch(${i},-1)">−</button><span>${m.qty}</span><button onclick="cch(${i},1)">+</button></div></div>`; }).join('');
-}
-function cch(i,d){ const m=CMODULES[i]; if(d>0&&m.needs&&!(ccounts()[m.needs]>0)){ alert('Een statusbord werkt alleen samen met een keukenscherm.'); return; } m.qty=Math.min(m.max,Math.max(0,m.qty+d)); CMODULES.forEach(x=>{ if(x.needs&&x.qty&&!(ccounts()[x.needs]>0)) x.qty=0; }); crenderMods(); ccalc(); }
-function crenderUps(){ el('c_ups').innerHTML = CUPSELL.map((u,i)=>`<div class="row ${u.on?'':'off'}"><div class="info"><div class="nm">${u.naam}</div><div class="ds">${u.sub}</div></div><div class="pr">${eur(u.prijs)}<small>per maand</small></div><label class="sw"><input type="checkbox" ${u.on?'checked':''} onchange="csetUp(${i},this.checked)"><i></i></label></div>`).join(''); }
-function csetUp(i,on){ const u=CUPSELL[i]; u.on=on; if(on&&u.excl) CUPSELL.find(x=>x.id===u.excl).on=false; crenderUps(); ccalc(); }
-function crenderAll(){ if(cpakket==='standaard') CMODULES.find(m=>m.id==='bezorg').qty=0; CMODULES.forEach(x=>{ if(x.needs&&x.qty&&!(ccounts()[x.needs]>0)) x.qty=0; }); crenderSeg(); crenderMods(); crenderUps(); ccalc(); }
-function ccalc(){
-  const p=PAKKETTEN.find(x=>x.id===cpakket);
-  let een=p.eenmalig, mnd=p.mnd;
-  CMODULES.forEach(m=>{ if(m.qty&&!(m.alleenKlein&&cpakket!=='klein')){ een+=m.prijs*m.qty; mnd+=m.mnd*m.qty; } });
-  CUPSELL.forEach(u=>{ if(u.on) mnd+=u.prijs; });
-  const k=Math.min(een, Math.max(0,+val('c_korting')||0)); const eenNet=een-k;
-  const c1=eenNet*COMMISSIE, c2=mnd*COMMISSIE;
-  el('d_een').textContent=eur(c1); el('d_mnd').textContent=eur(c2)+"/mnd"; el('d_jaar').textContent=eur(c1+c2*12);
-  el('d_txt').textContent=`Deal: ${eur(eenNet)} eenmalig + ${eur(mnd)}/mnd voor de klant → ${eur(c1)} + ${eur(c2)}/mnd voor jou. Na 12 maanden ${eur(c1+c2*12)}, na 24 maanden ${eur(c1+c2*24)}.`;
-  const nk=+val('n_klein')||0, ns=+val('n_std')||0, xe=+val('extra_een')||0, xm=+val('extra_mnd')||0, keep=(+val('churn')||0)/100, H=+val('hor');
-  const pk=PAKKETTEN.find(x=>x.id==='klein'), ps=PAKKETTEN.find(x=>x.id==='standaard');
-  const eenPerMaand = (nk*(pk.eenmalig+xe) + ns*(ps.eenmalig+xe))*COMMISSIE;
-  const mndPerDeal = { k:(pk.mnd+xm)*COMMISSIE, s:(ps.mnd+xm)*COMMISSIE };
-  let rows='', tot=0, rec=0; const deals=[];
-  for(let m=1;m<=H;m++){
-    for(let j=0;j<nk;j++) deals.push({t:m,v:mndPerDeal.k}); for(let j=0;j<ns;j++) deals.push({t:m,v:mndPerDeal.s});
-    rec = deals.reduce((a,d)=> a + d.v * (m-d.t>=12 ? keep : 1), 0);
-    const maand = eenPerMaand + rec; tot+=maand;
-    rows += `<tr><td>Maand ${m}</td><td class="r">${eur(eenPerMaand)}</td><td class="r">${eur(rec)}</td><td class="r">${eur(maand)}</td><td class="r">${eur(tot)}</td></tr>`;
-  }
-  el('m_een').textContent=eur(eenPerMaand); el('m_rec').textContent=eur(rec)+"/mnd"; el('m_tot').textContent=eur(tot);
-  el('tbl').innerHTML = `<tr><th>Maand</th><th class="r">Eenmalig</th><th class="r">Doorlopend</th><th class="r">Totaal</th><th class="r">Cumulatief</th></tr>${rows}<tr class="tt"><td>Totaal ${H} mnd</td><td class="r">${eur(eenPerMaand*H)}</td><td class="r">${eur(tot-eenPerMaand*H)}</td><td class="r">${eur(tot)}</td><td class="r"></td></tr>`;
-}
-crenderAll();
+
 
 /* ===== LeadGen-koppeling: opslag met de ingelogde sessie (zelfde origin, zelfde localStorage) ===== */
 const LG = { url:"https://zboyxwwrbtpjnlgquhzs.supabase.co", anon:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpib3l4d3dyYnRwam5sZ3F1aHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwMjUxMzMsImV4cCI6MjA5MTYwMTEzM30.1YWu29OCZlHQrijnVFFAU1T2W_lqDw0A9ImoaLbyM9U" };
@@ -714,17 +647,28 @@ async function lgInit(){
     const naam = prof?.full_name || lgUser.email;
     const v=el('v_naam'); if(v){ v.value = naam; v.readOnly = true; }
     dbState('opslag aan', true);
+    if(S.lead_id && !val('k_zaak').trim()){
+      const { data: lead } = await sb.from('leads').select('name, contact_person, email, phone, address, house_number, postal_code, city').eq('id', S.lead_id).maybeSingle();
+      if(lead){
+        const set=(id,v)=>{ const e=el(id); if(e && v) e.value=v; };
+        set('k_zaak', lead.name); set('k_naam', lead.contact_person); set('k_mail', lead.email); set('k_tel', lead.phone);
+        set('k_adres', [ [lead.address, lead.house_number].filter(Boolean).join(' '), [lead.postal_code, lead.city].filter(Boolean).join(' ') ].filter(Boolean).join(', '));
+        calc();
+      }
+    }
+    chkSend();
     if(S.signed && !dbId) dbSave(true);
   }catch(e){ dbState('opslag niet beschikbaar', false); }
 }
 function dbQueue(){ if(!sb||!lgUser) return; dbDirty=true; clearTimeout(dbTimer); dbTimer=setTimeout(()=>dbSave(false), 1500); }
 async function dbSave(force){
   if(!sb||!lgUser||!last) return;
+  if(S.verzonden && !force) return;              // v65: verstuurde offerte is bevroren, autosave uit
   if(!val('k_zaak').trim()) return;               // pas opslaan als er een zaak is
   if(dbBusy){ dbDirty=true; return; }
   dbBusy=true; dbDirty=false;
   const d=dealPayload();
-  const row={ user_id:lgUser.id, nummer:d.nummer, status:d.status, prijsmodel_versie:d.prijsmodel_versie, accountmanager:d.accountmanager,
+  const row={ user_id:lgUser.id, nummer:d.nummer, lead_id:d.lead_id, akkoord_tekst:AKKOORD, status:d.status, prijsmodel_versie:d.prijsmodel_versie, accountmanager:d.accountmanager,
     zaak_naam:d.klant.zaak, contact_naam:d.klant.contact, email:d.klant.email, telefoon:d.klant.telefoon, adres:d.klant.adres,
     pakket:d.pakket, regels:d.regels, upsell:d.upsell, korting:d.korting, eenmalig_ex:d.eenmalig_ex, btw:d.btw, eenmalig_incl:d.eenmalig_incl,
     maandbedrag_ex:d.maandbedrag_ex, roi:d.roi, speclijst:d.speclijst, notitie:d.notitie, akkoord:d.akkoord, getekend_op: d.akkoord? d.akkoord.op : null };
@@ -744,6 +688,35 @@ async function dbSave(force){
     dbState('opslaan mislukt', false);
     if(force) alert('De offerte kon niet in LeadGen worden opgeslagen ('+(e.message||e)+'). Exporteer de deal als JSON en stuur hem naar Noah.');
   }finally{ dbBusy=false; if(dbDirty) dbQueue(); }
+}
+/* ===== v65: op afstand laten tekenen ===== */
+async function sendForSign(){
+  if(!sb||!lgUser||S.signed||S.verzonden) return;
+  const email=val('k_mail').trim();
+  if(!confirm('Offerte '+S.nummer+' ter ondertekening mailen naar '+email+'?\n\nDaarna is de offerte bevroren; wijzigen kan alleen via "Nieuwe offerte".')) return;
+  el('sendBtn').disabled=true; el('sendBtn').textContent='Versturen…';
+  try{
+    await dbSave(true);
+    if(!dbId) throw new Error('De offerte is nog niet opgeslagen in LeadGen');
+    const { data:{ session } } = await sb.auth.getSession();
+    const res = await fetch(LG.url+'/functions/v1/offerte-send', { method:'POST', headers:{ 'Content-Type':'application/json', apikey:LG.anon, Authorization:'Bearer '+session.access_token }, body: JSON.stringify({ offerteId: dbId, email, akkoordTekst: AKKOORD }) });
+    const body = await res.json().catch(()=>({}));
+    if(!res.ok || !body.ok) throw new Error(body.error || 'Versturen mislukt');
+    S.verzonden={ op:new Date().toISOString(), naar:email, url:body.url, geldigTot:body.geldigTot, mailError: body.mailError||null };
+    renderSent(); lockAll(); save();
+  }catch(e){
+    alert('Versturen mislukt: '+(e.message||e));
+    el('sendBtn').textContent='Verstuur ter ondertekening'; chkSend();
+  }
+}
+function renderSent(){
+  if(!S.verzonden) return; const v=S.verzonden; const d=new Date(v.op);
+  el('sentbox').classList.remove('hidden');
+  el('sentbox').innerHTML = `<b>Verstuurd ter ondertekening</b> naar ${v.naar} op ${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})} · geldig tot ${v.geldigTot||'-'}.`
+    + (v.mailError? `<br><span style="color:var(--err)">De mail kon niet verstuurd worden (${v.mailError}). Stuur de link zelf door.</span>`:'')
+    + `<br><span class="note">De status (geopend, getekend) zie je in LeadGen bij de lead en onder Tools › Offertes.</span>`
+    + `<div class="btns" style="margin-top:8px"><button class="btn sm" onclick="navigator.clipboard.writeText('${v.url}').then(()=>alert('Link gekopieerd'))">Link kopiëren</button><a class="btn sm" href="${v.url}" target="_blank" rel="noopener">Open tekenpagina</a></div>`;
+  el('sendBtn').textContent='Verstuurd'; el('sendBtn').disabled=true; el('signBtn').disabled=true;
 }
 lgInit();
 </script>

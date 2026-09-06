@@ -18,7 +18,10 @@ export const STATUS_MAP = {
   verbetering_nodig: { label: 'Verbetering Nodig', color: 'var(--warning)', bg: 'var(--warning-bg)', description: 'Moet beter' },
   // v38: backoffice - monteur inplannen na een gemaakte sale (status 'deal')
   monteur_ingepland: { label: 'Monteur ingepland', color: 'var(--success)', bg: 'var(--success-bg)', description: 'Monteur is ingepland - sale is doorgezet' },
-  wil_annuleren: { label: 'Wil annuleren', color: 'var(--danger)', bg: 'var(--danger-bg)', description: 'Klant wil annuleren - reden vastgelegd' }
+  wil_annuleren: { label: 'Wil annuleren', color: 'var(--danger)', bg: 'var(--danger-bg)', description: 'Klant wil annuleren - reden vastgelegd' },
+  // v65: offerte ligt bij de klant (tekenlink). Geen eindstatus: de lead komt
+  // op next_contact_date vanzelf terug in de wachtrij om na te bellen.
+  offerte_verzonden: { label: 'Offerte verzonden', color: 'var(--info)', bg: 'var(--info-bg)', description: 'Offerte ligt bij de klant - komt op de opvolgdatum terug in de wachtrij' }
 };
 
 // v36: recruitment-projecten gebruiken dezelfde statussen/dispositie-flow

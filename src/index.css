@@ -10,6 +10,7 @@
 @import "tailwindcss/utilities.css" layer(utilities);
 /* Alle kleuren/vormen komen uit het tokens-bestand (licht + donker) */
 @import "./styles/tokens.css";
+@import "./styles/outside.css";
 
 /* `inline` zorgt dat utilities naar de CSS-variabelen verwijzen,
    zodat bv. bg-card en text-muted automatisch mee-themen. */
