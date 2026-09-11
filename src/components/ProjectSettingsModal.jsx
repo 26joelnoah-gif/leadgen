@@ -4,6 +4,7 @@ import { X, Settings, Check, Trash2, Pause, Play, Layers } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useToast } from './Toast'
 import { TOOLS } from '../lib/tools'
+import { MAIL_SOURCES } from '../lib/mailSources'
 
 // Uitgebreid instellingenpaneel per project (campagne) - vervangt de krappe
 // inline chip-rijtjes op de projectkaart in Projecten & Leads. Hier kan een
@@ -57,6 +58,11 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   const [selectedTeams, setSelectedTeams] = useState([])
   // v60: tools per project (campaign_tools) - wie aan het project hangt ziet ze in de tab Tools
   const [selectedTools, setSelectedTools] = useState([])
+  // v69: Mailingservice per project (campaign_mail_services)
+  const [mailEnabled, setMailEnabled] = useState(false)
+  const [mailSource, setMailSource] = useState(MAIL_SOURCES[0]?.key || '')
+  const [mailFollowUpDays, setMailFollowUpDays] = useState(5)
+  const [mailRowExists, setMailRowExists] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -77,11 +83,17 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
     Promise.all([
       supabase.from('campaign_managers').select('manager_id').eq('campaign_id', campaign.id),
       supabase.from('campaign_teams').select('team_id').eq('campaign_id', campaign.id),
-      supabase.from('campaign_tools').select('tool_key').eq('campaign_id', campaign.id)
-    ]).then(([mRes, tRes, toolRes]) => {
+      supabase.from('campaign_tools').select('tool_key').eq('campaign_id', campaign.id),
+      supabase.from('campaign_mail_services').select('enabled, source, follow_up_days').eq('campaign_id', campaign.id).maybeSingle()
+    ]).then(([mRes, tRes, toolRes, mailRes]) => {
       setSelectedManagers((mRes.data || []).map(r => r.manager_id))
       setSelectedTeams((tRes.data || []).map(r => r.team_id))
       setSelectedTools((toolRes.data || []).map(r => r.tool_key))
+      const svc = mailRes.data
+      setMailRowExists(!!svc)
+      setMailEnabled(svc?.enabled === true)
+      setMailSource(svc?.source || MAIL_SOURCES[0]?.key || '')
+      setMailFollowUpDays(svc?.follow_up_days || 5)
       setLoading(false)
     })
   }, [isOpen, campaign?.id])
@@ -165,6 +177,22 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       }
       if (removeTools.length) {
         const { error } = await supabase.from('campaign_tools').delete().eq('campaign_id', campaign.id).in('tool_key', removeTools)
+        if (error) throw error
+      }
+
+      // v69: Mailingservice - alleen wegschrijven als hij aan staat of al bestond
+      if (mailEnabled || mailRowExists) {
+        if (mailEnabled && !mailSource) throw new Error('Kies een bron voor de Mailingservice')
+        const days = Math.min(60, Math.max(1, Number(mailFollowUpDays) || 5))
+        const { data: { user } } = await supabase.auth.getUser()
+        const { error } = await supabase.from('campaign_mail_services').upsert({
+          campaign_id: campaign.id,
+          enabled: mailEnabled,
+          source: mailSource || MAIL_SOURCES[0]?.key,
+          follow_up_days: days,
+          updated_at: new Date().toISOString(),
+          updated_by: user?.id || null
+        }, { onConflict: 'campaign_id' })
         if (error) throw error
       }
 
@@ -300,6 +328,35 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
               />
               <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>Geldt voor de managers en de teamleden van dit project; admin ziet altijd alle tools.</p>
             </div>
+
+            {campaign.type !== 'recruitment' && (
+              <div>
+                <label className={labelStyle}>Mailingservice - knop bij de afboekingen</label>
+                <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+                  <button type="button" onClick={() => setMailEnabled(false)} className={`btn btn-sm ${!mailEnabled ? 'btn-primary' : 'btn-outline'}`}>Uit</button>
+                  <button type="button" onClick={() => setMailEnabled(true)} className={`btn btn-sm ${mailEnabled ? 'btn-primary' : 'btn-outline'}`}>Aan</button>
+                </div>
+                {mailEnabled && (
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '10px' }}>
+                    <div style={{ flex: '1 1 200px' }}>
+                      <span className="text-muted" style={{ fontSize: '0.75rem', display: 'block', marginBottom: '4px' }}>Bron (waar de mail vandaan komt)</span>
+                      <select value={mailSource} onChange={e => setMailSource(e.target.value)} className="form-dark w-full">
+                        {MAIL_SOURCES.map(src => <option key={src.key} value={src.key}>{src.label}</option>)}
+                      </select>
+                    </div>
+                    <div style={{ flex: '0 1 140px' }}>
+                      <span className="text-muted" style={{ fontSize: '0.75rem', display: 'block', marginBottom: '4px' }}>Opvolgen na (dagen)</span>
+                      <input type="number" min={1} max={60} value={mailFollowUpDays} onChange={e => setMailFollowUpDays(e.target.value)} className="form-dark w-full" />
+                    </div>
+                  </div>
+                )}
+                <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>
+                  {mailEnabled
+                    ? `${MAIL_SOURCES.find(m => m.key === mailSource)?.description || ''} De beller vult het e-mailadres in; de lead gaat daarna op Mail verstuurd en komt na het aantal dagen terug in de wachtrij.`
+                    : 'Aan = bellers in dit project zien bij de afboekingen een knop Mailingservice.'}
+                </p>
+              </div>
+            )}
 
             <div className="text-muted" style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Layers size={12} /> Tarieven per project stel je in bij Uitbetaling - dit paneel raakt ze niet aan.

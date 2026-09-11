@@ -13,6 +13,9 @@ import { normalizeWebsite, displayWebsite } from '../utils/urlUtils'
 import { getStatusDetails, RECRUITMENT_LABELS } from '../utils/statusUtils'
 import { OfferteBriefing } from './OfferteStatus'
 import { useProjectTools, offerteHrefForLead } from '../hooks/useProjectTools'
+import { useProjectMailService } from '../hooks/useProjectMailService'
+import { mailSourceLabel } from '../lib/mailSources'
+import MailingserviceModal from './MailingserviceModal'
 
 // v36: labels van de dispositie-knoppen (footer) voor recruitment-projecten.
 // Zelfde status-keys/logica als sales, alleen de tekst op de knop wijkt af.
@@ -122,6 +125,12 @@ export default function WorkInterface() {
   // lead, voorgevuld (?lead=). Nieuw tabblad, zodat het belscherm blijft staan.
   const { hasTool } = useProjectTools(workingListId || workingLead?.lead_list_id)
   const canMakeOfferte = hasTool('offerte_bestelplatform')
+
+  // v69: Mailingservice aan in dit project? Dan een extra knop bij de
+  // afboekingen. De bron van het project verstuurt de mail; daarna boeken we
+  // af op 'mail_verstuurd' met opvolgdatum (standaard +5 dagen).
+  const { mailService } = useProjectMailService(workingListId || workingLead?.lead_list_id)
+  const [showMailModal, setShowMailModal] = useState(false)
 
   // Belwachtrij: leads uit de projectlijst die nu belbaar zijn.
   // Afgeronde statussen vallen eruit, en leads met een terugbelmoment
@@ -449,6 +458,7 @@ export default function WorkInterface() {
       setTodayCalls(prev => prev + 1)
 
       setShowDispositionModal(false)
+      setShowMailModal(false)
       setDispositionNotes('')
       setNextContactDate('')
       setSelectedDisposition(null)
@@ -468,6 +478,25 @@ export default function WorkInterface() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // v69: mail is verstuurd door de bron. Nu pas afboeken (via de gewone
+  // dispositie-flow), en e-mail/contactpersoon op de lead zetten als die nieuw
+  // of anders zijn, zodat de volgende beller ze ziet.
+  const handleMailSent = async ({ email, contactpersoon, followUpDays, source }) => {
+    const changes = {}
+    if (email && email !== (currentLead.email || '').trim().toLowerCase()) changes.email = email
+    if (contactpersoon && contactpersoon !== (currentLead.contact_person || '').trim()) changes.contact_person = contactpersoon
+    if (Object.keys(changes).length) {
+      const { error } = await supabase.from('leads').update(changes).eq('id', currentLead.id)
+      if (error) console.error('Mailingservice: lead bijwerken mislukt:', error.message)
+    }
+    const next = new Date()
+    next.setDate(next.getDate() + (Number(followUpDays) || 5))
+    const regel = `Mailingservice (${mailSourceLabel(source)}): mail verstuurd naar ${email}`
+    const notes = dispositionNotes.trim() ? `${regel}. ${dispositionNotes.trim()}` : regel
+    setShowMailModal(false)
+    await submitDisposition('mail_verstuurd', notes, next.toISOString())
   }
 
   const handleFinalDisposition = () => {
@@ -870,7 +899,40 @@ export default function WorkInterface() {
                 {d.icon} {d.label}
               </button>
             ))}
+            {mailService && !isBackofficeMode && !isRecruitmentCampaign && (
+              <button
+                disabled={isSubmitting}
+                onClick={() => setShowMailModal(true)}
+                title={`Mail via ${mailSourceLabel(mailService.source)} en afboeken op Mail verstuurd (opvolgen over ${mailService.follow_up_days || 5} dagen)`}
+                className="glow-hover"
+                style={{
+                  background: 'var(--bg-elevated)', border: '1px solid #0EA5E9', color: '#0EA5E9',
+                  padding: isMobile ? '8px 10px' : '8px 14px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '8px', minWidth: isMobile ? '110px' : '118px',
+                  fontSize: isMobile ? '0.75rem' : '0.78rem', flex: isMobile ? '1 1 120px' : '0 1 auto',
+                  justifyContent: 'center', transition: 'all 0.2s', boxShadow: '0 4px 12px #0EA5E920'
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#0EA5E9'; e.currentTarget.style.color = 'white' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'var(--bg-elevated)'; e.currentTarget.style.color = '#0EA5E9' }}
+              >
+                <Mail size={18} /> MAILINGSERVICE
+              </button>
+            )}
           </footer>
+
+          {showMailModal && mailService && (
+            <MailingserviceModal
+              key={currentLead.id}
+              lead={currentLead}
+              defaults={{
+                email: editableLead.email ?? currentLead.email,
+                contactpersoon: editableLead.contact_person ?? currentLead.contact_person
+              }}
+              mailService={mailService}
+              onClose={() => setShowMailModal(false)}
+              onSent={handleMailSent}
+            />
+          )}
 
           {/* Disposition Modal */}
           {showDispositionModal && (

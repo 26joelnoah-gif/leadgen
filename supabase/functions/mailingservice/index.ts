@@ -1,0 +1,162 @@
+// LEADGEN v69 — Mailingservice: laat de BRON van een project een mail sturen
+// naar een lead. De beller klikt bij de afboekingen op "Mailingservice"; na
+// succes boekt het belscherm de lead af op 'mail_verstuurd' (via
+// useLeads.handleLeadDisposition, dispositie-logica blijft daar).
+//
+// Bron per project: public.campaign_mail_services.source (bijv. MARKETINGKIEZER).
+// URL en sleutel van een bron staan ALLEEN in Supabase secrets:
+//   MAILSERVICE_<SOURCE>_URL   bijv. https://marketingkiezer.nl/api/leadgen/mail
+//   MAILSERVICE_<SOURCE>_KEY   zelfde waarde als LEADGEN_API_KEY bij de bron
+// De inhoud van de mail bepaalt de bron zelf; LEADGEN kent de tekst niet.
+//
+// Contract naar de bron (POST, Authorization: Bearer <KEY>):
+//   { mail, email, bedrijfsnaam, contactpersoon?, stad?, website?,
+//     beller: { naam, telefoon? }, lead_id }
+//
+// body van het belscherm: { lead_id, email, contactpersoon? }
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "jsr:@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const MAX_PER_UUR = 40;          // per beller, gelukte mails
+const TIMEOUT_MS = 15_000;
+const EMAIL_RE = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[a-z]{2,}$/i;
+
+function kort(v: unknown, max: number): string | undefined {
+  const s = typeof v === "string" ? v.trim() : "";
+  return s ? s.slice(0, max) : undefined;
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+  if (req.method !== "POST") return json({ error: "Alleen POST" }, 405);
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) return json({ error: "Niet ingelogd" }, 401);
+    const userClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: userData, error: userErr } = await userClient.auth.getUser();
+    if (userErr || !userData?.user) return json({ error: "Niet ingelogd" }, 401);
+
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { data: caller } = await admin
+      .from("profiles")
+      .select("id, full_name, email, phone, is_active, organization_id")
+      .eq("id", userData.user.id)
+      .single();
+    if (!caller || caller.is_active === false) return json({ error: "Je account is inactief" }, 403);
+
+    const body = await req.json().catch(() => ({}));
+    const leadId = String(body?.lead_id || "");
+    const email = (kort(body?.email, 254) || "").toLowerCase();
+    const contactpersoon = kort(body?.contactpersoon, 100);
+    if (!/^[0-9a-f-]{36}$/i.test(leadId)) return json({ error: "Geen lead opgegeven" }, 400);
+    if (!EMAIL_RE.test(email)) return json({ error: "Vul een geldig e-mailadres in" }, 400);
+
+    // Toegang tot de lead = de beller kan hem zien via RLS (zelfde regels als het belscherm).
+    const { data: lead } = await userClient
+      .from("leads")
+      .select("id, name, city, website, status, lead_list_id, organization_id, deleted_at")
+      .eq("id", leadId)
+      .maybeSingle();
+    if (!lead || lead.deleted_at) return json({ error: "Lead niet gevonden" }, 404);
+    if (lead.status === "blacklist") return json({ error: "Deze lead staat op de blacklist" }, 409);
+    if (!lead.lead_list_id) return json({ error: "Lead hoort niet bij een project" }, 400);
+
+    const { data: list } = await admin.from("lead_lists").select("campaign_id").eq("id", lead.lead_list_id).maybeSingle();
+    if (!list?.campaign_id) return json({ error: "Lead hoort niet bij een project" }, 400);
+
+    const { data: svc } = await admin
+      .from("campaign_mail_services")
+      .select("enabled, source, mail_type, follow_up_days")
+      .eq("campaign_id", list.campaign_id)
+      .maybeSingle();
+    if (!svc?.enabled) return json({ error: "Mailingservice staat niet aan voor dit project" }, 403);
+
+    const bronUrl = Deno.env.get(`MAILSERVICE_${svc.source}_URL`) || "";
+    const bronKey = Deno.env.get(`MAILSERVICE_${svc.source}_KEY`) || "";
+    if (!bronUrl.startsWith("https://") || bronKey.length < 32) {
+      return json({ error: `Bron ${svc.source} is nog niet ingesteld (Supabase secrets)` }, 503);
+    }
+
+    // Rem: max gelukte mails per beller per uur, en niet twee keer per dag dezelfde lead.
+    const uurGeleden = new Date(Date.now() - 3600_000).toISOString();
+    const { count: perUur } = await admin
+      .from("mailservice_logs").select("id", { count: "exact", head: true })
+      .eq("agent_id", caller.id).eq("ok", true).gte("created_at", uurGeleden);
+    if ((perUur ?? 0) >= MAX_PER_UUR) return json({ error: "Je hebt het maximum aantal mails per uur bereikt" }, 429);
+
+    const dagGeleden = new Date(Date.now() - 24 * 3600_000).toISOString();
+    const { count: dezeLead } = await admin
+      .from("mailservice_logs").select("id", { count: "exact", head: true })
+      .eq("lead_id", lead.id).eq("ok", true).gte("created_at", dagGeleden);
+    if ((dezeLead ?? 0) > 0) return json({ error: "Deze lead heeft de afgelopen 24 uur al een mail gekregen" }, 409);
+
+    const payload = {
+      mail: svc.mail_type,
+      email,
+      bedrijfsnaam: String(lead.name || "").trim().slice(0, 120) || email,
+      ...(contactpersoon ? { contactpersoon } : {}),
+      ...(kort(lead.city, 80) ? { stad: kort(lead.city, 80) } : {}),
+      ...(kort(lead.website, 200) ? { website: kort(lead.website, 200) } : {}),
+      beller: {
+        naam: kort(caller.full_name, 100) || String(caller.email || "").split("@")[0] || "Team",
+        ...(kort(caller.phone, 30) ? { telefoon: kort(caller.phone, 30) } : {}),
+      },
+      lead_id: lead.id,
+    };
+
+    let ok = false;
+    let status = 502;
+    let foutmelding = "";
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+      const res = await fetch(bronUrl, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${bronKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: ctrl.signal,
+        redirect: "error",
+      });
+      clearTimeout(timer);
+      const resBody = await res.json().catch(() => ({}));
+      ok = res.ok && resBody?.success === true;
+      if (!ok) {
+        // Alleen gebruikersvriendelijke meldingen van de bron doorgeven; 401/5xx = configuratie.
+        status = [400, 409, 429].includes(res.status) ? res.status : 502;
+        foutmelding = status === 502
+          ? `Versturen via ${svc.source} mislukt (${res.status})`
+          : String(resBody?.error || "Versturen mislukt").slice(0, 200);
+      }
+    } catch (e) {
+      foutmelding = e instanceof Error && e.name === "AbortError" ? "De mailserver reageert niet" : "Versturen mislukt";
+    }
+
+    await admin.from("mailservice_logs").insert({
+      agent_id: caller.id,
+      lead_id: lead.id,
+      campaign_id: list.campaign_id,
+      organization_id: lead.organization_id ?? caller.organization_id ?? null,
+      source: svc.source,
+      mail_type: svc.mail_type,
+      email,
+      ok,
+      error: ok ? null : foutmelding,
+    });
+
+    if (!ok) return json({ error: foutmelding }, status);
+    return json({ ok: true, email, source: svc.source, mail_type: svc.mail_type, follow_up_days: svc.follow_up_days });
+  } catch (err) {
+    console.error("[mailingservice]", err);
+    return json({ error: "Er ging iets mis" }, 500);
+  }
+});
