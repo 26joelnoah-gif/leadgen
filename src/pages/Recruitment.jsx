@@ -305,7 +305,10 @@ export default function Recruitment() {
         extra_info1: form.cv_link.trim() || null,
         referred_by: form.referred_by || null,
         status: 'new',
-        assigned_to: user.id,
+        // v57: de sollicitant hoort bij de eigenaar van de lijst (de recruiter),
+        // niet bij wie hem toevallig invoert. Anders ziet de recruiter zijn
+        // eigen sollicitant niet als een admin hem toevoegt.
+        assigned_to: homeList.assigned_to || user.id,
         created_by: user.id,
         lead_list_id: homeList.id,
         organization_id: profile?.organization_id || null
@@ -480,7 +483,10 @@ export default function Recruitment() {
         lead_source: (r.lead_source || importSource || 'import').trim(),
         extra_info1: r.cv_link || null,
         status: 'new',
-        assigned_to: user.id,
+        // v57: de sollicitant hoort bij de eigenaar van de lijst (de recruiter),
+        // niet bij wie hem toevallig invoert. Anders ziet de recruiter zijn
+        // eigen sollicitant niet als een admin hem toevoegt.
+        assigned_to: homeList.assigned_to || user.id,
         created_by: user.id,
         lead_list_id: homeList.id,
         organization_id: profile?.organization_id || null

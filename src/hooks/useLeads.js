@@ -84,11 +84,27 @@ export function useLeads() {
           }
         }
 
-        // 3. Build OR filter: assigned to me OR in my team's lists
+        // 2b. v57: lijsten die van mij zijn (of die ik heb aangemaakt) tellen
+        // ook mee. Zonder dit zag bijvoorbeeld een recruiter alleen leads met
+        // assigned_to = zichzelf, dus niet de sollicitanten die een admin in
+        // zijn eigen lijst had gezet of waarvan assigned_to leeg was geraakt.
+        // RLS (leads_select -> my_list_ids) staat dit al toe.
+        let ownListIds = []
+        {
+          const { data: ownLists } = await supabase
+            .from('lead_lists')
+            .select('id')
+            .or(`assigned_to.eq.${me},created_by.eq.${me}`)
+            .is('deleted_at', null)
+          ownListIds = ownLists?.map(l => l.id) || []
+        }
+
+        // 3. Build OR filter: assigned to me OR in my team's lists OR in my own lists
         let query = supabase.from('leads').select('*, lead_lists(assigned_team_id, campaigns(type))').is('deleted_at', null)
-        
-        if (teamListIds.length > 0) {
-          query = query.or(`assigned_to.eq.${me},lead_list_id.in.(${teamListIds.join(',')})`)
+
+        const visibleListIds = [...new Set([...teamListIds, ...ownListIds])]
+        if (visibleListIds.length > 0) {
+          query = query.or(`assigned_to.eq.${me},lead_list_id.in.(${visibleListIds.join(',')})`)
         } else {
           query = query.eq('assigned_to', me)
         }
