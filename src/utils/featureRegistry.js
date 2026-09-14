@@ -158,6 +158,8 @@ export function getFeaturesForProfile(profile, extra = {}) {
     default: // 'employee' = beller
       return [
         ...CALLER_FEATURES_BASE,
+        // v69: beller die ook leads mag importeren voor zijn eigen projecten
+        ...(profile.can_manage_leads ? [{ key: 'blr_import', group: 'Leads', label: 'Leads importeren en verrijken', description: 'Zelf leads toevoegen aan je eigen projecten, of bestaande leads verrijken met extra info.' }] : []),
         ...dispositionFeatures(CALLER_BASE_DISPOSITIONS, activeTypes, false),
         ...customDispositionFeatures(customs, activeTypes)
       ]

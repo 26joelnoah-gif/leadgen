@@ -256,8 +256,14 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
   const [newCampaignType, setNewCampaignType] = useState('sales')
 
   const isAdmin = profile?.role === 'admin'
+  // v69: een beller (of backoffice-account) met het recht "Leads beheren" mag alleen
+  // importeren in de projecten waar hij zelf projectbeheerder van is. Admin en
+  // manager houden de volledige keuze.
+  const restrictToOwn = !isAdmin && profile?.role !== 'manager'
+  const [ownCampaignIds, setOwnCampaignIds] = useState(null) // null = nog aan het laden
   // v42: type van het gekozen (of nog aan te maken) project - bepaalt naamveld-label
   // en of geïmporteerde leads meteen als 'deal' binnenkomen (backoffice) of als 'new'.
+  const visibleCampaigns = restrictToOwn && ownCampaignIds ? campaigns.filter(c => ownCampaignIds.includes(c.id)) : campaigns
   const selectedCampaign = campaigns.find(c => c.id === targetCampaignId)
   const effectiveCampaignType = targetCampaignId === '__new__' ? newCampaignType : (selectedCampaign?.type || 'sales')
   const isBackofficeProject = effectiveCampaignType === 'backoffice'
@@ -270,6 +276,27 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
     supabase.from('teams').select('id, name').order('name')
       .then(({ data }) => setTeams(data || []))
   }, [isOpen, isDemoMode])
+
+  // v69: welke projecten beheert deze gebruiker zelf? (campagne-niveau + oude
+  // koppeling per lijst). Alleen nodig als hij geen admin/manager is.
+  useEffect(() => {
+    if (!isOpen || isDemoMode || !restrictToOwn || !user?.id) return
+    let cancelled = false
+    async function fetchOwn() {
+      const ids = new Set()
+      const { data: cm } = await supabase.from('campaign_managers').select('campaign_id').eq('manager_id', user.id)
+      ;(cm || []).forEach(r => r.campaign_id && ids.add(r.campaign_id))
+      const { data: pm } = await supabase.from('project_managers').select('lead_list_id').eq('manager_id', user.id)
+      const listIds = (pm || []).map(r => r.lead_list_id).filter(Boolean)
+      if (listIds.length) {
+        const { data: lls } = await supabase.from('lead_lists').select('campaign_id').in('id', listIds)
+        ;(lls || []).forEach(l => l.campaign_id && ids.add(l.campaign_id))
+      }
+      if (!cancelled) setOwnCampaignIds([...ids])
+    }
+    fetchOwn()
+    return () => { cancelled = true }
+  }, [isOpen, isDemoMode, restrictToOwn, user?.id])
 
   function reset() {
     setStep(1); setPasteText(''); setRows([]); setMapping([]); setResult(null)
@@ -632,6 +659,9 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
     if (!parsedLeads.leads.length) { toast('Geen geldige leads om te importeren', 'error'); return }
     const isNewProject = targetCampaignId === '__new__'
     if (!targetCampaignId) { toast('Kies eerst het project waar deze import bij hoort', 'error'); return }
+    if (restrictToOwn && (isNewProject || !(ownCampaignIds || []).includes(targetCampaignId))) {
+      toast('Je kunt alleen importeren in je eigen projecten', 'error'); return
+    }
     if (isNewProject && !newCampaignName.trim()) { toast('Geef het nieuwe project een naam', 'error'); return }
     if (!targetListId && !newListName.trim()) { toast('Kies een lijst of geef een nieuwe lijstnaam op', 'error'); return }
 
@@ -795,7 +825,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                           style={{ flex: 1, minWidth: '200px', padding: '11px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontWeight: 600 }}
                         >
                           <option value="">- Kies een bestaand project -</option>
-                          {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}{c.type === 'backoffice' ? ' (backoffice)' : ''}</option>)}
+                          {visibleCampaigns.map(c => <option key={c.id} value={c.id}>{c.name}{c.type === 'backoffice' ? ' (backoffice)' : ''}</option>)}
                           {isAdmin && <option value="__new__">+ Los nieuw project aanmaken...</option>}
                         </select>
                       </div>
@@ -828,6 +858,11 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                             <button type="button" onClick={() => setNewCampaignType('accountmanagement')} className={`btn btn-sm ${newCampaignType === 'accountmanagement' ? 'btn-primary' : 'btn-outline'}`}>Accountmanagement</button>
                           </div>
                         </div>
+                      )}
+                      {restrictToOwn && ownCampaignIds && visibleCampaigns.length === 0 && (
+                        <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: 'var(--warning)', fontWeight: 700 }}>
+                          Je bent nog aan geen enkel project gekoppeld als projectbeheerder, dus je kunt nu nergens importeren. Vraag de admin om je te koppelen.
+                        </p>
                       )}
                       <p style={{ margin: '8px 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                         Het team van het project mag op alle lijsten binnen dat project bellen. Een lijst zonder project is voor bellers onzichtbaar.
