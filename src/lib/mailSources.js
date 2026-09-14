@@ -19,9 +19,21 @@ export const mailSourceLabel = (key) => MAIL_SOURCES.find(s => s.key === key)?.l
 // de bron bepaalt de tekst (MK: lib/leadgenMail.ts). Welke soorten een project
 // mag gebruiken staat in campaign_mail_services.mail_types; mail_type is de
 // standaardkeuze. Nieuwe soort = hier een regel + die soort in mail_types.
+// v73: de sleutel moet LETTERLIJK gelijk zijn aan de sleutel bij de bron.
+// MarketingKiezer noemt de aanmeldmail 'aanmelding'; hier stond 'aanmelden',
+// waardoor de knop Aanmeldmail een 400 gaf en er nooit iets werd verstuurd.
 export const MAIL_TYPES = [
   { key: 'introductie', label: 'Infomail', description: 'Korte uitleg met een persoonlijke knop naar de pagina voor bureaus.' },
-  { key: 'aanmelden', label: 'Aanmeldmail', description: 'Directe aanmeldlink voor een bureau dat mee wil doen.' },
+  { key: 'aanmelding', label: 'Aanmeldmail', description: 'Directe aanmeldlink voor een bureau dat mee wil doen.' },
+  { key: 'opvolging', label: 'Herinnering', description: 'Kort duwtje als het bureau niets met de infomail deed. Gaat na een aantal dagen ook vanzelf.' },
+]
+
+// Statussen waarbij de bron geen herinneringen meer hoort te sturen: het bureau
+// zei nee, of is juist klant. Zonder deze melding stuurt MarketingKiezer vijf
+// dagen later alsnog een opvolgmail.
+export const STOP_MAIL_STATUSSEN = [
+  'geen_interesse', 'afgewezen', 'verkeerd_nummer', 'blacklist', 'cold', 'wil_annuleren',
+  'deal', 'bruto_deal', 'geaccepteerd', 'actief', 'monteur_ingepland',
 ]
 
 export const mailTypeLabel = (key) => MAIL_TYPES.find(t => t.key === key)?.label || key

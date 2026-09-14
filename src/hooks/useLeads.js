@@ -7,6 +7,7 @@ import { logAppError } from '../lib/errorLog'
 // v72: de dagdeel-regel staat nu in een util, zodat het bord op /leads dezelfde
 // opvolgdatum zet als het belscherm.
 import { nextContactOnOtherDaypart } from '../utils/followUpUtils'
+import { stopMailsVoorLead } from '../lib/mailStop'
 
 export function useLeads() {
   const { user, profile, isDemoMode } = useAuth()
@@ -424,6 +425,13 @@ export function useLeads() {
       await logActivity(leadId, dispositionType, `Afboeking: ${dispositionType}`)
     } catch (err) {
       logAppError('afboeken.logActivity', err, { leadId })
+    }
+    // v73: geen interesse of klant geworden -> bij de bron de herinneringsmail
+    // afzetten. Faalt stil; de afboeking zelf staat al vast.
+    try {
+      await stopMailsVoorLead(leadId, dispositionType)
+    } catch (err) {
+      logAppError('afboeken.mailstop', err, { leadId, dispositionType })
     }
     try {
       await fetchLeads()

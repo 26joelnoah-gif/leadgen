@@ -11,6 +11,7 @@ import { distanceM, formatDistance, distanceBand } from '../utils/geoUtils'
 import { nextContactOnOtherDaypart, isFollowUpDue, daysSince } from '../utils/followUpUtils'
 import { SALES_BOARD_COLUMNS, BOARD_CLOSED_STATUSES, boardColumnFor } from '../lib/leadBoard'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
+import { stopMailsVoorLead } from '../lib/mailStop'
 import { MAIL_STATUS } from '../components/MailStatus'
 import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -231,6 +232,8 @@ export default function LeadBoard() {
       return
     }
     logBoardActivity(lead.id, `Verplaatst naar "${getStatusDetails(status).label}" (bord)`)
+    // v73: nee gezegd of juist klant geworden? Dan bij de bron de herinnering afzetten.
+    stopMailsVoorLead(lead.id, status)
   }
 
   function handleBoardDrop(column, lead) {
