@@ -1,30 +1,70 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass } from 'lucide-react'
+import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
 import { useGeolocation } from '../hooks/useGeolocation'
+import { useProjectMailService } from '../hooks/useProjectMailService'
 import { useToast } from '../components/Toast'
 import { getStatusDetails } from '../utils/statusUtils'
 import { distanceM, formatDistance, distanceBand } from '../utils/geoUtils'
+import { nextContactOnOtherDaypart, isFollowUpDue, daysSince } from '../utils/followUpUtils'
+import { SALES_BOARD_COLUMNS, BOARD_CLOSED_STATUSES, boardColumnFor } from '../lib/leadBoard'
+import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
+import { MAIL_STATUS } from '../components/MailStatus'
 import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import LeadMap from '../components/LeadMap'
+import LeadKanban from '../components/LeadKanban'
+import MailingserviceModal from '../components/MailingserviceModal'
 
 // v62: gedeelde Leadlijst. Iedereen die in een project zit (team, manager,
 // planning-account met projectvlag) ziet ALLE leads van de gekozen lijst en
 // kiest zelf welke hij oppakt. Klik = RPC claim_lead: de lead wordt 10 min
 // vergrendeld en gaat open in het belscherm (WorkInterface, single-lead-modus).
-// Collega's zien "In behandeling door <naam>" en kunnen die lead niet openen.
-// Sluiten of afboeken geeft de lock weer vrij (release_my_leads / disposition).
 //
-// v64 (Outside, stap 1): accountmanager zet "Locatie aan" -> elke lead krijgt
-// een afstand (leads.lat/lng, gevuld door Edge Function geocode-leads), de lijst
-// sorteert op dichtbij-eerst en er is een kaartweergave (LeadMap).
+// v64 (Outside, stap 1): "Locatie aan" geeft elke lead een afstand, dichtbij
+// eerst, plus een kaartweergave (LeadMap).
+//
+// v72: bordweergave. Staat campaigns.board_view_enabled aan voor het project van
+// deze lijst, dan kan dezelfde lijst ook als kanban getoond worden - hetzelfde
+// idee als het sollicitantenbord van de recruiter (v36b). Kolommen zijn groepjes
+// van bestaande statussen (src/lib/leadBoard.js), plus een kolom "Mail
+// verstuurd": daarheen slepen opent de Mailingservice (v69/v70), dus mailen
+// blijft handmatig op het moment dat jij kiest. De kaarten tonen zelf wanneer er
+// iets moet gebeuren ("Opvolgen", "x dagen niets mee gedaan") en het bord werkt
+// live bij via realtime op leads en lead_mail_status.
 const LOCK_TTL_MS = 10 * 60 * 1000
 const POLL_MS = 8000
 const DONE_STATUSES = ['deal', 'bruto_deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer', 'cold', 'blacklist', 'monteur_ingepland', 'wil_annuleren']
+
+const dateShort = (iso) => iso ? new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
+
+function defaultTbaDateTimeLocal() {
+  const d = new Date()
+  d.setDate(d.getDate() + 1)
+  d.setHours(10, 0, 0, 0)
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+  return d.toISOString().slice(0, 16)
+}
+
+function toLocalInput(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d)) return ''
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset())
+  return d.toISOString().slice(0, 16)
+}
+
+function Chip({ label, color, bg, title }) {
+  return (
+    <span title={title} style={{
+      display: 'inline-block', padding: '0px 6px', borderRadius: 6, fontSize: '0.58rem', fontWeight: 800,
+      color, background: bg, whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis'
+    }}>{label}</span>
+  )
+}
 
 export default function LeadBoard() {
   const { user, profile, isWorking, toggleWorkingMode } = useAuth()
@@ -43,25 +83,40 @@ export default function LeadBoard() {
     if (!listId && lists.length > 0) setListId(lists[0].id)
   }, [lists, listId])
 
+  const currentList = useMemo(() => lists.find(l => l.id === listId) || null, [lists, listId])
+  const boardEnabled = currentList?.campaigns?.board_view_enabled === true
+  const { mailService } = useProjectMailService(listId)
+  const followUpDays = mailService?.follow_up_days || 5
+
   const [leads, setLeads] = useState([])
   const [lockNames, setLockNames] = useState({})
+  const [mailRows, setMailRows] = useState({})
+  const [mailTick, setMailTick] = useState(0)
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState('open')
   const [search, setSearch] = useState('')
   const [claimingId, setClaimingId] = useState(null)
   const [view, setView] = useState(() => {
-    try { return localStorage.getItem('leadgen-leads-view') === 'map' ? 'map' : 'list' } catch { return 'list' }
+    try {
+      const saved = localStorage.getItem('leadgen-leads-view')
+      return ['map', 'board', 'list'].includes(saved) ? saved : 'list'
+    } catch { return 'list' }
   })
   const [sortBy, setSortBy] = useState('distance') // 'distance' | 'order'
   const [geocoding, setGeocoding] = useState(false)
-  useEffect(() => { try { localStorage.setItem('leadgen-leads-view', view) } catch { /* privémodus */ } }, [view])
+  const [mailLead, setMailLead] = useState(null)
+  const [datePrompt, setDatePrompt] = useState(null)
+  const [moving, setMoving] = useState(false)
+  useEffect(() => { try { localStorage.setItem('leadgen-leads-view', view) } catch { /* privemodus */ } }, [view])
+  // Bordweergave uit voor dit project? Dan terug naar de lijst.
+  useEffect(() => { if (view === 'board' && listId && !boardEnabled) setView('list') }, [view, listId, boardEnabled])
 
   const load = useCallback(async (silent = false) => {
     if (!listId) return
     if (!silent) setLoading(true)
     const [{ data: rows, error }, { data: locks }] = await Promise.all([
       supabase.from('leads')
-        .select('id, name, phone, city, address, house_number, contact_person, status, locked_by, locked_at, next_contact_date, contact_attempts, created_at, lat, lng')
+        .select('id, name, phone, email, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, next_contact_date, contact_attempts, created_at, lat, lng')
         .eq('lead_list_id', listId)
         .is('deleted_at', null)
         .order('created_at', { ascending: true }),
@@ -84,6 +139,39 @@ export default function LeadBoard() {
   }, [listId, load])
   useEffect(() => { if (!isWorking) load(true) }, [isWorking]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (geo.error) toast(geo.error, 'error') }, [geo.error]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // v72: live meekijken. leads en lead_mail_status zitten allebei al in
+  // supabase_realtime (v63/v70); de poll hierboven blijft als vangnet staan.
+  useEffect(() => {
+    if (!listId) return
+    const ch = supabase
+      .channel(`leadboard-${listId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads', filter: `lead_list_id=eq.${listId}` }, () => load(true))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_mail_status' }, () => setMailTick(t => t + 1))
+      .subscribe()
+    return () => { supabase.removeChannel(ch) }
+  }, [listId, load])
+
+  // v72: hoe ver komt een gemailde lead bij de bron (v70)? Per lead de hoogste stap.
+  const leadIdsKey = useMemo(() => leads.map(l => l.id).join(','), [leads])
+  useEffect(() => {
+    let alive = true
+    const ids = leadIdsKey ? leadIdsKey.split(',') : []
+    if (!mailService || ids.length === 0) { setMailRows({}); return }
+    supabase.from('lead_mail_status')
+      .select('lead_id, source, mail_soort, status, status_rank, status_op, gemaild_op, offerte_url')
+      .in('lead_id', ids)
+      .then(({ data }) => {
+        if (!alive) return
+        const map = {}
+        ;(data || []).forEach(r => {
+          const cur = map[r.lead_id]
+          if (!cur || (r.status_rank || 0) >= (cur.status_rank || 0)) map[r.lead_id] = r
+        })
+        setMailRows(map)
+      })
+    return () => { alive = false }
+  }, [leadIdsKey, mailTick, mailService])
 
   const isLockedByOther = useCallback((l) =>
     !!(l.locked_by && l.locked_by !== user?.id && l.locked_at &&
@@ -112,10 +200,105 @@ export default function LeadBoard() {
     setGeocoding(true)
     const { data, error } = await supabase.functions.invoke('geocode-leads', { body: { list_id: listId } })
     setGeocoding(false)
-    if (error) { toast('Coördinaten ophalen mislukt', 'error'); return }
+    if (error) { toast('Coordinaten ophalen mislukt', 'error'); return }
     toast(`${data?.ok || 0} adressen gevonden${data?.failed ? `, ${data.failed} niet gevonden` : ''}`, 'success')
     load(true)
   }
+
+  // ---------- v72: bord ----------
+  function logBoardActivity(leadId, notes) {
+    if (!user?.id) return
+    supabase.from('activities').insert({ lead_id: leadId, user_id: user.id, action: 'status_change', notes })
+      .then(({ error }) => { if (error) console.error('activiteit loggen mislukt:', error) })
+  }
+
+  async function moveLead(lead, status, extra = {}) {
+    if (moving) return
+    setMoving(true)
+    const updates = { status, ...extra, updated_at: new Date().toISOString() }
+    if (status === 'later_bellen' && !('next_contact_date' in extra)) {
+      updates.next_contact_date = nextContactOnOtherDaypart(1)
+    }
+    if (BOARD_CLOSED_STATUSES.includes(status) && !('next_contact_date' in extra)) {
+      updates.next_contact_date = null
+    }
+    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, ...updates } : l))
+    const { error } = await supabase.from('leads').update(updates).eq('id', lead.id)
+    setMoving(false)
+    if (error) {
+      toast(error.message || 'Verplaatsen mislukt', 'error')
+      load(true)
+      return
+    }
+    logBoardActivity(lead.id, `Verplaatst naar "${getStatusDetails(status).label}" (bord)`)
+  }
+
+  function handleBoardDrop(column, lead) {
+    if (isLockedByOther(lead)) {
+      toast(`Deze lead is nu in behandeling bij ${lockNames[lead.id] || 'een collega'}`, 'error')
+      return
+    }
+    if (column.mail) {
+      if (!mailService) { toast('De Mailingservice staat niet aan voor dit project', 'error'); return }
+      setMailLead(lead)
+      return
+    }
+    if (column.needsDate) {
+      setDatePrompt({ lead, column, value: toLocalInput(lead[column.dateField]) || defaultTbaDateTimeLocal() })
+      return
+    }
+    moveLead(lead, column.dropStatus)
+  }
+
+  function confirmDatePrompt() {
+    if (!datePrompt?.value) return
+    const { lead, column, value } = datePrompt
+    moveLead(lead, column.dropStatus, { [column.dateField]: new Date(value).toISOString() })
+    setDatePrompt(null)
+  }
+
+  // Mailen blijft handmatig: de Mailingservice stuurt pas na bevestiging, en pas
+  // als de mail echt weg is gaat de lead op "Mail verstuurd" met een opvolgdatum
+  // (zelfde regels als in het belscherm, v69/v70).
+  async function handleMailSent({ email, contactpersoon, followUpDays: dagen, source, mailType }) {
+    const lead = mailLead
+    if (!lead) return
+    const updates = { status: 'mail_verstuurd', updated_at: new Date().toISOString() }
+    if (email && email !== (lead.email || '').trim().toLowerCase()) updates.email = email
+    if (contactpersoon && contactpersoon !== (lead.contact_person || '').trim()) updates.contact_person = contactpersoon
+    const next = new Date()
+    next.setDate(next.getDate() + (Number(dagen) || followUpDays))
+    updates.next_contact_date = next.toISOString()
+    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, ...updates } : l))
+    const { error } = await supabase.from('leads').update(updates).eq('id', lead.id)
+    setMailLead(null)
+    if (error) {
+      toast('Mail is verstuurd, maar de status kon niet worden opgeslagen', 'error')
+      load(true)
+      return
+    }
+    logBoardActivity(lead.id, `Mailingservice (${mailSourceLabel(source)}): ${mailTypeLabel(mailType).toLowerCase()} verstuurd naar ${email} (bord)`)
+    toast(`${mailTypeLabel(mailType)} verstuurd naar ${email}`, 'success')
+  }
+
+  // Wat vraagt om actie op deze lead?
+  const signalsFor = useCallback((lead) => {
+    const out = []
+    const mail = mailRows[lead.id]
+    if (isFollowUpDue(lead) && !DONE_STATUSES.includes(lead.status)) {
+      out.push({ label: lead.status === 'mail_verstuurd' ? 'Opvolgen na mail' : 'Opvolgen', color: 'var(--warning)', bg: 'var(--warning-bg)' })
+    }
+    if (mail && (mail.status_rank || 0) <= 1) {
+      const d = daysSince(mail.gemaild_op)
+      if (d !== null && d >= followUpDays) {
+        out.push({ label: `${d} dagen niets mee gedaan`, color: 'var(--danger)', bg: 'var(--danger-bg)' })
+      }
+    }
+    if (!mail && mailService && !DONE_STATUSES.includes(lead.status) && lead.status !== 'mail_verstuurd') {
+      out.push({ label: 'Nog niet gemaild', color: 'var(--text-muted)', bg: 'var(--bg-card)' })
+    }
+    return out
+  }, [mailRows, mailService, followUpDays])
 
   const pos = geo.enabled ? geo.position : null
   const q = search.trim().toLowerCase()
@@ -135,6 +318,67 @@ export default function LeadBoard() {
   }, [leads, filter, q, pos, sortBy])
   const openCount = leads.filter(l => !DONE_STATUSES.includes(l.status)).length
   const busyCount = leads.filter(isLockedByOther).length
+  const actionCount = useMemo(
+    () => leads.filter(l => !DONE_STATUSES.includes(l.status) && isFollowUpDue(l)).length,
+    [leads]
+  )
+
+  function renderBoardCard(lead) {
+    const mail = mailRows[lead.id]
+    const busy = isLockedByOther(lead)
+    const st = getStatusDetails(lead.status)
+    const mailInfo = mail ? (MAIL_STATUS[mail.status] || { label: mail.status, color: 'var(--text-muted)', bg: 'var(--bg-card)' }) : null
+    const sigs = signalsFor(lead)
+    return (
+      <>
+        <div style={{ fontWeight: 700, fontSize: '0.74rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {lead.name || 'Naam onbekend'}
+        </div>
+        {lead.contact_person && (
+          <div className="text-muted" style={{ fontSize: '0.62rem', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.contact_person}</div>
+        )}
+        <div className="text-muted" style={{ fontSize: '0.62rem', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {lead.phone}{lead.city ? ` - ${lead.city}` : ''}
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
+          <Chip label={st.label} color={st.color} bg={st.bg} />
+          {mailInfo && <Chip label={mailInfo.label} color={mailInfo.color} bg={mailInfo.bg} title={`${mailTypeLabel(mail.mail_soort)} - ${dateShort(mail.status_op)}`} />}
+          {sigs.map(s => <Chip key={s.label} label={s.label} color={s.color} bg={s.bg} />)}
+        </div>
+        {lead.next_contact_date && !DONE_STATUSES.includes(lead.status) && (
+          <div style={{ fontSize: '0.6rem', marginTop: 3, color: 'var(--text-muted)', fontWeight: 700 }}>
+            <Clock size={9} style={{ verticalAlign: -1, marginRight: 2 }} />{dateShort(lead.next_contact_date)}
+          </div>
+        )}
+        {busy ? (
+          <div style={{ fontSize: '0.6rem', marginTop: 5, color: 'var(--warning)', fontWeight: 700 }}>
+            <Lock size={9} style={{ verticalAlign: -1, marginRight: 2 }} />{lockNames[lead.id] ? `Bij ${lockNames[lead.id]}` : 'In behandeling'}
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 4, marginTop: 5 }}>
+            <button
+              onClick={e => { e.stopPropagation(); openLead(lead) }}
+              className="btn btn-success btn-sm"
+              style={{ flex: 1, padding: 3, fontSize: '0.62rem' }}
+              disabled={claimingId === lead.id || isWorking}
+            >
+              <Phone size={10} /> Bel
+            </button>
+            {mailService && (
+              <button
+                onClick={e => { e.stopPropagation(); setMailLead(lead) }}
+                className="btn btn-outline btn-sm"
+                style={{ padding: '3px 6px', fontSize: '0.62rem' }}
+                title="Mail sturen via de Mailingservice"
+              >
+                <Mail size={10} />
+              </button>
+            )}
+          </div>
+        )}
+      </>
+    )
+  }
 
   return (
     <>
@@ -194,7 +438,7 @@ export default function LeadBoard() {
                 ))}
               </div>
               <div className="flex gap-2" style={{ marginLeft: 'auto' }}>
-                {pos && (
+                {pos && view !== 'board' && (
                   <button type="button" onClick={() => setSortBy(s => s === 'distance' ? 'order' : 'distance')} className="btn btn-sm btn-outline" style={{ borderRadius: 20 }} title="Sortering wisselen">
                     <Compass size={14} /> {sortBy === 'distance' ? 'Dichtbij eerst' : 'Lijstvolgorde'}
                   </button>
@@ -203,6 +447,11 @@ export default function LeadBoard() {
                   <button type="button" onClick={() => setView('list')} className={`btn btn-sm ${view === 'list' ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 0, border: 0 }} title="Lijst">
                     <List size={14} /> Lijst
                   </button>
+                  {boardEnabled && (
+                    <button type="button" onClick={() => setView('board')} className={`btn btn-sm ${view === 'board' ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 0, border: 0 }} title="Bord">
+                      <LayoutGrid size={14} /> Bord
+                    </button>
+                  )}
                   <button type="button" onClick={() => setView('map')} className={`btn btn-sm ${view === 'map' ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 0, border: 0 }} title="Kaart">
                     <MapIcon size={14} /> Kaart
                   </button>
@@ -211,20 +460,30 @@ export default function LeadBoard() {
             </div>
 
             <div className="flex items-center mb-2" style={{ gap: 12, flexWrap: 'wrap', fontSize: '0.8rem' }}>
+              {actionCount > 0 && (
+                <span style={{ color: 'var(--warning)', fontWeight: 700 }}>
+                  <Clock size={12} style={{ verticalAlign: -2 }} /> {actionCount} lead{actionCount === 1 ? '' : 's'} vraagt om opvolging
+                </span>
+              )}
               {busyCount > 0 && (
                 <span className="text-muted">
                   <Lock size={12} style={{ verticalAlign: -2 }} /> {busyCount} lead{busyCount === 1 ? '' : 's'} nu in behandeling bij collega's
                 </span>
               )}
-              {geo.supported && !geo.enabled && (
+              {view === 'board' && mailService && (
+                <span className="text-muted">
+                  <Mail size={12} style={{ verticalAlign: -2 }} /> Sleep naar "Mail verstuurd" om de mail van {mailSourceLabel(mailService.source)} te sturen. Hij gaat pas weg als jij hem bevestigt.
+                </span>
+              )}
+              {geo.supported && !geo.enabled && view !== 'board' && (
                 <span className="text-muted"><Navigation size={12} style={{ verticalAlign: -2 }} /> Zet "Locatie aan" om te zien hoe ver elke lead van je vandaan is.</span>
               )}
-              {missingCoords > 0 && (
+              {missingCoords > 0 && view !== 'board' && (
                 <span className="text-muted">
-                  <MapPin size={12} style={{ verticalAlign: -2 }} /> {missingCoords} lead{missingCoords === 1 ? '' : 's'} zonder coördinaten
+                  <MapPin size={12} style={{ verticalAlign: -2 }} /> {missingCoords} lead{missingCoords === 1 ? '' : 's'} zonder coordinaten
                   {isStaff && (
                     <button type="button" className="btn btn-sm btn-outline" style={{ marginLeft: 8 }} onClick={geocodeList} disabled={geocoding}>
-                      {geocoding ? 'Bezig...' : 'Coördinaten ophalen'}
+                      {geocoding ? 'Bezig...' : 'Coordinaten ophalen'}
                     </button>
                   )}
                 </span>
@@ -233,6 +492,15 @@ export default function LeadBoard() {
 
             {loading && leads.length === 0 ? (
               <LoadingSpinner />
+            ) : view === 'board' ? (
+              <LeadKanban
+                columns={SALES_BOARD_COLUMNS}
+                items={visible}
+                columnFor={lead => boardColumnFor(lead)}
+                onDropItem={handleBoardDrop}
+                renderCard={renderBoardCard}
+                canDrag={lead => !isLockedByOther(lead)}
+              />
             ) : view === 'map' ? (
               <LeadMap
                 leads={visible}
@@ -253,6 +521,7 @@ export default function LeadBoard() {
                   const done = DONE_STATUSES.includes(lead.status)
                   const place = [lead.address && `${lead.address} ${lead.house_number || ''}`.trim(), lead.city].filter(Boolean).join(', ')
                   const band = distanceBand(lead._distance)
+                  const sigs = signalsFor(lead)
                   return (
                     <button
                       key={lead.id}
@@ -272,10 +541,11 @@ export default function LeadBoard() {
                           {lead.name || 'Naam onbekend'}
                           {lead.contact_person && <span className="text-muted" style={{ fontWeight: 400 }}> · {lead.contact_person}</span>}
                         </div>
-                        <div className="text-muted" style={{ fontSize: '0.8rem', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                        <div className="text-muted" style={{ fontSize: '0.8rem', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                           {lead.phone && <span><Phone size={12} style={{ verticalAlign: -2 }} /> {lead.phone}</span>}
                           {place && <span><MapPin size={12} style={{ verticalAlign: -2 }} /> {place}</span>}
                           {(lead.contact_attempts || 0) > 0 && <span>{lead.contact_attempts}x gebeld</span>}
+                          {sigs.map(s => <Chip key={s.label} label={s.label} color={s.color} bg={s.bg} />)}
                         </div>
                       </div>
                       {pos && (
@@ -310,6 +580,39 @@ export default function LeadBoard() {
               </div>
             )}
           </>
+        )}
+
+        {mailLead && mailService && (
+          <MailingserviceModal
+            key={mailLead.id}
+            lead={mailLead}
+            defaults={{ email: mailLead.email, contactpersoon: mailLead.contact_person }}
+            mailService={mailService}
+            onClose={() => setMailLead(null)}
+            onSent={handleMailSent}
+          />
+        )}
+
+        {datePrompt && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20, width: '100%', maxWidth: 420, padding: 24, position: 'relative' }}>
+              <button onClick={() => setDatePrompt(null)} aria-label="Sluiten" style={{ position: 'absolute', top: 14, right: 14, background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
+              <h2 style={{ margin: '0 0 6px', fontSize: '1.1rem' }}>{datePrompt.column.dateTitle}</h2>
+              <p className="text-muted" style={{ margin: '0 0 16px', fontSize: '0.85rem' }}>{datePrompt.lead.name}</p>
+              <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: 6, fontSize: '0.85rem' }}>{datePrompt.column.dateLabel}</label>
+              <input
+                type="datetime-local"
+                className="form-control"
+                style={{ width: '100%', fontSize: 16 }}
+                value={datePrompt.value}
+                onChange={e => setDatePrompt(p => ({ ...p, value: e.target.value }))}
+              />
+              <div className="flex gap-2" style={{ marginTop: 18 }}>
+                <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setDatePrompt(null)}>Annuleren</button>
+                <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={confirmDatePrompt} disabled={!datePrompt.value}>{datePrompt.column.dateButton}</button>
+              </div>
+            </div>
+          </div>
         )}
       </main>
     </>

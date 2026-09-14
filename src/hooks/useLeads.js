@@ -4,6 +4,9 @@ import { useAuth } from '../context/AuthContext'
 import { DEMO_LEADS } from '../lib/demoData'
 import { metRetry } from '../lib/retry'
 import { logAppError } from '../lib/errorLog'
+// v72: de dagdeel-regel staat nu in een util, zodat het bord op /leads dezelfde
+// opvolgdatum zet als het belscherm.
+import { nextContactOnOtherDaypart } from '../utils/followUpUtils'
 
 export function useLeads() {
   const { user, profile, isDemoMode } = useAuth()
@@ -128,17 +131,6 @@ export function useLeads() {
     } finally {
       setLoading(false)
     }
-  }
-
-  // v29: herbelpogingen op het ANDERE dagdeel plannen. Wie 's ochtends niet
-  // opneemt, neemt 's ochtends vaak weer niet op - dus de volgende poging
-  // komt 's middags rond 15:00, en andersom rond 10:00.
-  function nextContactOnOtherDaypart(daysAhead) {
-    const d = new Date()
-    const calledInMorning = d.getHours() < 13
-    d.setDate(d.getDate() + daysAhead)
-    d.setHours(calledInMorning ? 15 : 10, 0, 0, 0)
-    return d.toISOString()
   }
 
   async function updateLeadStatus(leadId, status, additionalFields = {}) {

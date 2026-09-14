@@ -69,6 +69,9 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   // v62: planning-accounts (alleen rooster) mogen in DIT project toch leads
   // zien en verwerken via de Leadlijst-pagina, als hun team eraan hangt.
   const [planningLeads, setPlanningLeads] = useState(false)
+  // v72: bordweergave (kanban) als extra manier om de leads van dit project te
+  // bekijken op /leads. Geen aparte data: dezelfde leads, andere weergave.
+  const [boardView, setBoardView] = useState(false)
 
   const allManagers = (agents || []).filter(a => a.role === 'manager')
 
@@ -78,6 +81,7 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
     setQueueMode(campaign.queue_mode || 'fifo')
     setProjectType(campaign.type || 'sales')
     setPlanningLeads(campaign.planning_can_view_leads === true)
+    setBoardView(campaign.board_view_enabled === true)
     setConfirmDelete(false)
     setLoading(true)
     Promise.all([
@@ -130,6 +134,10 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       }
       if (planningLeads !== (campaign.planning_can_view_leads === true)) {
         const { error } = await supabase.from('campaigns').update({ planning_can_view_leads: planningLeads }).eq('id', campaign.id)
+        if (error) throw error
+      }
+      if (boardView !== (campaign.board_view_enabled === true)) {
+        const { error } = await supabase.from('campaigns').update({ board_view_enabled: boardView }).eq('id', campaign.id)
         if (error) throw error
       }
 
@@ -297,6 +305,15 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
                 Planning-accounts in de gekoppelde teams mogen de leads van dit project zien en verwerken
               </label>
               <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>Standaard uit: planning-accounts zien alleen hun rooster. Aan = iedereen in het project ziet alle leads op de pagina Leads; wie een lead opent, vergrendelt hem tijdelijk voor de rest.</p>
+            </div>
+
+            <div>
+              <label className={labelStyle}>Bordweergave voor de leads</label>
+              <label className="flex items-center gap-2" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>
+                <input type="checkbox" checked={boardView} onChange={e => setBoardView(e.target.checked)} />
+                Leads van dit project zijn ook als bord (kanban) te bekijken op de pagina Leads
+              </label>
+              <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>Zelfde soort bord als bij sollicitanten: kolommen van nieuw tot klant, slepen zet de status. Staat de Mailingservice aan, dan opent de kolom "Mail verstuurd" de mailpopup - de mail gaat pas weg als je hem bevestigt.</p>
             </div>
 
             <div>
