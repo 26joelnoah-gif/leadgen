@@ -12,9 +12,10 @@ import { supabase } from '../lib/supabase'
 import { normalizeWebsite, displayWebsite } from '../utils/urlUtils'
 import { getStatusDetails, RECRUITMENT_LABELS } from '../utils/statusUtils'
 import { OfferteBriefing } from './OfferteStatus'
+import { MailStatusBriefing } from './MailStatus'
 import { useProjectTools, offerteHrefForLead } from '../hooks/useProjectTools'
 import { useProjectMailService } from '../hooks/useProjectMailService'
-import { mailSourceLabel } from '../lib/mailSources'
+import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
 import MailingserviceModal from './MailingserviceModal'
 
 // v36: labels van de dispositie-knoppen (footer) voor recruitment-projecten.
@@ -483,7 +484,7 @@ export default function WorkInterface() {
   // v69: mail is verstuurd door de bron. Nu pas afboeken (via de gewone
   // dispositie-flow), en e-mail/contactpersoon op de lead zetten als die nieuw
   // of anders zijn, zodat de volgende beller ze ziet.
-  const handleMailSent = async ({ email, contactpersoon, followUpDays, source }) => {
+  const handleMailSent = async ({ email, contactpersoon, followUpDays, source, mailType }) => {
     const changes = {}
     if (email && email !== (currentLead.email || '').trim().toLowerCase()) changes.email = email
     if (contactpersoon && contactpersoon !== (currentLead.contact_person || '').trim()) changes.contact_person = contactpersoon
@@ -493,7 +494,7 @@ export default function WorkInterface() {
     }
     const next = new Date()
     next.setDate(next.getDate() + (Number(followUpDays) || 5))
-    const regel = `Mailingservice (${mailSourceLabel(source)}): mail verstuurd naar ${email}`
+    const regel = `Mailingservice (${mailSourceLabel(source)}): ${mailTypeLabel(mailType).toLowerCase()} verstuurd naar ${email}`
     const notes = dispositionNotes.trim() ? `${regel}. ${dispositionNotes.trim()}` : regel
     setShowMailModal(false)
     await submitDisposition('mail_verstuurd', notes, next.toISOString())
@@ -603,10 +604,12 @@ export default function WorkInterface() {
             </div>
           </div>
 
-          {/* v65: open of getekende offerte van deze lead, live uit public.offertes */}
+          {/* v65: open of getekende offerte van deze lead, live uit public.offertes
+              v70: en hoe ver de bron komt met een verstuurde mail (lead_mail_status) */}
           {!isRecruitmentCampaign && (
             <div style={{ padding: isMobile ? '8px 12px 0' : '8px 24px 0' }}>
               <OfferteBriefing leadId={currentLead.id} />
+              <MailStatusBriefing leadId={currentLead.id} />
             </div>
           )}
 

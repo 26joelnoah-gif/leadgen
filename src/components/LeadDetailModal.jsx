@@ -11,6 +11,7 @@ import { normalizeWebsite, displayWebsite } from '../utils/urlUtils'
 import { useToast } from './Toast'
 import CopyButton from './CopyButton'
 import { OffertesBlok } from './OfferteStatus'
+import { MailStatusBlok } from './MailStatus'
 import { useProjectTools } from '../hooks/useProjectTools'
 import LoadingSpinner from './LoadingSpinner'
 
@@ -364,6 +365,7 @@ export default function LeadDetailModal({ isOpen, onClose, lead, assignedName, o
         {/* v65: offertes van deze lead (status, verstuurd/geopend/getekend, acties) */}
         <div style={{ marginBottom: '20px' }}>
           <OffertesBlok lead={lead} canCreate={canMakeOfferte} />
+          <MailStatusBlok leadId={lead?.id} />
         </div>
 
         <div>

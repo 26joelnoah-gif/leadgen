@@ -115,3 +115,26 @@ Twee-zijdig platform:
   nieuwe status 'mail_verstuurd' via handleLeadDisposition: geen eindstatus,
   geen deal, terug in de wachtrij na follow_up_days (standaard 5).
   Migratie: migration_v69_mailingservice.sql. LEADGEN doet niets met betalingen.
+
+- **MAILSTATUS + TWEE MAILSOORTEN (v70, 2026-09-14):** de bron meldt terug hoe
+  ver een gemailde lead komt. Edge Function `mailstatus` (verify_jwt = false,
+  eigen sleutel in Supabase secret MAILSTATUS_KEY, bij de bron LEADGEN_STATUS_KEY)
+  neemt POSTs aan van MarketingKiezer:
+  { lead_id, email, bureau, mail_soort, status, status_op, offerte_url }.
+  Sleutel mag in Authorization: Bearer, x-leadgen-key of x-api-key.
+  Stappen: gemaild -> link_geklikt -> offerte_open -> getekend -> betaald.
+  Opslag in public.lead_mail_status, één rij per lead + bron + mailsoort, met
+  een eigen datumkolom per stap en status_rank als bewaking: een late of dubbele
+  melding zet de lead nooit terug. Alleen de functie (service role) schrijft;
+  lezen mag iedereen binnen de organisatie. Tabel zit in supabase_realtime.
+  Tonen: MailStatusBriefing in het belscherm (onder OfferteBriefing) en
+  MailStatusBlok op de contactkaart. LEADGEN verandert leads.status NIET op
+  een mailstatus - 'getekend'/'betaald' bij MK is geen LEADGEN-deal.
+  Daarnaast: campaign_mail_services.mail_types (standaard
+  {introductie,aanmelden}) bepaalt welke mailsoorten een beller mag kiezen;
+  MailingserviceModal toont daar knoppen voor (Infomail / Aanmeldmail) en stuurt
+  de keuze als `mail` naar de functie mailingservice, die valideert tegen
+  mail_types. mail_type blijft de standaardkeuze. De 24-uursrem geldt nu per
+  mailsoort, zodat na de infomail dezelfde dag nog een aanmeldmail kan.
+  Labels van de soorten staan in src/lib/mailSources.js (MAIL_TYPES).
+  Migratie: migration_v70_mailstatus.sql.

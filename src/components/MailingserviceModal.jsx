@@ -2,15 +2,21 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { X, Send, Mail } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { mailSourceLabel } from '../lib/mailSources'
+import { mailSourceLabel, mailTypesVoor, mailTypeLabel } from '../lib/mailSources'
 
 // v69: Mailingservice vanuit het belscherm. De beller checkt e-mail en
 // contactpersoon, de Edge Function 'mailingservice' laat de bron van het
 // project de mail sturen. Afboeken op 'mail_verstuurd' doet de aanroeper
 // (WorkInterface -> handleLeadDisposition) pas NA een gelukte verzending.
+// v70: de beller kiest zelf de mailsoort (infomail of aanmeldmail). Welke
+// soorten mogen staat in campaign_mail_services.mail_types; mail_type is de
+// standaardkeuze. De sleutel gaat als 'mail' mee naar de Edge Function.
 const EMAIL_RE = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[a-z]{2,}$/i
 
 export default function MailingserviceModal({ lead, defaults, mailService, onClose, onSent }) {
+  const soorten = mailTypesVoor(mailService)
+  const standaard = soorten.find(t => t.key === mailService?.mail_type)?.key || soorten[0]?.key || 'introductie'
+  const [mailType, setMailType] = useState(standaard)
   const [email, setEmail] = useState((defaults?.email || '').trim())
   const [contactpersoon, setContactpersoon] = useState((defaults?.contactpersoon || '').trim())
   const [sending, setSending] = useState(false)
@@ -26,7 +32,7 @@ export default function MailingserviceModal({ lead, defaults, mailService, onClo
     setError('')
     try {
       const { data, error: fnError } = await supabase.functions.invoke('mailingservice', {
-        body: { lead_id: lead.id, email: email.trim(), contactpersoon: contactpersoon.trim() || undefined }
+        body: { lead_id: lead.id, mail: mailType, email: email.trim(), contactpersoon: contactpersoon.trim() || undefined }
       })
       if (fnError) {
         // supabase-js geeft bij een foutstatus de body in fnError.context
@@ -35,7 +41,7 @@ export default function MailingserviceModal({ lead, defaults, mailService, onClo
         throw new Error(msg)
       }
       if (!data?.ok) throw new Error(data?.error || 'Versturen mislukt')
-      await onSent({ email: data.email, contactpersoon: contactpersoon.trim(), followUpDays: data.follow_up_days || dagen, source: data.source })
+      await onSent({ email: data.email, contactpersoon: contactpersoon.trim(), followUpDays: data.follow_up_days || dagen, source: data.source, mailType: data.mail_type || mailType })
     } catch (e) {
       setError(e.message || 'Versturen mislukt')
       setSending(false)
@@ -58,6 +64,38 @@ export default function MailingserviceModal({ lead, defaults, mailService, onClo
         </p>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+          {soorten.length > 1 && (
+            <div>
+              <label style={labelStyle}>Welke mail?</label>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {soorten.map(t => {
+                  const actief = t.key === mailType
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => setMailType(t.key)}
+                      title={t.description}
+                      style={{
+                        flex: '1 1 140px', padding: '10px 12px', borderRadius: '8px', cursor: 'pointer',
+                        border: `1px solid ${actief ? 'var(--info, #0EA5E9)' : 'var(--border)'}`,
+                        background: actief ? 'var(--info-bg, rgba(14,165,233,0.12))' : 'var(--bg-dark)',
+                        color: actief ? 'var(--info, #0EA5E9)' : 'var(--text-secondary)',
+                        fontWeight: actief ? 800 : 600, fontSize: '0.85rem',
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {soorten.find(t => t.key === mailType)?.description && (
+                <p className="text-muted" style={{ margin: '6px 0 0', fontSize: '0.78rem', lineHeight: 1.4 }}>
+                  {soorten.find(t => t.key === mailType).description}
+                </p>
+              )}
+            </div>
+          )}
           <div>
             <label style={labelStyle}>E-mailadres (verplicht)</label>
             <input type="email" autoComplete="off" value={email} onChange={e => setEmail(e.target.value)} placeholder="info@bedrijf.nl" style={inputStyle} />
@@ -76,7 +114,7 @@ export default function MailingserviceModal({ lead, defaults, mailService, onClo
             disabled={sending || !emailOk}
             style={{ background: 'var(--info, #0EA5E9)', color: 'var(--text-on-accent)', padding: '14px', borderRadius: '8px', border: 'none', fontWeight: 800, fontSize: '1rem', cursor: sending || !emailOk ? 'not-allowed' : 'pointer', opacity: sending || !emailOk ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
           >
-            <Send size={16} /> {sending ? 'VERSTUREN...' : 'MAIL VERSTUREN & VOLGENDE'}
+            <Send size={16} /> {sending ? 'VERSTUREN...' : `${mailTypeLabel(mailType).toUpperCase()} VERSTUREN & VOLGENDE`}
           </button>
         </div>
       </motion.div>

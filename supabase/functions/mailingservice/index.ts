@@ -13,7 +13,10 @@
 //   { mail, email, bedrijfsnaam, contactpersoon?, stad?, website?,
 //     beller: { naam, telefoon? }, lead_id }
 //
-// body van het belscherm: { lead_id, email, contactpersoon? }
+// body van het belscherm: { lead_id, email, contactpersoon?, mail? }
+// v70: 'mail' is de mailsoort die de beller koos (infomail/aanmeldmail). Die
+// moet in campaign_mail_services.mail_types van het project staan; zonder
+// keuze pakken we campaign_mail_services.mail_type als standaard.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -25,6 +28,7 @@ const corsHeaders = {
 const MAX_PER_UUR = 40;          // per beller, gelukte mails
 const TIMEOUT_MS = 15_000;
 const EMAIL_RE = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[a-z]{2,}$/i;
+const MAILSOORT_RE = /^[a-z][a-z0-9_]{1,39}$/;
 
 function kort(v: unknown, max: number): string | undefined {
   const s = typeof v === "string" ? v.trim() : "";
@@ -76,10 +80,20 @@ Deno.serve(async (req: Request) => {
 
     const { data: svc } = await admin
       .from("campaign_mail_services")
-      .select("enabled, source, mail_type, follow_up_days")
+      .select("enabled, source, mail_type, mail_types, follow_up_days")
       .eq("campaign_id", list.campaign_id)
       .maybeSingle();
     if (!svc?.enabled) return json({ error: "Mailingservice staat niet aan voor dit project" }, 403);
+
+    // v70: welke mail wil de beller sturen? Alleen wat dit project mag.
+    const toegestaan: string[] = Array.isArray(svc.mail_types) && svc.mail_types.length
+      ? svc.mail_types
+      : [svc.mail_type];
+    const gevraagd = (kort(body?.mail, 40) || "").toLowerCase();
+    const mailSoort = gevraagd || svc.mail_type;
+    if (!MAILSOORT_RE.test(mailSoort) || !toegestaan.includes(mailSoort)) {
+      return json({ error: "Deze mailsoort staat niet aan voor dit project" }, 400);
+    }
 
     const bronUrl = Deno.env.get(`MAILSERVICE_${svc.source}_URL`) || "";
     const bronKey = Deno.env.get(`MAILSERVICE_${svc.source}_KEY`) || "";
@@ -87,7 +101,9 @@ Deno.serve(async (req: Request) => {
       return json({ error: `Bron ${svc.source} is nog niet ingesteld (Supabase secrets)` }, 503);
     }
 
-    // Rem: max gelukte mails per beller per uur, en niet twee keer per dag dezelfde lead.
+    // Rem: max gelukte mails per beller per uur, en niet twee keer per dag
+    // DEZELFDE mail naar dezelfde lead (v70: per mailsoort, zodat een beller na
+    // de infomail nog wel dezelfde dag de aanmeldmail kan sturen).
     const uurGeleden = new Date(Date.now() - 3600_000).toISOString();
     const { count: perUur } = await admin
       .from("mailservice_logs").select("id", { count: "exact", head: true })
@@ -97,11 +113,11 @@ Deno.serve(async (req: Request) => {
     const dagGeleden = new Date(Date.now() - 24 * 3600_000).toISOString();
     const { count: dezeLead } = await admin
       .from("mailservice_logs").select("id", { count: "exact", head: true })
-      .eq("lead_id", lead.id).eq("ok", true).gte("created_at", dagGeleden);
-    if ((dezeLead ?? 0) > 0) return json({ error: "Deze lead heeft de afgelopen 24 uur al een mail gekregen" }, 409);
+      .eq("lead_id", lead.id).eq("mail_type", mailSoort).eq("ok", true).gte("created_at", dagGeleden);
+    if ((dezeLead ?? 0) > 0) return json({ error: "Deze lead heeft deze mail de afgelopen 24 uur al gekregen" }, 409);
 
     const payload = {
-      mail: svc.mail_type,
+      mail: mailSoort,
       email,
       bedrijfsnaam: String(lead.name || "").trim().slice(0, 120) || email,
       ...(contactpersoon ? { contactpersoon } : {}),
@@ -147,14 +163,14 @@ Deno.serve(async (req: Request) => {
       campaign_id: list.campaign_id,
       organization_id: lead.organization_id ?? caller.organization_id ?? null,
       source: svc.source,
-      mail_type: svc.mail_type,
+      mail_type: mailSoort,
       email,
       ok,
       error: ok ? null : foutmelding,
     });
 
     if (!ok) return json({ error: foutmelding }, status);
-    return json({ ok: true, email, source: svc.source, mail_type: svc.mail_type, follow_up_days: svc.follow_up_days });
+    return json({ ok: true, email, source: svc.source, mail_type: mailSoort, follow_up_days: svc.follow_up_days });
   } catch (err) {
     console.error("[mailingservice]", err);
     return json({ error: "Er ging iets mis" }, 500);
