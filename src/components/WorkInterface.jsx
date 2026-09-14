@@ -4,7 +4,8 @@ import {
   X, Phone, Mail, MapPin, User, Building2,
   Calendar, Clock, AlertCircle, CheckCircle2,
   ChevronRight, ChevronDown, Copy, Save, Users, Target, Ban,
-  BookOpen, Info, History, Tag, Maximize2, Minimize2, FileSignature
+  BookOpen, Info, History, Tag, Maximize2, Minimize2, FileSignature,
+  RefreshCw, AlertTriangle
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
@@ -17,6 +18,9 @@ import { useProjectTools, offerteHrefForLead } from '../hooks/useProjectTools'
 import { useProjectMailService } from '../hooks/useProjectMailService'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
 import MailingserviceModal from './MailingserviceModal'
+import { useToast } from './Toast'
+import { foutTekst } from '../lib/retry'
+import { logAppError } from '../lib/errorLog'
 
 // v36: labels van de dispositie-knoppen (footer) voor recruitment-projecten.
 // Zelfde status-keys/logica als sales, alleen de tekst op de knop wijkt af.
@@ -84,6 +88,12 @@ const CopyButton = ({ text, label }) => {
 export default function WorkInterface() {
   const { isWorking, toggleWorkingMode, workingLead, workingListId, sessionCallCount, profile, user } = useAuth()
   const { leads, updateLeadStatus, logActivity, handleLeadDisposition, claimNextLead, claimNextBackofficeLead, releaseMyLeads } = useLeads()
+  const toast = useToast()
+
+  // v71: een mislukte afboeking blijft hier staan tot hij gelukt is. Vroeger
+  // ging de beller gewoon door naar de volgende lead en was het gesprek weg.
+  const [afboekFout, setAfboekFout] = useState(null)
+  const laatstePogingRef = useRef(null)
 
   // v29: briefing van het project (belscript + projectinfo) als inklapbare tabs.
   // De open/dicht-stand blijft staan tijdens de hele belsessie.
@@ -391,6 +401,9 @@ export default function WorkInterface() {
       baselineRef.current = { ...base, ...changed }
       setLiveLead(prev => (prev && prev.id === currentLead.id) ? { ...prev, ...changed } : prev)
       logActivity(currentLead.id, 'edit', 'Lead gegevens gewijzigd')
+    } else {
+      // v71: hiervoor verdween een mislukte wijziging geruisloos
+      toast(`Wijziging niet opgeslagen: ${foutTekst(error)}`, 'error', 8000)
     }
   }
 
@@ -446,8 +459,10 @@ export default function WorkInterface() {
   const submitDisposition = async (dispositionType, notes = '', nextDate = null, customDispositionId = null) => {
     if (isSubmitting) return
     setIsSubmitting(true)
+    // onthouden wat we probeerden, zodat "opnieuw proberen" exact hetzelfde doet
+    laatstePogingRef.current = { dispositionType, notes, nextDate, customDispositionId }
     try {
-      await handleLeadDisposition(
+      const resultaat = await handleLeadDisposition(
         currentLead.id,
         listName,
         dispositionType,
@@ -456,6 +471,18 @@ export default function WorkInterface() {
         { startedAt: leadStartRef.current },
         customDispositionId
       )
+
+      // v71: niet opgeslagen betekent hier stoppen. De lead blijft in beeld,
+      // de notitie blijft staan en de beller krijgt het te zien.
+      if (resultaat && resultaat.ok === false) {
+        const melding = foutTekst(resultaat.fout)
+        setAfboekFout(melding)
+        toast(`Niet opgeslagen: ${melding}`, 'error', 9000)
+        return
+      }
+      setAfboekFout(null)
+      if (resultaat?.waarschuwing) toast(resultaat.waarschuwing, 'info', 7000)
+
       setTodayCalls(prev => prev + 1)
 
       setShowDispositionModal(false)
@@ -472,13 +499,33 @@ export default function WorkInterface() {
         setClaimedLead(null)
         setClaiming(true)
         const claimFn = isBackofficeMode ? claimNextBackofficeLead : claimNextLead
-        const nextLead = await claimFn(workingListId)
-        setClaimedLead(nextLead)
-        setClaiming(false)
+        try {
+          const nextLead = await claimFn(workingListId)
+          setClaimedLead(nextLead)
+        } catch (err) {
+          // De afboeking staat al. Alleen de volgende lead ophalen lukte niet.
+          logAppError('belscherm.volgendeLead', err, { listId: workingListId })
+          toast('De volgende lead kon niet geladen worden. Probeer het zo nog eens.', 'error', 7000)
+        } finally {
+          setClaiming(false)
+        }
       }
+    } catch (err) {
+      // Onverwachte fout: nooit stil laten verdwijnen.
+      logAppError('belscherm.afboeken', err, { leadId: currentLead?.id, dispositionType })
+      setAfboekFout(foutTekst(err))
+      toast(`Niet opgeslagen: ${foutTekst(err)}`, 'error', 9000)
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // v71: herhaalt exact de laatste mislukte afboeking
+  const probeerAfboekenOpnieuw = () => {
+    const p = laatstePogingRef.current
+    if (!p || isSubmitting) return
+    setAfboekFout(null)
+    submitDisposition(p.dispositionType, p.notes, p.nextDate, p.customDispositionId)
   }
 
   // v69: mail is verstuurd door de bron. Nu pas afboeken (via de gewone
@@ -490,7 +537,10 @@ export default function WorkInterface() {
     if (contactpersoon && contactpersoon !== (currentLead.contact_person || '').trim()) changes.contact_person = contactpersoon
     if (Object.keys(changes).length) {
       const { error } = await supabase.from('leads').update(changes).eq('id', currentLead.id)
-      if (error) console.error('Mailingservice: lead bijwerken mislukt:', error.message)
+      if (error) {
+        logAppError('mailingservice.leadUpdate', error, { leadId: currentLead.id })
+        toast(`E-mailadres niet opgeslagen: ${foutTekst(error)}`, 'error', 7000)
+      }
     }
     const next = new Date()
     next.setDate(next.getDate() + (Number(followUpDays) || 5))
@@ -554,6 +604,32 @@ export default function WorkInterface() {
             overflow: 'hidden'
           }}
         >
+          {/* v71: waarschuwing als het afboeken niet is opgeslagen. De lead
+              blijft staan, dus de beller kan het gewoon opnieuw proberen. */}
+          {afboekFout && (
+            <div style={{
+              background: '#B91C1C', color: '#fff', padding: '10px 16px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              gap: '12px', flexWrap: 'wrap', fontWeight: 700, fontSize: '0.88rem'
+            }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+              <span style={{ textAlign: 'center' }}>
+                Niet opgeslagen: {afboekFout} De lead blijft staan.
+              </span>
+              <button
+                onClick={probeerAfboekenOpnieuw}
+                disabled={isSubmitting}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                  background: '#fff', color: '#B91C1C', border: 'none',
+                  borderRadius: '6px', padding: '6px 12px', fontWeight: 800,
+                  cursor: isSubmitting ? 'default' : 'pointer', fontSize: '0.85rem'
+                }}
+              >
+                <RefreshCw size={14} /> {isSubmitting ? 'Bezig...' : 'Opnieuw proberen'}
+              </button>
+            </div>
+          )}
 
           {/* Top Header */}
           <header style={{ background: 'var(--primary-dark)', color: 'var(--text-on-accent)', padding: isMobile ? '8px 12px' : '8px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>

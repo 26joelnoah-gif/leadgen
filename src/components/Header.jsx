@@ -78,6 +78,8 @@ export default function Header({ onOpenSettings }) {
     { path: '/admin/reports', label: 'Rapportage' },
     { path: '/admin/payouts', label: 'Payouts' },
     { path: '/admin/telemetry', label: 'Telemetrie' },
+    // v71: crashes en mislukte acties van het team
+    { path: '/admin/fouten', label: 'Foutlogboek' },
     { path: '/kanban', label: 'Kanban' },
     { path: '/tools', label: 'Tools' },
     // v57: admin kan de sollicitanten + agenda van de recruiter(s) inzien

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { ToastProvider } from './components/Toast'
@@ -12,6 +12,7 @@ import Admin from './pages/Admin'
 import Reports from './pages/Reports'
 import Kanban from './pages/Kanban'
 import Telemetry from './pages/Telemetry'
+import Foutlogboek from './pages/Foutlogboek'
 import Payouts from './pages/Payouts'
 import LeadManagement from './pages/LeadManagement'
 import Manager from './pages/Manager'
@@ -24,6 +25,8 @@ import Tekenen from './pages/Tekenen'
 import AccountManagement from './pages/AccountManagement'
 import { useToolAccess } from './hooks/useToolAccess'
 import WorkInterface from './components/WorkInterface'
+import ErrorBoundary from './components/ErrorBoundary'
+import OfflineBanner from './components/OfflineBanner'
 import FeatureAwareness from './components/FeatureAwareness'
 
 // v33: waarschuw open tabbladen zodra er een nieuwe versie live staat.
@@ -151,11 +154,26 @@ function HomeRoute() {
 
 function AppRoutes() {
   const { user } = useAuth()
+  const location = useLocation()
 
   return (
     <>
-      {user && <WorkInterface />}
-      {user && <FeatureAwareness />}
+      {/* Het belscherm is een globale overlay. Zonder eigen grens zou een fout
+          daarin ook het dashboard eronder meesleuren. */}
+      {user && (
+        <ErrorBoundary naam="belscherm" variant="inline">
+          <WorkInterface />
+        </ErrorBoundary>
+      )}
+      {/* Puur een hulppopup: gaat die stuk, dan merkt niemand er iets van. */}
+      {user && (
+        <ErrorBoundary naam="featureawareness" variant="stil">
+          <FeatureAwareness />
+        </ErrorBoundary>
+      )}
+      {/* Per pagina een grens: crasht er een, dan blijft de rest bruikbaar en
+          reset hij vanzelf zodra je naar een andere pagina navigeert. */}
+      <ErrorBoundary naam={`pagina${location.pathname}`} resetKey={location.pathname}>
       <Routes>
       {/* v65: publieke tekenpagina voor klanten, bewust buiten ProtectedRoute */}
       <Route path="/tekenen/:token" element={<Tekenen />} />
@@ -244,6 +262,14 @@ function AppRoutes() {
         }
       />
       <Route
+        path="/admin/fouten"
+        element={
+          <ProtectedRoute requireAdmin>
+            <Foutlogboek />
+          </ProtectedRoute>
+        }
+      />
+      <Route
         path="/manager"
         element={
           <ProtectedRoute requireAdmin allowManager>
@@ -301,6 +327,7 @@ function AppRoutes() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+      </ErrorBoundary>
     </>
   )
 }
@@ -313,6 +340,7 @@ export default function App() {
           <ToastProvider>
             <AppRoutes />
             <UpdateChecker />
+            <OfflineBanner />
           </ToastProvider>
         </AuthProvider>
       </ThemeProvider>

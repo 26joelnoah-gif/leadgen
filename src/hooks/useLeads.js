@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { DEMO_LEADS } from '../lib/demoData'
+import { metRetry } from '../lib/retry'
+import { logAppError } from '../lib/errorLog'
 
 export function useLeads() {
   const { user, profile, isDemoMode } = useAuth()
@@ -164,7 +166,8 @@ export function useLeads() {
       return null
     }
 
-    const { error } = await supabase.from('leads').update(updates).eq('id', leadId)
+    const { error } = await metRetry(() => supabase.from('leads').update(updates).eq('id', leadId))
+    if (error) logAppError('lead.update', error, { leadId })
     if (!error) {
       setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updates } : l))
     }
@@ -266,12 +269,14 @@ export function useLeads() {
   // Schrijft één rij per behandelde lead naar call_logs (basis voor telemetrie, targets en payouts)
   // v29: de gespreksnotitie gaat mee, zodat collega's de historie van een lead kunnen zien
   async function logCallToDatabase(currentLead, dispositionType, callMeta, notes = '', customDispositionId = null) {
-    if (isDemoMode || !user?.id) return
+    if (isDemoMode || !user?.id) return { ok: true }
     try {
       const disposedAt = new Date().toISOString()
       const startedAt = callMeta?.startedAt || disposedAt
       const duration = Math.max(0, Math.round((new Date(disposedAt) - new Date(startedAt)) / 1000))
-      await supabase.from('call_logs').insert({
+      // v71: met retry. Een verloren call_log betekent verloren beltijd en dus
+      // een verkeerde uitbetaling, dus dit mag niet stilletjes wegvallen.
+      const { error } = await metRetry(() => supabase.from('call_logs').insert({
         agent_id: user.id,
         organization_id: profile?.organization_id ?? null,
         lead_id: currentLead.id,
@@ -282,10 +287,15 @@ export function useLeads() {
         duration_seconds: duration,
         notes: notes || null,
         custom_disposition_id: customDispositionId || null
-      })
+      }))
+      if (error) throw error
+      return { ok: true }
     } catch (err) {
-      // Call logging mag de dispositie-flow nooit blokkeren
-      console.error('call_logs insert mislukt:', err)
+      // Call logging mag de dispositie-flow nooit blokkeren: de status op de
+      // lead is belangrijker voor de wachtrij. We melden het wel, zodat de
+      // beltijd hersteld kan worden.
+      logAppError('call_logs.insert', err, { leadId: currentLead?.id, dispositionType })
+      return { ok: false, fout: err }
     }
   }
 
@@ -305,10 +315,19 @@ export function useLeads() {
     // zouden die wijzigingen hier worden overschreven.
     let currentLead = leads.find(l => l.id === leadId)
     if (!isDemoMode) {
-      const { data: fresh } = await supabase.from('leads').select('*').eq('id', leadId).maybeSingle()
+      const { data: fresh, error: freshError } = await metRetry(
+        () => supabase.from('leads').select('*').eq('id', leadId).maybeSingle()
+      )
+      // v71: lukt het ophalen niet, dan ligt de verbinding eruit en zou de
+      // update hierna toch mislukken. Meteen stoppen met een duidelijke fout,
+      // zodat de beller zijn afboeking niet kwijtraakt.
+      if (freshError) {
+        logAppError('afboeken.leadOphalen', freshError, { leadId })
+        return { ok: false, fout: freshError, stap: 'ophalen' }
+      }
       if (fresh) currentLead = fresh
     }
-    if (!currentLead) return
+    if (!currentLead) return { ok: false, fout: { message: 'Lead niet gevonden' }, stap: 'ophalen' }
     const agentName = profile?.full_name || user?.email || 'Onbekend'
 
     let newNotes = currentLead.notes || ''
@@ -369,13 +388,18 @@ export function useLeads() {
 
     if (isDemoMode) {
       setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updates } : l))
-      return
+      return { ok: true }
     }
 
-    await logCallToDatabase(currentLead, dispositionType, callMeta, notes, customDispositionId)
+    const logResultaat = await logCallToDatabase(currentLead, dispositionType, callMeta, notes, customDispositionId)
 
-    // Instellingen per afboekreden (alleen toewijzing + notitie-tag)
-    const { data: rule } = await supabase.from('flow_settings').select('auto_assign_to, append_agent_note, cooldown_days').eq('disposition_type', dispositionType).eq('is_active', true).maybeSingle()
+    // Instellingen per afboekreden (alleen toewijzing + notitie-tag).
+    // Lukt dit niet, dan gaan we door met de standaardregels: het is een
+    // verfijning, geen voorwaarde om te kunnen afboeken.
+    const { data: rule, error: ruleError } = await metRetry(
+      () => supabase.from('flow_settings').select('auto_assign_to, append_agent_note, cooldown_days').eq('disposition_type', dispositionType).eq('is_active', true).maybeSingle()
+    )
+    if (ruleError) logAppError('afboeken.flowSettings', ruleError, { dispositionType })
     if (rule) {
       if (rule.auto_assign_to === 'agent') updates.assigned_to = user?.id
       else if (rule.auto_assign_to === 'none') updates.assigned_to = null
@@ -391,9 +415,37 @@ export function useLeads() {
       updates.next_contact_date = d.toISOString()
     }
 
-    await supabase.from('leads').update(updates).eq('id', leadId)
-    await logActivity(leadId, dispositionType, `Afboeking: ${dispositionType}`)
-    await fetchLeads()
+    // v71: DE kern van het afboeken. Mislukt dit, dan is er niets vastgelegd
+    // en moet de beller dat weten - vroeger ging hij gewoon door naar de
+    // volgende lead en was het gesprek weg.
+    const { error: updateError } = await metRetry(
+      () => supabase.from('leads').update(updates).eq('id', leadId)
+    )
+    if (updateError) {
+      logAppError('afboeken.leadUpdate', updateError, { leadId, dispositionType })
+      return { ok: false, fout: updateError, stap: 'opslaan' }
+    }
+
+    // Vanaf hier is het afboeken geslaagd. Wat hierna misgaat mag de beller
+    // niet blokkeren, maar wordt wel gemeld.
+    try {
+      await logActivity(leadId, dispositionType, `Afboeking: ${dispositionType}`)
+    } catch (err) {
+      logAppError('afboeken.logActivity', err, { leadId })
+    }
+    try {
+      await fetchLeads()
+    } catch (err) {
+      logAppError('afboeken.fetchLeads', err, { leadId })
+    }
+
+    return {
+      ok: true,
+      // de afboeking staat, maar de beltijd van dit gesprek is niet vastgelegd
+      waarschuwing: logResultaat?.ok === false
+        ? 'Afboeking opgeslagen, maar de beltijd van dit gesprek is niet vastgelegd.'
+        : null
+    }
   }
 
   return {
