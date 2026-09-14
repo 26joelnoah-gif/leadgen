@@ -2,6 +2,9 @@ export const STATUS_MAP = {
   new: { label: 'Nieuw', color: 'var(--primary)', bg: 'var(--info-bg)' },
   later_bellen: { label: 'Later bellen', color: 'var(--warning)', bg: 'var(--warning-bg)' },
   mailen: { label: 'Mailen', color: 'var(--success)', bg: 'var(--success-bg)' },
+  // v69: Mailingservice - de bron van het project heeft een mail gestuurd. Geen
+  // eindstatus en geen deal: de lead komt op next_contact_date (standaard +5 dagen) terug.
+  mail_verstuurd: { label: 'Mail verstuurd', color: 'var(--info)', bg: 'var(--info-bg)', description: 'Mail is verstuurd via de Mailingservice - komt op de opvolgdatum terug in de wachtrij' },
   voicemail: { label: 'Voicemail', color: 'var(--info)', bg: 'var(--info-bg)' },
   terugbelafspraak: { label: 'Terugbelafspraak', color: 'var(--success)', bg: 'var(--success-bg)' },
   geen_gehoor: { label: 'Geen gehoor', color: 'var(--text-muted)', bg: 'var(--bg-elevated)' },

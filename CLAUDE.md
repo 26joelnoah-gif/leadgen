@@ -102,3 +102,16 @@ Twee-zijdig platform:
   src/hooks/useProjectTools.js (lead_list_id -> campaign_id -> campaign_tools)
   + offerteHrefForLead(). useToolAccess (union) blijft alleen voor de Tools-tab.
   De tool zelf vult naam/contact/mail/tel/adres al in via ?lead= (v65).
+
+- **MAILINGSERVICE (v69, 2026-09-11):** knop "Mailingservice" bij de
+  afboekingen in het belscherm, per project aan te zetten in de
+  projectinstellingen (tabel campaign_mail_services, alleen admin schrijft).
+  Per project een BRON (bijv. MARKETINGKIEZER); URL en sleutel van een bron
+  staan alleen in Supabase secrets MAILSERVICE_<BRON>_URL / _KEY, nooit in de
+  DB of browser. Edge Function mailingservice checkt login + lead via RLS +
+  project, remt (40/uur per beller, 1x per 24u per lead, log in
+  mailservice_logs) en roept de bron aan. De bron bepaalt de tekst (MK:
+  lib/leadgenMail.ts in de MK-repo). Na succes boekt WorkInterface af op
+  nieuwe status 'mail_verstuurd' via handleLeadDisposition: geen eindstatus,
+  geen deal, terug in de wachtrij na follow_up_days (standaard 5).
+  Migratie: migration_v69_mailingservice.sql. LEADGEN doet niets met betalingen.
