@@ -62,7 +62,11 @@ function PermToggle({ on, onClick }) {
     </button>
   )
 }
-export default function ManagerProjectsModal({ isOpen, onClose, manager, onSaved }) {
+// v69: mode 'importer' - zelfde projectkiezer, maar voor een BELLER die alleen
+// leads mag importeren voor zijn eigen projecten. Dan geen managerrechten tonen;
+// opslaan zet can_manage_leads aan en koppelt de gekozen projecten.
+export default function ManagerProjectsModal({ isOpen, onClose, manager, onSaved, mode = 'manager' }) {
+  const isImporter = mode === 'importer'
   const toast = useToast()
   const [projects, setProjects] = useState([]) // campagnes
   const [selected, setSelected] = useState(new Set())
@@ -145,6 +149,22 @@ export default function ManagerProjectsModal({ isOpen, onClose, manager, onSaved
         }
       }
 
+      if (isImporter) {
+        // geen project meer aangevinkt = recht weer uit
+        const mayImport = selected.size > 0
+        if (!!manager.can_manage_leads !== mayImport) {
+          const { error } = await supabase
+            .from('profiles')
+            .update({ can_manage_leads: mayImport })
+            .eq('id', manager.id)
+          if (error) throw error
+        }
+        toast('Importprojecten opgeslagen', 'success')
+        onSaved?.()
+        onClose()
+        return
+      }
+
       const permsChanged = PERMISSIONS.some(perm => {
         const before = perm.key === 'can_manage_team' || perm.key === 'can_export_data'
           ? manager[perm.key] !== false
@@ -180,11 +200,18 @@ export default function ManagerProjectsModal({ isOpen, onClose, manager, onSaved
         style={{ maxWidth: '480px' }}
       >
         <div className="modal-header">
-          <h2><Layers size={18} /> Projecten &amp; rechten - {manager.full_name}</h2>
+          <h2><Layers size={18} /> {isImporter ? 'Importprojecten' : 'Projecten & rechten'} - {manager.full_name}</h2>
           <button className="modal-close" onClick={onClose}><X size={18} /></button>
         </div>
 
-        <p className="text-muted" style={{ fontSize: '0.85rem', marginBottom: '16px' }}>
+        {isImporter && (
+          <p className="text-muted" style={{ fontSize: '0.85rem', marginBottom: '16px' }}>
+            Vink aan voor welke projecten deze beller leads mag importeren. Hij blijft
+            gewoon beller en kan dus ook zelf bellen. Buiten deze projecten kan hij
+            niets importeren.
+          </p>
+        )}
+        <p className="text-muted" style={{ fontSize: '0.85rem', marginBottom: '16px', display: isImporter ? 'none' : 'block' }}>
           Vink aan welke projecten deze manager mag zien en beheren - inclusief alle
           lijsten die later binnen zo'n project worden aangemaakt. Meerdere managers
           per project kan gewoon. Onderaan stel je in wat deze manager precies mag
@@ -227,7 +254,7 @@ export default function ManagerProjectsModal({ isOpen, onClose, manager, onSaved
           </div>
         )}
 
-        <div style={{ marginBottom: '20px' }}>
+        <div style={{ marginBottom: '20px', display: isImporter ? 'none' : 'block' }}>
           <div className="text-[10px] font-black uppercase text-muted tracking-widest" style={{ marginBottom: '8px' }}>
             Wat mag deze manager?
           </div>

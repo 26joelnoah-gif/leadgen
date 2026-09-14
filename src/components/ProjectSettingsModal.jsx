@@ -255,8 +255,9 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
                   <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
                     <button type="button" onClick={() => setProjectType('sales')} className={`btn btn-sm ${projectType === 'sales' ? 'btn-primary' : 'btn-outline'}`}>Uitbellen / acquisitie</button>
                     <button type="button" onClick={() => setProjectType('backoffice')} className={`btn btn-sm ${projectType === 'backoffice' ? 'btn-primary' : 'btn-outline'}`}>Backoffice (al gemaakte sales)</button>
+                    <button type="button" onClick={() => setProjectType('accountmanagement')} className={`btn btn-sm ${projectType === 'accountmanagement' ? 'btn-primary' : 'btn-outline'}`}>Accountmanagement (eigen leads opvolgen)</button>
                   </div>
-                  <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>Bepaalt bij het importeren automatisch het naamveld-label en of nieuwe leads als "Nieuw" of meteen als "Deal" (backoffice) binnenkomen.</p>
+                  <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>Bepaalt bij het importeren automatisch het naamveld-label en of nieuwe leads als "Nieuw" of meteen als "Deal" (backoffice) binnenkomen. Bij accountmanagement (v68) werken teamleden als accountmanager: geen belwachtrij, maar eigen leads met pipeline, opvolgdatum en "Offerte sturen"; leads zonder actie vallen na een instelbaar aantal dagen terug in de pool.</p>
                 </>
               )}
             </div>

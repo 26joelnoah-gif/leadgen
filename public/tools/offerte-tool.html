@@ -193,7 +193,7 @@
   </section>
 
   <!-- 2 stations -->
-  <section class="card">
+  <section class="card" id="sec-mods">
     <h2><span class="n">3</span>Extra stations & modules <span class="sub" style="display:inline">eenmalig</span></h2>
     <div id="mods"></div>
   </section>
@@ -202,17 +202,18 @@
   <section class="card">
     <h2><span class="n">4</span>Marketing & vindbaarheid <span class="sub" style="display:inline">per maand</span></h2>
     <div id="ups"></div>
+    <div class="warn hidden" id="mktwarn">Bij "Alleen marketing" hoort minimaal Marketing Basis of Plus. Kies er een om de offerte te kunnen ondertekenen.</div>
   </section>
 
   <!-- 4 speclijst -->
-  <section class="card spec">
+  <section class="card spec" id="sec-spec">
     <h2><span class="n">5</span>Hardware: specificatielijst</h2>
     <div class="sub">De klant koopt zelf. Vink af dat de klant de lijst voor elk station heeft ontvangen; installatie wordt pas ingepland als de apparatuur er is.</div>
     <div id="spec"></div>
   </section>
 
   <!-- 5 ROI -->
-  <section class="card">
+  <section class="card" id="sec-roi">
     <h2><span class="n">6</span>Wat levert het op?</h2>
     <div class="sub">Vul de situatie van de zaak in. Elke post kan aan of uit; de aannames staan open en zijn aanpasbaar. Standaardwaarden zijn afgeleid van de gemeten cijfers bij Dr. Shawarma en schalen mee met de omzet: minder omzet = langzamer terugverdiend.</div>
     <div class="note" id="refline"></div>
@@ -285,8 +286,8 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 /* ===== PRIJSMODEL — bron van waarheid: verkoop/PRIJSMODEL.md. Wijzig prijzen hier én daar. ===== */
-/* ===== PRIJSMODEL (bron: verkoop/PRIJSMODEL.md, versie 2026-09-04) ===== */
-const PRIJSMODEL_VERSIE = "2026-09-04";
+/* ===== PRIJSMODEL (bron: verkoop/PRIJSMODEL.md, versie 2026-09-06) ===== */
+const PRIJSMODEL_VERSIE = "2026-09-06";
 const BTW = 0.21;
 const KORTING_MAX = 0.10;
 const PAKKETTEN = [
@@ -296,6 +297,11 @@ const PAKKETTEN = [
   {id:"standaard", naam:"Standaard", sub:"Zaak met balie én zuil, 1 keuken", eenmalig:7500, mnd:200,
    incl:["Alles van Klein, plus bezorgen (zones, tarieven, postcodecheck)","Inrichting 1 bestelzuil incl. pinterminal-koppeling","Inrichting 1 keukenscherm + bonprinter","Inrichting 1 statusbord","Inrichting 2 TV-menuborden","Installatie op locatie"],
    stations:{zuil:1,keuken:1,status:1,tv:2}, bezorgen:true},
+  /* v67: marketing als los product. Geen bestelplatform; de eigen website van de klant blijft. Verplicht: onepager (redirect-pagina) met de aanbiedingen, €500 eenmalig. */
+  {id:"marketing", naam:"Alleen marketing", sub:"Eigen website blijft, wij regelen vindbaarheid en marketing", eenmalig:500, mnd:0, marketingOnly:true,
+   regelNaam:"Onepager (redirect-pagina) met uw aanbiedingen",
+   incl:["Onepager van ReachConnect met uw aanbiedingen en acties, stuurt door naar uw eigen website (verplicht, €500 eenmalig)","Geen bestelplatform en geen software-abonnement","Kies hieronder Marketing Basis of Plus, eventueel met Social content"],
+   stations:{zuil:0,keuken:0,status:0,tv:0}, bezorgen:false},
 ];
 const MODULES = [
   {id:"zuil",   naam:"Extra bestelzuil (inrichting)", sub:"Incl. pinterminal-koppeling, bonrouting en bewaking", prijs:1000, mnd:25, max:5, qty:0, station:true, voordeel:"Minder rij aan de balie, upsell-popup verhoogt de bon"},
@@ -307,10 +313,12 @@ const MODULES = [
   {id:"bezorg", naam:"Bezorgen-module", sub:"Bezorgzones, tarieven, postcodecheck (bij Standaard inbegrepen)", prijs:500, mnd:0, max:1, qty:0, alleenKlein:true, voordeel:"Eigen bezorging zonder platformcommissie"},
   {id:"foto",   naam:"Menufoto's / content", sub:"Foto's of AI-beeld van het menu voor zuil, site en menuborden", prijs:350, mnd:0, max:1, qty:0, voordeel:"Foto's verkopen: hogere bon"},
 ];
+/* v67: SEO/GBP/AI-vindbaarheid zit in Basis en Plus (losse SEO-regel vervallen); Social content (4 posts) en Video apart. */
 const UPSELL = [
-  {id:"mkt_basis", naam:"Marketing Basis", sub:"1 actiecampagne met kortingscode per maand + nieuwsbrief", prijs:75, on:false, excl:"mkt_plus"},
-  {id:"mkt_plus",  naam:"Marketing Plus", sub:"Basis + 2 social posts per maand in huisstijl", prijs:175, on:false, excl:"mkt_basis"},
-  {id:"seo",       naam:"SEO / Google-profiel", sub:"Onderhoud vindbaarheid, Google Bedrijfsprofiel, reviews", prijs:100, on:false},
+  {id:"mkt_basis", naam:"Marketing Basis", sub:"Vindbaarheid: SEO, Google Bedrijfsprofiel en AI-vindbaarheid (ChatGPT, Gemini e.d.) + 1 actiecampagne met kortingscode per maand + nieuwsbrief", prijs:75, on:false, excl:"mkt_plus"},
+  {id:"mkt_plus",  naam:"Marketing Plus", sub:"Alles van Basis + 2 extra actiecampagnes per maand, reviews-opvolging en maandrapportage vindbaarheid", prijs:175, on:false, excl:"mkt_basis"},
+  {id:"content",   naam:"Social content", sub:"4 posts per maand in huisstijl, klaar om te plaatsen op Instagram en Facebook", prijs:350, on:false},
+  {id:"video",     naam:"Video-content", sub:"Filmpjes / reels bovenop Social content · prijs op aanvraag", prijs:null, opAanvraag:true, bedrag:null, on:false},
 ];
 const SPEC = {
   zuil:"Bestelzuil: tablet/scherm ≥15\" met touch in kiosk-behuizing, Chrome/Edge kiosk-modus, pinterminal via PinVandaag (Yomani), vaste netwerkverbinding of stabiele wifi",
@@ -336,11 +344,14 @@ const VOORWAARDEN = [
   ["Overmacht", "Wij hoeven niet na te komen als dat wordt verhinderd door omstandigheden buiten onze macht, waaronder storingen bij hosting-, betaal- of netwerkleveranciers, cyberaanvallen, ziekte, overheidsmaatregelen en stroom- of internetuitval."],
   ["Eigendom en gebruiksrecht", "De software, de inrichting en alle daarin opgenomen intellectuele eigendomsrechten blijven van ReachConnect. De klant krijgt voor de duur van het abonnement een niet-overdraagbaar gebruiksrecht voor de eigen zaak. Gegevens en inhoud die de klant invoert (menu, foto's, klant- en bestelgegevens) blijven eigendom van de klant. De klant mag de software niet kopiëren, doorverkopen of aan derden beschikbaar stellen."],
   ["Gegevens en privacy", "Wij verwerken persoonsgegevens van de klant en diens klanten uitsluitend voor het leveren van de dienst, binnen de EU, en treffen passende beveiligingsmaatregelen. De klant is verwerkingsverantwoordelijke voor de gegevens van zijn klanten; op verzoek sluiten wij een verwerkersovereenkomst. Wij maken dagelijks back-ups, maar de klant blijft zelf verantwoordelijk voor het bewaren van gegevens die hij nodig heeft voor zijn administratie."],
+  ["Marketing en vindbaarheid", "Marketing- en vindbaarheidsdiensten (SEO, Google Bedrijfsprofiel, AI-vindbaarheid, campagnes, nieuwsbrieven, social content en video) zijn inspanningsverplichtingen. Wij garanderen geen posities in zoekmachines of AI-assistenten, geen bereik en geen omzet. Content maken wij in overleg; de klant levert tijdig input en beeldmateriaal aan en keurt content binnen 5 werkdagen goed, anders geldt deze als goedgekeurd. Bij een onepager (redirect-pagina) blijven de eigen website, domeinnaam en hosting van de klant zijn eigen verantwoordelijkheid; wij plaatsen op de onepager alleen de door de klant goedgekeurde aanbiedingen. Video-content wordt apart geoffreerd."],
   ["Referentie", "De klant stemt ermee in dat wij de naam en het logo van de zaak als referentie mogen noemen. De klant kan hier op elk moment schriftelijk bezwaar tegen maken."],
   ["Elektronische ondertekening", "De klant erkent dat een handtekening op het scherm van de offerte-tool, met naam, datum en tijdstip en de e-mailbevestiging aan de klant, geldt als rechtsgeldige ondertekening van deze overeenkomst."],
   ["Toepasselijk recht", "Op de overeenkomst is Nederlands recht van toepassing. Geschillen worden voorgelegd aan de bevoegde rechter in het arrondissement waar ReachConnect is gevestigd, nadat partijen hebben geprobeerd er in overleg uit te komen. Deze offerte is 14 dagen geldig."],
 ];
 
+const AKKOORD_MARKETING = `Door te ondertekenen gaat de klant akkoord met deze offerte van ReachConnect voor marketing en vindbaarheid, zoals hierboven gespecificeerd. Prijzen zijn exclusief btw. Het eenmalige bedrag voor de onepager (redirect-pagina) wordt bij akkoord gefactureerd; de maandelijkse diensten gaan in zodra de onepager live staat en zijn maandelijks opzegbaar. De onepager toont de aanbiedingen van de klant en stuurt door naar de eigen website van de klant; die website blijft de verantwoordelijkheid van de klant. Marketing- en vindbaarheidsdiensten zijn inspanningsverplichtingen zonder garantie op posities, bereik of omzet. Video-content wordt apart geoffreerd. Meerwerk buiten deze offerte wordt vooraf afgestemd (€75 per uur). Op deze overeenkomst zijn de voorwaarden van toepassing die in deze offerte zijn opgenomen; de klant verklaart die te hebben gelezen. Deze offerte is 14 dagen geldig. De klant ontvangt een e-mailbevestiging met deze offerte, de handtekening en het tijdstip van ondertekening.`;
+const akkoordTekst = () => (pk().marketingOnly ? AKKOORD_MARKETING : AKKOORD);
 const AKKOORD = `Door te ondertekenen gaat de klant akkoord met deze offerte van ReachConnect voor het bestelplatform, zoals hierboven gespecificeerd. Prijzen zijn exclusief btw. Het eenmalige bedrag wordt bij akkoord gefactureerd; het maandabonnement gaat in bij livegang en is maandelijks opzegbaar. Het abonnement omvat hosting, storingsbewaking, updates en support. Er wordt geen commissie per bestelling gerekend. Hardware wordt niet door ReachConnect geleverd; de klant schaft apparatuur aan volgens de meegeleverde specificatielijst, waarna installatie wordt ingepland. Meerwerk buiten deze offerte wordt vooraf afgestemd (€75 per uur). De in de offerte getoonde besparingen en opbrengsten zijn indicatief; werkelijke resultaten kunnen verschillen en vormen geen garantie of onderdeel van de overeenkomst. Op deze overeenkomst zijn de voorwaarden van toepassing die in deze offerte zijn opgenomen; de klant verklaart die te hebben gelezen. Deze offerte is 14 dagen geldig. De klant ontvangt een e-mailbevestiging met deze offerte, de handtekening en het tijdstip van ondertekening.`;
 
 
@@ -399,12 +410,14 @@ function renderPk(){
   el('pk').innerHTML = PAKKETTEN.map(p=>`
     <label class="${S.pakket===p.id?'sel':''}"><input type="radio" name="pk" value="${p.id}" ${S.pakket===p.id?'checked':''} onchange="setPk('${p.id}')">
       <div class="t">${p.naam}</div>
-      <div class="p">${eur(p.eenmalig)} <small>eenmalig · ${eur(p.mnd)}/mnd</small></div>
+      <div class="p">${eur(p.eenmalig)} <small>eenmalig · ${p.marketingOnly ? 'vanaf '+eur(Math.min(...UPSELL.filter(u=>u.prijs).map(u=>u.prijs)))+'/mnd' : eur(p.mnd)+'/mnd'}</small></div>
       <div class="sub">${p.sub}</div>
       <ul>${p.incl.map(i=>`<li>${i}</li>`).join('')}</ul>
     </label>`).join('');
 }
-function setPk(id){ S.pakket=id; if(id==='standaard'){ const b=MODULES.find(m=>m.id==='bezorg'); b.qty=0; } MODULES.forEach(x=>{ if(x.needs && x.qty && !(stationCounts()[x.needs]>0)) x.qty=0; }); renderPk(); renderMods(); renderSpec(); calc(); }
+function setPk(id){ S.pakket=id; if(id==='standaard'){ const b=MODULES.find(m=>m.id==='bezorg'); b.qty=0; } if(pk().marketingOnly){ MODULES.forEach(m=>m.qty=0); specOk={}; } MODULES.forEach(x=>{ if(x.needs && x.qty && !(stationCounts()[x.needs]>0)) x.qty=0; }); applyPkMode(); renderPk(); renderMods(); renderSpec(); renderPosts(); calc(); }
+/* v67: bij 'Alleen marketing' geen stations, hardware of ROI; andere akkoordtekst */
+function applyPkMode(){ const m=!!pk().marketingOnly; ['sec-mods','sec-spec','sec-roi'].forEach(id=>{ const e=el(id); if(e) e.classList.toggle('hidden', m); }); const a=el('akktekst'); if(a) a.textContent=akkoordTekst(); }
 function renderMods(){
   el('mods').innerHTML = MODULES.filter(m=>!(m.alleenKlein && S.pakket!=='klein')).map((m)=>{
     const i=MODULES.indexOf(m);
@@ -419,10 +432,11 @@ function chQty(i,d){ const m=MODULES[i];
   m.qty=Math.min(m.max,Math.max(0,m.qty+d));
   MODULES.forEach(x=>{ if(x.needs && x.qty && !(stationCounts()[x.needs]>0)) x.qty=0; });
   renderMods(); renderSpec(); calc(); }
+function upsPrijs(u){ return u.opAanvraag ? (u.bedrag>0 ? u.bedrag : null) : u.prijs; }
 function renderUps(){
   el('ups').innerHTML = UPSELL.map((u,i)=>`<div class="row ${u.on?'':'off'}">
-      <div class="info"><div class="nm">${u.naam}</div><div class="ds">${u.sub}</div></div>
-      <div class="pr">${eur(u.prijs)}<small>per maand</small></div>
+      <div class="info"><div class="nm">${u.naam}</div><div class="ds">${u.sub}</div>${u.opAanvraag&&u.on?`<div class="ds vk-only" style="margin-top:6px">Afgesproken bedrag (leeg = op aanvraag): € <input type="number" id="ups_bedrag_${u.id}" value="${u.bedrag??''}" min="0" placeholder="op aanvraag" style="width:110px;padding:6px 8px;font-size:14px" oninput="UPSELL[${i}].bedrag=this.value===''?null:+this.value;calc()"> per maand</div>`:''}</div>
+      <div class="pr">${upsPrijs(u)!=null? eur(upsPrijs(u)) : 'op aanvraag'}<small>per maand</small></div>
       <label class="sw"><input type="checkbox" ${u.on?'checked':''} onchange="setUp(${i},this.checked)"><i></i></label>
     </div>`).join('');
 }
@@ -458,16 +472,18 @@ function renderPosts(){
 /* ===== rekenen ===== */
 function totals(){
   const p=pk();
-  const regels=[{type:'pakket',id:p.id,naam:`Pakket ${p.naam}`,aantal:1,prijs:p.eenmalig,totaal:p.eenmalig}];
+  const regels=[{type:'pakket',id:p.id,naam:p.regelNaam||`Pakket ${p.naam}`,aantal:1,prijs:p.eenmalig,totaal:p.eenmalig}];
   let een=p.eenmalig, mnd=p.mnd;
-  MODULES.forEach(m=>{ if(m.qty && !(m.alleenKlein&&S.pakket!=='klein')){ regels.push({type:'module',id:m.id,naam:m.naam,aantal:m.qty,prijs:m.prijs,totaal:m.prijs*m.qty,mnd:m.mnd*m.qty}); een+=m.prijs*m.qty; mnd+=m.mnd*m.qty; } });
-  const ups=[]; UPSELL.forEach(u=>{ if(u.on){ ups.push({type:'upsell',id:u.id,naam:u.naam,prijs:u.prijs}); mnd+=u.prijs; } });
+  if(!p.marketingOnly) MODULES.forEach(m=>{ if(m.qty && !(m.alleenKlein&&S.pakket!=='klein')){ regels.push({type:'module',id:m.id,naam:m.naam,aantal:m.qty,prijs:m.prijs,totaal:m.prijs*m.qty,mnd:m.mnd*m.qty}); een+=m.prijs*m.qty; mnd+=m.mnd*m.qty; } });
+  const ups=[]; UPSELL.forEach(u=>{ if(u.on){ const pr=upsPrijs(u); ups.push({type:'upsell',id:u.id,naam:u.naam,prijs:pr,op_aanvraag:pr==null}); mnd+=pr||0; } });
   let korting=Math.max(0,+val('v_korting')||0); const kmax=Math.floor(een*KORTING_MAX); const kortingTeHoog=korting>kmax;
   const eenNet=een-Math.min(korting,een);
-  return {regels,ups,een,korting,kmax,kortingTeHoog,eenNet,btw:eenNet*BTW,incl:eenNet*(1+BTW),mnd,mndPakket:p.mnd};
+  const mktOntbreekt = !!p.marketingOnly && !UPSELL.some(u=>u.on && !u.opAanvraag);
+  return {regels,ups,een,korting,kmax,kortingTeHoog,eenNet,btw:eenNet*BTW,incl:eenNet*(1+BTW),mnd,mndPakket:p.mnd,marketingOnly:!!p.marketingOnly,mktOntbreekt};
 }
 function roi(t){
   const i={ omzet:+val('r_omzet')||0, best:+val('r_best')||0, platform:+val('r_platform')||0 };
+  if(t.marketingOnly) return {invoer:i,posten:[],bruto:0,netto:-t.mnd,tvt:null,drie:null};
   const bonIn=+val('r_bon'); i.bon = bonIn>0 ? bonIn : (i.best>0 && i.omzet>0 ? i.omzet/(i.best*30) : (i.omzet>0 ? REF.bon : 0));
   if(!i.best && i.omzet>0 && i.bon>0){ i.best = Math.round(i.omzet/(i.bon*30)); el('r_best').placeholder = i.best; }
   if(!bonIn && i.bon) el('r_bon').placeholder = i.bon.toFixed(2);
@@ -488,7 +504,8 @@ let last=null;
 function calc(){
   const t=totals(); const r=roi(t); last={t,r};
   el('b_een').textContent=eur(t.eenNet); el('b_mnd').textContent=eur(t.mnd);
-  el('b_tvt').textContent = r.tvt? r.tvt+" mnd" : (r.bruto>0? "–" : "vul ROI in");
+  el('b_tvt').textContent = r.tvt? r.tvt+" mnd" : (r.bruto>0 || t.marketingOnly? "–" : "vul ROI in");
+  el('mktwarn').classList.toggle('hidden', !t.mktOntbreekt);
   el('res').innerHTML = `
     <div><div class="k">Besparing / mnd</div><div class="v">${eur(r.bruto)}</div></div>
     <div><div class="k">Netto / mnd na abonnement</div><div class="v ${r.netto<0?'neg':''}">${eur(r.netto)}</div></div>
@@ -502,9 +519,9 @@ function calc(){
   rows += `<div class="trow"><span class="l">Eenmalig ex btw</span><span class="r">${eur(t.eenNet)}</span></div>
     <div class="trow"><span class="l">Btw 21%</span><span class="r">${eur2(t.btw)}</span></div>
     <div class="trow big"><span class="l">Eenmalig incl. btw</span><span class="r">${eur2(t.incl)}</span></div></div>
-    <div class="tot"><div class="trow"><span class="l">Abonnement pakket ${pk().naam}</span><span class="r">${eur(t.mndPakket)}/mnd</span></div>`;
+    <div class="tot">` + (t.marketingOnly ? '' : `<div class="trow"><span class="l">Abonnement pakket ${pk().naam}</span><span class="r">${eur(t.mndPakket)}/mnd</span></div>`);
   t.regels.filter(x=>x.mnd).forEach(x=>{ rows += `<div class="trow"><span class="l">${x.aantal>1?x.aantal+'× ':''}${x.naam.replace(' (inrichting)','')}</span><span class="r">+${eur(x.mnd)}/mnd</span></div>`; });
-  t.ups.forEach(u=>{ rows += `<div class="trow"><span class="l">${u.naam}</span><span class="r">+${eur(u.prijs)}/mnd</span></div>`; });
+  t.ups.forEach(u=>{ rows += `<div class="trow"><span class="l">${u.naam}</span><span class="r">${u.prijs!=null? '+'+eur(u.prijs)+'/mnd' : 'op aanvraag'}</span></div>`; });
   rows += `<div class="trow big"><span class="l">Per maand ex btw</span><span class="r">${eur(t.mnd)}</span></div></div>`;
   if(t.kortingTeHoog) rows += `<div class="warn vk-only">Korting boven ${eur(t.kmax)} (10%): offerte blijft concept tot Noah akkoord geeft.</div>`;
   el('ovz').innerHTML = rows;
@@ -525,12 +542,12 @@ function initSig(){
   c.addEventListener('pointerdown',start); c.addEventListener('pointermove',move); window.addEventListener('pointerup',end);
 }
 function clearSig(){ if(S.signed) return; const c=el('sig'); ctx.clearRect(0,0,c.width,c.height); hasSig=false; el('sighint').style.display=''; chkSign(); }
-function chkSign(){ const ok = hasSig && val('s_naam').trim().length>1 && val('k_zaak').trim().length>0 && !S.signed && !S.verzonden; el('signBtn').disabled=!ok; chkSend(); }
-function chkSend(){ const b=el('sendBtn'); if(!b) return; const mailOk=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val('k_mail').trim()); b.disabled = !(sb && lgUser && mailOk && val('k_zaak').trim().length>0 && !S.signed && !S.verzonden); }
+function chkSign(){ const ok = hasSig && val('s_naam').trim().length>1 && val('k_zaak').trim().length>0 && !S.signed && !S.verzonden && !(last&&last.t.mktOntbreekt); el('signBtn').disabled=!ok; chkSend(); }
+function chkSend(){ const b=el('sendBtn'); if(!b) return; const mailOk=/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val('k_mail').trim()); b.disabled = !(sb && lgUser && mailOk && val('k_zaak').trim().length>0 && !S.signed && !S.verzonden && !(last&&last.t.mktOntbreekt)); }
 function sign(){
   if(S.signed) return;
   const now=new Date();
-  S.signed={ door:val('s_naam'), functie:val('s_functie'), op:now.toISOString(), png:el('sig').toDataURL('image/png'), ua:navigator.userAgent, tekst:AKKOORD, methode:'op_locatie', snapshot:JSON.parse(JSON.stringify(last)) };
+  S.signed={ door:val('s_naam'), functie:val('s_functie'), op:now.toISOString(), png:el('sig').toDataURL('image/png'), ua:navigator.userAgent, tekst:akkoordTekst(), methode:'op_locatie', snapshot:JSON.parse(JSON.stringify(last)) };
   renderSigned(); lockAll(); save(); dbSave(true);
 }
 function renderSigned(){
@@ -547,17 +564,17 @@ function buildDoc(){
   const {t,r}=last; const d=S.signed? new Date(S.signed.op): new Date();
   const c=stationCounts();
   const specKeys=Object.keys(SPEC).filter(k=>c[k]>0);
-  let h=`<div class="dh"><div><div class="logo">Reach<b>Connect</b></div><div class="small">Bestelplatform voor horeca · offertes@reachconnect.nl</div></div>
+  let h=`<div class="dh"><div><div class="logo">Reach<b>Connect</b></div><div class="small">${t.marketingOnly?'Marketing & vindbaarheid voor horeca':'Bestelplatform voor horeca'} · offertes@reachconnect.nl</div></div>
     <div class="meta"><b>Offerte ${S.nummer}</b><br>Datum ${new Date().toLocaleDateString('nl-NL')}<br>Geldig 14 dagen<br>Accountmanager: ${val('v_naam')||'—'}</div></div>
     <h2>Klant</h2><div><b>${val('k_zaak')}</b><br>${[val('k_naam'),val('k_adres'),val('k_mail'),val('k_tel')].filter(Boolean).join('<br>')}</div>
     <h2>Eenmalig</h2><table><tr><th>Omschrijving</th><th class="r">Aantal</th><th class="r">Prijs</th><th class="r">Totaal</th></tr>`;
   t.regels.forEach(x=>{ h+=`<tr><td>${x.naam}${x.type==='pakket'?'<br><span class="small">'+pk().incl.join(' · ')+'</span>':''}</td><td class="r">${x.aantal}</td><td class="r">${eur(x.prijs)}</td><td class="r">${eur(x.totaal)}</td></tr>`; });
   if(t.korting>0) h+=`<tr><td colspan=3>Korting</td><td class="r">− ${eur(Math.min(t.korting,t.een))}</td></tr>`;
   h+=`<tr><td colspan=3>Subtotaal ex btw</td><td class="r">${eur(t.eenNet)}</td></tr><tr><td colspan=3>Btw 21%</td><td class="r">${eur2(t.btw)}</td></tr><tr class="tt"><td colspan=3>Eenmalig incl. btw</td><td class="r">${eur2(t.incl)}</td></tr></table>
-    <h2>Maandabonnement</h2><table><tr><td>Pakket ${pk().naam}: hosting, storingsbewaking 24/7, updates, support</td><td class="r">${eur(t.mndPakket)}</td></tr>`;
+    <h2>${t.marketingOnly?'Per maand':'Maandabonnement'}</h2><table>` + (t.marketingOnly ? '' : `<tr><td>Pakket ${pk().naam}: hosting, storingsbewaking 24/7, updates, support</td><td class="r">${eur(t.mndPakket)}</td></tr>`);
   t.regels.filter(x=>x.mnd).forEach(x=>{ h+=`<tr><td>${x.aantal}× ${x.naam.replace(' (inrichting)','')}</td><td class="r">${eur(x.mnd)}</td></tr>`; });
-  t.ups.forEach(u=>{ h+=`<tr><td>${u.naam}</td><td class="r">${eur(u.prijs)}</td></tr>`; });
-  h+=`<tr class="tt"><td>Per maand ex btw · maandelijks opzegbaar · geen commissie per bestelling</td><td class="r">${eur(t.mnd)}</td></tr></table>`;
+  t.ups.forEach(u=>{ const ud=UPSELL.find(x=>x.id===u.id); h+=`<tr><td>${u.naam}${ud&&ud.sub?'<br><span class="small">'+ud.sub.replace(' · prijs op aanvraag','')+'</span>':''}</td><td class="r">${u.prijs!=null? eur(u.prijs) : 'op aanvraag'}</td></tr>`; });
+  h+=`<tr class="tt"><td>Per maand ex btw · maandelijks opzegbaar${t.marketingOnly?'':' · geen commissie per bestelling'}${t.ups.some(u=>u.op_aanvraag)?' · video-content apart geoffreerd':''}</td><td class="r">${eur(t.mnd)}</td></tr></table>`;
   if(r.posten.length){
     h+=`<h2>Wat het oplevert (indicatief, op basis van uw eigen cijfers)</h2><div class="small">Invoer: omzet ${eur(r.invoer.omzet)}/mnd · ${r.invoer.best} bestellingen/dag · gem. bon ${eur2(r.invoer.bon)} · via bezorgplatforms ${eur(r.invoer.platform)}/mnd</div>
       <table><tr><th>Post</th><th>Aanname</th><th class="r">Per maand</th></tr>`;
@@ -566,7 +583,7 @@ function buildDoc(){
       <div class="small" style="margin-top:6px">De getoonde besparingen en opbrengsten zijn indicatief en gebaseerd op de door u opgegeven cijfers en op praktijkcijfers van een bestaande klant. Werkelijke resultaten kunnen verschillen en zijn geen onderdeel van deze overeenkomst.</div>`;
   }
   h+=`<h2>Voorwaarden</h2><div class="vw">${VOORWAARDEN.map((v,i)=>`<p><b>${i+1}. ${v[0]}.</b> ${v[1]}</p>`).join('')}</div>`;
-  h+=`<h2>Akkoord</h2><div class="box">${AKKOORD}</div>`;
+  h+=`<h2>Akkoord</h2><div class="box">${akkoordTekst()}</div>`;
   if(S.signed){
     h+=`<div class="sigbox"><img src="${S.signed.png}" alt="handtekening"><div><b>${S.signed.door}</b>${S.signed.functie?', '+S.signed.functie:''}<br>${val('k_zaak')}<br><span class="small">Ondertekend op ${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL')} via de ReachConnect dealtool · offerte ${S.nummer}</span></div></div>`;
   } else {
@@ -582,14 +599,15 @@ function buildDoc(){
 
 /* ===== opslag (prototype: localStorage) ===== */
 function save(){
-  const data={ S, mods:MODULES.map(m=>m.qty), ups:UPSELL.map(u=>u.on), posts:POSTS.map(p=>({on:p.on,p:p.p})), specOk,
+  const data={ S, mods:MODULES.map(m=>m.qty), ups:UPSELL.map(u=>({id:u.id,on:u.on,bedrag:u.bedrag??null})), posts:POSTS.map(p=>({on:p.on,p:p.p})), specOk,
     f:['k_zaak','k_naam','k_mail','k_tel','k_adres','v_naam','v_korting','v_notitie','r_omzet','r_best','r_bon','r_platform','s_naam','s_functie'].reduce((a,id)=>(a[id]=val(id),a),{}) };
   try{ localStorage.setItem('rc_offerte', JSON.stringify(data)); }catch(e){}
   dbQueue();
 }
 function load(){
   try{ const d=JSON.parse(localStorage.getItem('rc_offerte')||'null'); if(!d) return false;
-    S=d.S; MODULES.forEach((m,i)=>m.qty=d.mods[i]||0); UPSELL.forEach((u,i)=>u.on=!!d.ups[i]); POSTS.forEach((p,i)=>{ if(d.posts[i]){ p.on=d.posts[i].on; Object.assign(p.p,d.posts[i].p);} }); specOk=d.specOk||{};
+    S=d.S; if(!PAKKETTEN.some(p=>p.id===S.pakket)) S.pakket='standaard'; MODULES.forEach((m,i)=>m.qty=d.mods[i]||0);
+    UPSELL.forEach((u,i)=>{ const x=Array.isArray(d.ups)? d.ups.find(y=>y&&typeof y==='object'&&y.id===u.id) : null; if(x){ u.on=!!x.on; if(u.opAanvraag) u.bedrag=x.bedrag??null; } else u.on=false; }); POSTS.forEach((p,i)=>{ if(d.posts[i]){ p.on=d.posts[i].on; Object.assign(p.p,d.posts[i].p);} }); specOk=d.specOk||{};
     Object.entries(d.f).forEach(([id,v])=>{ const e=el(id); if(e) e.value=v; }); return true; }catch(e){ return false; }
 }
 function dealPayload(){
@@ -618,11 +636,11 @@ function applyMode(){ document.body.classList.toggle('klant',S.klantmodus); el('
   if(leadParam && S.lead_id!==leadParam){
     try{ localStorage.removeItem('rc_offerte'); localStorage.removeItem('rc_dbid'); }catch(e){}
     S = { nummer:null, pakket:"standaard", signed:null, klantmodus:false, lead_id:leadParam, verzonden:null };
-    MODULES.forEach(m=>m.qty=0); UPSELL.forEach(u=>u.on=false); specOk={}; had=false;
+    MODULES.forEach(m=>m.qty=0); UPSELL.forEach(u=>{u.on=false; u.bedrag=null;}); specOk={}; had=false;
     ['k_zaak','k_naam','k_mail','k_tel','k_adres','v_korting','v_notitie','s_naam','s_functie'].forEach(id=>{ const e=el(id); if(e) e.value=''; });
   }
   if(!S.nummer) S.nummer=nummer();
-  renderPk(); renderMods(); renderUps(); renderSpec(); renderPosts(); el('akktekst').textContent=AKKOORD; el('vwtekst').innerHTML=VOORWAARDEN.map((v,i)=>`<p style="margin:0 0 8px"><b>${i+1}. ${v[0]}.</b> ${v[1]}</p>`).join(''); el('refline').textContent=`Referentie ${REF.naam} (gemeten): ${eur(REF.omzet)} omzet/mnd via de zuil, ${REF.best} bestellingen/dag, gemiddelde bon ${eur2(REF.bon)}, +${Math.round(REF.bonLift*100)}% bon door de menu-popup.`;
+  applyPkMode(); renderPk(); renderMods(); renderUps(); renderSpec(); renderPosts(); el('akktekst').textContent=akkoordTekst(); el('vwtekst').innerHTML=VOORWAARDEN.map((v,i)=>`<p style="margin:0 0 8px"><b>${i+1}. ${v[0]}.</b> ${v[1]}</p>`).join(''); el('refline').textContent=`Referentie ${REF.naam} (gemeten): ${eur(REF.omzet)} omzet/mnd via de zuil, ${REF.best} bestellingen/dag, gemiddelde bon ${eur2(REF.bon)}, +${Math.round(REF.bonLift*100)}% bon door de menu-popup.`;
   initSig(); calc(); applyMode();
   if(S.signed){ renderSigned(); lockAll(); const img=new Image(); img.onload=()=>{ ctx.drawImage(img,0,0,el('sig').clientWidth,180); }; img.src=S.signed.png; hasSig=true; el('sighint').style.display='none'; }
   if(S.verzonden){ renderSent(); lockAll(); }
@@ -668,7 +686,7 @@ async function dbSave(force){
   if(dbBusy){ dbDirty=true; return; }
   dbBusy=true; dbDirty=false;
   const d=dealPayload();
-  const row={ user_id:lgUser.id, nummer:d.nummer, lead_id:d.lead_id, akkoord_tekst:AKKOORD, status:d.status, prijsmodel_versie:d.prijsmodel_versie, accountmanager:d.accountmanager,
+  const row={ user_id:lgUser.id, nummer:d.nummer, lead_id:d.lead_id, akkoord_tekst:akkoordTekst(), status:d.status, prijsmodel_versie:d.prijsmodel_versie, accountmanager:d.accountmanager,
     zaak_naam:d.klant.zaak, contact_naam:d.klant.contact, email:d.klant.email, telefoon:d.klant.telefoon, adres:d.klant.adres,
     pakket:d.pakket, regels:d.regels, upsell:d.upsell, korting:d.korting, eenmalig_ex:d.eenmalig_ex, btw:d.btw, eenmalig_incl:d.eenmalig_incl,
     maandbedrag_ex:d.maandbedrag_ex, roi:d.roi, speclijst:d.speclijst, notitie:d.notitie, akkoord:d.akkoord, getekend_op: d.akkoord? d.akkoord.op : null };
@@ -699,7 +717,7 @@ async function sendForSign(){
     await dbSave(true);
     if(!dbId) throw new Error('De offerte is nog niet opgeslagen in LeadGen');
     const { data:{ session } } = await sb.auth.getSession();
-    const res = await fetch(LG.url+'/functions/v1/offerte-send', { method:'POST', headers:{ 'Content-Type':'application/json', apikey:LG.anon, Authorization:'Bearer '+session.access_token }, body: JSON.stringify({ offerteId: dbId, email, akkoordTekst: AKKOORD }) });
+    const res = await fetch(LG.url+'/functions/v1/offerte-send', { method:'POST', headers:{ 'Content-Type':'application/json', apikey:LG.anon, Authorization:'Bearer '+session.access_token }, body: JSON.stringify({ offerteId: dbId, email, akkoordTekst: akkoordTekst() }) });
     const body = await res.json().catch(()=>({}));
     if(!res.ok || !body.ok) throw new Error(body.error || 'Versturen mislukt');
     S.verzonden={ op:new Date().toISOString(), naar:email, url:body.url, geldigTot:body.geldigTot, mailError: body.mailError||null };

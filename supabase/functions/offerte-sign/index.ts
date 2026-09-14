@@ -14,7 +14,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
-const DEAL_STATUSSEN = new Set(["deal", "bruto_deal", "monteur_ingepland"]);
+const DEAL_STATUSSEN = new Set(["deal", "bruto_deal", "monteur_ingepland", "geaccepteerd", "actief"]);
 
 // Simpele rate-limit per ip (in-memory, per instance).
 const hits = new Map<string, { n: number; t: number }>();
@@ -158,7 +158,8 @@ Deno.serve(async (req: Request) => {
       if (lead && !DEAL_STATUSSEN.has(lead.status)) {
         // deno-lint-ignore no-explicit-any
         const ctype = (lead as any)?.lead_lists?.campaigns?.type;
-        const nieuw = ctype === "backoffice" ? "bruto_deal" : "deal";
+        // v68: accountmanagement-pipeline -> geaccepteerd (actief volgt pas na betaling).
+        const nieuw = ctype === "backoffice" ? "bruto_deal" : ctype === "accountmanagement" ? "geaccepteerd" : "deal";
         await admin.from("leads").update({ status: nieuw, next_contact_date: null, sale_date: now.toISOString() }).eq("id", lead.id);
         await admin.from("call_logs").insert({
           agent_id: off.user_id,

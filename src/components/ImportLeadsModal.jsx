@@ -825,6 +825,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                             <button type="button" onClick={() => setNewCampaignType('sales')} className={`btn btn-sm ${newCampaignType === 'sales' ? 'btn-primary' : 'btn-outline'}`}>Uitbellen / acquisitie</button>
                             <button type="button" onClick={() => setNewCampaignType('backoffice')} className={`btn btn-sm ${newCampaignType === 'backoffice' ? 'btn-primary' : 'btn-outline'}`}>Backoffice (al gemaakte sales)</button>
+                            <button type="button" onClick={() => setNewCampaignType('accountmanagement')} className={`btn btn-sm ${newCampaignType === 'accountmanagement' ? 'btn-primary' : 'btn-outline'}`}>Accountmanagement</button>
                           </div>
                         </div>
                       )}

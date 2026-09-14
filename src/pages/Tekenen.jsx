@@ -299,7 +299,7 @@ export default function Tekenen() {
                 <tr key={'m' + i}><td>{r.naam}</td><td className="r">{euro(r.mnd)}</td></tr>
               ))}
               {upsell.map((u, i) => (
-                <tr key={'u' + i}><td>{u.naam}</td><td className="r">{euro(u.prijs)}</td></tr>
+                <tr key={'u' + i}><td>{u.naam}</td><td className="r">{u.prijs == null || u.op_aanvraag ? 'op aanvraag' : euro(u.prijs)}</td></tr>
               ))}
               <tr className="tot big"><td>Totaal per maand (excl. btw)</td><td className="r">{euro(o.maandbedrag_ex)}</td></tr>
             </tbody>

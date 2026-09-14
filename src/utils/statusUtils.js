@@ -21,6 +21,11 @@ export const STATUS_MAP = {
   wil_annuleren: { label: 'Wil annuleren', color: 'var(--danger)', bg: 'var(--danger-bg)', description: 'Klant wil annuleren - reden vastgelegd' },
   // v65: offerte ligt bij de klant (tekenlink). Geen eindstatus: de lead komt
   // op next_contact_date vanzelf terug in de wachtrij om na te bellen.
+  // v68: pipeline accountmanagement (nieuw -> gebeld -> offerte gestuurd -> geaccepteerd -> actief, plus afgewezen)
+  gebeld: { label: 'Gebeld', color: 'var(--warning)', bg: 'var(--warning-bg)', description: 'Contact geweest, nog geen offerte' },
+  geaccepteerd: { label: 'Geaccepteerd', color: 'var(--success)', bg: 'var(--success-bg)', description: 'Klant heeft de offerte digitaal geaccepteerd' },
+  actief: { label: 'Actief', color: 'var(--success)', bg: 'var(--success-bg)', description: 'Betaling gelukt, klant is live' },
+  afgewezen: { label: 'Afgewezen', color: 'var(--danger)', bg: 'var(--danger-bg)', description: 'Geen interesse of afgehaakt' },
   offerte_verzonden: { label: 'Offerte verzonden', color: 'var(--info)', bg: 'var(--info-bg)', description: 'Offerte ligt bij de klant - komt op de opvolgdatum terug in de wachtrij' }
 };
 

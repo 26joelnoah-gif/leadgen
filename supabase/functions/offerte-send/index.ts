@@ -16,7 +16,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const EINDSTATUSSEN = new Set(["deal", "bruto_deal", "monteur_ingepland", "geen_interesse", "blacklist", "verkeerd_nummer", "wil_annuleren"]);
+// v68: ook de eindstatussen van de accountmanagement-pipeline (geaccepteerd/actief/afgewezen) niet overschrijven.
+const EINDSTATUSSEN = new Set(["deal", "bruto_deal", "monteur_ingepland", "geen_interesse", "blacklist", "verkeerd_nummer", "wil_annuleren", "geaccepteerd", "actief", "afgewezen"]);
 
 function b64url(bytes: Uint8Array): string {
   let s = "";

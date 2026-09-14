@@ -21,6 +21,7 @@ import Tools from './pages/Tools'
 import LeadBoard from './pages/LeadBoard'
 import Outside from './pages/Outside'
 import Tekenen from './pages/Tekenen'
+import AccountManagement from './pages/AccountManagement'
 import { useToolAccess } from './hooks/useToolAccess'
 import WorkInterface from './components/WorkInterface'
 import FeatureAwareness from './components/FeatureAwareness'
@@ -173,6 +174,16 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Recruitment />
+          </ProtectedRoute>
+        }
+      />
+      {/* v68: werkplek accountmanager (projectsoort accountmanagement); de pagina
+          zelf stuurt terug naar / als je geen accountmanagement-lijst hebt */}
+      <Route
+        path="/accountmanagement"
+        element={
+          <ProtectedRoute>
+            <AccountManagement />
           </ProtectedRoute>
         }
       />

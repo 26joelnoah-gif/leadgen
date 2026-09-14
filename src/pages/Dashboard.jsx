@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
-import { RefreshCw, Phone, Zap, Plus, X, Layers } from 'lucide-react'
+import { RefreshCw, Phone, Zap, Plus, X, Layers, Upload, Sparkles } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
 import { levelInfo } from '../utils/xpUtils'
 import { effectiveSeconds } from '../utils/callTimeUtils'
@@ -15,6 +15,7 @@ import TeamLeaderboard from '../components/TeamLeaderboard'
 import Chat from '../components/Chat'
 import ActivityFeed from '../components/ActivityFeed'
 import Header from '../components/Header'
+import ImportLeadsModal from '../components/ImportLeadsModal'
 import { useToast } from '../components/Toast'
 
 function fmtSecs(totalSeconds) {
@@ -27,7 +28,11 @@ export default function Dashboard() {
   const { user, profile, signOut, isWorking, toggleWorkingMode, startWorkingWithList, isDemoMode, sessionCallCount } = useAuth()
   const toast = useToast()
   const { leads, fetchLeads, createLead } = useLeads()
-  const { leadLists, loading: leadListsLoading } = useLeadLists()
+  const { leadLists: allLeadLists, loading: leadListsLoading } = useLeadLists()
+  // v68: accountmanagement-projecten hebben geen belwachtrij - die krijgen een
+  // eigen kaart naar /accountmanagement en komen niet in de "start met bellen"-select.
+  const amLists = allLeadLists.filter(l => l.campaigns?.type === 'accountmanagement')
+  const leadLists = allLeadLists.filter(l => l.campaigns?.type !== 'accountmanagement')
   const { sources: managedSources, addSource } = useLeadSources() // v56: beheerde bronnen
   const [showNewLeadModal, setShowNewLeadModal] = useState(false)
   const [newLead, setNewLead] = useState({
@@ -42,12 +47,17 @@ export default function Dashboard() {
   const [creating, setCreating] = useState(false)
   const [users, setUsers] = useState([])
   const [selectedListId, setSelectedListId] = useState(null)
+  // v69: beller met het recht "Leads beheren" mag zelf leads importeren voor de
+  // projecten waar hij projectbeheerder van is (ImportLeadsModal filtert daarop).
+  const [showImport, setShowImport] = useState(false)
+  const [importMode, setImportMode] = useState('import')
 
 
 
   const isAdmin = profile?.role === 'admin'
   const isManager = profile?.role === 'manager'
   const isBeller = !isAdmin && !isManager
+  const canImportLeads = isBeller && !!profile?.can_manage_leads
 
   // v26: level/XP + eigen gespreksgeschiedenis voor de beller
   const [myXp, setMyXp] = useState(null)
@@ -168,6 +178,16 @@ export default function Dashboard() {
                 DEMO DATA
               </span>
             )}
+            {canImportLeads && (
+              <>
+                <button className="btn btn-primary btn-sm" onClick={() => { setImportMode('import'); setShowImport(true) }}>
+                  <Upload size={16} /> Leads importeren
+                </button>
+                <button className="btn btn-outline btn-sm" onClick={() => { setImportMode('enrich'); setShowImport(true) }} title="Plak nieuwe info en die wordt bij de juiste bestaande leads gezet">
+                  <Sparkles size={16} /> Leads verrijken
+                </button>
+              </>
+            )}
             {!isBeller && (
               <>
                 <button className="btn btn-secondary btn-sm" onClick={() => setShowNewLeadModal(true)}>
@@ -197,6 +217,23 @@ export default function Dashboard() {
             </div>
             <Link to="/manager" className="btn btn-primary" style={{ padding: '14px 28px', fontWeight: 800, whiteSpace: 'nowrap' }}>
               <Layers size={18} /> Naar Mijn Projecten
+            </Link>
+          </motion.div>
+        )}
+
+        {/* v68: accountmanager - eigen klanten opvolgen */}
+        {!isAdmin && amLists.length > 0 && (
+          <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="card mb-4"
+            style={{ padding: '24px', display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'center', justifyContent: 'space-between', border: '2px solid var(--success)' }}>
+            <div>
+              <div style={{ fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--text-muted)' }}>Accountmanagement</div>
+              <h2 style={{ fontSize: '1.6rem', fontWeight: 900, letterSpacing: '-1px', margin: '4px 0' }}>Jouw klanten opvolgen</h2>
+              <p style={{ color: 'var(--text-muted)', fontWeight: 500, margin: 0 }}>
+                {amLists.map(l => l.name).join(', ')} - vandaag opvolgen, pipeline, offertes sturen.
+              </p>
+            </div>
+            <Link to="/accountmanagement" className="btn btn-primary" style={{ padding: '14px 28px', fontWeight: 800, whiteSpace: 'nowrap' }}>
+              <Phone size={18} /> Naar mijn klanten
             </Link>
           </motion.div>
         )}
@@ -291,7 +328,7 @@ export default function Dashboard() {
           </motion.div>
         )}
 
-        {isBeller && leadLists.length === 0 && !leadListsLoading && (
+        {isBeller && leadLists.length === 0 && amLists.length === 0 && !leadListsLoading && (
           <div className="card mb-4" style={{ padding: '40px 24px', textAlign: 'center', color: 'var(--text-muted)' }}>
             Er is nog geen project aan jou toegewezen. Vraag je manager om je aan een project te koppelen.
           </div>
@@ -476,6 +513,13 @@ export default function Dashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <ImportLeadsModal
+        isOpen={showImport}
+        initialMode={importMode}
+        onClose={() => setShowImport(false)}
+        onImported={() => fetchLeads()}
+      />
 
       <Chat />
     </motion.div>

@@ -7,6 +7,7 @@ import Logo from './Logo'
 import AccountSettingsModal from './AccountSettingsModal'
 import { useToolAccess } from '../hooks/useToolAccess'
 import { useLeadBoardAccess } from '../hooks/useLeadBoardAccess'
+import { useAccountManagementAccess } from '../hooks/useAccountManagement'
 
 export default function Header({ onOpenSettings }) {
   const { profile, signOut, sessionCallCount, toggleWorkingMode, isWorking } = useAuth()
@@ -20,6 +21,8 @@ export default function Header({ onOpenSettings }) {
   const { hasTools } = useToolAccess()
   // v62: tab Leads (gedeelde leadlijst) zodra je minimaal 1 bellijst kunt zien
   const { hasLeadBoard } = useLeadBoardAccess()
+  // v68: tab Klanten zodra je in het team van een accountmanagement-project zit
+  const { hasAccountManagement } = useAccountManagementAccess()
 
   const isAdmin = profile?.role === 'admin'
   const isManager = profile?.role === 'manager'
@@ -54,6 +57,7 @@ export default function Header({ onOpenSettings }) {
       ]
     : [
         { path: '/', label: 'Dashboard' },
+        ...(hasAccountManagement ? [{ path: '/accountmanagement', label: 'Klanten' }] : []),
         ...(hasLeadBoard ? [{ path: '/leads', label: 'Leads' }] : []),
         { path: '/tba', label: 'TBA\'s' },
         ...(canViewEarnings ? [{ path: '/earnings', label: 'Verdiensten' }] : []),

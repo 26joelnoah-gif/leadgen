@@ -72,6 +72,9 @@ export default function Admin() {
   const [todayStats, setTodayStats] = useState({ calls: 0, seconds: 0, afspraken: 0, deals: 0, perAgent: {} })
   const [showEmployee, setShowEmployee] = useState(false)
   const [managingUser, setManagingUser] = useState(null) // manager wiens projecten we koppelen
+  // v69: zelfde modal, maar in 'importer'-modus voor een BELLER die leads mag
+  // importeren voor zijn eigen projecten (blijft beller, kan dus ook bellen).
+  const [managingMode, setManagingMode] = useState('manager')
   const [resettingUser, setResettingUser] = useState(null) // v35: wachtwoord resetten voor deze gebruiker
   const [intensityUser, setIntensityUser] = useState(null) // v43: intensiteit/ingelogde-tijd voor deze gebruiker
   const [showNewProject, setShowNewProject] = useState(false)
@@ -672,7 +675,14 @@ export default function Admin() {
                              <option value="admin">Admin</option>
                           </select>
                           {u.role === 'manager' && (
-                            <button onClick={() => setManagingUser(u)} className="btn btn-outline btn-sm" style={{ whiteSpace: 'nowrap' }}><Shield size={14}/> Projecten &amp; rechten</button>
+                            <button onClick={() => { setManagingMode('manager'); setManagingUser(u) }} className="btn btn-outline btn-sm" style={{ whiteSpace: 'nowrap' }}><Shield size={14}/> Projecten &amp; rechten</button>
+                          )}
+                          {/* v69: een beller mag leads importeren voor de projecten die je
+                              hier aanvinkt. Hij blijft beller, dus bellen blijft gewoon werken. */}
+                          {(u.role === 'employee' || u.role === 'backoffice') && (
+                            <button onClick={() => { setManagingMode('importer'); setManagingUser(u) }} className="btn btn-outline btn-sm" style={{ whiteSpace: 'nowrap' }} title="Voor welke projecten mag deze beller leads importeren?">
+                              <Upload size={14}/> {u.can_manage_leads ? 'Importprojecten' : 'Mag importeren'}
+                            </button>
                           )}
                        </div>
                      )}
@@ -817,9 +827,10 @@ export default function Admin() {
         {managingUser && (
           <ManagerProjectsModal
             isOpen={!!managingUser}
-            onClose={() => setManagingUser(null)}
+            onClose={() => { setManagingUser(null); setManagingMode('manager') }}
             manager={managingUser}
             leadLists={leadLists}
+            mode={managingMode}
             onSaved={fetchData}
           />
         )}
