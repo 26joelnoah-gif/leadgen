@@ -92,7 +92,7 @@ function OutsideGate({ children }) {
   return children
 }
 
-function ProtectedRoute({ children, requireAdmin = false, allowManager = false, allowPlanning = false }) {
+function ProtectedRoute({ children, requireAdmin = false, allowManager = false, allowPlanning = false, allowExtern = false }) {
   const { user, profile, loading, isDemoMode } = useAuth()
 
   if (loading) return (
@@ -128,6 +128,11 @@ function ProtectedRoute({ children, requireAdmin = false, allowManager = false, 
   if (profile?.role === 'planning' && !allowPlanning) {
     return <Navigate to="/roosters" replace />
   }
+  // v77: extern (bv. installateur) ziet alleen Tools. De DB sluit leads,
+  // lijsten en chat voor deze rol af via is_planning() (migration v77).
+  if (profile?.role === 'extern' && !allowExtern) {
+    return <Navigate to="/tools" replace />
+  }
 
   const roleOk = profile?.role === 'admin' || (allowManager && profile?.role === 'manager')
 
@@ -148,6 +153,7 @@ function ProtectedRoute({ children, requireAdmin = false, allowManager = false, 
 function HomeRoute() {
   const { profile } = useAuth()
   if (profile?.role === 'planning') return <Navigate to="/roosters" replace />
+  if (profile?.role === 'extern') return <Navigate to="/tools" replace />
   if (profile?.role === 'recruiter') return <Navigate to="/recruitment" replace />
   return <Dashboard />
 }
@@ -290,7 +296,7 @@ function AppRoutes() {
         element={
           // v61: planning mag hier wel heen; ToolsGate checkt via my_tool_keys
           // of er echt tools aan zijn project hangen.
-          <ProtectedRoute allowPlanning>
+          <ProtectedRoute allowPlanning allowExtern>
             <ToolsGate>
               <Tools />
             </ToolsGate>

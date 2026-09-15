@@ -111,8 +111,14 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
                 <option value="manager">Manager</option>
                 <option value="recruiter">Recruiter</option>
                 <option value="planning">Planning (alleen rooster)</option>
+                <option value="extern">Extern (alleen tools)</option>
                 <option value="admin">Admin</option>
               </select>
+              {role === 'extern' && (
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  Voor iemand van buiten, bijvoorbeeld een installateur. Ziet alleen de tab Tools met de tools die je na het aanmaken aanvinkt via de knop "Tools" op zijn kaart. Geen leads, lijsten, chat of roosters.
+                </p>
+              )}
               {role === 'manager' && (
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
                   Koppel de manager na het aanmaken aan projecten via de knop "Projecten" op zijn kaart.

@@ -31,6 +31,8 @@ export default function Header({ onOpenSettings }) {
   const isBackoffice = profile?.role === 'backoffice'
   // v52: planning-account = alleen roosters doorgeven, geen enkele andere pagina.
   const isPlanning = profile?.role === 'planning'
+  // v77: extern = alleen de tab Tools
+  const isExtern = profile?.role === 'extern'
 
   // v36: recruiter krijgt een eigen, kleine nav - geen sales-dashboard/verdiensten
   // v51: admin kan de Verdiensten-tab per medewerker uitzetten
@@ -38,7 +40,9 @@ export default function Header({ onOpenSettings }) {
   const canViewEarnings = profile?.can_view_earnings !== false
   // v61: planning en recruiter krijgen ook de tab Tools als een project van
   // hen tools heeft (campaign_tools via hun team) - verder blijft hun nav klein.
-  const navLinks = isPlanning
+  const navLinks = isExtern
+    ? [{ path: '/tools', label: 'Tools' }]
+    : isPlanning
     ? [
         { path: '/roosters', label: 'Roosters' },
         ...(hasLeadBoard ? [{ path: '/leads', label: 'Leads' }] : []),

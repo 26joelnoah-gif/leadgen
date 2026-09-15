@@ -129,6 +129,11 @@ const PLANNING_FEATURES = [
   { key: 'pl_note', group: 'Rooster', label: 'Notitie per dag', description: 'Zet er een opmerking bij, bijvoorbeeld "kan pas vanaf 10:00".' }
 ]
 
+// v77: extern account - alleen de tab Tools
+const EXTERN_FEATURES = [
+  { key: 'ex_tools', group: 'Tools', label: 'Tools', description: 'Je ziet alleen de tools die voor jou zijn aangezet, bijvoorbeeld de offerte-tool.' }
+]
+
 // `extra.activeDispositionTypes` = disposition_type van elke flow_settings-rij
 // met is_active !== false (dus wat er daadwerkelijk als knop verschijnt).
 // `extra.customDispositions` = rijen uit custom_dispositions.
@@ -150,6 +155,8 @@ export function getFeaturesForProfile(profile, extra = {}) {
       ]
     case 'planning':
       return PLANNING_FEATURES
+    case 'extern':
+      return EXTERN_FEATURES
     case 'backoffice':
       return [
         ...BACKOFFICE_FEATURES_BASE,

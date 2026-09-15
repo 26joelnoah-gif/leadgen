@@ -12,7 +12,8 @@ export default function MobileNav({ profile }) {
   const canViewEarnings = profile?.can_view_earnings !== false
   // v60: Tools alleen als een project van jou tools heeft (admin altijd)
   const { hasTools } = useToolAccess()
-  const links = [
+  // v77: extern ziet alleen Tools
+  const links = profile?.role === 'extern' ? [{ to: '/tools', label: 'Tools' }] : [
     { to: '/', label: 'Dashboard' },
     { to: '/tba', label: 'TBA\'s' },
     ...(canViewEarnings ? [{ to: '/earnings', label: 'Verdiensten' }] : []),

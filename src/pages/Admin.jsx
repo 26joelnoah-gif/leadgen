@@ -12,7 +12,7 @@ import {
   Plus, Users, Settings, UserPlus, Phone, PhoneOff, Mail,
   UserCheck, Shield, Activity, Download, Play, Zap, Upload,
   X, CheckCircle, AlertTriangle, Bell, Megaphone, Target,
-  DollarSign, Calendar, List, ChevronRight, Layers, Trash2, Search, KeyRound, Tag
+  DollarSign, Calendar, List, ChevronRight, Layers, Trash2, Search, KeyRound, Tag, Wrench
 } from 'lucide-react'
 import { STATUS_MAP } from '../utils/statusUtils'
 import { exportToCSV } from '../utils/exportUtils'
@@ -30,6 +30,7 @@ import EmployeeModal from '../components/EmployeeModal'
 import ResetPasswordModal from '../components/ResetPasswordModal'
 import IntensityModal from '../components/IntensityModal'
 import ManagerProjectsModal from '../components/ManagerProjectsModal'
+import UserToolsModal from '../components/UserToolsModal' // v77
 import NewProjectWizard from '../components/NewProjectWizard'
 import PayoutSettings from '../components/PayoutSettings'
 import ImportLeadsModal from '../components/ImportLeadsModal'
@@ -75,6 +76,7 @@ export default function Admin() {
   // v69: zelfde modal, maar in 'importer'-modus voor een BELLER die leads mag
   // importeren voor zijn eigen projecten (blijft beller, kan dus ook bellen).
   const [managingMode, setManagingMode] = useState('manager')
+  const [toolsUser, setToolsUser] = useState(null) // v77: tools per medewerker
   const [resettingUser, setResettingUser] = useState(null) // v35: wachtwoord resetten voor deze gebruiker
   const [intensityUser, setIntensityUser] = useState(null) // v43: intensiteit/ingelogde-tijd voor deze gebruiker
   const [showNewProject, setShowNewProject] = useState(false)
@@ -189,6 +191,8 @@ export default function Admin() {
           ? 'Recruiter aangemaakt! Het sollicitatieproject "Sollicitanten" staat klaar.'
           : employeeData.role === 'planning'
           ? 'Planning-account aangemaakt! Dit account ziet alleen de roosterpagina. Koppel het aan een team via Lead Beheer > Teams om het in het roosteroverzicht van een project te zien.'
+          : employeeData.role === 'extern'
+          ? 'Extern account aangemaakt! Dit account ziet alleen de tab Tools. Klik op de knop "Tools" op de kaart om aan te vinken welke tools het mag gebruiken.'
           : employeeData.role === 'backoffice'
           ? 'Backoffice-medewerker aangemaakt! Koppel hem/haar aan een team via Lead Beheer > Teams, net als een beller.'
           : 'Medewerker uitnodiging verstuurd!',
@@ -548,7 +552,7 @@ export default function Admin() {
                            </div>
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
-                           <span className={`self-start shrink-0 whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : u.role === 'recruiter' ? 'bg-warning/20 text-warning' : u.role === 'backoffice' ? 'bg-primary/20 text-primary' : u.role === 'planning' ? 'bg-muted/20 text-muted' : 'bg-success/20 text-success'}`}>{u.role === 'employee' ? 'Beller' : u.role === 'recruiter' ? 'Recruiter' : u.role === 'backoffice' ? 'Backoffice' : u.role === 'planning' ? 'Planning' : u.role}</span>
+                           <span className={`self-start shrink-0 whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : u.role === 'recruiter' ? 'bg-warning/20 text-warning' : u.role === 'backoffice' ? 'bg-primary/20 text-primary' : u.role === 'planning' ? 'bg-muted/20 text-muted' : u.role === 'extern' ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}`}>{u.role === 'employee' ? 'Beller' : u.role === 'recruiter' ? 'Recruiter' : u.role === 'backoffice' ? 'Backoffice' : u.role === 'planning' ? 'Planning' : u.role === 'extern' ? 'Extern' : u.role}</span>
                            {u.is_active === false && (
                              <span className="whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-error/20 text-error">Inactief</span>
                            )}
@@ -672,8 +676,13 @@ export default function Admin() {
                              <option value="manager">Manager</option>
                              <option value="recruiter">Recruiter</option>
                              <option value="planning">Planning (alleen rooster)</option>
+                             <option value="extern">Extern (alleen tools)</option>
                              <option value="admin">Admin</option>
                           </select>
+                          {/* v77: tools per medewerker, los van projecten */}
+                          <button onClick={() => setToolsUser(u)} className="btn btn-outline btn-sm" style={{ whiteSpace: 'nowrap' }} title="Welke tools ziet deze persoon altijd, los van projecten?">
+                            <Wrench size={14}/> Tools
+                          </button>
                           {u.role === 'manager' && (
                             <button onClick={() => { setManagingMode('manager'); setManagingUser(u) }} className="btn btn-outline btn-sm" style={{ whiteSpace: 'nowrap' }}><Shield size={14}/> Projecten &amp; rechten</button>
                           )}
@@ -834,6 +843,9 @@ export default function Admin() {
             onSaved={fetchData}
           />
         )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {toolsUser && <UserToolsModal isOpen={!!toolsUser} onClose={() => setToolsUser(null)} targetUser={toolsUser} onSaved={fetchData} />}
       </AnimatePresence>
       <BriefingModal isOpen={showBriefing} onClose={() => setShowBriefing(false)} />
       <CampaignModal isOpen={showCampaign} onClose={() => setShowCampaign(false)} />
