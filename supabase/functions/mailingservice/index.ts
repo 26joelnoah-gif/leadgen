@@ -13,7 +13,7 @@
 //   { mail, email, bedrijfsnaam, contactpersoon?, stad?, website?,
 //     beller: { naam, telefoon? }, lead_id }
 //
-// body van het belscherm: { lead_id, email, contactpersoon?, mail? }
+// body van het belscherm: { lead_id, email, contactpersoon?, mail?, beller_naam? }
 // v70: 'mail' is de mailsoort die de beller koos (infomail/aanmeldmail). Die
 // moet in campaign_mail_services.mail_types van het project staan; zonder
 // keuze pakken we campaign_mail_services.mail_type als standaard.
@@ -62,6 +62,10 @@ Deno.serve(async (req: Request) => {
     const leadId = String(body?.lead_id || "");
     const email = (kort(body?.email, 254) || "").toLowerCase();
     const contactpersoon = kort(body?.contactpersoon, 100);
+    // v74: de beller mag de naam onder de mail zelf invullen (standaard zijn
+    // eigen naam). Alleen voor de ondertekening en de attributie bij de bron;
+    // wie er echt inlogde blijft caller.id in mailservice_logs.
+    const bellerNaam = kort(body?.beller_naam, 100);
     if (!/^[0-9a-f-]{36}$/i.test(leadId)) return json({ error: "Geen lead opgegeven" }, 400);
     if (!EMAIL_RE.test(email)) return json({ error: "Vul een geldig e-mailadres in" }, 400);
 
@@ -124,7 +128,7 @@ Deno.serve(async (req: Request) => {
       ...(kort(lead.city, 80) ? { stad: kort(lead.city, 80) } : {}),
       ...(kort(lead.website, 200) ? { website: kort(lead.website, 200) } : {}),
       beller: {
-        naam: kort(caller.full_name, 100) || String(caller.email || "").split("@")[0] || "Team",
+        naam: bellerNaam || kort(caller.full_name, 100) || String(caller.email || "").split("@")[0] || "Team",
         ...(kort(caller.phone, 30) ? { telefoon: kort(caller.phone, 30) } : {}),
       },
       lead_id: lead.id,

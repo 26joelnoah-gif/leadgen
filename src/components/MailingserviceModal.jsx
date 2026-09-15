@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { X, Send, Mail } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../context/AuthContext'
 import { mailSourceLabel, mailTypesVoor, mailTypeLabel } from '../lib/mailSources'
 
 // v69: Mailingservice vanuit het belscherm. De beller checkt e-mail en
@@ -11,28 +12,38 @@ import { mailSourceLabel, mailTypesVoor, mailTypeLabel } from '../lib/mailSource
 // v70: de beller kiest zelf de mailsoort (infomail of aanmeldmail). Welke
 // soorten mogen staat in campaign_mail_services.mail_types; mail_type is de
 // standaardkeuze. De sleutel gaat als 'mail' mee naar de Edge Function.
+// v74: de naam onder de mail ("Met vriendelijke groet, ...") staat standaard op
+// de naam van het account, maar de beller mag hem aanpassen. Die naam gaat mee
+// als beller_naam en komt ook in de uitnodigingslink terecht, zodat MK bij een
+// aanmelding vastlegt via wie de sale liep. Wie er echt inlogde blijft altijd
+// in mailservice_logs.agent_id staan.
 const EMAIL_RE = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[a-z]{2,}$/i
 
 export default function MailingserviceModal({ lead, defaults, mailService, onClose, onSent }) {
+  const { profile } = useAuth()
+  const eigenNaam = (profile?.full_name || '').trim()
   const soorten = mailTypesVoor(mailService)
   const standaard = soorten.find(t => t.key === mailService?.mail_type)?.key || soorten[0]?.key || 'introductie'
   const [mailType, setMailType] = useState(standaard)
   const [email, setEmail] = useState((defaults?.email || '').trim())
   const [contactpersoon, setContactpersoon] = useState((defaults?.contactpersoon || '').trim())
+  const [bellerNaam, setBellerNaam] = useState(eigenNaam)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
 
   const bron = mailSourceLabel(mailService?.source)
   const dagen = mailService?.follow_up_days || 5
   const emailOk = EMAIL_RE.test(email.trim())
+  const naamOk = bellerNaam.trim().length >= 2
+  const kanVersturen = emailOk && naamOk
 
   async function handleSend() {
-    if (sending || !emailOk) return
+    if (sending || !kanVersturen) return
     setSending(true)
     setError('')
     try {
       const { data, error: fnError } = await supabase.functions.invoke('mailingservice', {
-        body: { lead_id: lead.id, mail: mailType, email: email.trim(), contactpersoon: contactpersoon.trim() || undefined }
+        body: { lead_id: lead.id, mail: mailType, email: email.trim(), contactpersoon: contactpersoon.trim() || undefined, beller_naam: bellerNaam.trim() || undefined }
       })
       if (fnError) {
         // supabase-js geeft bij een foutstatus de body in fnError.context
@@ -104,6 +115,13 @@ export default function MailingserviceModal({ lead, defaults, mailService, onClo
             <label style={labelStyle}>Contactpersoon (voor de aanhef)</label>
             <input type="text" autoComplete="off" value={contactpersoon} onChange={e => setContactpersoon(e.target.value)} placeholder="Voornaam" style={inputStyle} />
           </div>
+          <div>
+            <label style={labelStyle}>Jouw naam (onder de mail, verplicht)</label>
+            <input type="text" autoComplete="off" value={bellerNaam} onChange={e => setBellerNaam(e.target.value)} placeholder="Voornaam Achternaam" style={inputStyle} />
+            <p className="text-muted" style={{ margin: '6px 0 0', fontSize: '0.78rem', lineHeight: 1.4 }}>
+              De mail eindigt met "Met vriendelijke groet, {bellerNaam.trim() || '...'}". Deze naam komt ook mee als het bureau zich aanmeldt, zo zie je van wie de sale is.
+            </p>
+          </div>
 
           {error && (
             <div style={{ background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid var(--danger)', borderRadius: '8px', padding: '10px 12px', fontSize: '0.85rem' }}>{error}</div>
@@ -111,8 +129,8 @@ export default function MailingserviceModal({ lead, defaults, mailService, onClo
 
           <button
             onClick={handleSend}
-            disabled={sending || !emailOk}
-            style={{ background: 'var(--info, #0EA5E9)', color: 'var(--text-on-accent)', padding: '14px', borderRadius: '8px', border: 'none', fontWeight: 800, fontSize: '1rem', cursor: sending || !emailOk ? 'not-allowed' : 'pointer', opacity: sending || !emailOk ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+            disabled={sending || !kanVersturen}
+            style={{ background: 'var(--info, #0EA5E9)', color: 'var(--text-on-accent)', padding: '14px', borderRadius: '8px', border: 'none', fontWeight: 800, fontSize: '1rem', cursor: sending || !kanVersturen ? 'not-allowed' : 'pointer', opacity: sending || !kanVersturen ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
           >
             <Send size={16} /> {sending ? 'VERSTUREN...' : `${mailTypeLabel(mailType).toUpperCase()} VERSTUREN & VOLGENDE`}
           </button>
