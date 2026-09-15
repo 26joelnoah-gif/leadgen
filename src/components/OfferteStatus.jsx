@@ -10,7 +10,7 @@ import { FileSignature, Send, Ban, Copy, ExternalLink } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './Toast'
-import { offerteHrefForLead } from '../hooks/useProjectTools'
+import { offerteHrefForLead, verduurzamingHrefForLead, verduurzamingHrefForOfferte } from '../hooks/useProjectTools'
 
 export const OFFERTE_STATUS = {
   concept: { label: 'Concept', color: 'var(--text-muted)', bg: 'var(--bg-elevated)' },
@@ -40,7 +40,7 @@ export function OfferteChip({ status }) {
   )
 }
 
-const SELECT = 'id, nummer, status, zaak_naam, email, accountmanager, user_id, eenmalig_ex, maandbedrag_ex, verzonden_op, verzonden_naar, sign_token_expires_at, geopend_op, geopend_aantal, getekend_op, herinnering_op, afgewezen_reden, akkoord, updated_at'
+const SELECT = 'id, nummer, status, zaak_naam, email, accountmanager, user_id, eenmalig_ex, eenmalig_incl, maandbedrag_ex, verzonden_op, verzonden_naar, sign_token_expires_at, geopend_op, geopend_aantal, getekend_op, herinnering_op, afgewezen_reden, akkoord, updated_at, soort'
 
 // Offertes van één lead, met realtime-updates (offertes zit in supabase_realtime, v65).
 export function useOffertesForLead(leadId) {
@@ -120,7 +120,7 @@ export function OfferteBriefing({ leadId }) {
 }
 
 // Blok voor de contactkaart: lijst + acties.
-export function OffertesBlok({ lead, canCreate }) {
+export function OffertesBlok({ lead, canCreate, canCreateVerduurzaming }) {
   const { profile } = useAuth()
   const toast = useToast()
   const { offertes, loading } = useOffertesForLead(lead?.id)
@@ -158,11 +158,18 @@ export function OffertesBlok({ lead, canCreate }) {
     <div>
       <div className="text-[10px] font-black uppercase text-muted tracking-widest mb-2" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><FileSignature size={12} /> Offertes ({offertes.length})</span>
+        <span style={{ display: 'flex', gap: 6 }}>
         {canCreate && lead?.id && (
           <a className="btn btn-outline btn-sm" href={offerteHrefForLead(lead.id)} target="_blank" rel="noopener" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>
-            Offerte maken <ExternalLink size={12} />
+            {canCreateVerduurzaming ? 'Offerte bestelplatform' : 'Offerte maken'} <ExternalLink size={12} />
           </a>
         )}
+        {canCreateVerduurzaming && lead?.id && (
+          <a className="btn btn-outline btn-sm" href={verduurzamingHrefForLead(lead.id)} target="_blank" rel="noopener" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>
+            {canCreate ? 'Offerte verduurzaming' : 'Offerte maken'} <ExternalLink size={12} />
+          </a>
+        )}
+        </span>
       </div>
       {loading ? (
         <p className="text-muted" style={{ fontSize: '0.8rem' }}>Laden…</p>
@@ -176,11 +183,14 @@ export function OffertesBlok({ lead, canCreate }) {
             return (
               <div key={o.id} style={{ padding: '10px 12px', background: 'var(--bg-elevated)', borderRadius: 8, borderLeft: `3px solid ${s.color}`, opacity: ['verlopen', 'geannuleerd'].includes(o.status) ? 0.7 : 1 }}>
                 <div className="flex justify-between items-center" style={{ flexWrap: 'wrap', gap: 6 }}>
-                  <span style={{ fontWeight: 700, fontSize: '0.85rem' }} className="mono-num">{o.nummer}</span>
+                  <span style={{ fontWeight: 700, fontSize: '0.85rem' }} className="mono-num">
+                    {o.soort === 'verduurzaming' ? <a href={verduurzamingHrefForOfferte(o.id)} target="_blank" rel="noopener" title="Offerte openen in de tool">{o.nummer}</a> : o.nummer}
+                    {o.soort === 'verduurzaming' && <span className="text-muted" style={{ fontWeight: 500, marginLeft: 6 }}>verduurzaming</span>}
+                  </span>
                   <OfferteChip status={o.status} />
                 </div>
                 <div className="text-muted" style={{ fontSize: '0.75rem', marginTop: 2 }}>
-                  {eur(o.eenmalig_ex)} eenmalig · {eur(o.maandbedrag_ex)}/mnd{o.accountmanager ? ` · ${o.accountmanager}` : ''}
+                  {o.soort === 'verduurzaming' ? `${eur(o.eenmalig_incl ?? o.eenmalig_ex)} incl. btw` : `${eur(o.eenmalig_ex)} eenmalig · ${eur(o.maandbedrag_ex)}/mnd`}{o.accountmanager ? ` · ${o.accountmanager}` : ''}
                 </div>
                 <div className="text-muted" style={{ fontSize: '0.75rem', marginTop: 4, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '1px 10px' }}>
                   {o.verzonden_op && <><span>Verstuurd</span><span>{dt(o.verzonden_op)} naar {o.verzonden_naar}</span></>}

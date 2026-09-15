@@ -35,3 +35,7 @@ export function useProjectTools(listId) {
 // Link naar de offerte-tool, voorgevuld vanuit een lead (de tool haalt naam,
 // contactpersoon, e-mail, telefoon en adres zelf op via ?lead=).
 export const offerteHrefForLead = (leadId) => `/tools/offerte-tool.html?lead=${encodeURIComponent(leadId)}`
+// v76: zelfde idee voor de verduurzaming-tool; ?id= opent een bestaande offerte.
+export const verduurzamingHrefForLead = (leadId) => `/tools/verduurzaming-tool.html?lead=${encodeURIComponent(leadId)}`
+export const verduurzamingHrefForOfferte = (offerteId) => `/tools/verduurzaming-tool.html?id=${encodeURIComponent(offerteId)}`
+export const OFFERTE_TOOL_KEYS = ['offerte_bestelplatform', 'offerte_verduurzaming']

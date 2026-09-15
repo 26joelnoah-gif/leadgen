@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { FileSignature, ExternalLink, RefreshCw, Presentation, Calculator, MapPin } from 'lucide-react'
+import { FileSignature, ExternalLink, RefreshCw, Presentation, Calculator, MapPin, Sun } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import Header from '../components/Header'
 import { TOOLS } from '../lib/tools'
 import { useToolAccess } from '../hooks/useToolAccess'
 import { OfferteChip, OPEN_OFFERTE_STATUSSEN } from '../components/OfferteStatus'
+import { OFFERTE_TOOL_KEYS, verduurzamingHrefForOfferte } from '../hooks/useProjectTools'
 
 // v60: welke kaarten hier staan bepaalt campaign_tools (per project, via
 // useToolAccess); het register van tools staat in src/lib/tools.js.
-const ICONS = { FileSignature, Presentation, Calculator, MapPin }
+const ICONS = { FileSignature, Presentation, Calculator, MapPin, Sun }
 
 // v59: Tools voor accountmanagers. De offerte-tool van het bestelplatform
 // (ReachConnect) is een statische pagina in public/tools/; hij leest de
@@ -36,14 +37,15 @@ export default function Tools() {
   const isAdmin = profile?.role === 'admin' || profile?.role === 'manager'
   const { toolKeys } = useToolAccess()
   const myTools = TOOLS.filter(t => toolKeys.includes(t.key))
-  const hasOfferte = toolKeys.includes('offerte_bestelplatform')
+  // v76: het overzicht toont beide offerte-tools (kolom Soort); een verduurzaming-offerte is via het nummer te heropenen.
+  const hasOfferte = OFFERTE_TOOL_KEYS.some(k => toolKeys.includes(k))
 
   async function load() {
     if (!user?.id || isDemoMode || !hasOfferte) { setLoading(false); return }
     setLoading(true)
     const { data, error } = await supabase
       .from('offertes')
-      .select('id, nummer, status, zaak_naam, accountmanager, pakket, eenmalig_ex, maandbedrag_ex, getekend_op, verzonden_op, geopend_op, geopend_aantal, sign_token_expires_at, lead_id, created_at, updated_at')
+      .select('id, nummer, soort, status, zaak_naam, accountmanager, pakket, eenmalig_ex, maandbedrag_ex, getekend_op, verzonden_op, geopend_op, geopend_aantal, sign_token_expires_at, lead_id, created_at, updated_at')
       .order('updated_at', { ascending: false })
       .limit(200)
     if (!error) setRows(data || [])
@@ -122,7 +124,7 @@ export default function Tools() {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Nummer</th><th>Zaak</th>{isAdmin && <th>Accountmanager</th>}
+                    <th>Nummer</th><th>Soort</th><th>Klant</th>{isAdmin && <th>Accountmanager</th>}
                     <th style={{ textAlign: 'right' }}>Eenmalig</th><th style={{ textAlign: 'right' }}>Per maand</th><th>Status</th><th>Verstuurd</th><th>Geopend</th><th>Geldig tot</th><th>Getekend</th>
                   </tr>
                 </thead>
@@ -130,7 +132,8 @@ export default function Tools() {
                   {shown.map(r => {
                     return (
                       <tr key={r.id}>
-                        <td className="mono-num">{r.nummer}</td>
+                        <td className="mono-num">{r.soort === 'verduurzaming' ? <a href={verduurzamingHrefForOfferte(r.id)} title="Offerte openen">{r.nummer}</a> : r.nummer}</td>
+                        <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{r.soort === 'verduurzaming' ? 'Verduurzaming' : 'Bestelplatform'}</td>
                         <td>{r.zaak_naam}</td>
                         {isAdmin && <td>{r.accountmanager || '—'}</td>}
                         <td style={{ textAlign: 'right' }}>{eur(r.eenmalig_ex)}</td>

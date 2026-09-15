@@ -14,7 +14,7 @@ import { normalizeWebsite, displayWebsite } from '../utils/urlUtils'
 import { getStatusDetails, RECRUITMENT_LABELS } from '../utils/statusUtils'
 import { OfferteBriefing } from './OfferteStatus'
 import { MailStatusBriefing } from './MailStatus'
-import { useProjectTools, offerteHrefForLead } from '../hooks/useProjectTools'
+import { useProjectTools, offerteHrefForLead, verduurzamingHrefForLead } from '../hooks/useProjectTools'
 import { useProjectMailService } from '../hooks/useProjectMailService'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
 import MailingserviceModal from './MailingserviceModal'
@@ -136,6 +136,7 @@ export default function WorkInterface() {
   // lead, voorgevuld (?lead=). Nieuw tabblad, zodat het belscherm blijft staan.
   const { hasTool } = useProjectTools(workingListId || workingLead?.lead_list_id)
   const canMakeOfferte = hasTool('offerte_bestelplatform')
+  const canMakeVerduurzaming = hasTool('offerte_verduurzaming') // v76
 
   // v69: Mailingservice aan in dit project? Dan een extra knop bij de
   // afboekingen. De bron van het project verstuurt de mail; daarna boeken we
@@ -671,7 +672,14 @@ export default function WorkInterface() {
                 <a href={offerteHrefForLead(currentLead.id)} target="_blank" rel="noopener" className="btn btn-outline btn-sm"
                    title="Opent de offerte-tool, voorgevuld met de gegevens van deze lead"
                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                  <FileSignature size={14} /> Offerte maken
+                  <FileSignature size={14} /> {canMakeVerduurzaming ? 'Offerte bestelplatform' : 'Offerte maken'}
+                </a>
+              )}
+              {canMakeVerduurzaming && !isRecruitmentCampaign && (
+                <a href={verduurzamingHrefForLead(currentLead.id)} target="_blank" rel="noopener" className="btn btn-outline btn-sm"
+                   title="Opent de verduurzaming-offerte, voorgevuld met de gegevens van deze lead"
+                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                  <FileSignature size={14} /> {canMakeOfferte ? 'Offerte verduurzaming' : 'Offerte maken'}
                 </a>
               )}
               <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>

@@ -48,6 +48,7 @@ export default function LeadDetailModal({ isOpen, onClose, lead, assignedName, o
   // v66: "Offerte maken" alleen als de offerte-tool in het project van deze lead aanstaat
   const { hasTool } = useProjectTools(lead?.lead_list_id)
   const canMakeOfferte = hasTool('offerte_bestelplatform')
+  const canMakeVerduurzaming = hasTool('offerte_verduurzaming')
   const [callLogs, setCallLogs] = useState([])
   const [loading, setLoading] = useState(false)
 
@@ -364,7 +365,7 @@ export default function LeadDetailModal({ isOpen, onClose, lead, assignedName, o
 
         {/* v65: offertes van deze lead (status, verstuurd/geopend/getekend, acties) */}
         <div style={{ marginBottom: '20px' }}>
-          <OffertesBlok lead={lead} canCreate={canMakeOfferte} />
+          <OffertesBlok lead={lead} canCreate={canMakeOfferte} canCreateVerduurzaming={canMakeVerduurzaming} />
           <MailStatusBlok leadId={lead?.id} />
         </div>
 

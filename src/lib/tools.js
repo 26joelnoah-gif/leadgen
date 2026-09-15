@@ -16,6 +16,20 @@ export const TOOLS = [
     newTab: false,
   },
   {
+    // v76: verduurzaming (zonnepanelen, thuisbatterij, airco, laadpaal, elektra-uren).
+    // Bedrijfsgegevens en standaardprijzen per gebruiker in public.tool_settings.
+    key: 'offerte_verduurzaming',
+    label: 'Offerte-tool verduurzaming',
+    description: 'Zonnepanelen, thuisbatterij, airco, laadpaal en elektrawerk in één offerte, met verwachte besparing en terugverdientijd. Klant tekent op het scherm, daarna PDF downloaden. Eigen bedrijfsgegevens en prijzen stel je in op het tabblad Instellingen.',
+    href: '/tools/verduurzaming-tool.html',
+    cta: 'Nieuwe offerte',
+    icon: 'Sun',
+    color: '#5cb149',
+    bg: 'rgba(92,177,73,0.14)',
+    primary: true,
+    newTab: false,
+  },
+  {
     key: 'presentatie_bestelplatform',
     label: 'Klantpresentatie bestelplatform',
     description: 'De presentatie met Dr. Shawarma als voorbeeld: wat het systeem is, wat het de zaak oplevert en hoe de uitrol gaat. Laat zien vóór je de offerte opent.',
