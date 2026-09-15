@@ -112,6 +112,9 @@ export default function LeadBoard() {
   const [datePrompt, setDatePrompt] = useState(null)
   const [moving, setMoving] = useState(false)
   const [takeover, setTakeover] = useState(null)
+  // v75: admin/manager kan het bord per persoon bekijken ('all' | 'me' | profiel-id)
+  const [wie, setWie] = useState('all')
+  const [mensen, setMensen] = useState([])
   useEffect(() => { try { localStorage.setItem('leadgen-leads-view', view) } catch { /* privemodus */ } }, [view])
   // Bordweergave uit voor dit project? Dan terug naar de lijst.
   useEffect(() => { if (view === 'board' && listId && !boardEnabled) setView('list') }, [view, listId, boardEnabled])
@@ -121,7 +124,7 @@ export default function LeadBoard() {
     if (!silent) setLoading(true)
     const [{ data: rows, error }, { data: locks }] = await Promise.all([
       supabase.from('leads')
-        .select('id, name, phone, email, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, next_contact_date, contact_attempts, created_at, lat, lng')
+        .select('id, name, phone, email, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, lat, lng')
         .eq('lead_list_id', listId)
         .is('deleted_at', null)
         .order('created_at', { ascending: true }),
@@ -177,6 +180,34 @@ export default function LeadBoard() {
       })
     return () => { alive = false }
   }, [leadIdsKey, mailTick, mailService])
+
+  // v75: wie zitten er op dit project? (teams van de campagne + de managers)
+  // Alleen admin/manager heeft dit nodig, voor de keuzelijst "Wie".
+  useEffect(() => {
+    let alive = true
+    const campaignId = currentList?.campaign_id
+    if (!isStaff || !campaignId) { setMensen([]); return }
+    ;(async () => {
+      const [{ data: teams }, { data: mgrs }] = await Promise.all([
+        supabase.from('campaign_teams').select('team_id').eq('campaign_id', campaignId),
+        supabase.from('campaign_managers').select('manager_id').eq('campaign_id', campaignId),
+      ])
+      const teamIds = (teams || []).map(t => t.team_id)
+      let ids = (mgrs || []).map(m => m.manager_id)
+      if (teamIds.length) {
+        const { data: leden } = await supabase.from('team_members').select('profile_id').in('team_id', teamIds)
+        ids = ids.concat((leden || []).map(l => l.profile_id))
+      }
+      ids = [...new Set(ids.filter(Boolean))]
+      if (ids.length === 0) { if (alive) setMensen([]); return }
+      const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', ids).order('full_name')
+      if (alive) setMensen((profs || []).filter(p => p.id !== user?.id))
+    })()
+    return () => { alive = false }
+  }, [isStaff, currentList?.campaign_id, user?.id])
+
+  // Filter "Wie": leads die bij iemand in behandeling zijn of aan hem toegewezen.
+  const vanPersoon = useCallback((l, id) => l.locked_by === id || l.assigned_to === id, [])
 
   const isLockedByOther = useCallback((l) => !!(l.locked_by && l.locked_by !== user?.id), [user?.id])
 
@@ -337,6 +368,8 @@ export default function LeadBoard() {
       .filter(l => {
         if (filter === 'open' && DONE_STATUSES.includes(l.status)) return false
         if (filter === 'done' && !DONE_STATUSES.includes(l.status)) return false
+        if (wie === 'me' && !vanPersoon(l, user?.id)) return false
+        if (wie !== 'all' && wie !== 'me' && !vanPersoon(l, wie)) return false
         if (!q) return true
         return [l.name, l.phone, l.city, l.address, l.contact_person].some(v => (v || '').toLowerCase().includes(q))
       })
@@ -345,7 +378,7 @@ export default function LeadBoard() {
       rows.sort((a, b) => (a._distance ?? Infinity) - (b._distance ?? Infinity))
     }
     return rows
-  }, [leads, filter, q, pos, sortBy])
+  }, [leads, filter, q, pos, sortBy, wie, vanPersoon, user?.id])
   const openCount = leads.filter(l => !DONE_STATUSES.includes(l.status)).length
   const busyCount = leads.filter(isLockedByOther).length
   const actionCount = useMemo(
@@ -460,6 +493,18 @@ export default function LeadBoard() {
                   onChange={e => setSearch(e.target.value)}
                 />
               </div>
+              {/* v75: bord per persoon bekijken (admin/manager) */}
+              <select
+                className="form-control"
+                value={wie}
+                onChange={e => setWie(e.target.value)}
+                title="Van wie wil je de leads zien?"
+                style={{ minWidth: 170, flex: '0 1 auto' }}
+              >
+                <option value="all">Iedereen</option>
+                <option value="me">Mijn leads</option>
+                {isStaff && mensen.map(p => <option key={p.id} value={p.id}>{p.full_name || 'Naamloos'}</option>)}
+              </select>
               <div className="flex gap-2">
                 {[['open', `Open (${openCount})`], ['done', `Afgerond (${leads.length - openCount})`], ['all', `Alles (${leads.length})`]].map(([k, label]) => (
                   <button key={k} type="button" onClick={() => setFilter(k)} className={`btn btn-sm ${filter === k ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 20 }}>
