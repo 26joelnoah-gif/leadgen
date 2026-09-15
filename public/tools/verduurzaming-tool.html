@@ -96,6 +96,11 @@
   .seg{display:flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden}
   .seg button{flex:1;border:0;background:var(--panel2);color:var(--txt);padding:10px;font:inherit;cursor:pointer}
   .seg button.on{background:var(--acc);color:var(--acc-ink);font-weight:600}
+  .scen{margin-top:10px;border:1px dashed var(--line2);border-radius:12px;padding:10px 12px;background:var(--panel2)}
+  .scen-hd{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+  .scen-hd b{color:var(--txt)}
+  .scen input[type=range]{width:100%;margin:10px 0 2px;accent-color:var(--acc)}
+  .scen-lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
   .logoprev{height:60px;max-width:220px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px;display:block;margin-top:6px}
   body.klant .vk-only,body.klant #backLink,body.klant #dbState,body.klant .tabs{display:none!important}
   /* document */
@@ -532,7 +537,7 @@ function tvt(){
   // marge: zelfde besparing, maar x% meer of minder (weer, verbruik, prijzen)
   const m=Math.max(0, num(SET.energie.marge,15))/100;
   const tvtBij=f=>{ let c=0; for(let y=0;y<J;y++){ const tot=jaren[y].tot*f; const prev=c; c+=tot; if(t.investering>0 && c>=t.investering) return y + (tot>0? (t.investering-prev)/tot : 0); } return null; };
-  return { t, jaren, J, jaar1:j1.tot, gem:cum/J, totaal:cum, tvtJaar, tvtProd, netto:cum-t.investering, cumProd, marge:m, tvtSnel:tvtBij(1+m), tvtTraag:tvtBij(1-m) };
+  return { t, jaren, J, jaar1:j1.tot, gem:cum/J, totaal:cum, tvtJaar, tvtProd, netto:cum-t.investering, cumProd, marge:m, tvtBij, tvtSnel:tvtBij(1+m), tvtTraag:tvtBij(1-m) };
 }
 /* grafiek: cumulatieve besparing (met marge-band) tegen de investering */
 function chartSvg(R, W, H, print){
@@ -558,12 +563,51 @@ function chartSvg(R, W, H, print){
     <text x="${W-pr}" y="${(yv(inv)-5).toFixed(1)}" font-size="10" text-anchor="end" fill="${ink}">investering ${eur(inv)}</text>
     <path d="${path(pts(1))}" fill="none" stroke="${col}" stroke-width="2.5"/>
     ${mark(R.tvtSnel,col,'2 3')}${mark(R.tvtTraag,col,'2 3')}${mark(R.tvtJaar,col,'0')}
+    ${print? '' : scenarioSvg(R, x, yv, path, pts, pt, ih, col)}
     <text x="${pl}" y="${pt-3}" font-size="10" fill="${txt}">jaren na installatie · band = ${Math.round(m*100)}% meer of minder besparing</text>
   </svg>`;
+}
+/* scenario (alleen op het scherm): gestippelde lijn + sleepbare knop */
+function scenarioSvg(R, x, yv, path, pts, pt, ih, col){
+  if(!scen) return '';
+  const f=1+scen/100; const tv=R.tvtBij(f);
+  const xm = tv==null? null : x(tv);
+  return `<path d="${path(pts(f))}" fill="none" stroke="#1b2a1e" stroke-width="1.5" stroke-dasharray="4 3" opacity=".8"/>`
+    + (xm==null? '' : `<line x1="${xm.toFixed(1)}" x2="${xm.toFixed(1)}" y1="${pt}" y2="${pt+ih}" stroke="#1b2a1e" stroke-width="1.5"/><circle cx="${xm.toFixed(1)}" cy="${yv(R.t.investering).toFixed(1)}" r="6" fill="#1b2a1e"/>`);
+}
+function setScen(v){ scen=Math.max(-50, Math.min(50, Math.round(num(v)))); const r=el('scen'); if(r) r.value=scen; renderChart(); }
+function renderChart(){
+  const R=last; if(!R) return;
+  const rows=[['zon'],['batt'],['airco'],['laadpaal']].filter(([k])=>S[k].aan);
+  if(!(rows.length && R.t.investering>0)){ el('chart').innerHTML=''; return; }
+  const m=Math.round(R.marge*100);
+  const tv=R.tvtBij(1+scen/100);
+  el('chart').innerHTML = chartSvg(R, 720, 240, false)
+    + `<div class="note">${tvtRange(R)}</div>
+    <div class="scen">
+      <div class="scen-hd"><span>Zelf schuiven: wat als de besparing anders uitpakt?</span><b id="scen_v">${scen>0?'+':''}${scen}% besparing · terugverdiend na ${tv==null? 'meer dan '+R.J+' jaar' : fmtJr(tv)}</b></div>
+      <input type="range" id="scen" min="-${Math.max(m,5)*2}" max="${Math.max(m,5)*2}" step="1" value="${scen}" oninput="setScen(this.value)">
+      <div class="scen-lbl"><span>minder besparing</span><span>gemiddeld</span><span>meer besparing</span></div>
+      <div class="note">Dit is alleen om samen te kijken; het komt niet op de offerte. De cijfers zijn gemiddelden. De echte opbrengst hangt af van het weer, uw verbruik, de energieprijzen en de regels van de overheid.</div>
+    </div>`;
+  // slepen op de grafiek: horizontaal slepen = scenario aanpassen (window-listeners staan in init)
+  const svg=el('chart').querySelector('svg'); if(!svg) return;
+  svg.style.cursor='ew-resize'; svg.style.touchAction='none';
+  svg.addEventListener('pointerdown',e=>{ chartDrag=true; chartDragMove(e); e.preventDefault(); });
+}
+let chartDrag=false;
+function chartDragMove(e){
+  if(!chartDrag||!last) return;
+  const svg=el('chart').querySelector('svg'); if(!svg) return;
+  const b=svg.getBoundingClientRect(); const range=Math.max(Math.round(last.marge*100),5)*2;
+  const rel=(e.clientX-b.left)/b.width;
+  const v=Math.max(-range,Math.min(range,Math.round((rel-0.5)*2*range)));
+  if(v!==scen) setScen(v);
 }
 function tvtRange(R){ if(R.tvtJaar===null) return ''; const a=R.tvtSnel, b=R.tvtTraag; return `Terugverdiend na ongeveer <b>${fmtJr(R.tvtJaar)}</b>${a!=null? ' (tussen '+fmtJr(a)+' en '+(b==null? 'meer dan '+R.J+' jaar' : fmtJr(b))+' bij '+Math.round(R.marge*100)+'% meer of minder besparing)' : ''}.`; }
 function fmtJr(x){ if(x===null||x===undefined) return 'niet binnen looptijd'; if(x<1) return (Math.round(x*12))+' maanden'; return x.toLocaleString('nl-NL',{maximumFractionDigits:1})+' jaar'; }
 
+let scen=0; // scenario-schuif: % meer/minder besparing, alleen op het scherm, niet op de offerte
 let last=null;
 function calc(){
   if(!S) return;
@@ -579,7 +623,7 @@ function calc(){
     <div><div class="k">Terugverdientijd</div><div class="v">${R.tvtJaar===null? (R.jaar1>0?'> '+R.J+' jr':'–') : fmtJr(R.tvtJaar)}</div></div>
     <div><div class="k">Besparing over ${R.J} jaar</div><div class="v">${eur(R.totaal)}</div></div>`;
   const rows=[['zon','Zonnepanelen'],['batt','Thuisbatterij'],['airco','Airco (verwarmen)'],['laadpaal','Laadpaal']].filter(([k])=>S[k].aan);
-  el('chart').innerHTML = (rows.length && t.investering>0)? chartSvg(R, 720, 240, false) + `<div class="note">${tvtRange(R)}</div>` : '';
+  renderChart();
   el('tvt_tabel').innerHTML = rows.length? `<table class="ct"><tr><th>Product</th><th class="r">Investering</th><th class="r">Besparing 1e jaar</th><th class="r">Gemiddeld per jaar</th><th class="r">Terugverdiend</th></tr>${rows.map(([k,n])=>{ const b=R.jaren[0][k]; return `<tr><td>${n}</td><td class="r">${eur(t.perProd[k]||0)}</td><td class="r">${eur(b)}</td><td class="r">${eur(R.cumProd[k]/R.J)}</td><td class="r">${R.tvtProd[k]===undefined? (b>0?'> '+R.J+' jr':'–') : fmtJr(R.tvtProd[k])}</td></tr>`; }).join('')}</table>` : '';
   const sald = S.energie.start<=SET.energie.saldering_tm;
   el('tvt_note').innerHTML = (heeftBesp? `Rekenregels: opbrengst ${SET.energie.kwh_per_kwp} kWh per kWp per jaar (ligging meegerekend), ${sald? 'salderen t/m '+SET.energie.saldering_tm+', daarna ':''}eigen verbruik ${S.energie.eigen}% tegen ${eur2(S.energie.stroom)}/kWh en de rest tegen ${eur2(S.energie.teruglever)}/kWh teruglevering. Energieprijzen stijgen ${SET.energie.stijging}% per jaar, panelen verliezen ${SET.energie.degradatie}% per jaar. Uren en extra regels tellen mee in de investering maar leveren zelf geen besparing op.` : 'Zet een product aan om de besparing te zien.');
@@ -815,6 +859,7 @@ function restoreSigned(){ if(!S.signed) return; renderSigned(); lockAll(); const
   bindSettings(); fillForm(); renderProds(); initSig(); calc(); applyMode();
   restoreSigned();
   window.addEventListener('resize',()=>{ if(!hasSig) initSig(); });
+  window.addEventListener('pointermove',chartDragMove); window.addEventListener('pointerup',()=>{ chartDrag=false; });
   lgInit();
 })();
 </script>
