@@ -36,7 +36,10 @@ import MailingserviceModal from '../components/MailingserviceModal'
 // blijft handmatig op het moment dat jij kiest. De kaarten tonen zelf wanneer er
 // iets moet gebeuren ("Opvolgen", "x dagen niets mee gedaan") en het bord werkt
 // live bij via realtime op leads en lead_mail_status.
-const LOCK_TTL_MS = 10 * 60 * 1000
+// v75: een lead blijft van degene die hem pakt totdat hij hem afboekt of het
+// belscherm sluit; het slot verloopt dus niet meer vanzelf na 10 minuten. Een
+// collega kan hem wel OVERNEMEN (claim_lead met p_force), en dan krijgen
+// allebei een melding (tabel notifications, belletje in de header).
 const POLL_MS = 8000
 const DONE_STATUSES = ['deal', 'bruto_deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer', 'cold', 'blacklist', 'monteur_ingepland', 'wil_annuleren']
 
@@ -108,6 +111,7 @@ export default function LeadBoard() {
   const [mailLead, setMailLead] = useState(null)
   const [datePrompt, setDatePrompt] = useState(null)
   const [moving, setMoving] = useState(false)
+  const [takeover, setTakeover] = useState(null)
   useEffect(() => { try { localStorage.setItem('leadgen-leads-view', view) } catch { /* privemodus */ } }, [view])
   // Bordweergave uit voor dit project? Dan terug naar de lijst.
   useEffect(() => { if (view === 'board' && listId && !boardEnabled) setView('list') }, [view, listId, boardEnabled])
@@ -174,25 +178,48 @@ export default function LeadBoard() {
     return () => { alive = false }
   }, [leadIdsKey, mailTick, mailService])
 
-  const isLockedByOther = useCallback((l) =>
-    !!(l.locked_by && l.locked_by !== user?.id && l.locked_at &&
-    (Date.now() - new Date(l.locked_at).getTime()) < LOCK_TTL_MS), [user?.id])
+  const isLockedByOther = useCallback((l) => !!(l.locked_by && l.locked_by !== user?.id), [user?.id])
+
+  // Pakken, of bewust overnemen van een collega (p_force). Bij een overname
+  // schrijft de database twee meldingen: een voor de collega die de lead
+  // kwijtraakt en een voor jezelf.
+  const claim = useCallback(async (lead, { force = false } = {}) => {
+    const { data, error } = await supabase.rpc('claim_lead', { p_lead_id: lead.id, p_force: force })
+    const row = Array.isArray(data) ? data[0] : data
+    if (error || !row) return null
+    setLeads(prev => prev.map(l => l.id === row.id ? { ...l, locked_by: row.locked_by, locked_at: row.locked_at } : l))
+    return row
+  }, [])
 
   const openLead = useCallback(async (lead) => {
     if (claimingId || isWorking) return
+    if (isLockedByOther(lead)) { setTakeover({ lead, doel: 'open' }); return }
     setClaimingId(lead.id)
-    const { data, error } = await supabase.rpc('claim_lead', { p_lead_id: lead.id })
+    const row = await claim(lead)
     setClaimingId(null)
-    const row = Array.isArray(data) ? data[0] : data
-    if (error || !row) {
+    if (!row) {
       const who = lockNames[lead.id]
       toast(who ? `Deze lead is in behandeling bij ${who}` : 'Deze lead is op dit moment in behandeling bij een collega', 'error')
       load(true)
       return
     }
-    setLeads(prev => prev.map(l => l.id === row.id ? { ...l, locked_by: row.locked_by, locked_at: row.locked_at } : l))
     toggleWorkingMode(row)
-  }, [claimingId, isWorking, lockNames, toast, load, toggleWorkingMode])
+  }, [claimingId, isWorking, isLockedByOther, claim, lockNames, toast, load, toggleWorkingMode])
+
+  // Bevestigd overnemen. Daarna doen we alsnog wat je wilde: openen of slepen.
+  const doeOvername = useCallback(async () => {
+    if (!takeover || claimingId) return
+    const { lead, doel, column } = takeover
+    const who = lockNames[lead.id] || 'een collega'
+    setClaimingId(lead.id)
+    const row = await claim(lead, { force: true })
+    setClaimingId(null)
+    setTakeover(null)
+    if (!row) { toast('Overnemen mislukt', 'error'); load(true); return }
+    toast(`Je hebt de lead overgenomen van ${who}`, 'success')
+    if (doel === 'open') { toggleWorkingMode(row); return }
+    if (doel === 'drop' && column) handleBoardDrop(column, { ...lead, locked_by: row.locked_by, locked_at: row.locked_at })
+  }, [takeover, claimingId, lockNames, claim, toast, load, toggleWorkingMode]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // v64: leads zonder coordinaten alsnog laten geocoderen (admin/manager)
   const missingCoords = leads.filter(l => l.lat == null).length
@@ -238,7 +265,7 @@ export default function LeadBoard() {
 
   function handleBoardDrop(column, lead) {
     if (isLockedByOther(lead)) {
-      toast(`Deze lead is nu in behandeling bij ${lockNames[lead.id] || 'een collega'}`, 'error')
+      setTakeover({ lead, doel: 'drop', column })
       return
     }
     if (column.mail) {
@@ -519,7 +546,7 @@ export default function LeadBoard() {
               <div style={{ display: 'grid', gap: 8 }}>
                 {visible.map(lead => {
                   const busy = isLockedByOther(lead)
-                  const mine = lead.locked_by === user?.id && lead.locked_at && (Date.now() - new Date(lead.locked_at).getTime()) < LOCK_TTL_MS
+                  const mine = lead.locked_by === user?.id
                   const st = getStatusDetails(lead.status)
                   const done = DONE_STATUSES.includes(lead.status)
                   const place = [lead.address && `${lead.address} ${lead.house_number || ''}`.trim(), lead.city].filter(Boolean).join(', ')
@@ -529,11 +556,11 @@ export default function LeadBoard() {
                     <button
                       key={lead.id}
                       type="button"
-                      onClick={() => !busy && openLead(lead)}
-                      disabled={busy || claimingId === lead.id}
+                      onClick={() => openLead(lead)}
+                      disabled={claimingId === lead.id}
                       className="card glow-hover"
                       style={{
-                        textAlign: 'left', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.55 : 1,
+                        textAlign: 'left', cursor: 'pointer', opacity: busy ? 0.55 : 1,
                         display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', margin: 0,
                         border: mine ? '1px solid var(--primary)' : undefined, width: '100%'
                       }}
@@ -594,6 +621,28 @@ export default function LeadBoard() {
             onClose={() => setMailLead(null)}
             onSent={handleMailSent}
           />
+        )}
+
+        {/* v75: overnemen van een collega gaat nooit per ongeluk. */}
+        {takeover && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20, width: '100%', maxWidth: 420, padding: 24, position: 'relative' }}>
+              <button onClick={() => setTakeover(null)} aria-label="Sluiten" style={{ position: 'absolute', top: 14, right: 14, background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
+              <h2 style={{ margin: '0 0 6px', fontSize: '1.1rem' }}>Lead overnemen?</h2>
+              <p className="text-muted" style={{ margin: '0 0 16px', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                <strong style={{ color: 'var(--text-primary)' }}>{lockNames[takeover.lead.id] || 'Een collega'}</strong> heeft{' '}
+                <strong style={{ color: 'var(--text-primary)' }}>{takeover.lead.name}</strong> in behandeling
+                {takeover.lead.locked_at ? ` sinds ${dateShort(takeover.lead.locked_at)}` : ''}.
+                Neem je hem over, dan krijgen jullie allebei een melding.
+              </p>
+              <div className="flex gap-2">
+                <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setTakeover(null)}>Laat staan</button>
+                <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={doeOvername} disabled={!!claimingId}>
+                  {claimingId ? 'Bezig...' : 'Overnemen'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {datePrompt && (

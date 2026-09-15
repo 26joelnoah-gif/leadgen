@@ -10,8 +10,10 @@ import { useAuth } from '../context/AuthContext';
 export default function LeadCard({ lead, onStatusChange, onClaim, loading = false, showLeadScore = false }) {
   const { logCall, user, profile, isWorking } = useAuth();
 
-  const LOCK_TIMEOUT_MS = 5 * 60 * 1000;
-  const isLockedRecently = lead.locked_by && lead.locked_at && (Date.now() - new Date(lead.locked_at).getTime()) < LOCK_TIMEOUT_MS;
+  // v75: een slot verloopt niet meer vanzelf. Heeft een collega de lead in
+  // behandeling, dan blijft dat zo tot hij hem afboekt, loslaat, of iemand hem
+  // bewust overneemt via het bord (pagina Leads).
+  const isLockedRecently = !!lead.locked_by;
   const isLockedByMe = lead.locked_by === user?.id;
   const isLockedByOther = isLockedRecently && !isLockedByMe;
   const isAvailable = lead.call_status === 'available' && !isLockedRecently;

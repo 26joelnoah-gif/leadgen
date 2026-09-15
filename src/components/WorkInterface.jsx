@@ -146,16 +146,16 @@ export default function WorkInterface() {
   // Belwachtrij: leads uit de projectlijst die nu belbaar zijn.
   // Afgeronde statussen vallen eruit, en leads met een terugbelmoment
   // in de toekomst (TBA / later bellen / geen gehoor) wachten tot hun datum.
-  // Leads die een collega op dit moment in behandeling heeft (lock < 10 min
-  // oud) tellen niet mee in de wachtrij.
+  // Leads die een collega in behandeling heeft tellen niet mee in de wachtrij.
+  // v75: dat slot verloopt niet meer vanzelf; overnemen kan bewust via het bord
+  // (pagina Leads), en dan krijgen allebei een melding.
   const DONE_STATUSES = ['deal', 'bruto_deal', 'afspraak_gemaakt', 'geen_interesse', 'onjuiste_timing', 'verkeerd_nummer', 'cold', 'terugbelafspraak']
-  const LOCK_TTL_MS = 10 * 60 * 1000
   const listLeads = workingListId
     ? leads.filter(l =>
         l.lead_list_id === workingListId &&
         (isBackofficeMode ? l.status === 'bruto_deal' : !DONE_STATUSES.includes(l.status)) &&
         (!l.next_contact_date || new Date(l.next_contact_date) <= new Date()) &&
-        (!l.locked_by || l.locked_by === user?.id || !l.locked_at || (Date.now() - new Date(l.locked_at).getTime()) > LOCK_TTL_MS)
+        (!l.locked_by || l.locked_by === user?.id)
       )
     : []
 

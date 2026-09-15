@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { Zap, Settings, LogOut, Phone, Menu, X, Sun, Moon, HelpCircle } from 'lucide-react'
 import Logo from './Logo'
+import NotificationBell from './NotificationBell'
 import AccountSettingsModal from './AccountSettingsModal'
 import { useToolAccess } from '../hooks/useToolAccess'
 import { useLeadBoardAccess } from '../hooks/useLeadBoardAccess'
@@ -136,6 +137,8 @@ export default function Header({ onOpenSettings }) {
         </nav>
 
         <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* v75: meldingen, o.a. als een collega een lead van je overneemt */}
+          <NotificationBell />
           {(profile?.role === 'employee' || isRecruiter || isBackoffice) && (
             <button
               onClick={toggleWorkingMode}
