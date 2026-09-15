@@ -66,3 +66,11 @@ create policy offertes_insert on public.offertes for insert with check (
        or 'offerte_bestelplatform' = any (public.my_tool_keys())
        or 'offerte_verduurzaming' = any (public.my_tool_keys()))
 );
+
+-- 6. (15-09 avond) Eigenaar mag zijn eigen offertes verwijderen, admin alles.
+--    Lezen was al goed: eigen offertes, admin/manager alles, beller via zijn lead.
+drop policy if exists offertes_delete on public.offertes;
+create policy offertes_delete on public.offertes for delete using (
+  (not (organization_id is distinct from public.my_org_id()))
+  and (user_id = auth.uid() or public.is_admin())
+);

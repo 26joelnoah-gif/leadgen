@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { FileSignature, ExternalLink, RefreshCw, Presentation, Calculator, MapPin, Sun } from 'lucide-react'
+import { FileSignature, ExternalLink, RefreshCw, Presentation, Calculator, MapPin, Sun, Trash2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import Header from '../components/Header'
 import { TOOLS } from '../lib/tools'
 import { useToolAccess } from '../hooks/useToolAccess'
 import { OfferteChip, OPEN_OFFERTE_STATUSSEN } from '../components/OfferteStatus'
+import { useToast } from '../components/Toast'
 import { OFFERTE_TOOL_KEYS, verduurzamingHrefForOfferte } from '../hooks/useProjectTools'
 
 // v60: welke kaarten hier staan bepaalt campaign_tools (per project, via
@@ -31,6 +32,7 @@ const dd = (iso) => iso ? new Date(iso).toLocaleDateString('nl-NL', { day: '2-di
 
 export default function Tools() {
   const { user, profile, isDemoMode } = useAuth()
+  const toast = useToast()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState('alle')
@@ -45,13 +47,23 @@ export default function Tools() {
     setLoading(true)
     const { data, error } = await supabase
       .from('offertes')
-      .select('id, nummer, soort, status, zaak_naam, accountmanager, pakket, eenmalig_ex, maandbedrag_ex, getekend_op, verzonden_op, geopend_op, geopend_aantal, sign_token_expires_at, lead_id, created_at, updated_at')
+      .select('id, user_id, nummer, soort, status, zaak_naam, accountmanager, pakket, eenmalig_ex, maandbedrag_ex, getekend_op, verzonden_op, geopend_op, geopend_aantal, sign_token_expires_at, lead_id, created_at, updated_at')
       .order('updated_at', { ascending: false })
       .limit(200)
     if (!error) setRows(data || [])
     setLoading(false)
   }
   useEffect(() => { load() }, [user?.id, hasOfferte])
+
+  // v77: eigen offertes mag je zelf verwijderen (RLS: eigenaar of admin)
+  const magVerwijderen = (r) => profile?.role === 'admin' || r.user_id === user?.id
+  async function verwijder(r) {
+    if (!confirm(`Offerte ${r.nummer} van ${r.zaak_naam || 'onbekend'} definitief verwijderen?`)) return
+    const { error } = await supabase.from('offertes').delete().eq('id', r.id)
+    if (error) { toast(error.message, 'error'); return }
+    setRows(rows => rows.filter(x => x.id !== r.id))
+    toast('Offerte verwijderd', 'success')
+  }
 
   const getekend = rows.filter(r => r.status === 'getekend')
   const somEenmalig = getekend.reduce((a, r) => a + Number(r.eenmalig_ex || 0), 0)
@@ -125,7 +137,7 @@ export default function Tools() {
                 <thead>
                   <tr>
                     <th>Nummer</th><th>Soort</th><th>Klant</th>{isAdmin && <th>Accountmanager</th>}
-                    <th style={{ textAlign: 'right' }}>Eenmalig</th><th style={{ textAlign: 'right' }}>Per maand</th><th>Status</th><th>Verstuurd</th><th>Geopend</th><th>Geldig tot</th><th>Getekend</th>
+                    <th style={{ textAlign: 'right' }}>Eenmalig</th><th style={{ textAlign: 'right' }}>Per maand</th><th>Status</th><th>Verstuurd</th><th>Geopend</th><th>Geldig tot</th><th>Getekend</th><th></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -143,6 +155,7 @@ export default function Tools() {
                         <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{r.geopend_op ? `${dd(r.geopend_op)}${r.geopend_aantal > 1 ? ` (${r.geopend_aantal}×)` : ''}` : '—'}</td>
                         <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{['verzonden', 'geopend'].includes(r.status) ? dd(r.sign_token_expires_at) : '—'}</td>
                         <td style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{dd(r.getekend_op)}</td>
+                        <td>{magVerwijderen(r) && <button className="btn btn-outline btn-sm" onClick={() => verwijder(r)} title="Offerte verwijderen" style={{ color: 'var(--danger)', padding: '4px 8px' }}><Trash2 size={14} /></button>}</td>
                       </tr>
                     )
                   })}
