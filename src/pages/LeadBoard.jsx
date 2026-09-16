@@ -98,6 +98,7 @@ export default function LeadBoard() {
 
   const [leads, setLeads] = useState([])
   const [lockNames, setLockNames] = useState({})
+  const [assignedNames, setAssignedNames] = useState({})
   const [mailRows, setMailRows] = useState({})
   const [mailTick, setMailTick] = useState(0)
   const [loading, setLoading] = useState(false)
@@ -139,6 +140,17 @@ export default function LeadBoard() {
     const map = {}
     ;(locks || []).forEach(r => { map[r.lead_id] = r.full_name })
     setLockNames(map)
+    // Naam van de eigenaar op elke kaart: locked_by komt uit lead_lock_names,
+    // assigned_to (toegewezen zonder dat iemand hem gepakt heeft) via profiles.
+    const assignedIds = [...new Set((rows || []).filter(l => l.assigned_to && !map[l.id]).map(l => l.assigned_to))]
+    if (assignedIds.length) {
+      const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', assignedIds)
+      const byId = {}
+      ;(profs || []).forEach(p => { byId[p.id] = p.full_name })
+      setAssignedNames(byId)
+    } else {
+      setAssignedNames({})
+    }
     setLoading(false)
   }, [listId])
 
@@ -214,6 +226,14 @@ export default function LeadBoard() {
   const vanPersoon = useCallback((l, id) => l.locked_by === id || l.assigned_to === id, [])
 
   const isLockedByOther = useCallback((l) => !!(l.locked_by && l.locked_by !== user?.id), [user?.id])
+  // Naam van wie de lead is (gepakt of toegewezen). Eigen lead = 'Jouw lead'.
+  const ownerLabel = useCallback((l) => {
+    const owner = l.locked_by || l.assigned_to
+    if (!owner) return null
+    if (owner === user?.id) return 'Jouw lead'
+    const naam = (l.locked_by && lockNames[l.id]) || assignedNames[owner]
+    return naam ? `Bij ${naam}` : 'Bij een collega'
+  }, [user?.id, lockNames, assignedNames])
 
   // Pakken, of bewust overnemen van een collega (p_force). Bij een overname
   // schrijft de database twee meldingen: een voor de collega die de lead
@@ -279,6 +299,7 @@ export default function LeadBoard() {
     if (moving) return
     setMoving(true)
     const updates = { status, ...extra, updated_at: new Date().toISOString() }
+    if (boardEnabled && user?.id) updates.assigned_to = user.id // v79: wie een status geeft is eigenaar
     if (status === 'later_bellen' && !('next_contact_date' in extra)) {
       updates.next_contact_date = nextContactOnOtherDaypart(1)
     }
@@ -329,6 +350,9 @@ export default function LeadBoard() {
     const lead = mailLead
     if (!lead) return
     const updates = { status: 'mail_verstuurd', updated_at: new Date().toISOString() }
+    if (boardEnabled && user?.id) updates.assigned_to = user.id // v79
+    // Wie mailt, pakt de lead (zelfde regel als in het belscherm, v75), als hij nog van niemand is.
+    if (!lead.locked_by && user?.id) { updates.locked_by = user.id; updates.locked_at = new Date().toISOString() }
     if (email && email !== (lead.email || '').trim().toLowerCase()) updates.email = email
     if (contactpersoon && contactpersoon !== (lead.contact_person || '').trim()) updates.contact_person = contactpersoon
     const next = new Date()
@@ -352,6 +376,7 @@ export default function LeadBoard() {
     const lead = mailLead
     if (!lead) return
     const updates = { status: 'mail_gepland', next_contact_date: null, updated_at: new Date().toISOString() }
+    if (boardEnabled && user?.id) updates.assigned_to = user.id // v79
     if (email && email !== (lead.email || '').trim().toLowerCase()) updates.email = email
     if (contactpersoon && contactpersoon !== (lead.contact_person || '').trim()) updates.contact_person = contactpersoon
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, ...updates } : l))
@@ -389,8 +414,17 @@ export default function LeadBoard() {
 
   const pos = geo.enabled ? geo.position : null
   const q = search.trim().toLowerCase()
+  // v79: in een bord-project ziet een beller alleen de vrije leads (van
+  // niemand, niet gepakt) plus zijn eigen leads. Wie een lead een status
+  // geeft wordt eigenaar (trigger tr_leads_owner_on_status in de DB).
+  // Admin/manager zien alles en kunnen per persoon kijken.
+  const pool = useMemo(() => {
+    if (isStaff || !boardEnabled) return leads
+    const me = user?.id
+    return leads.filter(l => (!l.assigned_to && !l.locked_by) || l.assigned_to === me || l.locked_by === me)
+  }, [leads, isStaff, boardEnabled, user?.id])
   const visible = useMemo(() => {
-    const rows = leads
+    const rows = pool
       .filter(l => {
         if (filter === 'open' && DONE_STATUSES.includes(l.status)) return false
         if (filter === 'done' && !DONE_STATUSES.includes(l.status)) return false
@@ -404,12 +438,12 @@ export default function LeadBoard() {
       rows.sort((a, b) => (a._distance ?? Infinity) - (b._distance ?? Infinity))
     }
     return rows
-  }, [leads, filter, q, pos, sortBy, wie, vanPersoon, user?.id])
-  const openCount = leads.filter(l => !DONE_STATUSES.includes(l.status)).length
-  const busyCount = leads.filter(isLockedByOther).length
+  }, [pool, filter, q, pos, sortBy, wie, vanPersoon, user?.id])
+  const openCount = pool.filter(l => !DONE_STATUSES.includes(l.status)).length
+  const busyCount = pool.filter(isLockedByOther).length
   const actionCount = useMemo(
-    () => leads.filter(l => !DONE_STATUSES.includes(l.status) && isFollowUpDue(l)).length,
-    [leads]
+    () => pool.filter(l => !DONE_STATUSES.includes(l.status) && isFollowUpDue(l)).length,
+    [pool]
   )
 
   function renderBoardCard(lead) {
@@ -434,9 +468,19 @@ export default function LeadBoard() {
           {mailInfo && <Chip label={mailInfo.label} color={mailInfo.color} bg={mailInfo.bg} title={`${mailTypeLabel(mail.mail_soort)} - ${dateShort(mail.status_op)}`} />}
           {sigs.map(s => <Chip key={s.label} label={s.label} color={s.color} bg={s.bg} />)}
         </div>
+        {mail?.gemaild_op && (
+          <div style={{ fontSize: '0.6rem', marginTop: 3, color: 'var(--text-muted)' }}>
+            Gemaild {dateShort(mail.gemaild_op)}
+          </div>
+        )}
         {lead.next_contact_date && !DONE_STATUSES.includes(lead.status) && (
-          <div style={{ fontSize: '0.6rem', marginTop: 3, color: 'var(--text-muted)', fontWeight: 700 }}>
-            <Clock size={9} style={{ verticalAlign: -1, marginRight: 2 }} />{dateShort(lead.next_contact_date)}
+          <div style={{ fontSize: '0.6rem', marginTop: 3, color: 'var(--text-muted)', fontWeight: 700 }} title="Opvolgdatum: dan komt de lead terug in de wachtrij">
+            <Clock size={9} style={{ verticalAlign: -1, marginRight: 2 }} />Opvolgen {dateShort(lead.next_contact_date)}
+          </div>
+        )}
+        {!busy && ownerLabel(lead) && (
+          <div style={{ fontSize: '0.6rem', marginTop: 3, color: 'var(--primary)', fontWeight: 700 }}>
+            <User size={9} style={{ verticalAlign: -1, marginRight: 2 }} />{ownerLabel(lead)}
           </div>
         )}
         {busy ? (
@@ -477,7 +521,9 @@ export default function LeadBoard() {
           <div>
             <h1>Leads</h1>
             <p className="text-muted" style={{ margin: 0 }}>
-              Iedereen in het project ziet dezelfde lijst. Open je een lead, dan is hij tijdelijk niet beschikbaar voor je collega's.
+              {boardEnabled && !isStaff
+                ? 'Nieuwe leads ziet iedereen. Geef je een lead een status, dan is hij van jou en zien collega\'s hem niet meer.'
+                : 'Iedereen in het project ziet dezelfde lijst. Open je een lead, dan is hij tijdelijk niet beschikbaar voor je collega\'s.'}
             </p>
           </div>
           <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
@@ -527,12 +573,12 @@ export default function LeadBoard() {
                 title="Van wie wil je de leads zien?"
                 style={{ minWidth: 170, flex: '0 1 auto' }}
               >
-                <option value="all">Iedereen</option>
-                <option value="me">Mijn leads</option>
+                <option value="all">{isStaff || !boardEnabled ? 'Iedereen' : 'Nieuw + mijn leads'}</option>
+                <option value="me">{isStaff || !boardEnabled ? 'Mijn leads' : 'Alleen mijn leads'}</option>
                 {isStaff && mensen.map(p => <option key={p.id} value={p.id}>{p.full_name || 'Naamloos'}</option>)}
               </select>
               <div className="flex gap-2">
-                {[['open', `Open (${openCount})`], ['done', `Afgerond (${leads.length - openCount})`], ['all', `Alles (${leads.length})`]].map(([k, label]) => (
+                {[['open', `Open (${openCount})`], ['done', `Afgerond (${pool.length - openCount})`], ['all', `Alles (${pool.length})`]].map(([k, label]) => (
                   <button key={k} type="button" onClick={() => setFilter(k)} className={`btn btn-sm ${filter === k ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 20 }}>
                     {label}
                   </button>
@@ -673,9 +719,9 @@ export default function LeadBoard() {
                         <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', fontWeight: 700, color: 'var(--warning)', background: 'var(--warning-bg)', padding: '4px 10px', borderRadius: 'var(--radius-full)', whiteSpace: 'nowrap' }}>
                           <Lock size={12} /> {lockNames[lead.id] ? `Bij ${lockNames[lead.id]}` : 'In behandeling'}
                         </span>
-                      ) : mine ? (
+                      ) : ownerLabel(lead) ? (
                         <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', fontWeight: 700, color: 'var(--primary)', background: 'var(--info-bg)', padding: '4px 10px', borderRadius: 'var(--radius-full)', whiteSpace: 'nowrap' }}>
-                          <User size={12} /> Jouw lead
+                          <User size={12} /> {ownerLabel(lead)}
                         </span>
                       ) : (
                         <span style={{ fontSize: '0.75rem', fontWeight: 700, color: st.color, background: st.bg, padding: '4px 10px', borderRadius: 'var(--radius-full)', whiteSpace: 'nowrap', opacity: done ? 0.8 : 1 }}>
