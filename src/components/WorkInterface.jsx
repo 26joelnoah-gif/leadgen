@@ -551,6 +551,25 @@ export default function WorkInterface() {
     await submitDisposition('mail_verstuurd', notes, next.toISOString())
   }
 
+  // v78: mail bewaard in de Mailinglijst, nog niet weg. Lead op 'mail_gepland'
+  // zonder opvolgdatum; die komt pas als de mail echt verstuurd is.
+  const handleMailQueued = async ({ email, contactpersoon, source, mailType }) => {
+    const changes = {}
+    if (email && email !== (currentLead.email || '').trim().toLowerCase()) changes.email = email
+    if (contactpersoon && contactpersoon !== (currentLead.contact_person || '').trim()) changes.contact_person = contactpersoon
+    if (Object.keys(changes).length) {
+      const { error } = await supabase.from('leads').update(changes).eq('id', currentLead.id)
+      if (error) {
+        logAppError('mailingservice.leadUpdate', error, { leadId: currentLead.id })
+        toast(`E-mailadres niet opgeslagen: ${foutTekst(error)}`, 'error', 7000)
+      }
+    }
+    const regel = `Mailingservice (${mailSourceLabel(source)}): ${mailTypeLabel(mailType).toLowerCase()} bewaard in de mailinglijst voor ${email}`
+    const notes = dispositionNotes.trim() ? `${regel}. ${dispositionNotes.trim()}` : regel
+    setShowMailModal(false)
+    await submitDisposition('mail_gepland', notes, null)
+  }
+
   const handleFinalDisposition = () => {
     if (!selectedDisposition) return
     submitDisposition(selectedDisposition, dispositionNotes, nextContactDate || null)
@@ -1016,8 +1035,10 @@ export default function WorkInterface() {
                 contactpersoon: editableLead.contact_person ?? currentLead.contact_person
               }}
               mailService={mailService}
+              listId={workingListId || currentLead.lead_list_id}
               onClose={() => setShowMailModal(false)}
               onSent={handleMailSent}
+              onQueued={handleMailQueued}
             />
           )}
 

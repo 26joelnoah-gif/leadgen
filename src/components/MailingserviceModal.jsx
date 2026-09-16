@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { X, Send, Mail } from 'lucide-react'
+import { X, Send, Mail, ListPlus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { mailSourceLabel, mailTypesVoor, mailTypeLabel } from '../lib/mailSources'
@@ -17,10 +17,14 @@ import { mailSourceLabel, mailTypesVoor, mailTypeLabel } from '../lib/mailSource
 // als beller_naam en komt ook in de uitnodigingslink terecht, zodat MK bij een
 // aanmelding vastlegt via wie de sale liep. Wie er echt inlogde blijft altijd
 // in mailservice_logs.agent_id staan.
+// v78: "Bewaren in mailinglijst" zet de mail (soort, adres, naam) klaar in
+// public.mail_queue zonder te versturen. De aanroeper zet de lead via onQueued
+// op 'mail_gepland'. Versturen gebeurt later vanuit de Mailinglijst op /leads,
+// alleen door wie hem bewaarde (of admin / manager van het project).
 const EMAIL_RE = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[a-z]{2,}$/i
 
-export default function MailingserviceModal({ lead, defaults, mailService, onClose, onSent }) {
-  const { profile } = useAuth()
+export default function MailingserviceModal({ lead, defaults, mailService, listId, onClose, onSent, onQueued }) {
+  const { profile, user } = useAuth()
   const eigenNaam = (profile?.full_name || '').trim()
   const soorten = mailTypesVoor(mailService)
   const standaard = soorten.find(t => t.key === mailService?.mail_type)?.key || soorten[0]?.key || 'introductie'
@@ -29,7 +33,9 @@ export default function MailingserviceModal({ lead, defaults, mailService, onClo
   const [contactpersoon, setContactpersoon] = useState((defaults?.contactpersoon || '').trim())
   const [bellerNaam, setBellerNaam] = useState(eigenNaam)
   const [sending, setSending] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const bezig = sending || saving
 
   const bron = mailSourceLabel(mailService?.source)
   const dagen = mailService?.follow_up_days || 5
@@ -37,8 +43,38 @@ export default function MailingserviceModal({ lead, defaults, mailService, onClo
   const naamOk = bellerNaam.trim().length >= 2
   const kanVersturen = emailOk && naamOk
 
+  // v78: niet sturen maar bewaren voor later
+  async function handleQueue() {
+    if (bezig || !kanVersturen || !onQueued) return
+    setSaving(true)
+    setError('')
+    try {
+      const rij = {
+        agent_id: user?.id,
+        lead_id: lead.id,
+        lead_list_id: listId || lead.lead_list_id || null,
+        campaign_id: mailService?.campaign_id || null,
+        organization_id: profile?.organization_id || null,
+        source: mailService?.source || 'MARKETINGKIEZER',
+        mail_type: mailType,
+        email: email.trim().toLowerCase(),
+        contactpersoon: contactpersoon.trim() || null,
+        beller_naam: bellerNaam.trim() || null,
+      }
+      const { error: insErr } = await supabase.from('mail_queue').insert(rij)
+      if (insErr) {
+        if (insErr.code === '23505') throw new Error('Deze mail staat al in de mailinglijst voor deze lead')
+        throw new Error(insErr.message || 'Bewaren mislukt')
+      }
+      await onQueued({ email: rij.email, contactpersoon: contactpersoon.trim(), source: rij.source, mailType })
+    } catch (e) {
+      setError(e.message || 'Bewaren mislukt')
+      setSaving(false)
+    }
+  }
+
   async function handleSend() {
-    if (sending || !kanVersturen) return
+    if (bezig || !kanVersturen) return
     setSending(true)
     setError('')
     try {
@@ -65,7 +101,7 @@ export default function MailingserviceModal({ lead, defaults, mailService, onClo
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '24px', width: '100%', maxWidth: '460px', padding: '28px', position: 'relative' }}>
-        <button onClick={onClose} disabled={sending} aria-label="Sluiten" style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={24} /></button>
+        <button onClick={onClose} disabled={bezig} aria-label="Sluiten" style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={24} /></button>
 
         <h2 style={{ color: 'var(--text-primary)', margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem' }}>
           <Mail size={20} /> MAILINGSERVICE
@@ -129,11 +165,27 @@ export default function MailingserviceModal({ lead, defaults, mailService, onClo
 
           <button
             onClick={handleSend}
-            disabled={sending || !kanVersturen}
-            style={{ background: 'var(--info, #0EA5E9)', color: 'var(--text-on-accent)', padding: '14px', borderRadius: '8px', border: 'none', fontWeight: 800, fontSize: '1rem', cursor: sending || !kanVersturen ? 'not-allowed' : 'pointer', opacity: sending || !kanVersturen ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+            disabled={bezig || !kanVersturen}
+            style={{ background: 'var(--info, #0EA5E9)', color: 'var(--text-on-accent)', padding: '14px', borderRadius: '8px', border: 'none', fontWeight: 800, fontSize: '1rem', cursor: bezig || !kanVersturen ? 'not-allowed' : 'pointer', opacity: bezig || !kanVersturen ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
           >
             <Send size={16} /> {sending ? 'VERSTUREN...' : `${mailTypeLabel(mailType).toUpperCase()} VERSTUREN & VOLGENDE`}
           </button>
+          {onQueued && (
+            <div>
+              <button
+                type="button"
+                onClick={handleQueue}
+                disabled={bezig || !kanVersturen}
+                title="Nog niet versturen. De mail komt in de mailinglijst op de Leads-pagina en gaat pas weg als jij hem daar verstuurt."
+                style={{ width: '100%', background: 'transparent', color: 'var(--text-secondary)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', fontWeight: 700, fontSize: '0.9rem', cursor: bezig || !kanVersturen ? 'not-allowed' : 'pointer', opacity: bezig || !kanVersturen ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+              >
+                <ListPlus size={16} /> {saving ? 'BEWAREN...' : 'BEWAREN IN MAILINGLIJST'}
+              </button>
+              <p className="text-muted" style={{ margin: '6px 0 0', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                Nog niet sturen? Dan staat de mail klaar op de Leads-pagina onder Mailinglijst. De lead gaat op "Mail gepland".
+              </p>
+            </div>
+          )}
         </div>
       </motion.div>
     </div>

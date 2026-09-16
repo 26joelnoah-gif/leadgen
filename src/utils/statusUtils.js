@@ -5,6 +5,9 @@ export const STATUS_MAP = {
   // v69: Mailingservice - de bron van het project heeft een mail gestuurd. Geen
   // eindstatus en geen deal: de lead komt op next_contact_date (standaard +5 dagen) terug.
   mail_verstuurd: { label: 'Mail verstuurd', color: 'var(--info)', bg: 'var(--info-bg)', description: 'Mail is verstuurd via de Mailingservice - komt op de opvolgdatum terug in de wachtrij' },
+  // v78: mail staat klaar in de Mailinglijst (Leads-pagina) maar is nog niet
+  // verstuurd. Geen opvolgdatum; na het versturen gaat de lead op mail_verstuurd.
+  mail_gepland: { label: 'Mail gepland', color: 'var(--info)', bg: 'var(--info-bg)', description: 'Mail staat klaar in de mailinglijst en wordt later verstuurd' },
   voicemail: { label: 'Voicemail', color: 'var(--info)', bg: 'var(--info-bg)' },
   terugbelafspraak: { label: 'Terugbelafspraak', color: 'var(--success)', bg: 'var(--success-bg)' },
   geen_gehoor: { label: 'Geen gehoor', color: 'var(--text-muted)', bg: 'var(--bg-elevated)' },

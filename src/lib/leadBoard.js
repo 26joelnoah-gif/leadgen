@@ -19,6 +19,8 @@ export const SALES_BOARD_COLUMNS = [
     color: 'var(--secondary)', needsDate: true, dateField: 'next_contact_date',
     dateTitle: 'Terugbelmoment', dateLabel: 'Wanneer terugbellen?', dateButton: 'Terugbelafspraak zetten'
   },
+  // v78: mail bewaard in de Mailinglijst, nog niet weg. Slepen opent ook de Mailingservice.
+  { id: 'mail_gepland', label: 'Mail gepland', statuses: ['mail_gepland'], color: 'var(--text-muted)', mail: true },
   { id: 'mail', label: 'Mail verstuurd', statuses: ['mail_verstuurd'], color: 'var(--info)', mail: true },
   { id: 'offerte', label: 'Afspraak / offerte', statuses: ['afspraak_gemaakt', 'offerte_verzonden'], dropStatus: 'afspraak_gemaakt', color: 'var(--secondary)' },
   { id: 'klant', label: 'Klant', statuses: ['deal', 'bruto_deal', 'geaccepteerd', 'actief', 'monteur_ingepland'], dropStatus: 'deal', color: 'var(--success)' },

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X } from 'lucide-react'
+import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X, ListChecks } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
@@ -19,6 +19,7 @@ import EmptyState from '../components/EmptyState'
 import LeadMap from '../components/LeadMap'
 import LeadKanban from '../components/LeadKanban'
 import MailingserviceModal from '../components/MailingserviceModal'
+import MailQueueView from '../components/MailQueueView'
 
 // v62: gedeelde Leadlijst. Iedereen die in een project zit (team, manager,
 // planning-account met projectvlag) ziet ALLE leads van de gekozen lijst en
@@ -40,6 +41,9 @@ import MailingserviceModal from '../components/MailingserviceModal'
 // belscherm sluit; het slot verloopt dus niet meer vanzelf na 10 minuten. Een
 // collega kan hem wel OVERNEMEN (claim_lead met p_force), en dan krijgen
 // allebei een melding (tabel notifications, belletje in de header).
+// v78: weergave "Mailinglijst": mails die in de Mailingservice-popup zijn
+// bewaard (mail_queue) en later per stuk of in een keer verstuurd worden.
+// Zie MailQueueView. De lead staat intussen op 'mail_gepland'.
 const POLL_MS = 8000
 const DONE_STATUSES = ['deal', 'bruto_deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer', 'cold', 'blacklist', 'monteur_ingepland', 'wil_annuleren']
 
@@ -103,7 +107,7 @@ export default function LeadBoard() {
   const [view, setView] = useState(() => {
     try {
       const saved = localStorage.getItem('leadgen-leads-view')
-      return ['map', 'board', 'list'].includes(saved) ? saved : 'list'
+      return ['map', 'board', 'list', 'mail'].includes(saved) ? saved : 'list'
     } catch { return 'list' }
   })
   const [sortBy, setSortBy] = useState('distance') // 'distance' | 'order'
@@ -342,6 +346,26 @@ export default function LeadBoard() {
     toast(`${mailTypeLabel(mailType)} verstuurd naar ${email}`, 'success')
   }
 
+  // v78: mail bewaard voor later. Lead op 'mail_gepland' zonder opvolgdatum;
+  // die komt pas als de mail vanuit de Mailinglijst echt verstuurd is.
+  async function handleMailQueued({ email, contactpersoon, source, mailType }) {
+    const lead = mailLead
+    if (!lead) return
+    const updates = { status: 'mail_gepland', next_contact_date: null, updated_at: new Date().toISOString() }
+    if (email && email !== (lead.email || '').trim().toLowerCase()) updates.email = email
+    if (contactpersoon && contactpersoon !== (lead.contact_person || '').trim()) updates.contact_person = contactpersoon
+    setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, ...updates } : l))
+    const { error } = await supabase.from('leads').update(updates).eq('id', lead.id)
+    setMailLead(null)
+    if (error) {
+      toast('Mail is bewaard, maar de status kon niet worden opgeslagen', 'error')
+      load(true)
+      return
+    }
+    logBoardActivity(lead.id, `Mailingservice (${mailSourceLabel(source)}): ${mailTypeLabel(mailType).toLowerCase()} bewaard in de mailinglijst voor ${email} (bord)`)
+    toast(`${mailTypeLabel(mailType)} bewaard in de mailinglijst`, 'success')
+  }
+
   // Wat vraagt om actie op deze lead?
   const signalsFor = useCallback((lead) => {
     const out = []
@@ -355,7 +379,9 @@ export default function LeadBoard() {
         out.push({ label: `${d} dagen niets mee gedaan`, color: 'var(--danger)', bg: 'var(--danger-bg)' })
       }
     }
-    if (!mail && mailService && !DONE_STATUSES.includes(lead.status) && lead.status !== 'mail_verstuurd') {
+    if (lead.status === 'mail_gepland') {
+      out.push({ label: 'Mail staat klaar', color: 'var(--info)', bg: 'var(--info-bg)' })
+    } else if (!mail && mailService && !DONE_STATUSES.includes(lead.status) && lead.status !== 'mail_verstuurd') {
       out.push({ label: 'Nog niet gemaild', color: 'var(--text-muted)', bg: 'var(--bg-card)' })
     }
     return out
@@ -530,6 +556,11 @@ export default function LeadBoard() {
                   <button type="button" onClick={() => setView('map')} className={`btn btn-sm ${view === 'map' ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 0, border: 0 }} title="Kaart">
                     <MapIcon size={14} /> Kaart
                   </button>
+                  {mailService && (
+                    <button type="button" onClick={() => setView('mail')} className={`btn btn-sm ${view === 'mail' ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 0, border: 0 }} title="Bewaarde mails die nog verstuurd moeten worden">
+                      <ListChecks size={14} /> Mailinglijst
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -565,7 +596,9 @@ export default function LeadBoard() {
               )}
             </div>
 
-            {loading && leads.length === 0 ? (
+            {view === 'mail' ? (
+              <MailQueueView listId={listId} mailService={mailService} onChanged={() => load(true)} />
+            ) : loading && leads.length === 0 ? (
               <LoadingSpinner />
             ) : view === 'board' ? (
               <LeadKanban
@@ -663,8 +696,10 @@ export default function LeadBoard() {
             lead={mailLead}
             defaults={{ email: mailLead.email, contactpersoon: mailLead.contact_person }}
             mailService={mailService}
+            listId={listId}
             onClose={() => setMailLead(null)}
             onSent={handleMailSent}
+            onQueued={handleMailQueued}
           />
         )}
 
