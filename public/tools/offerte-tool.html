@@ -278,6 +278,7 @@
   <div class="b"><div class="k">Eenmalig</div><div class="v acc" id="b_een">€0</div></div>
   <div class="b"><div class="k">Per maand</div><div class="v" id="b_mnd">€0</div></div>
   <div class="b"><div class="k">Terugverdiend</div><div class="v" id="b_tvt">–</div></div>
+  <button class="btn sm vk-only hidden" id="barNieuw" style="padding:8px 12px" onclick="nieuw()">Nieuwe offerte</button>
   <button class="btn acc sm" id="barBtn" style="padding:8px 12px" onclick="barAction()">Naar akkoord</button>
 </div>
 
@@ -555,6 +556,7 @@ function renderSigned(){
   el('signedbox').classList.remove('hidden');
   el('signedbox').innerHTML = `<b>Ondertekend</b> door ${S.signed.door}${S.signed.functie?' ('+S.signed.functie+')':''} op ${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})} · offerte ${S.nummer}.<br><span class="note">Deze offerte is nu vergrendeld. Print of bewaar de PDF en mail hem naar de klant.</span>`;
   el('signBtn').textContent='Ondertekend'; el('signBtn').disabled=true; el('barBtn').textContent='Print / PDF';
+  el('barNieuw').classList.remove('hidden');
 }
 function lockAll(){ document.querySelectorAll('main section.card').forEach((s,i)=>{ if(s.id!=='akkoord') s.classList.add('lock'); }); el('sigwrap').classList.add('lock'); el('s_naam').disabled=true; el('s_functie').disabled=true; }
 
@@ -621,7 +623,7 @@ function exportJson(){
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${S.nummer}_${(val('k_zaak')||'offerte').replace(/[^\w]+/g,'_')}.json`; a.click();
 }
 function nieuw(){
-  if(!confirm('Nieuwe offerte starten? De huidige blijft alleen bewaard als je hem eerst geëxporteerd of geprint hebt.')) return;
+  if(!confirm('Nieuwe offerte starten voor deze klant? De huidige staat in LeadGen onder Tools > Offertes.')) return;
   localStorage.removeItem('rc_offerte'); localStorage.removeItem('rc_dbid'); location.reload();
 }
 function barAction(){ if(S.signed) showDoc(); else document.getElementById('akkoord').scrollIntoView({behavior:'smooth'}); }
@@ -633,7 +635,11 @@ function applyMode(){ document.body.classList.toggle('klant',S.klantmodus); el('
   // v65: geopend vanuit een lead (contactkaart / Outside)? Dan hoort deze offerte bij die lead.
   const leadParam = new URLSearchParams(location.search).get('lead');
   let had=load();
-  if(leadParam && S.lead_id!==leadParam){
+  // Is de offerte die hier nog lokaal staat al getekend of verstuurd, en staat
+  // hij veilig in LeadGen (dbid)? Dan begin je vanuit een lead altijd opnieuw:
+  // een afgeronde offerte blokkeert nooit een nieuwe voor dezelfde klant.
+  const klaarEnBewaard = (S.signed || S.verzonden) && (()=>{ try{ return !!localStorage.getItem('rc_dbid'); }catch(e){ return false; } })();
+  if(leadParam && (S.lead_id!==leadParam || klaarEnBewaard)){
     try{ localStorage.removeItem('rc_offerte'); localStorage.removeItem('rc_dbid'); }catch(e){}
     S = { nummer:null, pakket:"standaard", signed:null, klantmodus:false, lead_id:leadParam, verzonden:null };
     MODULES.forEach(m=>m.qty=0); UPSELL.forEach(u=>{u.on=false; u.bedrag=null;}); specOk={}; had=false;
@@ -730,6 +736,7 @@ async function sendForSign(){
 function renderSent(){
   if(!S.verzonden) return; const v=S.verzonden; const d=new Date(v.op);
   el('sentbox').classList.remove('hidden');
+  el('barNieuw').classList.remove('hidden');
   el('sentbox').innerHTML = `<b>Verstuurd ter ondertekening</b> naar ${v.naar} op ${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})} · geldig tot ${v.geldigTot||'-'}.`
     + (v.mailError? `<br><span style="color:var(--err)">De mail kon niet verstuurd worden (${v.mailError}). Stuur de link zelf door.</span>`:'')
     + `<br><span class="note">De status (geopend, getekend) zie je in LeadGen bij de lead en onder Tools › Offertes.</span>`

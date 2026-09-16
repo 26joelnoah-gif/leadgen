@@ -66,6 +66,7 @@
   .res .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
   .res .v{font-size:20px;font-weight:700;color:var(--acc);margin-top:2px}
   .note{font-size:12px;color:var(--muted);margin-top:8px}
+  .conceptbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;justify-content:space-between;background:#fff7e6;border:1px solid #f0d9a8;color:#6b5320;border-radius:12px;padding:10px 14px;margin-bottom:12px;font-size:13px}
   .warn{background:#fff7e0;border:1px solid #f0d58a;color:#8a6100;border-radius:10px;padding:10px 12px;font-size:13px;margin-top:10px}
   .err{background:rgba(255,92,92,.1);border:1px solid rgba(255,92,92,.4);color:var(--err);border-radius:10px;padding:10px 12px;font-size:13px;margin-top:10px}
   table.ct{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px}
@@ -101,6 +102,12 @@
   .scen-hd b{color:var(--txt)}
   .scen input[type=range]{width:100%;margin:10px 0 2px;accent-color:var(--acc)}
   .scen-lbl{display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+  .fotogrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-top:12px}
+  .fotoitem{border:1px solid var(--line);border-radius:10px;padding:8px;background:var(--panel2)}
+  .fotoitem img{width:100%;height:120px;object-fit:cover;border-radius:8px;display:block;background:#fff}
+  .fotoitem input{margin-top:6px;width:100%}
+  .fotoitem .btns{margin-top:6px;gap:4px}
+  .fotoleeg{color:var(--muted);font-size:13px;margin-top:10px}
   .logoprev{height:60px;max-width:220px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px;display:block;margin-top:6px}
   body.klant .vk-only,body.klant #backLink,body.klant #dbState,body.klant .tabs{display:none!important}
   /* document */
@@ -144,6 +151,7 @@
     <a class="chip" href="/tools" id="backLink">← LeadGen</a>
     <span id="h_nr" class="chip">VD-…</span>
     <span id="dbState" class="chip" title="Opslag in LeadGen">…</span>
+    <button class="chip vk-only" id="nieuwBtn" onclick="nieuw()">+ Nieuwe offerte</button>
     <button class="chip" id="modeBtn" onclick="toggleMode()">Klantweergave</button>
   </div>
 </header>
@@ -153,6 +161,10 @@
 </div>
 
 <main id="view-offerte">
+  <div class="conceptbar vk-only hidden" id="conceptbar">
+    <div id="conceptbar_txt"></div>
+    <button class="btn acc sm" type="button" onclick="nieuw()">Nieuwe offerte beginnen</button>
+  </div>
   <section class="card">
     <h2><span class="n">1</span>Klant</h2>
     <div class="grid" style="margin-top:12px">
@@ -171,7 +183,7 @@
 
   <section class="card">
     <h2><span class="n">2</span>Producten</h2>
-    <div class="sub">Zet aan wat de klant wil. Prijzen komen uit je instellingen en zijn per offerte aan te passen.</div>
+    <div class="sub vk-only">Zet aan wat de klant wil. Prijzen komen uit je instellingen en zijn per offerte aan te passen.</div>
     <div id="prods"></div>
 
     <h3>Elektrawerkzaamheden (uren)</h3>
@@ -186,7 +198,7 @@
 
   <section class="card">
     <h2><span class="n">3</span>Verwachte besparing en terugverdientijd</h2>
-    <div class="sub">Standaardformules met de energieprijzen uit je instellingen. Vul het verbruik van de klant in.</div>
+    <div class="sub vk-only">Standaardformules met de energieprijzen uit je instellingen. Vul het verbruik van de klant in.</div>
     <div class="grid3" style="margin-top:12px">
       <div><label class="f">Stroomverbruik (kWh/jaar)</label><input type="number" id="e_verbruik" inputmode="numeric" oninput="upd()"></div>
       <div><label class="f">Stroomprijs (€/kWh)</label><input type="number" id="e_stroom" step="0.01" inputmode="decimal" oninput="upd()"></div>
@@ -252,6 +264,23 @@
       <div><label class="f">Website</label><input type="text" id="b_web" data-set="bedrijf.web"></div>
       <div class="full"><label class="f">Logo (png of jpg)</label><input type="file" id="b_logo" accept="image/*" onchange="logoUpload(this)"><img id="b_logoprev" class="logoprev hidden" alt="logo"><div class="btns" style="margin-top:6px"><button class="btn sm" onclick="logoClear()">Logo verwijderen</button></div></div>
     </div>
+  </section>
+
+  <section class="card">
+    <h2>Foto's van eigen werk</h2>
+    <div class="sub">Deze foto's krijgen een eigen pagina in de offerte, vlak voor het overzicht. Ze worden bij jouw account bewaard.</div>
+    <label class="chk" style="margin-top:10px"><input type="checkbox" id="f_aan" onchange="fotosAan(this.checked)"> Fotopagina in de offerte tonen</label>
+    <div class="grid" style="margin-top:12px">
+      <div><label class="f">Kop op de pagina</label><input type="text" data-set="opties.fotos_titel"></div>
+      <div><label class="f">Zin onder de kop</label><input type="text" data-set="opties.fotos_intro"></div>
+    </div>
+    <div id="fotolijst" class="fotogrid"></div>
+    <div class="btns" style="margin-top:10px">
+      <input type="file" id="f_file" accept="image/*" multiple class="hidden" onchange="fotoUpload(this)">
+      <button class="btn acc sm" type="button" onclick="el('f_file').click()">Foto's toevoegen</button>
+      <button class="btn sm" type="button" onclick="fotosReset()">Standaardfoto's terugzetten</button>
+    </div>
+    <div class="note">Maximaal 6 foto's. Ze worden automatisch verkleind, zodat de PDF licht blijft.</div>
   </section>
 
   <section class="card">
@@ -332,6 +361,7 @@
   <div class="b"><div class="k">Totaal</div><div class="v acc" id="b_tot">€0</div></div>
   <div class="b"><div class="k">Besparing / jaar</div><div class="v" id="b_besp">€0</div></div>
   <div class="b"><div class="k">Terugverdiend</div><div class="v" id="b_tvt">–</div></div>
+  <button class="btn sm vk-only hidden" id="barNieuw" onclick="nieuw()">Nieuwe offerte</button>
   <button class="btn acc sm" id="barBtn" onclick="barAction()">Naar akkoord</button>
 </div>
 
@@ -339,6 +369,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="verduurzaming-fotos.js"></script>
 <script>
 /* ===== Offerte-tool verduurzaming (v76) =====
    Zonnepanelen, thuisbatterij, airco, laadpaal, elektra-uren en vrije regels.
@@ -371,9 +402,11 @@ Vaste prijs, geen verrassingen achteraf
 Snelle planning en nette afwerking
 Persoonlijk advies, ook na de installatie`;
 const DEFAULTS = {
-  bedrijf:{ naam:'GreenLine Installaties', adres:'Zoetendaal 47', plaats:'6662 XH Elst', kvk:'91593980', btw:'', iban:'', tel:'06-17239332', email:'info@greenlineinstallaties.nl', web:'', logo:GREENLINE_LOGO },
+  bedrijf:{ naam:'GreenLine Installaties', adres:'Zoetendaal 47', plaats:'6662 XH Elst', kvk:'91593980', btw:'', iban:'', tel:'+31 6 47028507', email:'info@greenlineinstallaties.nl', web:'', logo:GREENLINE_LOGO },
   prijzen:{ paneel:380, wp:440, omvormer:900, montage:600, btw_zon:0, batt_kwh:10, batterij:4500, btw_batt:21, airco:1800, btw_airco:21, laadpaal:1250, btw_laadpaal:21, uurtarief:65, btw_uren:21 },
   energie:{ stroom:0.28, teruglever:0.06, gas:1.35, verbruik:3000, eigen:30, saldering_tm:2026, terugleverkosten:0, stijging:2, degradatie:0.5, kwh_per_kwp:900, cycli:250, batt_rend:90, scop:4, airco_m3:150, publiek:0.55, kwh_100km:18, jaren:25, marge:15 },
+  opties:{ fotos_aan:true, fotos_titel:'Ons werk', fotos_intro:"Een paar foto's van installaties die wij zelf hebben geplaatst." },
+  fotos: null, /* null = standaardfoto's uit verduurzaming-fotos.js */
   tekst:{ geldig:14, betaaltermijn:14, garantie_installatie:2, intro:STD_INTRO, usps:STD_USPS, akkoord:STD_AKKOORD, voorwaarden:STD_VOORWAARDEN },
 };
 const ORIENT = [ ['zuid','Zuid',1.0], ['zo_zw','Zuidoost / zuidwest',0.95], ['oost_west','Oost / west',0.85], ['noord','Noord',0.65] ];
@@ -690,6 +723,7 @@ function sign(){
 function renderSigned(){
   if(!S.signed) return; const d=new Date(S.signed.op);
   el('signedbox').classList.remove('hidden');
+  el('barNieuw').classList.remove('hidden');
   el('signedbox').innerHTML = `<b>Ondertekend</b> door ${esc(S.signed.door)} op ${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})} · offerte ${S.nummer}.<br><span class="note">Deze offerte is nu vergrendeld. Download de PDF en mail hem naar de klant.</span>`;
   el('signBtn').textContent='Ondertekend'; el('signBtn').disabled=true; el('barBtn').textContent='Download PDF';
 }
@@ -728,7 +762,7 @@ function buildDoc(){
   el('doc').innerHTML=h;
 }
 function pdfNaam(){ return `${S.nummer}_${(S.klant.naam||'offerte').replace(/[^\w]+/g,'_')}.pdf`; }
-/* ===== PDF: direct opgebouwd met jsPDF (voorblad, uitgelichte producten, overzicht + handtekening, voorwaarden) ===== */
+/* ===== PDF: direct opgebouwd met jsPDF (voorblad, uitgelichte producten, ons werk, overzicht + handtekening, voorwaarden) ===== */
 const PROD_INFO = {
   zon:{ naam:'Zonnepanelen', uitleg:'U wekt uw eigen stroom op. Overdag gebruikt u die direct, de rest levert u terug aan het net. Zo betaalt u elk jaar minder aan uw energieleverancier.' },
   batt:{ naam:'Thuisbatterij', uitleg:'Slaat de zonnestroom van overdag op, zodat u die \'s avonds zelf gebruikt in plaats van terug te leveren. Vooral na het einde van de salderingsregeling levert dit op.' },
@@ -736,6 +770,16 @@ const PROD_INFO = {
   laadpaal:{ naam:'Laadpaal', uitleg:'Thuis laden is goedkoper dan openbaar laden. Met zonnepanelen rijdt u voor een deel op uw eigen stroom.' },
 };
 function loadImg(src){ return new Promise((ok,err)=>{ const i=new Image(); i.onload=()=>ok(i); i.onerror=err; i.src=src; }); }
+async function coverJpeg(src, ratio){
+  const im=await loadImg(src);
+  const H=Math.min(900, im.height), W2=Math.min(1400, Math.round(H*ratio));
+  const c=document.createElement('canvas'); c.width=W2; c.height=Math.round(W2/ratio);
+  const g=c.getContext('2d'); g.fillStyle='#fff'; g.fillRect(0,0,c.width,c.height);
+  const sc=Math.max(c.width/im.width, c.height/im.height);
+  const dw=im.width*sc, dh=im.height*sc;
+  g.drawImage(im, (c.width-dw)/2, (c.height-dh)/2, dw, dh);
+  return c.toDataURL('image/jpeg',0.82);
+}
 async function svgToPng(svg, w, h){
   const src=svg.replace('<svg ', '<svg xmlns="http://www.w3.org/2000/svg" ').replace('width="100%"', `width="${w}" height="${h}"`).replace(/style="[^"]*"/,'');
   const img=await loadImg('data:image/svg+xml;charset=utf-8,'+encodeURIComponent(src));
@@ -818,6 +862,30 @@ async function buildPdf(){
     overig.forEach(x=>{ setF(9.5,'normal',INK); doc.text(`${x.uren? x.aantal+' uur' : x.aantal+'x'}  ${x.naam}`, M, y, {maxWidth:CW-40}); doc.text(eur2(x.ex), W-M, y, {align:'right'}); y+=6; });
   }
 
+  /* ---- 2b. ons werk (foto's van eigen projecten) ---- */
+  const fotos = (SET.opties&&SET.opties.fotos_aan!==false)? fotosNu().filter(f=>f&&f.src) : [];
+  if(fotos.length){
+    doc.addPage(); header();
+    y=txt(SET.opties.fotos_titel||'Ons werk', M, y+6, {size:18,style:'bold'}); y+=2;
+    if(SET.opties.fotos_intro){ y=txt(SET.opties.fotos_intro, M, y, {size:10,color:MUTED}); }
+    y+=5;
+    const gap=6, cw=(CW-gap)/2, ch=(fotos.length>4? 52 : 66), capH=11;
+    let col=0, rowTop=y;
+    for(const f of fotos){
+      if(col===0){ need(ch+capH+6); rowTop=y; }
+      const x=M+col*(cw+gap);
+      doc.setFillColor(243,247,243); doc.roundedRect(x, rowTop, cw, ch, 2, 2, 'F');
+      try{
+        const img=await coverJpeg(f.src, cw/ch);
+        doc.addImage(img,'JPEG', x, rowTop, cw, ch);
+      }catch(e){ console.warn('foto overslaan', e); }
+      doc.setDrawColor(...LINE); doc.setLineWidth(0.3); doc.roundedRect(x, rowTop, cw, ch, 2, 2, 'S');
+      if(f.cap){ setF(8.5,'normal',MUTED); doc.text(doc.splitTextToSize(f.cap, cw), x, rowTop+ch+4.5); }
+      if(col===1){ col=0; y=rowTop+ch+capH+6; } else { col=1; }
+    }
+    if(col===1) y=rowTop+ch+capH+6;
+  }
+
   /* ---- 3. overzicht, besparing, akkoord ---- */
   doc.addPage(); header();
   y=txt('Overzicht en investering', M, y+6, {size:18,style:'bold'}); y+=4;
@@ -873,10 +941,18 @@ async function downloadPdf(){
 }
 function printDoc(){ if(!last) calc(); buildDoc(); window.print(); }
 function barAction(){ if(S.signed) downloadPdf(); else el('akkoord').scrollIntoView({behavior:'smooth'}); }
+function toonConcept(){
+  const bar=el('conceptbar'); if(!bar) return;
+  const wie = (S.klant.naam||'').trim();
+  el('conceptbar_txt').innerHTML = 'Je werkt verder aan een offerte die nog openstond' + (wie? ' voor <b>'+esc(wie)+'</b>' : '') + ' (' + esc(S.nummer) + ').';
+  bar.classList.remove('hidden');
+}
 function nieuw(){
-  if(!confirm('Nieuwe offerte starten? De huidige staat in LeadGen onder Tools › Offertes.')) return;
+  if(!confirm('Nieuwe offerte beginnen? Deze offerte blijft bewaard in LeadGen onder Tools > Offertes.')) return;
   try{ localStorage.removeItem(LS_OFF); localStorage.removeItem(LS_DBID); }catch(e){}
-  location.href = location.pathname;
+  // lead-koppeling behouden, een eventuele ?id= van de oude offerte niet
+  const lead = new URLSearchParams(location.search).get('lead');
+  location.href = location.pathname + (lead? '?lead='+encodeURIComponent(lead) : '');
 }
 
 /* ===== instellingen ===== */
@@ -885,7 +961,7 @@ function bindSettings(){
     const p=e.dataset.set; const v=getPath(SET,p); e.value = v??'';
     e.addEventListener('input',()=>{ setPath(SET,p, e.type==='number'? (e.value===''? getPath(DEFAULTS,p) : num(e.value)) : e.value); settingsChanged(); });
   });
-  renderLogo(); renderHdr();
+  renderLogo(); renderFotos(); renderHdr();
 }
 function settingsChanged(){ saveSettingsLocal(); renderHdr(); calc(); clearTimeout(setTimer); setTimer=setTimeout(saveSettingsDb, 1200); }
 let setTimer=null;
@@ -896,6 +972,48 @@ function logoUpload(inp){
   const img=new Image(); const url=URL.createObjectURL(f);
   img.onload=()=>{ const max=480; const s=Math.min(1, max/img.width, 160/img.height); const c=document.createElement('canvas'); c.width=Math.round(img.width*s); c.height=Math.round(img.height*s); c.getContext('2d').drawImage(img,0,0,c.width,c.height); SET.bedrijf.logo=c.toDataURL('image/png'); URL.revokeObjectURL(url); renderLogo(); settingsChanged(); inp.value=''; };
   img.src=url;
+}
+function standaardFotos(){ return (typeof FOTOS!=='undefined' && Array.isArray(FOTOS))? deepClone(FOTOS) : []; }
+function fotosNu(){ return Array.isArray(SET.fotos)? SET.fotos : standaardFotos(); }
+function fotosEigen(){ if(!Array.isArray(SET.fotos)) SET.fotos = standaardFotos(); return SET.fotos; }
+function renderFotos(){
+  const box=el('fotolijst'); if(!box) return;
+  const aan=el('f_aan'); if(aan) aan.checked = SET.opties.fotos_aan!==false;
+  const fs=fotosNu();
+  if(!fs.length){ box.innerHTML='<div class="fotoleeg">Nog geen foto\'s. Voeg er een paar toe van installaties die je zelf hebt gedaan.</div>'; return; }
+  box.innerHTML = fs.map((f,i)=>`<div class="fotoitem">
+    <img src="${f.src}" alt="">
+    <input type="text" value="${esc(f.cap||'')}" placeholder="Bijschrift" oninput="fotoCap(${i}, this.value)">
+    <div class="btns"><button class="btn sm" type="button" onclick="fotoMove(${i},-1)" ${i===0?'disabled':''}>&uarr;</button><button class="btn sm" type="button" onclick="fotoMove(${i},1)" ${i===fs.length-1?'disabled':''}>&darr;</button><button class="btn sm" type="button" onclick="fotoDel(${i})">Verwijderen</button></div>
+  </div>`).join('');
+}
+function fotosAan(v){ SET.opties.fotos_aan=!!v; settingsChanged(); }
+function fotoCap(i,v){ const fs=fotosEigen(); if(fs[i]){ fs[i].cap=v; settingsChanged(); } }
+function fotoMove(i,d){ const fs=fotosEigen(), j=i+d; if(j<0||j>=fs.length) return; const t=fs[i]; fs[i]=fs[j]; fs[j]=t; renderFotos(); settingsChanged(); }
+function fotoDel(i){ fotosEigen().splice(i,1); renderFotos(); settingsChanged(); }
+function fotosReset(){ if(!confirm("Standaardfoto's terugzetten? Je eigen foto's in deze tool verdwijnen dan.")) return; SET.fotos = null; SET.opties=deepClone(DEFAULTS.opties); bindSettingsValues(); renderFotos(); settingsChanged(); }
+function fotoUpload(inp){
+  const files=[...(inp.files||[])]; inp.value='';
+  if(!files.length) return;
+  const fs=fotosEigen();
+  const ruimte = 6 - fs.length;
+  if(ruimte<=0){ alert("Je hebt al 6 foto's. Verwijder er eerst een."); return; }
+  const doen = files.slice(0, ruimte);
+  if(files.length>ruimte) alert("Er passen er nog "+ruimte+" bij, de rest is overgeslagen.");
+  let klaar=0;
+  doen.forEach(file=>{
+    const img=new Image(); const url=URL.createObjectURL(file);
+    img.onload=()=>{
+      const max=850; const sc=Math.min(1, max/img.width, max/img.height);
+      const c=document.createElement('canvas'); c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
+      c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+      fs.push({ src:c.toDataURL('image/jpeg',0.7), w:c.width, h:c.height, cap:'' });
+      URL.revokeObjectURL(url);
+      if(++klaar===doen.length){ renderFotos(); settingsChanged(); }
+    };
+    img.onerror=()=>{ URL.revokeObjectURL(url); if(++klaar===doen.length){ renderFotos(); settingsChanged(); } };
+    img.src=url;
+  });
 }
 function logoClear(){ SET.bedrijf.logo=''; renderLogo(); settingsChanged(); }
 function resetTeksten(){ if(!confirm('Akkoordtekst en voorwaarden terugzetten naar de standaardtekst?')) return; SET.tekst.akkoord=STD_AKKOORD; SET.tekst.voorwaarden=STD_VOORWAARDEN; SET.tekst.intro=STD_INTRO; SET.tekst.usps=STD_USPS; bindSettingsValues(); settingsChanged(); }
@@ -994,11 +1112,17 @@ function restoreSigned(){ if(!S.signed) return; renderSigned(); lockAll(); const
   loadSettingsLocal();
   const q=new URLSearchParams(location.search); const leadParam=q.get('lead'); const openId=q.get('id');
   let had=loadLocal();
-  if(leadParam && (!had || S.lead_id!==leadParam)){ try{ localStorage.removeItem(LS_OFF); localStorage.removeItem(LS_DBID); }catch(e){} S=newState(leadParam); had=false; }
+  // Getekende offerte die al in LeadGen staat? Dan begin je vanuit een lead
+  // altijd met een nieuwe: een getekende offerte blokkeert nooit een volgende.
+  const klaarEnBewaard = had && S && S.signed && (()=>{ try{ return !!localStorage.getItem(LS_DBID); }catch(e){ return false; } })();
+  if(leadParam && (!had || S.lead_id!==leadParam || klaarEnBewaard)){ try{ localStorage.removeItem(LS_OFF); localStorage.removeItem(LS_DBID); }catch(e){} S=newState(leadParam); had=false; }
   if(openId){ try{ const cur=localStorage.getItem(LS_DBID); if(cur!==openId){ localStorage.removeItem(LS_OFF); localStorage.removeItem(LS_DBID); S=newState(null); had=false; } }catch(e){} }
+  // Zonder ?id= en zonder ?lead=: een afgeronde (getekende, bewaarde) offerte nooit opnieuw openen
+  if(!openId && !leadParam && klaarEnBewaard){ try{ localStorage.removeItem(LS_OFF); localStorage.removeItem(LS_DBID); }catch(e){} S=newState(null); had=false; }
   if(!S) S=newState(null);
   bindSettings(); fillForm(); renderProds(); initSig(); calc(); applyMode();
   restoreSigned();
+  if(had && !openId) toonConcept();
   window.addEventListener('resize',()=>{ if(!hasSig) initSig(); });
   window.addEventListener('pointermove',chartDragMove); window.addEventListener('pointerup',()=>{ chartDrag=false; });
   lgInit();
