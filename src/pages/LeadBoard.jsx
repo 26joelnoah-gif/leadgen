@@ -86,10 +86,44 @@ export default function LeadBoard() {
     () => (leadLists || []).filter(l => l.campaigns?.type !== 'recruitment'),
     [leadLists]
   )
-  const [listId, setListId] = useState(null)
+  // v80: eerst een project kiezen, daarna een lijst of "Alle lijsten". Met
+  // "Alle lijsten" staan alle leads van het project samen op het bord.
+  const projects = useMemo(() => {
+    const map = new Map()
+    lists.forEach(l => {
+      const key = l.campaign_id || 'geen'
+      if (!map.has(key)) map.set(key, { id: key, name: l.campaigns?.name || 'Zonder project', lists: [] })
+      map.get(key).lists.push(l)
+    })
+    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name))
+  }, [lists])
+  const [projectId, setProjectId] = useState(() => {
+    try { return localStorage.getItem('leadgen-leads-project') || null } catch { return null }
+  })
+  const [listChoice, setListChoice] = useState(() => {
+    try { return localStorage.getItem('leadgen-leads-list') || 'all' } catch { return 'all' }
+  })
+  const currentProject = useMemo(() => projects.find(p => p.id === projectId) || null, [projects, projectId])
   useEffect(() => {
-    if (!listId && lists.length > 0) setListId(lists[0].id)
-  }, [lists, listId])
+    if (projects.length > 0 && !currentProject) setProjectId(projects[0].id)
+  }, [projects, currentProject])
+  useEffect(() => {
+    if (currentProject && listChoice !== 'all' && !currentProject.lists.some(l => l.id === listChoice)) setListChoice('all')
+  }, [currentProject, listChoice])
+  useEffect(() => {
+    try {
+      if (projectId) localStorage.setItem('leadgen-leads-project', projectId)
+      localStorage.setItem('leadgen-leads-list', listChoice)
+    } catch { /* privemodus */ }
+  }, [projectId, listChoice])
+
+  const projectLists = currentProject?.lists || []
+  const allLists = listChoice === 'all' || !projectLists.some(l => l.id === listChoice)
+  const listIdsKey = (allLists ? projectLists.map(l => l.id) : [listChoice]).join(',')
+  const listIds = useMemo(() => (listIdsKey ? listIdsKey.split(',') : []), [listIdsKey])
+  // listId = de lijst waar projectinstellingen (bord aan, mailservice) uit komen
+  const listId = listIds[0] || null
+  const listNames = useMemo(() => Object.fromEntries(lists.map(l => [l.id, l.name])), [lists])
 
   const currentList = useMemo(() => lists.find(l => l.id === listId) || null, [lists, listId])
   const boardEnabled = currentList?.campaigns?.board_view_enabled === true
@@ -125,16 +159,17 @@ export default function LeadBoard() {
   useEffect(() => { if (view === 'board' && listId && !boardEnabled) setView('list') }, [view, listId, boardEnabled])
 
   const load = useCallback(async (silent = false) => {
-    if (!listId) return
+    if (listIds.length === 0) return
     if (!silent) setLoading(true)
-    const [{ data: rows, error }, { data: locks }] = await Promise.all([
+    const [{ data: rows, error }, ...lockResults] = await Promise.all([
       supabase.from('leads')
-        .select('id, name, phone, email, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, lat, lng')
-        .eq('lead_list_id', listId)
+        .select('id, lead_list_id, name, phone, email, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, lat, lng')
+        .in('lead_list_id', listIds)
         .is('deleted_at', null)
         .order('created_at', { ascending: true }),
-      supabase.rpc('lead_lock_names', { p_list_id: listId })
+      ...listIds.map(id => supabase.rpc('lead_lock_names', { p_list_id: id }))
     ])
+    const locks = lockResults.flatMap(r => r.data || [])
     if (error) console.error('LeadBoard load:', error)
     setLeads(rows || [])
     const map = {}
@@ -152,7 +187,7 @@ export default function LeadBoard() {
       setAssignedNames({})
     }
     setLoading(false)
-  }, [listId])
+  }, [listIds])
 
   // Eerste keer + elke 8s verversen, en direct opnieuw zodra het belscherm sluit
   useEffect(() => { load() }, [load])
@@ -169,12 +204,12 @@ export default function LeadBoard() {
   useEffect(() => {
     if (!listId) return
     const ch = supabase
-      .channel(`leadboard-${listId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads', filter: `lead_list_id=eq.${listId}` }, () => load(true))
+      .channel(`leadboard-${listIdsKey}`.slice(0, 120))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads', filter: `lead_list_id=in.(${listIdsKey})` }, () => load(true))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_mail_status' }, () => setMailTick(t => t + 1))
       .subscribe()
     return () => { supabase.removeChannel(ch) }
-  }, [listId, load])
+  }, [listId, listIdsKey, load])
 
   // v72: hoe ver komt een gemailde lead bij de bron (v70)? Per lead de hoogste stap.
   const leadIdsKey = useMemo(() => leads.map(l => l.id).join(','), [leads])
@@ -279,12 +314,18 @@ export default function LeadBoard() {
   // v64: leads zonder coordinaten alsnog laten geocoderen (admin/manager)
   const missingCoords = leads.filter(l => l.lat == null).length
   async function geocodeList() {
-    if (!listId || geocoding) return
+    if (listIds.length === 0 || geocoding) return
     setGeocoding(true)
-    const { data, error } = await supabase.functions.invoke('geocode-leads', { body: { list_id: listId } })
+    let ok = 0, failed = 0, fout = false
+    for (const id of listIds) {
+      const { data, error } = await supabase.functions.invoke('geocode-leads', { body: { list_id: id } })
+      if (error) { fout = true; continue }
+      ok += data?.ok || 0
+      failed += data?.failed || 0
+    }
     setGeocoding(false)
-    if (error) { toast('Coordinaten ophalen mislukt', 'error'); return }
-    toast(`${data?.ok || 0} adressen gevonden${data?.failed ? `, ${data.failed} niet gevonden` : ''}`, 'success')
+    if (fout && ok === 0) { toast('Coordinaten ophalen mislukt', 'error'); return }
+    toast(`${ok} adressen gevonden${failed ? `, ${failed} niet gevonden` : ''}`, 'success')
     load(true)
   }
 
@@ -465,6 +506,7 @@ export default function LeadBoard() {
         </div>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
           <Chip label={st.label} color={st.color} bg={st.bg} />
+          {listIds.length > 1 && listNames[lead.lead_list_id] && <Chip label={listNames[lead.lead_list_id]} color="var(--text-muted)" bg="var(--bg-card)" title="Lijst" />}
           {mailInfo && <Chip label={mailInfo.label} color={mailInfo.color} bg={mailInfo.bg} title={`${mailTypeLabel(mail.mail_soort)} - ${dateShort(mail.status_op)}`} />}
           {sigs.map(s => <Chip key={s.label} label={s.label} color={s.color} bg={s.bg} />)}
         </div>
@@ -550,9 +592,15 @@ export default function LeadBoard() {
         ) : (
           <>
             <div className="filter-bar glass-panel mb-3" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-              {lists.length > 1 && (
-                <select className="form-control" value={listId || ''} onChange={e => setListId(e.target.value)} style={{ minWidth: 200, flex: '0 1 auto' }}>
-                  {lists.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+              {projects.length > 1 && (
+                <select className="form-control" value={projectId || ''} onChange={e => { setProjectId(e.target.value); setListChoice('all') }} title="Project" style={{ minWidth: 180, flex: '0 1 auto' }}>
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+              )}
+              {projectLists.length > 1 && (
+                <select className="form-control" value={allLists ? 'all' : listChoice} onChange={e => setListChoice(e.target.value)} title="Lijst" style={{ minWidth: 180, flex: '0 1 auto' }}>
+                  <option value="all">Alle lijsten ({projectLists.length})</option>
+                  {projectLists.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
                 </select>
               )}
               <div style={{ flex: 1, minWidth: 180, position: 'relative' }}>
@@ -643,7 +691,7 @@ export default function LeadBoard() {
             </div>
 
             {view === 'mail' ? (
-              <MailQueueView listId={listId} mailService={mailService} onChanged={() => load(true)} />
+              <MailQueueView listId={listId} listIds={listIds} mailService={mailService} onChanged={() => load(true)} />
             ) : loading && leads.length === 0 ? (
               <LoadingSpinner />
             ) : view === 'board' ? (
@@ -698,6 +746,7 @@ export default function LeadBoard() {
                         <div className="text-muted" style={{ fontSize: '0.8rem', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
                           {lead.phone && <span><Phone size={12} style={{ verticalAlign: -2 }} /> {lead.phone}</span>}
                           {place && <span><MapPin size={12} style={{ verticalAlign: -2 }} /> {place}</span>}
+                          {listIds.length > 1 && listNames[lead.lead_list_id] && <span><List size={12} style={{ verticalAlign: -2 }} /> {listNames[lead.lead_list_id]}</span>}
                           {(lead.contact_attempts || 0) > 0 && <span>{lead.contact_attempts}x gebeld</span>}
                           {sigs.map(s => <Chip key={s.label} label={s.label} color={s.color} bg={s.bg} />)}
                         </div>
@@ -742,7 +791,7 @@ export default function LeadBoard() {
             lead={mailLead}
             defaults={{ email: mailLead.email, contactpersoon: mailLead.contact_person }}
             mailService={mailService}
-            listId={listId}
+            listId={mailLead.lead_list_id || listId}
             onClose={() => setMailLead(null)}
             onSent={handleMailSent}
             onQueued={handleMailQueued}

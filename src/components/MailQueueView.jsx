@@ -19,7 +19,9 @@ import EmptyState from './EmptyState'
 // (morgen opnieuw in de wachtrij) als hij nog op 'mail_gepland' stond.
 const dateShort = (iso) => iso ? new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
 
-export default function MailQueueView({ listId, mailService, onChanged }) {
+export default function MailQueueView({ listId, listIds, mailService, onChanged }) {
+  // v80: meerdere lijsten tegelijk (heel project) kan ook
+  const idsKey = (listIds && listIds.length ? listIds : (listId ? [listId] : [])).join(',')
   const { user, profile } = useAuth()
   const toast = useToast()
   const isStaff = profile?.role === 'admin' || profile?.role === 'manager'
@@ -31,28 +33,28 @@ export default function MailQueueView({ listId, mailService, onChanged }) {
   const followUpDays = mailService?.follow_up_days || 5
 
   const load = useCallback(async (silent = false) => {
-    if (!listId) return
+    if (!idsKey) return
     if (!silent) setLoading(true)
     const { data, error } = await supabase
       .from('mail_queue')
       .select('id, created_at, agent_id, lead_id, mail_type, email, contactpersoon, beller_naam, source, agent:profiles!mail_queue_agent_id_fkey(full_name), leads(name, city, status)')
-      .eq('lead_list_id', listId)
+      .in('lead_list_id', idsKey.split(','))
       .eq('status', 'open')
       .order('created_at', { ascending: true })
     if (error) console.error('mail_queue laden:', error)
     setRows(data || [])
     setLoading(false)
-  }, [listId])
+  }, [idsKey])
 
   useEffect(() => { load() }, [load])
   useEffect(() => {
-    if (!listId) return
+    if (!idsKey) return
     const ch = supabase
-      .channel(`mailqueue-${listId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'mail_queue', filter: `lead_list_id=eq.${listId}` }, () => load(true))
+      .channel(`mailqueue-${idsKey}`.slice(0, 120))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mail_queue', filter: `lead_list_id=in.(${idsKey})` }, () => load(true))
       .subscribe()
     return () => { supabase.removeChannel(ch) }
-  }, [listId, load])
+  }, [idsKey, load])
 
   const magBeheren = useCallback((row) => row.agent_id === user?.id || isStaff, [user?.id, isStaff])
   const mijn = useMemo(() => rows.filter(magBeheren), [rows, magBeheren])
