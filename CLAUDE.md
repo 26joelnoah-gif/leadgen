@@ -191,3 +191,14 @@ Twee-zijdig platform:
   Handmatig) met een knop die meebeweegt (nu versturen / inplannen / bewaren
   in Mailinglijst). Handmatig = bewaren zonder send_at, niet "nu". De popup
   heeft maxHeight + overflowY zodat hij op kleine schermen scrolt.
+
+- **TEAMCHAT LIVE + 24 UUR (v85, 2026-09-18):** oorzaak van "chat werkt niet":
+  tabel messages zat niet in de publicatie supabase_realtime, dus berichten van
+  collega's kwamen nooit live binnen en eigen berichten bleven op
+  "verzenden..." staan. Fix: messages in de publicatie, Chat.jsx laadt de
+  NIEUWSTE 50 (was de oudste 50), vervangt het tijdelijke bericht door de
+  echte rij (insert().select() + dedupe op id in realtime), en escapet geen
+  < > meer (React doet dat al). Berichten ouder dan 24 uur worden elk uur
+  verwijderd door public.chat_cleanup(24) via pg_cron-job leadgen-chat-cleanup;
+  de app haalt alleen de laatste 24 uur op en toont dat onder het invoerveld.
+  Migratie: migration_v85_chat_realtime_cleanup.sql (toegepast).

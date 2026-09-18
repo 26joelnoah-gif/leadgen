@@ -6,6 +6,10 @@ import { supabase } from '../lib/supabase'
 import { useToast } from './Toast'
 
 const GENERAL_CHANNEL = { id: 'general', name: 'Team', is_default: true }
+const PAGE_SIZE = 50
+// Berichten ouder dan 24 uur worden door de DB (pg_cron: leadgen-chat-cleanup) verwijderd.
+const CHAT_HOURS = 24
+function sinceIso() { return new Date(Date.now() - CHAT_HOURS * 3600 * 1000).toISOString() }
 
 export default function Chat() {
   const { user, profile } = useAuth()
@@ -24,7 +28,7 @@ export default function Chat() {
   const [connectionStatus, setConnectionStatus] = useState('connecting') // 'connecting' | 'connected' | 'error'
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [oldestMessageId, setOldestMessageId] = useState(null)
+  const [oldestCreatedAt, setOldestCreatedAt] = useState(null)
   const [showMembersModal, setShowMembersModal] = useState(false)
   const [channelMembers, setChannelMembers] = useState([])
   const [orgProfiles, setOrgProfiles] = useState([])
@@ -77,7 +81,17 @@ export default function Chat() {
           ? !msg.channel_id || msg.channel_id === null
           : msg.channel_id === currentChannel
         if (matchesChannel) {
-          setMessages(prev => [...prev, msg])
+          setMessages(prev => {
+            if (prev.some(m => m.id === msg.id)) return prev
+            // eigen bericht dat nog op 'verzenden...' stond vervangen door de echte rij
+            const tempIdx = prev.findIndex(m => m.pending && m.user_id === msg.user_id && m.text === msg.text)
+            if (tempIdx >= 0) {
+              const next = [...prev]
+              next[tempIdx] = msg
+              return next
+            }
+            return [...prev, msg]
+          })
         }
       })
       .subscribe(status => {
@@ -126,11 +140,13 @@ export default function Chat() {
 
   async function fetchMessages() {
     try {
+      // Nieuwste berichten van de laatste 24 uur, oudste bovenaan
       let query = supabase
         .from('messages')
         .select('*')
-        .order('created_at', { ascending: true })
-        .limit(50)
+        .gte('created_at', sinceIso())
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE)
 
       if (currentChannel === 'general') {
         query = query.is('channel_id', null)
@@ -141,9 +157,10 @@ export default function Chat() {
       const { data, error } = await query
       if (error) throw error
       if (data) {
-        setMessages(data)
-        setHasMore(data.length === 50)
-        setOldestMessageId(data.length > 0 ? data[0].id : null)
+        const ordered = [...data].reverse()
+        setMessages(ordered)
+        setHasMore(data.length === PAGE_SIZE)
+        setOldestCreatedAt(ordered.length > 0 ? ordered[0].created_at : null)
       }
     } catch (err) {
       toast(err.message, 'error')
@@ -151,16 +168,17 @@ export default function Chat() {
   }
 
   async function loadMoreMessages() {
-    if (!oldestMessageId || loadingMore) return
+    if (!oldestCreatedAt || loadingMore) return
     setLoadingMore(true)
 
     try {
       let query = supabase
         .from('messages')
         .select('*')
-        .order('created_at', { ascending: true })
-        .limit(50)
-        .lt('id', oldestMessageId)
+        .gte('created_at', sinceIso())
+        .lt('created_at', oldestCreatedAt)
+        .order('created_at', { ascending: false })
+        .limit(PAGE_SIZE)
 
       if (currentChannel === 'general') {
         query = query.is('channel_id', null)
@@ -171,9 +189,10 @@ export default function Chat() {
       const { data, error } = await query
       if (error) throw error
       if (data && data.length > 0) {
-        setMessages(prev => [...prev, ...data])
-        setOldestMessageId(data[data.length - 1].id)
-        setHasMore(data.length === 50)
+        const older = [...data].reverse()
+        setMessages(prev => [...older, ...prev.filter(m => !older.some(o => o.id === m.id))])
+        setOldestCreatedAt(older[0].created_at)
+        setHasMore(data.length === PAGE_SIZE)
       } else {
         setHasMore(false)
       }
@@ -281,10 +300,8 @@ export default function Chat() {
   async function sendMessage() {
     if (!input.trim() || !user) return
 
-    const safeText = input.trim().replace(/</g, "&lt;").replace(/>/g, "&gt;")
-
     const messageData = {
-      text: safeText,
+      text: input.trim(),
       user_id: user.id,
       user_name: profile?.full_name || user?.email,
       is_admin: isAdmin,
@@ -302,13 +319,20 @@ export default function Chat() {
     setMessages(prev => [...prev, optimisticMsg])
     setInput('')
 
-    const { error } = await supabase.from('messages').insert(messageData)
+    const { data, error } = await supabase.from('messages').insert(messageData).select('*').single()
 
     if (error) {
       // Verwijder optimistic message bij error
       setMessages(prev => prev.filter(m => m.id !== tempId))
       toast('Kon bericht niet verzenden: ' + error.message, 'error')
+      return
     }
+    // Temp-bericht vervangen door de echte rij (realtime kan hem ook al gebracht hebben)
+    setMessages(prev => {
+      const without = prev.filter(m => m.id !== tempId)
+      if (without.some(m => m.id === data.id)) return without
+      return [...without, data]
+    })
   }
 
   function handleKeyPress(e) {
@@ -412,6 +436,7 @@ export default function Chat() {
                   <MessageCircle size={48} style={{ opacity: 0.3, marginBottom: '12px' }} />
                   <p style={{ fontSize: '0.9rem' }}>Nog geen berichten</p>
                   <p style={{ fontSize: '0.8rem' }}>in dit kanaal</p>
+                  <p style={{ fontSize: '0.7rem', marginTop: '8px', opacity: 0.7 }}>Berichten verdwijnen na 24 uur</p>
                 </div>
               ) : (
                 messages.map(msg => (
@@ -455,6 +480,9 @@ export default function Chat() {
                   <Send size={16} />
                 </button>
               </div>
+              <p style={{ fontSize: '0.65rem', color: 'var(--text-muted)', margin: '6px 0 0', textAlign: 'center' }}>
+                Berichten worden na 24 uur automatisch verwijderd
+              </p>
             </div>
 
             {/* Create Channel Modal (admin/manager) */}
