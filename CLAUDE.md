@@ -184,3 +184,10 @@ Twee-zijdig platform:
      mails vandaag/week/totaal, link geklikt, warme leads, nog te versturen;
      verschijnt pas na de eerste mail via de Mailingservice.
   Migratie: migration_v82_mailrapportage_warm_enrich.sql (toegepast).
+
+- **MAILINGSERVICE-POPUP EEN KEUZE + EEN KNOP (v84, 2026-09-18):** in
+  MailingserviceModal staat nu een keuze "Wanneer versturen?" (Nu versturen
+  standaard aan, Morgen 09:00, Over 3 dagen, Volgende week, Zelf kiezen,
+  Handmatig) met een knop die meebeweegt (nu versturen / inplannen / bewaren
+  in Mailinglijst). Handmatig = bewaren zonder send_at, niet "nu". De popup
+  heeft maxHeight + overflowY zodat hij op kleine schermen scrolt.

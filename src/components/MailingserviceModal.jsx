@@ -26,6 +26,9 @@ import { mailSourceLabel, mailTypesVoor, mailTypeLabel } from '../lib/mailSource
 // Edge Function mailqueue-runner (pg_cron, elke 5 min) verstuurt hem dan
 // vanzelf, maar alleen op werkdagen tussen 08:00 en 18:00. "Handmatig" laat
 // send_at leeg: dan gaat hij pas weg als iemand hem in de Mailinglijst verstuurt.
+// v84: één keuze "Wanneer versturen?" (Nu staat standaard aan) en één knop die
+// meebeweegt, in plaats van een verstuur-knop bovenaan en een inplan-knop
+// onderaan. De popup scrolt nu ook op kleine schermen (max-hoogte + overflow).
 const EMAIL_RE = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[a-z]{2,}$/i
 
 // Eerstvolgende werkdag om `uur` uur, minstens `dagen` dagen vooruit.
@@ -37,6 +40,7 @@ function werkdagOm(dagen, uur = 9) {
   return d
 }
 const PLANNING = [
+  { key: 'nu', label: 'Nu versturen' },
   { key: 'morgen', label: 'Morgen 09:00', bereken: () => werkdagOm(1) },
   { key: '3dagen', label: 'Over 3 dagen', bereken: () => werkdagOm(3) },
   { key: 'week', label: 'Volgende week', bereken: () => werkdagOm(7) },
@@ -63,13 +67,13 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
   const [sending, setSending] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [planning, setPlanning] = useState('morgen') // v83
+  const [planning, setPlanning] = useState('nu') // v83, v84: nu standaard
   const [eigenTijd, setEigenTijd] = useState(() => naarLokaal(werkdagOm(1)))
   const bezig = sending || saving
 
   // v83: wanneer gaat de mail weg? null = handmatig vanuit de Mailinglijst
   const sendAt = (() => {
-    if (planning === 'handmatig') return null
+    if (planning === 'nu' || planning === 'handmatig') return null
     if (planning === 'zelf') { const d = new Date(eigenTijd); return isNaN(d.getTime()) ? null : d }
     return PLANNING.find(p => p.key === planning)?.bereken() || null
   })()
@@ -80,6 +84,8 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
   const emailOk = EMAIL_RE.test(email.trim())
   const naamOk = bellerNaam.trim().length >= 2
   const kanVersturen = emailOk && naamOk
+  const nuVersturen = planning === 'nu' || !onQueued // v84
+  const keuzes = onQueued ? PLANNING : PLANNING.filter(p => p.key === 'nu')
 
   // v78: niet sturen maar bewaren voor later
   async function handleQueue() {
@@ -139,7 +145,7 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '24px', width: '100%', maxWidth: '460px', padding: '28px', position: 'relative' }}>
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '24px', width: '100%', maxWidth: '460px', padding: '28px', position: 'relative', maxHeight: 'calc(100vh - 40px)', overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <button onClick={onClose} disabled={bezig} aria-label="Sluiten" style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={24} /></button>
 
         <h2 style={{ color: 'var(--text-primary)', margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '1.2rem' }}>
@@ -202,18 +208,11 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
             <div style={{ background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid var(--danger)', borderRadius: '8px', padding: '10px 12px', fontSize: '0.85rem' }}>{error}</div>
           )}
 
-          <button
-            onClick={handleSend}
-            disabled={bezig || !kanVersturen}
-            style={{ background: 'var(--info, #0EA5E9)', color: 'var(--text-on-accent)', padding: '14px', borderRadius: '8px', border: 'none', fontWeight: 800, fontSize: '1rem', cursor: bezig || !kanVersturen ? 'not-allowed' : 'pointer', opacity: bezig || !kanVersturen ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-          >
-            <Send size={16} /> {sending ? 'VERSTUREN...' : `${mailTypeLabel(mailType).toUpperCase()} VERSTUREN & VOLGENDE`}
-          </button>
           {onQueued && (
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
-              <label style={labelStyle}><Clock size={13} style={{ verticalAlign: -2 }} /> Of later versturen</label>
+            <div>
+              <label style={labelStyle}><Clock size={13} style={{ verticalAlign: -2 }} /> Wanneer versturen?</label>
               <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                {PLANNING.map(p => {
+                {keuzes.map(p => {
                   const actief = p.key === planning
                   return (
                     <button
@@ -242,25 +241,30 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
                   style={{ ...inputStyle, marginTop: '8px' }}
                 />
               )}
-              <p className="text-muted" style={{ margin: '8px 0 10px', fontSize: '0.75rem', lineHeight: 1.4 }}>
-                {planning === 'handmatig'
-                  ? 'De mail staat klaar op de Leads-pagina onder Mailinglijst en gaat pas weg als jij hem daar verstuurt.'
-                  : sendAtOngeldig
-                    ? 'Kies een moment in de toekomst.'
-                    : <>De mail gaat vanzelf weg op <strong style={{ color: 'var(--text-primary)' }}>{tijdLang(sendAt)}</strong>.{buitenWerktijd(sendAt) ? ' Dat is buiten werktijd, dus hij gaat de eerstvolgende werkdag om 08:00.' : ''} Tot die tijd staat hij in de Mailinglijst; daar kun je hem nog aanpassen.</>}
-                {' '}De lead gaat op "Mail gepland".
+              <p className="text-muted" style={{ margin: '8px 0 0', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                {planning === 'nu'
+                  ? <>De mail gaat meteen weg. De lead gaat op "Mail verstuurd" en komt over {dagen} dagen terug om op te volgen.</>
+                  : planning === 'handmatig'
+                    ? 'De mail staat klaar op de Leads-pagina onder Mailinglijst en gaat pas weg als jij hem daar verstuurt. De lead gaat op "Mail gepland".'
+                    : sendAtOngeldig
+                      ? 'Kies een moment in de toekomst.'
+                      : <>De mail gaat vanzelf weg op <strong style={{ color: 'var(--text-primary)' }}>{tijdLang(sendAt)}</strong>.{buitenWerktijd(sendAt) ? ' Dat is buiten werktijd, dus hij gaat de eerstvolgende werkdag om 08:00.' : ''} Tot die tijd staat hij in de Mailinglijst; daar kun je hem nog aanpassen. De lead gaat op "Mail gepland".</>}
               </p>
-              <button
-                type="button"
-                onClick={handleQueue}
-                disabled={bezig || !kanVersturen || sendAtOngeldig}
-                style={{ width: '100%', background: 'transparent', color: 'var(--text-secondary)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', fontWeight: 700, fontSize: '0.9rem', cursor: bezig || !kanVersturen || sendAtOngeldig ? 'not-allowed' : 'pointer', opacity: bezig || !kanVersturen || sendAtOngeldig ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
-              >
-                {planning === 'handmatig' ? <ListPlus size={16} /> : <Clock size={16} />}
-                {saving ? 'BEWAREN...' : planning === 'handmatig' ? 'BEWAREN IN MAILINGLIJST' : `INPLANNEN: ${tijdLang(sendAt).toUpperCase()}`}
-              </button>
             </div>
           )}
+
+          <button
+            onClick={nuVersturen ? handleSend : handleQueue}
+            disabled={bezig || !kanVersturen || (!nuVersturen && sendAtOngeldig)}
+            style={{ background: 'var(--info, #0EA5E9)', color: 'var(--text-on-accent)', padding: '14px', borderRadius: '8px', border: 'none', fontWeight: 800, fontSize: '1rem', cursor: bezig || !kanVersturen || (!nuVersturen && sendAtOngeldig) ? 'not-allowed' : 'pointer', opacity: bezig || !kanVersturen || (!nuVersturen && sendAtOngeldig) ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+          >
+            {nuVersturen ? <Send size={16} /> : planning === 'handmatig' ? <ListPlus size={16} /> : <Clock size={16} />}
+            {sending ? 'VERSTUREN...'
+              : saving ? 'BEWAREN...'
+              : nuVersturen ? `${mailTypeLabel(mailType).toUpperCase()} NU VERSTUREN & VOLGENDE`
+              : planning === 'handmatig' ? 'BEWAREN IN MAILINGLIJST'
+              : `INPLANNEN: ${tijdLang(sendAt).toUpperCase()}`}
+          </button>
         </div>
       </motion.div>
     </div>
