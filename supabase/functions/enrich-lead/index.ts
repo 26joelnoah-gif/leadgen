@@ -4,8 +4,10 @@
 //   Stap 2 (centen, alleen indien nodig én PERPLEXITY_API_KEY gezet): Perplexity
 //     zoekt contactpersoon/functie/branche op voor wat nog ontbreekt.
 // Vult ALLEEN lege velden; bronnen komen in de notities; alles wordt gelogd
-// in enrichment_logs. Toegang: admin of manager met can_manage_leads.
-// GEDEPLOYED als Edge Function "enrich-lead" (versie 3) op zboyxwwrbtpjnlgquhzs.
+// in enrichment_logs. Toegang: admin, of iemand met het recht can_manage_leads,
+// of (v82) automatisch na een import in een project met campaigns.auto_enrich
+// aan - dan mag iedereen die de leads via RLS kan bewerken ze laten scannen.
+// GEDEPLOYED als Edge Function "enrich-lead" (versie 4, v82) op zboyxwwrbtpjnlgquhzs.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -101,20 +103,33 @@ Deno.serve(async (req: Request) => {
       .select("role, can_manage_leads, is_active, organization_id")
       .eq("id", uid)
       .single();
-    const allowed = profile && profile.is_active !== false &&
-      (profile.role === "admin" || (profile.role === "manager" && profile.can_manage_leads));
-    if (!allowed) return json({ error: "Geen toestemming: alleen admins of managers met het recht 'Leads beheren' kunnen verrijken." }, 403);
-
+    if (!profile || profile.is_active === false) return json({ error: "Geen toestemming" }, 403);
     const body = await req.json().catch(() => ({}));
+    const auto = body?.auto === true; // v82: automatisch na import
+    // v82: admin of iedereen met "Leads beheren" mag altijd; anders alleen
+    // automatisch, voor leads in projecten met auto_enrich aan (check hieronder).
+    const allowed = profile.role === "admin" || !!profile.can_manage_leads || auto;
+    if (!allowed) return json({ error: "Geen toestemming: alleen admins of medewerkers met het recht 'Leads beheren' kunnen verrijken." }, 403);
+
     const leadIds: string[] = Array.isArray(body?.leadIds) ? body.leadIds.slice(0, MAX_LEADS) : [];
     if (!leadIds.length) return json({ error: "Geen leadIds meegegeven" }, 400);
 
     const { data: leads, error: leadsErr } = await supabase
       .from("leads")
-      .select("id, name, phone, website, email, contact_person, function, city, postal_code, notes, extra_info1, organization_id")
+      .select("id, name, phone, website, email, contact_person, function, city, postal_code, notes, extra_info1, organization_id, lead_list_id")
       .in("id", leadIds)
       .is("deleted_at", null);
     if (leadsErr) return json({ error: leadsErr.message }, 500);
+
+    if (auto && !(profile.role === "admin" || profile.can_manage_leads)) {
+      // Alleen leads uit projecten waar auto-verrijking aanstaat (via de RLS
+      // van de gebruiker zelf: wat hij niet mag zien, telt niet mee).
+      const listIds = [...new Set((leads ?? []).map((l) => l.lead_list_id).filter(Boolean))];
+      const { data: lists } = await supabase.from("lead_lists").select("id, campaigns(auto_enrich)").in("id", listIds);
+      const okLists = new Set((lists ?? []).filter((l: { campaigns?: { auto_enrich?: boolean } | null }) => l.campaigns?.auto_enrich === true).map((l: { id: string }) => l.id));
+      const buiten = (leads ?? []).filter((l) => !okLists.has(l.lead_list_id));
+      if (buiten.length) return json({ error: "Geen toestemming: auto-verrijking staat niet aan voor dit project." }, 403);
+    }
 
     const results: Array<Record<string, unknown>> = [];
 
@@ -156,7 +171,8 @@ Deno.serve(async (req: Request) => {
           .concat(empty(lead.email) && !updates.email ? ["email"] : [])
           .concat(empty(lead.extra_info1) ? ["branche"] : []);
 
-        if (apiKey && stillMissing.length > 0) {
+        // v82: automatisch (na import) alleen de gratis scan, nooit Perplexity.
+        if (apiKey && !auto && stillMissing.length > 0) {
           const vraag = [
             `Bedrijf: ${lead.name}`,
             lead.city ? `Plaats: ${lead.city}` : null,

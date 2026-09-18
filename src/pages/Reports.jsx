@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { motion } from 'framer-motion'
-import { Users, PhoneCall, CheckCircle, Download, Clock, Filter, Calendar, TrendingUp, Phone, Briefcase } from 'lucide-react'
+import { Users, PhoneCall, CheckCircle, Download, Clock, Filter, Calendar, TrendingUp, Phone, Briefcase, Mail, MousePointerClick, FileText } from 'lucide-react'
+import { mailTypeLabel } from '../lib/mailSources'
 import { getStatusDetails } from '../utils/statusUtils'
 import { effectiveSeconds, isCapped } from '../utils/callTimeUtils'
 import { exportToCSV } from '../utils/exportUtils'
@@ -44,9 +45,14 @@ export default function Reports() {
   const kpiOnly = isManager && !!profile?.kpi_only
   const canExport = !isManager || profile?.can_export_data !== false
   const [callLogs, setCallLogs] = useState([])
+  // v82: mails via de Mailingservice (mailservice_logs) + wat de bron
+  // terugmeldt (lead_mail_status) + wat nog klaarstaat (mail_queue)
+  const [mailLogs, setMailLogs] = useState([])
+  const [mailStatusRows, setMailStatusRows] = useState([])
+  const [mailQueue, setMailQueue] = useState([])
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('bellers') // 'bellers' | 'projecten' | 'gesprekken'
+  const [activeTab, setActiveTab] = useState('bellers') // 'bellers' | 'projecten' | 'gesprekken' | 'mails'
   useEffect(() => {
     if (kpiOnly && activeTab === 'gesprekken') setActiveTab('bellers')
   }, [kpiOnly, activeTab])
@@ -64,6 +70,7 @@ export default function Reports() {
 
   useEffect(() => {
     fetchCallLogs()
+    fetchMails()
   }, [startDate, endDate, isDemoMode])
 
   // v21: projecten = campagnes; lijsten hangen onder een project
@@ -103,8 +110,48 @@ export default function Reports() {
   const uniqueAgents = useMemo(() => {
     const m = new Map()
     callLogs.forEach(l => { if (l.agent_id && !m.has(l.agent_id)) m.set(l.agent_id, l.agent?.full_name || 'Onbekend') })
+    mailLogs.forEach(l => { if (l.agent_id && !m.has(l.agent_id)) m.set(l.agent_id, l.agent?.full_name || 'Onbekend') })
     return [...m.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
-  }, [callLogs])
+  }, [callLogs, mailLogs])
+
+  // v82: mails in de periode + de terugkoppeling van de bron per lead
+  async function fetchMails() {
+    if (isDemoMode) { setMailLogs([]); setMailStatusRows([]); setMailQueue([]); return }
+    try {
+      const start = new Date(`${startDate}T00:00:00`)
+      const end = new Date(`${endDate}T23:59:59.999`)
+      const { data: logs, error } = await supabase
+        .from('mailservice_logs')
+        .select('id, created_at, agent_id, lead_id, campaign_id, source, mail_type, email, ok, agent:profiles!agent_id(full_name), lead:leads(name)')
+        .eq('ok', true)
+        .gte('created_at', start.toISOString())
+        .lte('created_at', end.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(2000)
+      if (error) throw error
+      setMailLogs(logs || [])
+
+      const leadIds = [...new Set((logs || []).map(l => l.lead_id).filter(Boolean))]
+      const rows = []
+      for (let i = 0; i < leadIds.length; i += 200) {
+        const { data } = await supabase
+          .from('lead_mail_status')
+          .select('lead_id, source, mail_soort, status, status_rank, geklikt_op, offerte_open_op, getekend_op, betaald_op')
+          .in('lead_id', leadIds.slice(i, i + 200))
+        rows.push(...(data || []))
+      }
+      setMailStatusRows(rows)
+
+      const { data: queue } = await supabase
+        .from('mail_queue')
+        .select('id, agent_id, campaign_id, mail_type, status, created_at, agent:profiles!agent_id(full_name)')
+        .eq('status', 'open')
+      setMailQueue(queue || [])
+    } catch (err) {
+      console.error('Mailrapportage laden mislukt:', err)
+      setMailLogs([]); setMailStatusRows([]); setMailQueue([])
+    }
+  }
 
   async function fetchCallLogs() {
     setLoading(true)
@@ -216,6 +263,66 @@ export default function Reports() {
     return t
   }, [agentStats])
 
+  // ===== v82: Mails per beller =====
+  const mailFilterOk = (row) => {
+    if (filterProject !== 'all' && row.campaign_id !== filterProject) return false
+    if (filterTeam !== 'all' && !teamMemberIds[filterTeam]?.has(row.agent_id)) return false
+    if (selectedAgents.size > 0 && !selectedAgents.has(row.agent_id)) return false
+    return true
+  }
+  const projectMailLogs = useMemo(() => mailLogs.filter(mailFilterOk), [mailLogs, filterProject, filterTeam, teamMemberIds, selectedAgents])
+  const projectQueue = useMemo(() => mailQueue.filter(mailFilterOk), [mailQueue, filterProject, filterTeam, teamMemberIds, selectedAgents])
+
+  // Hoogste stap per lead + mailsoort (de bron meldt gemaild -> geklikt ->
+  // offerte open -> getekend -> betaald; status_rank is die volgorde)
+  const mailRankByKey = useMemo(() => {
+    const m = {}
+    mailStatusRows.forEach(r => {
+      const k = `${r.lead_id}|${r.mail_soort}`
+      if (!m[k] || (r.status_rank || 0) > m[k]) m[k] = r.status_rank || 0
+    })
+    return m
+  }, [mailStatusRows])
+
+  const mailStats = useMemo(() => {
+    const byAgent = {}
+    const mk = (id, name) => {
+      if (!byAgent[id]) byAgent[id] = { id, name, mails: 0, perType: {}, leads: new Set(), geklikt: new Set(), offerte: new Set(), getekend: new Set(), betaald: new Set(), gepland: 0 }
+      return byAgent[id]
+    }
+    projectMailLogs.forEach(log => {
+      const a = mk(log.agent_id || 'geen', log.agent?.full_name || 'Onbekend')
+      a.mails++
+      a.perType[log.mail_type] = (a.perType[log.mail_type] || 0) + 1
+      if (log.lead_id) {
+        a.leads.add(log.lead_id)
+        const rank = mailRankByKey[`${log.lead_id}|${log.mail_type}`] || 0
+        if (rank >= 2) a.geklikt.add(log.lead_id)
+        if (rank >= 3) a.offerte.add(log.lead_id)
+        if (rank >= 4) a.getekend.add(log.lead_id)
+        if (rank >= 5) a.betaald.add(log.lead_id)
+      }
+    })
+    projectQueue.forEach(q => { mk(q.agent_id || 'geen', q.agent?.full_name || 'Onbekend').gepland++ })
+    return Object.values(byAgent).map(a => ({
+      ...a,
+      leadCount: a.leads.size,
+      geklikt: a.geklikt.size, offerte: a.offerte.size, getekend: a.getekend.size, betaald: a.betaald.size,
+      klikRate: a.leads.size ? (a.geklikt.size / a.leads.size) * 100 : 0
+    })).sort((x, y) => y.mails - x.mails)
+  }, [projectMailLogs, projectQueue, mailRankByKey])
+
+  const mailTotals = useMemo(() => {
+    const t = { mails: 0, leads: 0, geklikt: 0, offerte: 0, getekend: 0, betaald: 0, gepland: 0, perType: {} }
+    mailStats.forEach(a => {
+      t.mails += a.mails; t.leads += a.leadCount; t.geklikt += a.geklikt; t.offerte += a.offerte
+      t.getekend += a.getekend; t.betaald += a.betaald; t.gepland += a.gepland
+      Object.entries(a.perType).forEach(([k, v]) => { t.perType[k] = (t.perType[k] || 0) + v })
+    })
+    return t
+  }, [mailStats])
+  const mailTypes = useMemo(() => Object.keys(mailTotals.perType).sort(), [mailTotals])
+
   // ===== Gesprekkenlijst met filters =====
   const uniqueResults = useMemo(() => {
     const r = new Set()
@@ -240,6 +347,14 @@ export default function Reports() {
         Deals: a.deals, Afspraken: a.afspraken,
         "TBA's": a.tba, 'Geen interesse': a.geenInteresse, 'Slagingspercentage': `${a.successRate.toFixed(1)}%`
       })), `LeadGen_Bellers_${startDate}_${endDate}${projectSuffix}`)
+    } else if (activeTab === 'mails') {
+      exportToCSV(mailStats.map(a => ({
+        Beller: a.name, 'Mails verstuurd': a.mails,
+        ...Object.fromEntries(mailTypes.map(t => [mailTypeLabel(t), a.perType[t] || 0])),
+        'Leads gemaild': a.leadCount, 'Link geklikt': a.geklikt, 'Offerte geopend': a.offerte,
+        Getekend: a.getekend, Betaald: a.betaald, 'Nog gepland': a.gepland,
+        'Klikpercentage': `${a.klikRate.toFixed(1)}%`
+      })), `LeadGen_Mails_${startDate}_${endDate}${projectSuffix}`)
     } else if (activeTab === 'projecten') {
       exportToCSV(projectStats.map(p => ({
         Project: p.name, Bellers: p.agentCount, Gesprekken: p.calls, Beltijd: fmtDuration(p.seconds),
@@ -349,18 +464,23 @@ export default function Reports() {
             {canExport && (
               <button className="btn btn-outline btn-sm" onClick={handleExport}><Download size={16} /> Export CSV</button>
             )}
-            <button className="btn btn-secondary btn-sm" onClick={fetchCallLogs}><TrendingUp size={16} /> Verversen</button>
+            <button className="btn btn-secondary btn-sm" onClick={() => { fetchCallLogs(); fetchMails() }}><TrendingUp size={16} /> Verversen</button>
           </div>
         </div>
 
         {/* Totalen */}
         <div className="stats-grid">
-          {[
+          {(activeTab === 'mails' ? [
+            { label: 'Mails verstuurd', val: mailTotals.mails, icon: Mail, color: 'var(--primary)' },
+            { label: 'Link geklikt', val: mailTotals.geklikt, icon: MousePointerClick, color: 'var(--info)' },
+            { label: 'Offerte geopend', val: mailTotals.offerte, icon: FileText, color: 'var(--secondary)' },
+            { label: 'Getekend / betaald', val: `${mailTotals.getekend} / ${mailTotals.betaald}`, icon: CheckCircle, color: 'var(--success)' }
+          ] : [
             { label: 'Gesprekken', val: totals.calls, icon: PhoneCall, color: 'var(--primary)' },
             { label: 'Effectieve beltijd', val: fmtDuration(totals.seconds), icon: Clock, color: 'var(--secondary)' },
             { label: 'Afspraken', val: totals.afspraken, icon: Calendar, color: 'var(--info)' },
             { label: 'Deals', val: totals.deals, icon: CheckCircle, color: 'var(--success)' }
-          ].map((item, i) => (
+          ]).map((item, i) => (
             <motion.div key={i} initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.08 }} className="stat-card glass-panel">
               <div className="flex justify-between items-start">
                 <div>
@@ -378,6 +498,7 @@ export default function Reports() {
           {[
             { id: 'bellers', label: 'Statistieken per beller', icon: <Users size={15} /> },
             { id: 'projecten', label: 'Per project', icon: <Briefcase size={15} /> },
+            { id: 'mails', label: 'Mails', icon: <Mail size={15} /> },
             // KPI-only managers zien geen individuele gesprekken of leadgegevens
             ...(kpiOnly ? [] : [{ id: 'gesprekken', label: 'Alle gesprekken', icon: <Phone size={15} /> }])
           ].map(t => (
@@ -518,6 +639,99 @@ export default function Reports() {
                     </tr>
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'mails' ? (
+          <div className="card">
+            <div className="card-header" style={{ flexWrap: 'wrap', gap: '12px' }}>
+              <span className="card-title"><Mail size={20} /> Mails per beller</span>
+              <span className="text-muted" style={{ fontSize: '0.8rem' }}>Verstuurd via de Mailingservice in de gekozen periode. Geklikt, offerte, getekend en betaald komen van de bron (bijv. MarketingKiezer) en tellen per lead. "Nog gepland" = staat nu in de mailinglijst.</span>
+            </div>
+            {mailStats.length === 0 ? (
+              <EmptyState title="Nog geen mails" message="In deze periode zijn er geen mails verstuurd via de Mailingservice." />
+            ) : (
+              <div className="table-container">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Beller</th>
+                      <th>Mails</th>
+                      {mailTypes.map(t => <th key={t}>{mailTypeLabel(t)}</th>)}
+                      <th>Leads gemaild</th>
+                      <th>Link geklikt</th>
+                      <th>Offerte open</th>
+                      <th>Getekend</th>
+                      <th>Betaald</th>
+                      <th>Nog gepland</th>
+                      <th>Klik­percentage</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {mailStats.map(a => (
+                      <tr key={a.id}>
+                        <td><strong>{a.name}</strong></td>
+                        <td style={{ fontWeight: 800, color: 'var(--primary)' }}>{a.mails}</td>
+                        {mailTypes.map(t => <td key={t}>{a.perType[t] || 0}</td>)}
+                        <td>{a.leadCount}</td>
+                        <td style={{ color: 'var(--info)', fontWeight: 700 }}>{a.geklikt}</td>
+                        <td style={{ color: 'var(--secondary)', fontWeight: 700 }}>{a.offerte}</td>
+                        <td style={{ color: 'var(--success)', fontWeight: 700 }}>{a.getekend}</td>
+                        <td style={{ color: 'var(--success)', fontWeight: 700 }}>{a.betaald}</td>
+                        <td className="text-muted">{a.gepland}</td>
+                        <td>
+                          <span style={{
+                            padding: '3px 10px', borderRadius: '6px', fontWeight: 800, fontSize: '0.8rem',
+                            background: a.klikRate >= 10 ? 'var(--success-bg)' : 'var(--bg-elevated)',
+                            color: a.klikRate >= 10 ? 'var(--success)' : 'var(--text-muted)'
+                          }}>
+                            {a.klikRate.toFixed(1)} %
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                    <tr style={{ background: 'rgba(59,130,246,0.12)', fontWeight: 800 }}>
+                      <td>TOTAAL</td>
+                      <td style={{ color: 'var(--primary)' }}>{mailTotals.mails}</td>
+                      {mailTypes.map(t => <td key={t}>{mailTotals.perType[t] || 0}</td>)}
+                      <td>{mailTotals.leads}</td>
+                      <td style={{ color: 'var(--info)' }}>{mailTotals.geklikt}</td>
+                      <td style={{ color: 'var(--secondary)' }}>{mailTotals.offerte}</td>
+                      <td style={{ color: 'var(--success)' }}>{mailTotals.getekend}</td>
+                      <td style={{ color: 'var(--success)' }}>{mailTotals.betaald}</td>
+                      <td>{mailTotals.gepland}</td>
+                      <td>{mailTotals.leads ? ((mailTotals.geklikt / mailTotals.leads) * 100).toFixed(1) : '0.0'} %</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            )}
+            {!kpiOnly && projectMailLogs.length > 0 && (
+              <div style={{ marginTop: '16px' }}>
+                <div className="text-muted" style={{ fontSize: '0.8rem', fontWeight: 700, marginBottom: '6px' }}>Laatste mails ({Math.min(projectMailLogs.length, 200)} van {projectMailLogs.length})</div>
+                <div className="table-container" style={{ maxHeight: '420px', overflowY: 'auto' }}>
+                  <table className="table">
+                    <thead style={{ position: 'sticky', top: 0, background: 'var(--bg-card)', zIndex: 5 }}>
+                      <tr><th>Datum en tijd</th><th>Beller</th><th>Lead</th><th>E-mail</th><th>Soort</th><th>Stand bij de bron</th></tr>
+                    </thead>
+                    <tbody>
+                      {projectMailLogs.slice(0, 200).map(l => {
+                        const rank = l.lead_id ? (mailRankByKey[`${l.lead_id}|${l.mail_type}`] || 0) : 0
+                        const stand = rank >= 5 ? 'Betaald' : rank >= 4 ? 'Getekend' : rank >= 3 ? 'Offerte open' : rank >= 2 ? 'Link geklikt' : 'Gemaild'
+                        return (
+                          <tr key={l.id}>
+                            <td style={{ whiteSpace: 'nowrap' }}>{new Date(l.created_at).toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</td>
+                            <td><strong>{l.agent?.full_name || 'Onbekend'}</strong></td>
+                            <td>{l.lead?.name || '- verwijderd -'}</td>
+                            <td style={{ fontFamily: 'monospace', fontSize: '0.8rem' }}>{l.email}</td>
+                            <td>{mailTypeLabel(l.mail_type)}</td>
+                            <td style={{ fontWeight: 700, color: rank >= 4 ? 'var(--success)' : rank >= 2 ? 'var(--info)' : 'var(--text-muted)' }}>{stand}</td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>

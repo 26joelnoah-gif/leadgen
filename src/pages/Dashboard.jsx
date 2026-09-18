@@ -16,6 +16,7 @@ import Chat from '../components/Chat'
 import ActivityFeed from '../components/ActivityFeed'
 import Header from '../components/Header'
 import ImportLeadsModal from '../components/ImportLeadsModal'
+import MyMailStats from '../components/MyMailStats' // v82
 import { useToast } from '../components/Toast'
 
 function fmtSecs(totalSeconds) {
@@ -392,6 +393,10 @@ export default function Dashboard() {
             </motion.div>
           ))}
         </div>
+
+        {/* v82: mailteller voor bellers die via de Mailingservice mailen
+            (MarketingKiezer); toont zichzelf pas na de eerste mail */}
+        {isBeller && <MyMailStats />}
 
         {/* v27: geen leadoverzicht meer op het dashboard - ook niet voor
             admin/manager. Leads bekijk en beheer je in Lead Beheer.

@@ -249,6 +249,10 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
   const { sources: managedSources, addSource } = useLeadSources() // v56: beheerde bronnen
   const [importing, setImporting] = useState(false)
   const [result, setResult] = useState(null)
+  // v82: auto-verrijking na import (campaigns.auto_enrich): gratis website-scan
+  // voor leads met website maar zonder e-mail of contactpersoon. Loopt op de
+  // achtergrond in blokjes van 10; voortgang op het "Import gelukt"-scherm.
+  const [autoEnrich, setAutoEnrich] = useState(null) // null | { done, total, found, busy }
   const [fileName, setFileName] = useState('')
   // v42: projectsoort bepaalt automatisch het naamveld-label en het importgedrag
   // (i.p.v. losse checkboxes per import) - 'sales' is de standaard voor uitbellen/
@@ -271,7 +275,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
 
   useEffect(() => {
     if (!isOpen || isDemoMode) return
-    supabase.from('campaigns').select('id, name, type').is('deleted_at', null).order('name')
+    supabase.from('campaigns').select('id, name, type, auto_enrich').is('deleted_at', null).order('name')
       .then(({ data }) => setCampaigns(data || []))
     supabase.from('teams').select('id, name').order('name')
       .then(({ data }) => setTeams(data || []))
@@ -306,6 +310,28 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
   }
 
   function close() { reset(); onClose() }
+
+  // v82: website-scan in blokjes van 10 (Edge Function enrich-lead, auto=true =
+  // alleen de gratis scan). Vult alleen lege velden. Niet blokkerend: de
+  // gebruiker kan de popup gewoon sluiten, de scan loopt door tot hij klaar is.
+  async function runAutoEnrich(ids) {
+    setAutoEnrich({ done: 0, total: ids.length, found: 0, busy: true })
+    let found = 0
+    for (let i = 0; i < ids.length; i += 10) {
+      try {
+        const { data, error } = await supabase.functions.invoke('enrich-lead', { body: { leadIds: ids.slice(i, i + 10), auto: true } })
+        if (error || data?.error) throw new Error(data?.error || error.message)
+        found += (data?.results || []).filter(r => r.status === 'ok' && r.added?.email).length
+      } catch (err) {
+        console.warn('Auto-verrijking mislukt:', err.message)
+        setAutoEnrich({ done: ids.length, total: ids.length, found, busy: false, error: err.message })
+        return
+      }
+      setAutoEnrich({ done: Math.min(i + 10, ids.length), total: ids.length, found, busy: true })
+    }
+    setAutoEnrich({ done: ids.length, total: ids.length, found, busy: false })
+    onImported?.()
+  }
 
   // v32.1: open de wizard direct in de gevraagde modus (aparte knoppen
   // "Importeren" en "Verrijken" in plaats van een verstopte keuze in stap 1)
@@ -732,11 +758,21 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
 
       // 3. In batches wegschrijven
       let inserted = 0
+      const importStart = new Date(Date.now() - 5000).toISOString()
       for (let i = 0; i < toInsert.length; i += 100) {
         const chunk = toInsert.slice(i, i + 100)
         const { error } = await supabase.from('leads').insert(chunk)
         if (error) throw error
         inserted += chunk.length
+      }
+      // v82: de net geimporteerde leads apart ophalen (los van de insert, zodat
+      // een strengere lees-RLS de import zelf nooit laat mislukken)
+      let insertedRows = []
+      if (inserted > 0 && targetCampaignId !== '__new__' && selectedCampaign?.auto_enrich === true) {
+        const { data: ins } = await supabase.from('leads')
+          .select('id, website, email, contact_person')
+          .eq('lead_list_id', listId).eq('created_by', user?.id).gte('created_at', importStart).limit(500)
+        insertedRows = ins || []
       }
 
       // v56: bronnen uit de import die nog niet bestaan worden beheerde bronnen
@@ -752,6 +788,12 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
       })
       setStep(3)
       onImported?.()
+
+      // v82: automatisch de gratis website-scan draaien als het project dat wil
+      const autoOn = targetCampaignId === '__new__' ? false : selectedCampaign?.auto_enrich === true
+      const candidates = insertedRows.filter(l => (l.website || '').trim() && (!(l.email || '').trim() || !(l.contact_person || '').trim())).slice(0, 100)
+      if (autoOn && candidates.length) runAutoEnrich(candidates.map(l => l.id))
+      else setAutoEnrich(null)
     } catch (err) {
       console.error('Import mislukt:', err)
       toast(`Import mislukt: ${err.message}`, 'error')
@@ -1204,6 +1246,15 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                     {result.duplicates > 0 && <><br />{result.duplicates} overgeslagen (telefoonnummer bestond al in het systeem).</>}
                     {result.skipped > 0 && <><br />{result.skipped} rijen overgeslagen wegens ontbrekende naam/nummer.</>}
                   </p>
+                  {autoEnrich && (
+                    <p style={{ color: autoEnrich.error ? 'var(--warning)' : 'var(--text-muted)', marginTop: '-12px', marginBottom: '24px', fontSize: '0.85rem' }}>
+                      {autoEnrich.busy
+                        ? <>Website-scan loopt: {autoEnrich.done} van {autoEnrich.total} leads gecheckt op e-mailadres, {autoEnrich.found} gevonden. Je mag dit scherm sluiten.</>
+                        : autoEnrich.error
+                          ? <>Website-scan gestopt: {autoEnrich.error}</>
+                          : <>Website-scan klaar: {autoEnrich.found} van {autoEnrich.total} leads {autoEnrich.found === 1 ? 'kreeg' : 'kregen'} een e-mailadres van hun website.</>}
+                    </p>
+                  )}
                   <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
                     <button onClick={() => { setStep(1); setPasteText(''); setRows([]); setResult(null) }} className="btn btn-outline">Nog een import</button>
                     <button onClick={close} className="btn btn-primary" style={{ fontWeight: 800 }}>Klaar</button>

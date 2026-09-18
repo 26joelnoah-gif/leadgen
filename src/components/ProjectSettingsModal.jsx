@@ -72,6 +72,7 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   // v72: bordweergave (kanban) als extra manier om de leads van dit project te
   // bekijken op /leads. Geen aparte data: dezelfde leads, andere weergave.
   const [boardView, setBoardView] = useState(false)
+  const [autoEnrich, setAutoEnrich] = useState(false) // v82
 
   const allManagers = (agents || []).filter(a => a.role === 'manager')
 
@@ -82,6 +83,7 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
     setProjectType(campaign.type || 'sales')
     setPlanningLeads(campaign.planning_can_view_leads === true)
     setBoardView(campaign.board_view_enabled === true)
+    setAutoEnrich(campaign.auto_enrich === true)
     setConfirmDelete(false)
     setLoading(true)
     Promise.all([
@@ -138,6 +140,10 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       }
       if (boardView !== (campaign.board_view_enabled === true)) {
         const { error } = await supabase.from('campaigns').update({ board_view_enabled: boardView }).eq('id', campaign.id)
+        if (error) throw error
+      }
+      if (autoEnrich !== (campaign.auto_enrich === true)) {
+        const { error } = await supabase.from('campaigns').update({ auto_enrich: autoEnrich }).eq('id', campaign.id)
         if (error) throw error
       }
 
@@ -314,6 +320,15 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
                 Leads van dit project zijn ook als bord (kanban) te bekijken op de pagina Leads
               </label>
               <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>Zelfde soort bord als bij sollicitanten: kolommen van nieuw tot klant, slepen zet de status. Staat de Mailingservice aan, dan opent de kolom "Mail verstuurd" de mailpopup - de mail gaat pas weg als je hem bevestigt.</p>
+            </div>
+
+            <div>
+              <label className={labelStyle}>Website-scan na import</label>
+              <label className="flex items-center gap-2" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>
+                <input type="checkbox" checked={autoEnrich} onChange={e => setAutoEnrich(e.target.checked)} />
+                Na een import automatisch de website van elke lead scannen op een e-mailadres
+              </label>
+              <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>Gratis. Alleen voor leads met een website en zonder e-mail of contactpersoon; vult alleen lege velden. Zo hoeven bellers minder zelf op te zoeken voordat ze kunnen mailen.</p>
             </div>
 
             <div>

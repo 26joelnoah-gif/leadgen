@@ -154,3 +154,33 @@ Twee-zijdig platform:
   Mailinglijst toont de fout met "Opnieuw" en een klok-knop om het moment te
   wijzigen. LEADGEN mailt zelf nooit; niets gaat via ReachConnect.
   Migratie: migration_v83_mail_queue_send_at.sql (toegepast).
+
+- **MAILRAPPORTAGE, WARME LEADS, AUTO-VERRIJKING, MAILTELLER (v82,
+  2026-09-18):** vier dingen voor de MarketingKiezer-bellers.
+  1. Tabblad "Mails" op /admin/reports (Reports.jsx): per beller mails
+     verstuurd (per soort), leads gemaild, link geklikt, offerte open,
+     getekend, betaald (uit lead_mail_status, hoogste stap per lead+soort),
+     nog gepland (open rijen in mail_queue) en klikpercentage; KPI-kaarten
+     wisselen mee; CSV-export; lijst met de laatste mails (niet bij kpi_only).
+     RLS: mailservice_logs_select laat nu ook campaign_managers van het project
+     lezen (functie my_managed_campaign_ids, security definer).
+  2. Warme leads (LeadBoard.jsx): lead_mail_status rang 2 of 3 (geklikt /
+     offerte open) en geen eindstatus = warm. Staat bovenaan in lijst, bord-
+     kolom en kaart, vlammetje op de kaart, filterknop "Warm (n)", regel
+     "n warme leads: bel die eerst". Edge Function mailstatus (v5) schrijft bij
+     elke echte stap vooruit vanaf rang 2 een melding (notifications, type
+     lead_warm) voor assigned_to/locked_by van de lead, anders de managers van
+     het project. Getekend/betaald geeft ook een melding, maar is niet "warm".
+  3. Auto-verrijking (campaigns.auto_enrich, aan voor de bord-projecten):
+     na een import in zo'n project draait ImportLeadsModal op de achtergrond
+     enrich-lead met { auto: true } in blokjes van 10 (max 100) voor leads met
+     website maar zonder e-mail of contactpersoon; voortgang op het
+     "Import gelukt"-scherm. Edge Function enrich-lead (v7): toegang is nu
+     admin, of can_manage_leads (elke rol), of auto=true voor leads in
+     projecten met auto_enrich (via de RLS van de gebruiker); auto doet ALLEEN
+     de gratis website-scan, nooit Perplexity. Vinkje in ProjectSettingsModal.
+     enrichment_logs_insert: elke actieve gebruiker mag eigen regels loggen.
+  4. Mailteller (src/components/MyMailStats.jsx) op het beller-dashboard:
+     mails vandaag/week/totaal, link geklikt, warme leads, nog te versturen;
+     verschijnt pas na de eerste mail via de Mailingservice.
+  Migratie: migration_v82_mailrapportage_warm_enrich.sql (toegepast).
