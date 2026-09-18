@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { FileSignature, ExternalLink, RefreshCw, Presentation, Calculator, MapPin, Sun, Trash2 } from 'lucide-react'
+import { FileSignature, ExternalLink, RefreshCw, Presentation, Calculator, MapPin, Sun, Trash2, GraduationCap } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import Header from '../components/Header'
@@ -12,7 +12,7 @@ import { OFFERTE_TOOL_KEYS, verduurzamingHrefForOfferte } from '../hooks/useProj
 
 // v60: welke kaarten hier staan bepaalt campaign_tools (per project, via
 // useToolAccess); het register van tools staat in src/lib/tools.js.
-const ICONS = { FileSignature, Presentation, Calculator, MapPin, Sun }
+const ICONS = { FileSignature, Presentation, Calculator, MapPin, Sun, GraduationCap }
 
 // v59: Tools voor accountmanagers. De offerte-tool van het bestelplatform
 // (ReachConnect) is een statische pagina in public/tools/; hij leest de

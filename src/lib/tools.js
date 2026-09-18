@@ -65,6 +65,20 @@ export const TOOLS = [
     primary: true,
     newTab: false,
   },
+  {
+    // v81: onboarding-deck voor nieuwe bellers op het MarketingKiezer-project.
+    // PDF-export van de Slides-deck "Onboarding beller MarketingKiezer".
+    key: 'onboarding_marketingkiezer',
+    label: 'Onboarding beller MarketingKiezer',
+    description: 'De inwerkpresentatie: wat MarketingKiezer is, hoe de matching werkt, de prijs, het gesprek, de mails, bezwaren, huisregels en je eerste week. Lees dit voor je gaat bellen.',
+    href: '/tools/onboarding-marketingkiezer.pdf',
+    cta: 'Open onboarding',
+    icon: 'GraduationCap',
+    color: '#f97316',
+    bg: 'rgba(249,115,22,0.14)',
+    primary: false,
+    newTab: true,
+  },
 ]
 
 export const ALL_TOOL_KEYS = TOOLS.map(t => t.key)
