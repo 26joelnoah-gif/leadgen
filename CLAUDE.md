@@ -138,3 +138,19 @@ Twee-zijdig platform:
   mailsoort, zodat na de infomail dezelfde dag nog een aanmeldmail kan.
   Labels van de soorten staan in src/lib/mailSources.js (MAIL_TYPES).
   Migratie: migration_v70_mailstatus.sql.
+
+- **MAILS AUTOMATISCH LATER VERSTUREN (v83, 2026-09-18):** in de
+  Mailingservice-popup kiest de beller "Later versturen" (morgen 09:00, over
+  3 dagen, volgende week, zelf kiezen) of "Handmatig". Dat komt in
+  mail_queue.send_at (null = handmatig, v78). pg_cron-job
+  leadgen-mailqueue-runner roept elke 5 min public.mail_queue_kick() aan, die
+  via pg_net de Edge Function mailqueue-runner (verify_jwt uit, eigen sleutel
+  uit Vault 'mailqueue_cron_key' via public.mailqueue_cron_key(), alleen
+  service_role) aanroept. De runner verstuurt ALLEEN op werkdagen 08:00-18:00
+  NL, naar dezelfde bron als handmatig (MAILSERVICE_<BRON>_*), met dezelfde
+  remmen (40/uur per beller, 1x per 24u per mailsoort). Gelukt: rij
+  'verzonden', lead mail_verstuurd + opvolgdatum, activiteit op naam van de
+  beller. Mislukt: rij status 'fout' + last_error, lead blijft mail_gepland;
+  Mailinglijst toont de fout met "Opnieuw" en een klok-knop om het moment te
+  wijzigen. LEADGEN mailt zelf nooit; niets gaat via ReachConnect.
+  Migratie: migration_v83_mail_queue_send_at.sql (toegepast).
