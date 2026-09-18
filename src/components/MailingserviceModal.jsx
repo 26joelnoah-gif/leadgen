@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { X, Send, Mail, ListPlus } from 'lucide-react'
+import { X, Send, Mail, ListPlus, Clock } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { mailSourceLabel, mailTypesVoor, mailTypeLabel } from '../lib/mailSources'
@@ -21,7 +21,35 @@ import { mailSourceLabel, mailTypesVoor, mailTypeLabel } from '../lib/mailSource
 // public.mail_queue zonder te versturen. De aanroeper zet de lead via onQueued
 // op 'mail_gepland'. Versturen gebeurt later vanuit de Mailinglijst op /leads,
 // alleen door wie hem bewaarde (of admin / manager van het project).
+// v83: "Later versturen": de beller kiest een moment (morgen 09:00, over 3
+// dagen, volgende week, of zelf een tijd). Dat komt in mail_queue.send_at en de
+// Edge Function mailqueue-runner (pg_cron, elke 5 min) verstuurt hem dan
+// vanzelf, maar alleen op werkdagen tussen 08:00 en 18:00. "Handmatig" laat
+// send_at leeg: dan gaat hij pas weg als iemand hem in de Mailinglijst verstuurt.
 const EMAIL_RE = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[a-z]{2,}$/i
+
+// Eerstvolgende werkdag om `uur` uur, minstens `dagen` dagen vooruit.
+function werkdagOm(dagen, uur = 9) {
+  const d = new Date()
+  d.setDate(d.getDate() + dagen)
+  d.setHours(uur, 0, 0, 0)
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1)
+  return d
+}
+const PLANNING = [
+  { key: 'morgen', label: 'Morgen 09:00', bereken: () => werkdagOm(1) },
+  { key: '3dagen', label: 'Over 3 dagen', bereken: () => werkdagOm(3) },
+  { key: 'week', label: 'Volgende week', bereken: () => werkdagOm(7) },
+  { key: 'zelf', label: 'Zelf kiezen' },
+  { key: 'handmatig', label: 'Handmatig' },
+]
+const tijdLang = (d) => d ? d.toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
+// Voor <input type="datetime-local">: lokale tijd zonder zone
+function naarLokaal(d) {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
+const buitenWerktijd = (d) => !d ? false : (d.getDay() === 0 || d.getDay() === 6 || d.getHours() < 8 || d.getHours() >= 18)
 
 export default function MailingserviceModal({ lead, defaults, mailService, listId, onClose, onSent, onQueued }) {
   const { profile, user } = useAuth()
@@ -35,7 +63,17 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
   const [sending, setSending] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [planning, setPlanning] = useState('morgen') // v83
+  const [eigenTijd, setEigenTijd] = useState(() => naarLokaal(werkdagOm(1)))
   const bezig = sending || saving
+
+  // v83: wanneer gaat de mail weg? null = handmatig vanuit de Mailinglijst
+  const sendAt = (() => {
+    if (planning === 'handmatig') return null
+    if (planning === 'zelf') { const d = new Date(eigenTijd); return isNaN(d.getTime()) ? null : d }
+    return PLANNING.find(p => p.key === planning)?.bereken() || null
+  })()
+  const sendAtOngeldig = planning === 'zelf' && (!sendAt || sendAt.getTime() < Date.now() - 60_000)
 
   const bron = mailSourceLabel(mailService?.source)
   const dagen = mailService?.follow_up_days || 5
@@ -45,7 +83,7 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
 
   // v78: niet sturen maar bewaren voor later
   async function handleQueue() {
-    if (bezig || !kanVersturen || !onQueued) return
+    if (bezig || !kanVersturen || !onQueued || sendAtOngeldig) return
     setSaving(true)
     setError('')
     try {
@@ -60,13 +98,14 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
         email: email.trim().toLowerCase(),
         contactpersoon: contactpersoon.trim() || null,
         beller_naam: bellerNaam.trim() || null,
+        send_at: sendAt ? sendAt.toISOString() : null, // v83
       }
       const { error: insErr } = await supabase.from('mail_queue').insert(rij)
       if (insErr) {
         if (insErr.code === '23505') throw new Error('Deze mail staat al in de mailinglijst voor deze lead')
         throw new Error(insErr.message || 'Bewaren mislukt')
       }
-      await onQueued({ email: rij.email, contactpersoon: contactpersoon.trim(), source: rij.source, mailType })
+      await onQueued({ email: rij.email, contactpersoon: contactpersoon.trim(), source: rij.source, mailType, sendAt: sendAt ? sendAt.toISOString() : null })
     } catch (e) {
       setError(e.message || 'Bewaren mislukt')
       setSaving(false)
@@ -171,19 +210,55 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
             <Send size={16} /> {sending ? 'VERSTUREN...' : `${mailTypeLabel(mailType).toUpperCase()} VERSTUREN & VOLGENDE`}
           </button>
           {onQueued && (
-            <div>
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '14px' }}>
+              <label style={labelStyle}><Clock size={13} style={{ verticalAlign: -2 }} /> Of later versturen</label>
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {PLANNING.map(p => {
+                  const actief = p.key === planning
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => setPlanning(p.key)}
+                      style={{
+                        padding: '8px 10px', borderRadius: '8px', cursor: 'pointer', fontSize: '0.8rem',
+                        border: `1px solid ${actief ? 'var(--info, #0EA5E9)' : 'var(--border)'}`,
+                        background: actief ? 'var(--info-bg, rgba(14,165,233,0.12))' : 'var(--bg-dark)',
+                        color: actief ? 'var(--info, #0EA5E9)' : 'var(--text-secondary)',
+                        fontWeight: actief ? 800 : 600,
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {planning === 'zelf' && (
+                <input
+                  type="datetime-local"
+                  value={eigenTijd}
+                  min={naarLokaal(new Date())}
+                  onChange={e => setEigenTijd(e.target.value)}
+                  style={{ ...inputStyle, marginTop: '8px' }}
+                />
+              )}
+              <p className="text-muted" style={{ margin: '8px 0 10px', fontSize: '0.75rem', lineHeight: 1.4 }}>
+                {planning === 'handmatig'
+                  ? 'De mail staat klaar op de Leads-pagina onder Mailinglijst en gaat pas weg als jij hem daar verstuurt.'
+                  : sendAtOngeldig
+                    ? 'Kies een moment in de toekomst.'
+                    : <>De mail gaat vanzelf weg op <strong style={{ color: 'var(--text-primary)' }}>{tijdLang(sendAt)}</strong>.{buitenWerktijd(sendAt) ? ' Dat is buiten werktijd, dus hij gaat de eerstvolgende werkdag om 08:00.' : ''} Tot die tijd staat hij in de Mailinglijst; daar kun je hem nog aanpassen.</>}
+                {' '}De lead gaat op "Mail gepland".
+              </p>
               <button
                 type="button"
                 onClick={handleQueue}
-                disabled={bezig || !kanVersturen}
-                title="Nog niet versturen. De mail komt in de mailinglijst op de Leads-pagina en gaat pas weg als jij hem daar verstuurt."
-                style={{ width: '100%', background: 'transparent', color: 'var(--text-secondary)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', fontWeight: 700, fontSize: '0.9rem', cursor: bezig || !kanVersturen ? 'not-allowed' : 'pointer', opacity: bezig || !kanVersturen ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
+                disabled={bezig || !kanVersturen || sendAtOngeldig}
+                style={{ width: '100%', background: 'transparent', color: 'var(--text-secondary)', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', fontWeight: 700, fontSize: '0.9rem', cursor: bezig || !kanVersturen || sendAtOngeldig ? 'not-allowed' : 'pointer', opacity: bezig || !kanVersturen || sendAtOngeldig ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}
               >
-                <ListPlus size={16} /> {saving ? 'BEWAREN...' : 'BEWAREN IN MAILINGLIJST'}
+                {planning === 'handmatig' ? <ListPlus size={16} /> : <Clock size={16} />}
+                {saving ? 'BEWAREN...' : planning === 'handmatig' ? 'BEWAREN IN MAILINGLIJST' : `INPLANNEN: ${tijdLang(sendAt).toUpperCase()}`}
               </button>
-              <p className="text-muted" style={{ margin: '6px 0 0', fontSize: '0.75rem', lineHeight: 1.4 }}>
-                Nog niet sturen? Dan staat de mail klaar op de Leads-pagina onder Mailinglijst. De lead gaat op "Mail gepland".
-              </p>
             </div>
           )}
         </div>

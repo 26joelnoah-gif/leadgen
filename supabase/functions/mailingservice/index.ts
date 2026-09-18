@@ -14,6 +14,8 @@
 //     beller: { naam, telefoon? }, lead_id }
 //
 // body van het belscherm: { lead_id, email, contactpersoon?, mail?, beller_naam?, queue_id? }
+// v83: rijen met status 'fout' (automatisch versturen mislukte) mogen ook
+// handmatig alsnog. Het automatisch versturen zelf zit in mailqueue-runner.
 // v78: queue_id = een bewaarde mail uit public.mail_queue (Mailinglijst). Dan
 // komen adres, mailsoort, contactpersoon en naam uit die rij, en mag alleen wie
 // hem bewaarde (of admin / manager van het project) hem versturen. Na succes
@@ -75,7 +77,9 @@ Deno.serve(async (req: Request) => {
         .eq("id", queueId)
         .maybeSingle();
       if (!q) return json({ error: "Deze mail staat niet (meer) in de mailinglijst" }, 404);
-      if (q.status !== "open") return json({ error: "Deze mail is al verstuurd" }, 409);
+      // v83: een rij die automatisch mislukte ('fout') mag handmatig alsnog.
+      if (q.status === "verzonden") return json({ error: "Deze mail is al verstuurd" }, 409);
+      if (q.status !== "open" && q.status !== "fout") return json({ error: "Deze mail kan niet verstuurd worden" }, 409);
       if (q.agent_id !== caller.id) {
         const isAdmin = caller.role === "admin";
         let isManager = false;
@@ -208,7 +212,7 @@ Deno.serve(async (req: Request) => {
     // v78: bewaarde mail is nu weg -> rij afvinken (service role, de app mag dit niet zelf)
     if (queue) {
       await admin.from("mail_queue")
-        .update({ status: "verzonden", sent_at: new Date().toISOString(), sent_by: caller.id, log_id: logRow?.id ?? null })
+        .update({ status: "verzonden", sent_at: new Date().toISOString(), sent_by: caller.id, log_id: logRow?.id ?? null, last_error: null })
         .eq("id", queue.id);
     }
     return json({ ok: true, email, source: svc.source, mail_type: mailSoort, follow_up_days: svc.follow_up_days });

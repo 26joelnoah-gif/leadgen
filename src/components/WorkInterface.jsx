@@ -553,7 +553,7 @@ export default function WorkInterface() {
 
   // v78: mail bewaard in de Mailinglijst, nog niet weg. Lead op 'mail_gepland'
   // zonder opvolgdatum; die komt pas als de mail echt verstuurd is.
-  const handleMailQueued = async ({ email, contactpersoon, source, mailType }) => {
+  const handleMailQueued = async ({ email, contactpersoon, source, mailType, sendAt }) => {
     const changes = {}
     if (email && email !== (currentLead.email || '').trim().toLowerCase()) changes.email = email
     if (contactpersoon && contactpersoon !== (currentLead.contact_person || '').trim()) changes.contact_person = contactpersoon
@@ -564,7 +564,9 @@ export default function WorkInterface() {
         toast(`E-mailadres niet opgeslagen: ${foutTekst(error)}`, 'error', 7000)
       }
     }
-    const regel = `Mailingservice (${mailSourceLabel(source)}): ${mailTypeLabel(mailType).toLowerCase()} bewaard in de mailinglijst voor ${email}`
+    // v83: met sendAt gaat de mail vanzelf weg (mailqueue-runner), anders handmatig
+    const wanneer = sendAt ? ` (gaat automatisch op ${new Date(sendAt).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})` : ''
+    const regel = `Mailingservice (${mailSourceLabel(source)}): ${mailTypeLabel(mailType).toLowerCase()} bewaard in de mailinglijst voor ${email}${wanneer}`
     const notes = dispositionNotes.trim() ? `${regel}. ${dispositionNotes.trim()}` : regel
     setShowMailModal(false)
     await submitDisposition('mail_gepland', notes, null)

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Send, Trash2, Mail, RefreshCw, Inbox, CheckSquare, Square } from 'lucide-react'
+import { Send, Trash2, Mail, RefreshCw, Inbox, CheckSquare, Square, Clock, AlertTriangle, RotateCcw } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './Toast'
@@ -17,7 +17,17 @@ import EmptyState from './EmptyState'
 // 'mail_verstuurd' met een opvolgdatum, precies zoals bij direct versturen.
 // Verwijderen = de mail gaat niet; de lead gaat terug naar 'later_bellen'
 // (morgen opnieuw in de wachtrij) als hij nog op 'mail_gepland' stond.
+// v83: rijen met send_at gaan vanzelf weg via de Edge Function mailqueue-runner
+// (pg_cron, elke 5 min, alleen werkdagen 08:00-18:00). Hier zie je wanneer, en
+// je kunt de tijd nog aanpassen. Mislukt het automatisch versturen, dan staat
+// de rij op 'fout' met de reden; "Opnieuw" zet hem terug op 'open' (meteen in
+// de volgende ronde), "Versturen" stuurt hem direct handmatig.
 const dateShort = (iso) => iso ? new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
+const dateLang = (iso) => iso ? new Date(iso).toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
+function naarLokaal(d) {
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
 
 export default function MailQueueView({ listId, listIds, mailService, onChanged }) {
   // v80: meerdere lijsten tegelijk (heel project) kan ook
@@ -30,6 +40,7 @@ export default function MailQueueView({ listId, listIds, mailService, onChanged 
   const [selected, setSelected] = useState({})
   const [busyIds, setBusyIds] = useState({})
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [tijdBewerk, setTijdBewerk] = useState(null) // v83: { id, value }
   const followUpDays = mailService?.follow_up_days || 5
 
   const load = useCallback(async (silent = false) => {
@@ -37,9 +48,9 @@ export default function MailQueueView({ listId, listIds, mailService, onChanged 
     if (!silent) setLoading(true)
     const { data, error } = await supabase
       .from('mail_queue')
-      .select('id, created_at, agent_id, lead_id, mail_type, email, contactpersoon, beller_naam, source, agent:profiles!mail_queue_agent_id_fkey(full_name), leads(name, city, status)')
+      .select('id, created_at, agent_id, lead_id, mail_type, email, contactpersoon, beller_naam, source, status, send_at, last_error, attempts, agent:profiles!mail_queue_agent_id_fkey(full_name), leads(name, city, status)')
       .in('lead_list_id', idsKey.split(','))
-      .eq('status', 'open')
+      .in('status', ['open', 'fout'])
       .order('created_at', { ascending: true })
     if (error) console.error('mail_queue laden:', error)
     setRows(data || [])
@@ -119,6 +130,34 @@ export default function MailQueueView({ listId, listIds, mailService, onChanged 
     onChanged?.()
   }
 
+  // v83: mislukte mail opnieuw laten proberen door de automaat (volgende ronde)
+  async function opnieuw(row) {
+    if (busyIds[row.id]) return
+    setBusyIds(b => ({ ...b, [row.id]: true }))
+    const { error } = await supabase.from('mail_queue')
+      .update({ status: 'open', send_at: new Date().toISOString(), last_error: null })
+      .eq('id', row.id)
+    setBusyIds(b => { const n = { ...b }; delete n[row.id]; return n })
+    if (error) { toast(error.message || 'Opnieuw plannen mislukt', 'error'); return }
+    toast('Mail staat weer klaar, hij gaat in de volgende ronde (binnen werktijd)', 'success')
+    load(true)
+  }
+
+  // v83: verzendmoment aanpassen (leeg = handmatig)
+  async function tijdOpslaan(row, waarde) {
+    const d = waarde ? new Date(waarde) : null
+    if (d && isNaN(d.getTime())) { toast('Ongeldige tijd', 'error'); return }
+    setBusyIds(b => ({ ...b, [row.id]: true }))
+    const { error } = await supabase.from('mail_queue')
+      .update({ send_at: d ? d.toISOString() : null, ...(row.status === 'fout' ? { status: 'open', last_error: null } : {}) })
+      .eq('id', row.id)
+    setBusyIds(b => { const n = { ...b }; delete n[row.id]; return n })
+    setTijdBewerk(null)
+    if (error) { toast(error.message || 'Tijd opslaan mislukt', 'error'); return }
+    toast(d ? `Gaat automatisch op ${dateLang(d.toISOString())}` : 'Mail gaat nu alleen nog handmatig', 'success')
+    load(true)
+  }
+
   async function verwijder(row) {
     if (busyIds[row.id]) return
     setBusyIds(b => ({ ...b, [row.id]: true }))
@@ -188,9 +227,38 @@ export default function MailQueueView({ listId, listIds, mailService, onChanged 
                     Bewaard door {row.agent?.full_name || 'collega'} op {dateShort(row.created_at)}
                     {!mag && ' - alleen die persoon (of een manager) kan hem versturen'}
                   </div>
+                  {/* v83: automatisch of handmatig, en fouten */}
+                  {row.status === 'fout' ? (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--danger)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <AlertTriangle size={12} /> Automatisch versturen mislukt: {row.last_error || 'onbekende fout'}
+                    </div>
+                  ) : row.send_at ? (
+                    <div style={{ fontSize: '0.75rem', color: 'var(--info)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Clock size={12} /> Gaat automatisch op {dateLang(row.send_at)}{new Date(row.send_at) <= new Date() ? ' (wacht op werktijd)' : ''}
+                    </div>
+                  ) : (
+                    <div className="text-muted" style={{ fontSize: '0.75rem', marginTop: 2 }}>Handmatig versturen</div>
+                  )}
+                  {tijdBewerk?.id === row.id && (
+                    <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <input type="datetime-local" value={tijdBewerk.value} min={naarLokaal(new Date())} onChange={e => setTijdBewerk({ id: row.id, value: e.target.value })}
+                        style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontSize: '0.8rem' }} />
+                      <button type="button" className="btn btn-sm btn-primary" onClick={() => tijdOpslaan(row, tijdBewerk.value)} disabled={busy}>Opslaan</button>
+                      <button type="button" className="btn btn-sm btn-outline" onClick={() => tijdOpslaan(row, '')} disabled={busy} title="Niet automatisch, alleen handmatig">Handmatig</button>
+                      <button type="button" className="btn btn-sm btn-outline" onClick={() => setTijdBewerk(null)}>Annuleren</button>
+                    </div>
+                  )}
                 </div>
                 {mag && (
                   <div className="flex gap-1">
+                    {row.status === 'fout' && (
+                      <button type="button" className="btn btn-sm btn-outline" onClick={() => opnieuw(row)} disabled={busy || bulkBusy} title="Automatisch opnieuw proberen">
+                        <RotateCcw size={12} /> Opnieuw
+                      </button>
+                    )}
+                    <button type="button" className="btn btn-sm btn-outline" onClick={() => setTijdBewerk(tijdBewerk?.id === row.id ? null : { id: row.id, value: naarLokaal(row.send_at ? new Date(row.send_at) : new Date(Date.now() + 3600_000)) })} disabled={busy || bulkBusy} title="Verzendmoment aanpassen">
+                      <Clock size={12} />
+                    </button>
                     <button type="button" className="btn btn-sm btn-primary" onClick={() => verstuur(row)} disabled={busy || bulkBusy} title="Nu versturen">
                       <Send size={12} /> Versturen
                     </button>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X, ListChecks } from 'lucide-react'
+import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X, ListChecks, Flame } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
@@ -44,6 +44,11 @@ import MailQueueView from '../components/MailQueueView'
 // v78: weergave "Mailinglijst": mails die in de Mailingservice-popup zijn
 // bewaard (mail_queue) en later per stuk of in een keer verstuurd worden.
 // Zie MailQueueView. De lead staat intussen op 'mail_gepland'.
+// v82: warme leads. Meldt de bron dat een bureau op de link klikte of de
+// offerte opende (lead_mail_status rang 2 of 3) en is de lead nog open, dan
+// staat hij BOVENAAN (lijst, bord-kolom en kaart), krijgt een vlammetje en er
+// is een filter "Warm". De eigenaar krijgt op dat moment ook een melding
+// (Edge Function mailstatus schrijft in notifications).
 const POLL_MS = 8000
 const DONE_STATUSES = ['deal', 'bruto_deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer', 'cold', 'blacklist', 'monteur_ingepland', 'wil_annuleren']
 
@@ -413,7 +418,7 @@ export default function LeadBoard() {
 
   // v78: mail bewaard voor later. Lead op 'mail_gepland' zonder opvolgdatum;
   // die komt pas als de mail vanuit de Mailinglijst echt verstuurd is.
-  async function handleMailQueued({ email, contactpersoon, source, mailType }) {
+  async function handleMailQueued({ email, contactpersoon, source, mailType, sendAt }) {
     const lead = mailLead
     if (!lead) return
     const updates = { status: 'mail_gepland', next_contact_date: null, updated_at: new Date().toISOString() }
@@ -428,14 +433,25 @@ export default function LeadBoard() {
       load(true)
       return
     }
-    logBoardActivity(lead.id, `Mailingservice (${mailSourceLabel(source)}): ${mailTypeLabel(mailType).toLowerCase()} bewaard in de mailinglijst voor ${email} (bord)`)
-    toast(`${mailTypeLabel(mailType)} bewaard in de mailinglijst`, 'success')
+    const wanneer = sendAt ? ` (gaat automatisch op ${dateShort(sendAt)})` : '' // v83
+    logBoardActivity(lead.id, `Mailingservice (${mailSourceLabel(source)}): ${mailTypeLabel(mailType).toLowerCase()} bewaard in de mailinglijst voor ${email}${wanneer} (bord)`)
+    toast(sendAt ? `${mailTypeLabel(mailType)} ingepland voor ${dateShort(sendAt)}` : `${mailTypeLabel(mailType)} bewaard in de mailinglijst`, 'success')
   }
+
+  // v82: warm = de bron zag een klik of een geopende offerte, en er is nog
+  // geen deal of afwijzing. Getekend/betaald (rang 4/5) is geen belmoment meer.
+  const isWarm = useCallback((lead) => {
+    const r = mailRows[lead.id]?.status_rank || 0
+    return (r === 2 || r === 3) && !DONE_STATUSES.includes(lead.status)
+  }, [mailRows])
 
   // Wat vraagt om actie op deze lead?
   const signalsFor = useCallback((lead) => {
     const out = []
     const mail = mailRows[lead.id]
+    if (isWarm(lead)) {
+      out.push({ label: mail.status_rank === 3 ? 'Bel nu: offerte open' : 'Bel nu: geklikt', color: '#fff', bg: 'var(--secondary)', warm: true })
+    }
     if (isFollowUpDue(lead) && !DONE_STATUSES.includes(lead.status)) {
       out.push({ label: lead.status === 'mail_verstuurd' ? 'Opvolgen na mail' : 'Opvolgen', color: 'var(--warning)', bg: 'var(--warning-bg)' })
     }
@@ -451,7 +467,7 @@ export default function LeadBoard() {
       out.push({ label: 'Nog niet gemaild', color: 'var(--text-muted)', bg: 'var(--bg-card)' })
     }
     return out
-  }, [mailRows, mailService, followUpDays])
+  }, [mailRows, mailService, followUpDays, isWarm])
 
   const pos = geo.enabled ? geo.position : null
   const q = search.trim().toLowerCase()
@@ -469,6 +485,7 @@ export default function LeadBoard() {
       .filter(l => {
         if (filter === 'open' && DONE_STATUSES.includes(l.status)) return false
         if (filter === 'done' && !DONE_STATUSES.includes(l.status)) return false
+        if (filter === 'warm' && !isWarm(l)) return false
         if (wie === 'me' && !vanPersoon(l, user?.id)) return false
         if (wie !== 'all' && wie !== 'me' && !vanPersoon(l, wie)) return false
         if (!q) return true
@@ -478,9 +495,17 @@ export default function LeadBoard() {
     if (pos && sortBy === 'distance') {
       rows.sort((a, b) => (a._distance ?? Infinity) - (b._distance ?? Infinity))
     }
+    // v82: warme leads altijd bovenaan (stabiel: de rest houdt zijn volgorde)
+    const warm = rows.filter(isWarm)
+    if (warm.length) {
+      const rest = rows.filter(l => !isWarm(l))
+      warm.sort((a, b) => (mailRows[b.id]?.status_rank || 0) - (mailRows[a.id]?.status_rank || 0))
+      return [...warm, ...rest]
+    }
     return rows
-  }, [pool, filter, q, pos, sortBy, wie, vanPersoon, user?.id])
+  }, [pool, filter, q, pos, sortBy, wie, vanPersoon, user?.id, isWarm, mailRows])
   const openCount = pool.filter(l => !DONE_STATUSES.includes(l.status)).length
+  const warmCount = useMemo(() => pool.filter(isWarm).length, [pool, isWarm])
   const busyCount = pool.filter(isLockedByOther).length
   const actionCount = useMemo(
     () => pool.filter(l => !DONE_STATUSES.includes(l.status) && isFollowUpDue(l)).length,
@@ -495,8 +520,8 @@ export default function LeadBoard() {
     const sigs = signalsFor(lead)
     return (
       <>
-        <div style={{ fontWeight: 700, fontSize: '0.74rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {lead.name || 'Naam onbekend'}
+        <div style={{ fontWeight: 700, fontSize: '0.74rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isWarm(lead) ? 'var(--secondary)' : undefined }}>
+          {isWarm(lead) && <Flame size={11} style={{ verticalAlign: -1, marginRight: 3 }} />}{lead.name || 'Naam onbekend'}
         </div>
         {lead.contact_person && (
           <div className="text-muted" style={{ fontSize: '0.62rem', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.contact_person}</div>
@@ -626,9 +651,12 @@ export default function LeadBoard() {
                 {isStaff && mensen.map(p => <option key={p.id} value={p.id}>{p.full_name || 'Naamloos'}</option>)}
               </select>
               <div className="flex gap-2">
-                {[['open', `Open (${openCount})`], ['done', `Afgerond (${pool.length - openCount})`], ['all', `Alles (${pool.length})`]].map(([k, label]) => (
-                  <button key={k} type="button" onClick={() => setFilter(k)} className={`btn btn-sm ${filter === k ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 20 }}>
-                    {label}
+                {[
+                  ...(mailService ? [['warm', `Warm (${warmCount})`]] : []),
+                  ['open', `Open (${openCount})`], ['done', `Afgerond (${pool.length - openCount})`], ['all', `Alles (${pool.length})`]
+                ].map(([k, label]) => (
+                  <button key={k} type="button" onClick={() => setFilter(k)} className={`btn btn-sm ${filter === k ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 20, ...(k === 'warm' && warmCount > 0 && filter !== 'warm' ? { color: 'var(--secondary)', borderColor: 'var(--secondary)', fontWeight: 800 } : {}) }} title={k === 'warm' ? 'Leads die op de link klikten of de offerte openden. Die bel je eerst.' : undefined}>
+                    {k === 'warm' && <Flame size={12} style={{ verticalAlign: -2 }} />} {label}
                   </button>
                 ))}
               </div>
@@ -660,6 +688,11 @@ export default function LeadBoard() {
             </div>
 
             <div className="flex items-center mb-2" style={{ gap: 12, flexWrap: 'wrap', fontSize: '0.8rem' }}>
+              {warmCount > 0 && (
+                <span style={{ color: 'var(--secondary)', fontWeight: 800 }}>
+                  <Flame size={12} style={{ verticalAlign: -2 }} /> {warmCount} warme lead{warmCount === 1 ? '' : 's'}: {warmCount === 1 ? 'heeft' : 'hebben'} je mail geopend of de offerte bekeken. Bel die eerst.
+                </span>
+              )}
               {actionCount > 0 && (
                 <span style={{ color: 'var(--warning)', fontWeight: 700 }}>
                   <Clock size={12} style={{ verticalAlign: -2 }} /> {actionCount} lead{actionCount === 1 ? '' : 's'} vraagt om opvolging
@@ -713,7 +746,7 @@ export default function LeadBoard() {
                 height={Math.max(420, (typeof window !== 'undefined' ? window.innerHeight : 800) - 300)}
               />
             ) : visible.length === 0 ? (
-              <EmptyState icon={Inbox} title="Geen leads" message={filter === 'open' ? 'Alle leads in deze lijst zijn afgerond.' : 'Niets gevonden.'} />
+              <EmptyState icon={Inbox} title="Geen leads" message={filter === 'open' ? 'Alle leads in deze lijst zijn afgerond.' : filter === 'warm' ? 'Nog geen warme leads. Zodra een bureau op je mail klikt of de offerte opent, komt hij hier bovenaan.' : 'Niets gevonden.'} />
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {visible.map(lead => {
@@ -734,13 +767,13 @@ export default function LeadBoard() {
                       style={{
                         textAlign: 'left', cursor: 'pointer', opacity: busy ? 0.55 : 1,
                         display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', margin: 0,
-                        border: mine ? '1px solid var(--primary)' : undefined, width: '100%'
+                        border: mine ? '1px solid var(--primary)' : isWarm(lead) ? '1px solid var(--secondary)' : undefined, width: '100%'
                       }}
                     >
                       <span style={{ width: 10, height: 10, borderRadius: '50%', background: st.color, flexShrink: 0 }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {lead.name || 'Naam onbekend'}
+                          {isWarm(lead) && <Flame size={13} style={{ verticalAlign: -2, marginRight: 4, color: 'var(--secondary)' }} />}{lead.name || 'Naam onbekend'}
                           {lead.contact_person && <span className="text-muted" style={{ fontWeight: 400 }}> · {lead.contact_person}</span>}
                         </div>
                         <div className="text-muted" style={{ fontSize: '0.8rem', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
