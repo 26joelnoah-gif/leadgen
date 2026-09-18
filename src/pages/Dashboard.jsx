@@ -12,7 +12,6 @@ import { useLeadSources } from '../hooks/useLeadSources'
 import { SourceSelect } from '../components/LeadSources'
 import { STATUS_MAP } from '../utils/statusUtils'
 import TeamLeaderboard from '../components/TeamLeaderboard'
-import Chat from '../components/Chat'
 import ActivityFeed from '../components/ActivityFeed'
 import Header from '../components/Header'
 import ImportLeadsModal from '../components/ImportLeadsModal'
@@ -526,7 +525,6 @@ export default function Dashboard() {
         onImported={() => fetchLeads()}
       />
 
-      <Chat />
     </motion.div>
   )
 }

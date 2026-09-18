@@ -28,6 +28,7 @@ import WorkInterface from './components/WorkInterface'
 import ErrorBoundary from './components/ErrorBoundary'
 import OfflineBanner from './components/OfflineBanner'
 import FeatureAwareness from './components/FeatureAwareness'
+import Chat from './components/Chat'
 
 // v33: waarschuw open tabbladen zodra er een nieuwe versie live staat.
 // Zonder dit draaien gebruikers dagenlang oude code omdat een webapp
@@ -175,6 +176,14 @@ function AppRoutes() {
       {user && (
         <ErrorBoundary naam="featureawareness" variant="stil">
           <FeatureAwareness />
+        </ErrorBoundary>
+      )}
+      {/* v85: teamchat is overal beschikbaar (was alleen op het dashboard),
+          behalve op de publieke tekenpagina. Eigen grens: gaat de chat stuk,
+          dan blijft de rest gewoon werken. */}
+      {user && !location.pathname.startsWith('/tekenen') && (
+        <ErrorBoundary naam="teamchat" variant="stil">
+          <Chat />
         </ErrorBoundary>
       )}
       {/* Per pagina een grens: crasht er een, dan blijft de rest bruikbaar en

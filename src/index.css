@@ -772,7 +772,7 @@ body::before {
   position: fixed;
   bottom: 24px;
   right: 24px;
-  z-index: 999;
+  z-index: 10500; /* v85: boven het belscherm (9999), chat is overal bereikbaar */
 }
 
 .chat-toggle {
