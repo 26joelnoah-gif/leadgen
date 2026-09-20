@@ -113,7 +113,7 @@ export default function Recruitment() {
   const [rosterLoading, setRosterLoading] = useState(false)
   useEffect(() => {
     let alive = true
-    supabase.from('profiles').select('id, full_name, email, role, is_active').order('full_name')
+    supabase.from('profiles').select('id, full_name, email, role, is_active').is('deleted_at', null).order('full_name')
       .then(({ data }) => { if (alive) setOrgProfiles(data || []) })
     return () => { alive = false }
   }, [])

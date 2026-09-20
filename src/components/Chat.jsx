@@ -258,6 +258,7 @@ export default function Chat() {
         supabase
           .from('profiles')
           .select('id, full_name, email')
+          .is('deleted_at', null)
           .order('full_name')
       ])
       if (membersRes.error) throw membersRes.error

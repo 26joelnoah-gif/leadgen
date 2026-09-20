@@ -48,7 +48,7 @@ export default function Payouts() {
       const end = new Date(`${endDate}T23:59:59.999`)
 
       const [usersRes, payoutsRes, leadsRes, rulesRes, statsRes, listsRes, logsRes] = await Promise.all([
-        supabase.from('profiles').select('*').order('full_name'),
+        supabase.from('profiles').select('*').is('deleted_at', null).order('full_name'),
         supabase.from('payouts').select('*').order('created_at', { ascending: false }),
         supabase.from('leads').select('id, name, assigned_to, status, appointment_approved, lead_list_id, created_at'),
         supabase.from('payout_rules').select('*').limit(1),

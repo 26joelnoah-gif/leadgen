@@ -57,7 +57,10 @@ export default function Admin() {
   const activeTab = searchParams.get('tab') || 'data'
   const setActiveTab = (t) => setSearchParams(t === 'data' ? {} : { tab: t }, { replace: true })
   const [leads, setLeads] = useState([])
-  const [users, setUsers] = useState([])
+  const [users, setUsers] = useState([]) // medewerkers die NIET in de prullenbak staan
+  const [trashedUsers, setTrashedUsers] = useState([]) // v86: prullenbak (deleted_at gezet)
+  const [showTrash, setShowTrash] = useState(false)
+  const [confirmPurgeUser, setConfirmPurgeUser] = useState(null) // v86: definitief verwijderen, 2x klikken
   const [loading, setLoading] = useState(true)
   const [showAddLead, setShowAddLead] = useState(false)
   const [newLead, setNewLead] = useState({
@@ -69,7 +72,6 @@ export default function Admin() {
   const [showBriefing, setShowBriefing] = useState(false)
   const [campaigns, setCampaigns] = useState([])
   const [briefings, setBriefings] = useState([])
-  const [confirmDeleteUser, setConfirmDeleteUser] = useState(null)
   const [todayStats, setTodayStats] = useState({ calls: 0, seconds: 0, afspraken: 0, deals: 0, perAgent: {} })
   const [showEmployee, setShowEmployee] = useState(false)
   const [managingUser, setManagingUser] = useState(null) // manager wiens projecten we koppelen
@@ -238,7 +240,10 @@ export default function Admin() {
       setAssignCampaignTeams(actRows || [])
       setAssignProjects(apRows || [])
       setLeads(l || [])
-      setUsers(u || [])
+      // v86: medewerkers in de prullenbak apart houden, zodat ze nergens
+      // anders in Admin meetellen (dropdowns, org-tellers, teamkaarten).
+      setUsers((u || []).filter(x => !x.deleted_at))
+      setTrashedUsers((u || []).filter(x => !!x.deleted_at))
       setManagerLinks(pm || [])
       setOrgs(o || [])
 
@@ -276,23 +281,63 @@ export default function Admin() {
     }
   }
 
+  // v86: "Verwijderen" zet een medewerker in de PRULLENBAK. Niets gaat echt weg:
+  // rechten, teams, roosterdagen en gekoppelde leads blijven staan. De medewerker
+  // kan niet meer inloggen (is_active false) en staat nergens meer in lijsten.
+  // Na 30 dagen ruimt de database hem definitief op (pg_cron, profiles_trash_purge).
   async function handleDeleteEmployee(userId) {
-    // Twee keer klikken = bevestigen (voorkomt per ongeluk verwijderen)
-    if (confirmDeleteUser !== userId) {
-      setConfirmDeleteUser(userId)
-      toast('Klik nogmaals op de prullenbak om definitief te verwijderen. Tip: inactief zetten bewaart alles en is omkeerbaar.', 'error')
-      return
-    }
-    setConfirmDeleteUser(null)
+    const u = users.find(x => x.id === userId)
     try {
-      // v31: .select() erbij zodat we ZIEN of er echt iets verwijderd is -
-      // vroeger blokkeerde de database dit stilletjes en kwam de medewerker
-      // na verversen gewoon terug.
-      const { data, error } = await supabase.from('profiles').delete().eq('id', userId).select('id')
+      const deletedAt = new Date().toISOString()
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ deleted_at: deletedAt, is_active: false })
+        .eq('id', userId)
+        .select('*')
       if (error) throw error
       if (!data || data.length === 0) throw new Error('Verwijderen is geweigerd door de database. Ververs de pagina en probeer opnieuw.')
-      setUsers(prev => prev.filter(u => u.id !== userId))
-      toast('Medewerker verwijderd. Gesprekshistorie blijft bewaard in de rapportage.', 'success')
+      setUsers(prev => prev.filter(x => x.id !== userId))
+      setTrashedUsers(prev => [data[0], ...prev.filter(x => x.id !== userId)])
+      toast(`${u?.full_name || 'Medewerker'} staat in de prullenbak. Terugzetten kan nog 30 dagen.`, 'success')
+    } catch (err) {
+      toast(err.message, 'error')
+    }
+  }
+
+  // v86: terugzetten uit de prullenbak - alles staat er nog, alleen weer actief maken
+  async function handleRestoreEmployee(u) {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .update({ deleted_at: null, is_active: true })
+        .eq('id', u.id)
+        .select('*')
+      if (error) throw error
+      if (!data || data.length === 0) throw new Error('Terugzetten is geweigerd door de database. Ververs de pagina en probeer opnieuw.')
+      setTrashedUsers(prev => prev.filter(x => x.id !== u.id))
+      setUsers(prev => [...prev.filter(x => x.id !== u.id), data[0]].sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '')))
+      toast(`${u.full_name} is teruggezet en kan weer inloggen`, 'success')
+    } catch (err) {
+      toast(err.message, 'error')
+    }
+  }
+
+  // v86: definitief verwijderen vanuit de prullenbak (twee keer klikken).
+  // Dit is de oude "echt weg"-actie van v31: gesprekshistorie blijft (agent_id
+  // wordt leeg), teams/roosters/rechten van deze persoon gaan wel weg.
+  async function handlePurgeEmployee(u) {
+    if (confirmPurgeUser !== u.id) {
+      setConfirmPurgeUser(u.id)
+      toast('Klik nogmaals om definitief te verwijderen. Dit kan niet ongedaan gemaakt worden.', 'error')
+      return
+    }
+    setConfirmPurgeUser(null)
+    try {
+      const { data, error } = await supabase.from('profiles').delete().eq('id', u.id).select('id')
+      if (error) throw error
+      if (!data || data.length === 0) throw new Error('Verwijderen is geweigerd door de database. Ververs de pagina en probeer opnieuw.')
+      setTrashedUsers(prev => prev.filter(x => x.id !== u.id))
+      toast(`${u.full_name} is definitief verwijderd. Gesprekshistorie blijft bewaard in de rapportage.`, 'success')
     } catch (err) {
       toast(err.message, 'error')
     }
@@ -474,9 +519,55 @@ export default function Admin() {
                 </div>
                 <div className="flex gap-3" style={{ flexWrap: 'wrap' }}>
                    <button onClick={() => setShowOrgs(v => !v)} className="btn btn-outline"><Shield size={18} /> Organisaties {orgs.length > 0 && `(${orgs.length})`}</button>
+                   <button onClick={() => setShowTrash(v => !v)} className={`btn btn-outline ${showTrash ? 'border-error text-error' : ''}`} title="Verwijderde medewerkers, 30 dagen terug te zetten"><Trash2 size={18} /> Prullenbak {trashedUsers.length > 0 && `(${trashedUsers.length})`}</button>
                    <button onClick={() => setShowEmployee(true)} className="btn btn-primary"><UserPlus size={18} /> Nieuwe medewerker</button>
                 </div>
              </div>
+
+             {/* v86: prullenbak - verwijderde medewerkers blijven 30 dagen terug te zetten */}
+             {showTrash && (
+               <div className="glass-panel p-6 mb-8 border border-border">
+                  <h3 className="font-black text-sm uppercase tracking-widest mb-2 text-error flex items-center gap-2"><Trash2 size={16} /> Prullenbak</h3>
+                  <p className="text-muted text-sm mb-4" style={{ maxWidth: '720px' }}>
+                    Verwijderde medewerkers staan hier 30 dagen. Alles blijft bewaard: rechten, teams, roosterdagen en gekoppelde leads.
+                    Terugzetten maakt het account meteen weer actief. Daarna worden ze automatisch definitief verwijderd.
+                  </p>
+                  {trashedUsers.length === 0 ? (
+                    <p className="text-muted text-sm italic">De prullenbak is leeg.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                       {trashedUsers.map(u => {
+                         const deletedAt = new Date(u.deleted_at)
+                         const daysLeft = Math.max(0, 30 - Math.floor((Date.now() - deletedAt.getTime()) / 86400000))
+                         return (
+                           <div key={u.id} className="p-4 rounded-xl border border-border bg-elevated flex flex-col gap-3">
+                              <div className="min-w-0">
+                                 <div className="font-bold text-body break-words">{u.full_name}</div>
+                                 <div className="text-xs text-muted break-words">{u.email}</div>
+                                 <div className="text-[10px] text-muted mt-1">
+                                   {u.role} &middot; verwijderd op {deletedAt.toLocaleDateString('nl-NL')} &middot; {daysLeft === 0 ? 'wordt vannacht definitief verwijderd' : `nog ${daysLeft} dag${daysLeft === 1 ? '' : 'en'}`}
+                                 </div>
+                              </div>
+                              <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+                                 <button type="button" onClick={() => handleRestoreEmployee(u)} className="btn btn-primary" style={{ padding: '8px 12px', fontSize: '12px' }}>
+                                   <Play size={14} /> Terugzetten
+                                 </button>
+                                 <button
+                                   type="button"
+                                   onClick={() => handlePurgeEmployee(u)}
+                                   className={`btn ${confirmPurgeUser === u.id ? 'bg-error text-white border-error' : 'btn-outline'}`}
+                                   style={{ padding: '8px 12px', fontSize: '12px' }}
+                                 >
+                                   <Trash2 size={14} /> {confirmPurgeUser === u.id ? 'Zeker? Klik nogmaals' : 'Definitief verwijderen'}
+                                 </button>
+                              </div>
+                           </div>
+                         )
+                       })}
+                    </div>
+                  )}
+               </div>
+             )}
 
              {/* v31: organisaties - elke klant kan straks zijn eigen omgeving krijgen
                  met eigen admin, leadlijsten en team. Een admin/manager binnen een
@@ -594,8 +685,8 @@ export default function Admin() {
                             </button>
                             <button
                               onClick={() => handleDeleteEmployee(u.id)}
-                              className={`p-2 rounded-lg transition-all ${confirmDeleteUser === u.id ? 'bg-error text-white' : 'text-muted hover:bg-error/20 hover:text-error opacity-0 group-hover:opacity-100'}`}
-                              title={confirmDeleteUser === u.id ? 'Klik nogmaals om definitief te verwijderen' : 'Definitief verwijderen (gesprekshistorie blijft, zonder naam)'}
+                              className="p-2 rounded-lg transition-all text-muted hover:bg-error/20 hover:text-error opacity-0 group-hover:opacity-100"
+                              title="Naar prullenbak (30 dagen terug te zetten, alles blijft bewaard)"
                             >
                               <Trash2 size={18}/>
                             </button>

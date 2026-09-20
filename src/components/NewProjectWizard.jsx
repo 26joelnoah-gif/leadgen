@@ -43,7 +43,7 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
     setName(''); setDescription(''); setRates({ appointment: '', deal: '', hour: '' })
     setManagerMode('none'); setManagerIds([]); setNewManager({ name: '', email: '', password: '' })
     setBellerMode('none'); setBellerId(''); setTeamIds([]); setNewBeller({ name: '', email: '', password: '' })
-    supabase.from('profiles').select('id, full_name, email, role').order('full_name').then(({ data }) => {
+    supabase.from('profiles').select('id, full_name, email, role').is('deleted_at', null).order('full_name').then(({ data }) => {
       setManagers((data || []).filter(p => p.role === 'manager'))
       setBellers((data || []).filter(p => p.role === 'employee'))
     })

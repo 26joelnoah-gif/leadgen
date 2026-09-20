@@ -106,7 +106,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     async function fetchUsers() {
-      const { data } = await supabase.from('profiles').select('*').order('full_name')
+      const { data } = await supabase.from('profiles').select('*').is('deleted_at', null).order('full_name')
       if (data) setUsers(data)
     }
     fetchUsers()

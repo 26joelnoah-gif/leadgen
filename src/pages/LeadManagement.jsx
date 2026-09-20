@@ -132,7 +132,7 @@ export default function LeadManagement({ standalone = true }) {
 
   async function fetchData() {
     try {
-      const { data: profiles, error: pErr } = await supabase.from('profiles').select('*').order('full_name')
+      const { data: profiles, error: pErr } = await supabase.from('profiles').select('*').is('deleted_at', null).order('full_name')
       if (pErr) throw pErr
       setAgents(profiles || [])
       
