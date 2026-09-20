@@ -202,3 +202,17 @@ Twee-zijdig platform:
   verwijderd door public.chat_cleanup(24) via pg_cron-job leadgen-chat-cleanup;
   de app haalt alleen de laatste 24 uur op en toont dat onder het invoerveld.
   Migratie: migration_v85_chat_realtime_cleanup.sql (toegepast).
+
+- **PRULLENBAK VOOR MEDEWERKERS (v86, 2026-09-20):** aanleiding: drie profielen
+  per ongeluk verwijderd, met cascade van team_members/availability. Nu zet
+  "Verwijderen" op de medewerkerskaart (Admin > Team) profiles.deleted_at +
+  is_active=false: kan niet inloggen, staat nergens meer in lijsten (alle
+  profiles-selects filteren .is('deleted_at', null); Admin splitst users /
+  trashedUsers), maar rechten, teams, roosterdagen en gekoppelde leads blijven
+  staan. Paneel "Prullenbak" naast Organisaties: Terugzetten (deleted_at null +
+  is_active true) of Definitief verwijderen (2x klikken = de oude v31-delete).
+  pg_cron-job leadgen-profiles-trash-purge draait dagelijks 03:30 UTC
+  public.profiles_trash_purge(30). Nieuwe lijsten met medewerkers: altijd ook
+  op deleted_at is null filteren. Migratie: migration_v86_prullenbak_medewerkers.sql
+  (toegepast). Terugzetten maakt altijd actief, ook als iemand vóór het
+  verwijderen al inactief stond.
