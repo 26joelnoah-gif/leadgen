@@ -538,9 +538,9 @@ export default function LeadManagement({ standalone = true }) {
                             const lists = leadLists.filter(l => l.campaign_id === c.id)
                             return (
                               <div key={c.id} className={`mb-2 ${c.is_active === false ? 'opacity-60' : ''}`}>
-                                <div className="flex items-center justify-between px-2 py-1 gap-2">
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-body/70 break-words">{c.name}</span>
-                                  <div className="flex items-center gap-1 shrink-0">
+                                <div className="flex items-center justify-between px-2 py-1 gap-2 flex-wrap">
+                                  <span className="text-[10px] font-black uppercase tracking-widest text-body/70 break-words min-w-0 flex-1">{c.name}</span>
+                                  <div className="flex items-center gap-1 shrink-0" style={{ flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '100%' }}>
                                     {c.is_active === false ? (
                                       <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-warning/15 text-warning">gepauzeerd</span>
                                     ) : (
