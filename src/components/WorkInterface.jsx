@@ -572,8 +572,25 @@ export default function WorkInterface() {
     await submitDisposition('mail_gepland', notes, null)
   }
 
-  const handleFinalDisposition = () => {
+  // v87: bij een terugbelafspraak (TBA) moet vastliggen MET WIE we dat hebben
+  // afgesproken - de naam van de contactpersoon wordt apart en eerst
+  // opgeslagen, zodat de afboeking zelf niet vastloopt als dit misgaat.
+  const handleFinalDisposition = async () => {
     if (!selectedDisposition) return
+    if (selectedDisposition === 'terugbelafspraak') {
+      const contactpersoon = (editableLead.contact_person || '').trim()
+      if (!contactpersoon) return
+      if (contactpersoon !== (currentLead.contact_person || '').trim()) {
+        const { error } = await supabase.from('leads').update({ contact_person: contactpersoon }).eq('id', currentLead.id)
+        if (error) {
+          logAppError('afboeken.contactpersoonOpslaan', error, { leadId: currentLead.id })
+          toast(`Naam contactpersoon niet opgeslagen: ${foutTekst(error)}`, 'error', 7000)
+          return
+        }
+        baselineRef.current = { ...(baselineRef.current || {}), contact_person: contactpersoon }
+        setLiveLead(prev => (prev && prev.id === currentLead.id) ? { ...prev, contact_person: contactpersoon } : prev)
+      }
+    }
     submitDisposition(selectedDisposition, dispositionNotes, nextContactDate || null)
   }
 
@@ -1073,6 +1090,21 @@ export default function WorkInterface() {
                       </div>
                     )}
 
+                    {selectedDisposition === 'terugbelafspraak' && (
+                      <div>
+                        <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>
+                          Naam contactpersoon (verplicht)
+                        </label>
+                        <input
+                          type="text"
+                          value={editableLead.contact_person || ''}
+                          onChange={e => setEditableLead({ ...editableLead, contact_person: e.target.value })}
+                          placeholder="Met wie is dit terugbelmoment afgesproken?"
+                          style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }}
+                        />
+                      </div>
+                    )}
+
                     <div>
                       <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>
                         {selectedDisposition === 'wil_annuleren' ? 'Reden van annulering (verplicht)' : 'Gespreksverslag / Toelichting'}
@@ -1088,7 +1120,7 @@ export default function WorkInterface() {
 
                     <button
                       onClick={handleFinalDisposition}
-                      disabled={isSubmitting || (selectedDisposition === 'wil_annuleren' && !dispositionNotes.trim())}
+                      disabled={isSubmitting || (selectedDisposition === 'wil_annuleren' && !dispositionNotes.trim()) || (selectedDisposition === 'terugbelafspraak' && !(editableLead.contact_person || '').trim())}
                       style={{
                         background: dispositions.find(d => d.id === selectedDisposition)?.color,
                         color: 'var(--text-on-accent)',
