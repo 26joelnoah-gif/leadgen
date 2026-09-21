@@ -98,13 +98,18 @@ export function AuthProvider({ children }) {
     if (data?.user?.id) {
       const { data: prof } = await supabase
         .from('profiles')
-        .select('is_active')
+        .select('is_active, payment_status, signup_source')
         .eq('id', data.user.id)
         .single()
       if (prof && prof.is_active === false) {
         await supabase.auth.signOut()
         setUser(null)
         setProfile(null)
+        // v88: zelfregistratie-account dat nog op de EUR 50-betaling wacht
+        // krijgt een ander bericht dan een door de beheerder inactief gezet account.
+        if (prof.signup_source === 'self_service' && prof.payment_status === 'pending') {
+          throw new Error('Je account wacht nog op de bevestiging van je betaling van €50. Nog niet betaald? Rond de betaling af via de link die je net kreeg, of neem contact op met de beheerder.')
+        }
         throw new Error('Dit account is inactief gezet. Vraag je beheerder om je weer te activeren.')
       }
     }

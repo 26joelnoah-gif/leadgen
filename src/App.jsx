@@ -22,6 +22,8 @@ import Tools from './pages/Tools'
 import LeadBoard from './pages/LeadBoard'
 import Outside from './pages/Outside'
 import Tekenen from './pages/Tekenen'
+import Aanmelden from './pages/Aanmelden'
+import AanmeldenBedankt from './pages/AanmeldenBedankt'
 import AccountManagement from './pages/AccountManagement'
 import { useToolAccess } from './hooks/useToolAccess'
 import WorkInterface from './components/WorkInterface'
@@ -181,7 +183,7 @@ function AppRoutes() {
       {/* v85: teamchat is overal beschikbaar (was alleen op het dashboard),
           behalve op de publieke tekenpagina. Eigen grens: gaat de chat stuk,
           dan blijft de rest gewoon werken. */}
-      {user && !location.pathname.startsWith('/tekenen') && (
+      {user && !location.pathname.startsWith('/tekenen') && !location.pathname.startsWith('/aanmelden') && (
         <ErrorBoundary naam="teamchat" variant="stil">
           <Chat />
         </ErrorBoundary>
@@ -192,6 +194,9 @@ function AppRoutes() {
       <Routes>
       {/* v65: publieke tekenpagina voor klanten, bewust buiten ProtectedRoute */}
       <Route path="/tekenen/:token" element={<Tekenen />} />
+      {/* v88: publieke aanmeldpagina voor bellers die zelf een account willen, bewust buiten ProtectedRoute */}
+      <Route path="/aanmelden" element={<Aanmelden />} />
+      <Route path="/aanmelden/bedankt" element={<AanmeldenBedankt />} />
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/setup" element={user ? <Setup /> : <Navigate to="/login" replace />} />
       <Route

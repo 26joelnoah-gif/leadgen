@@ -12,7 +12,7 @@ import {
   Plus, Users, Settings, UserPlus, Phone, PhoneOff, Mail,
   UserCheck, Shield, Activity, Download, Play, Zap, Upload,
   X, CheckCircle, AlertTriangle, Bell, Megaphone, Target,
-  DollarSign, Calendar, List, ChevronRight, Layers, Trash2, Search, KeyRound, Tag, Wrench
+  DollarSign, Calendar, List, ChevronRight, Layers, Trash2, Search, KeyRound, Tag, Wrench, Link2
 } from 'lucide-react'
 import { STATUS_MAP } from '../utils/statusUtils'
 import { exportToCSV } from '../utils/exportUtils'
@@ -518,6 +518,19 @@ export default function Admin() {
                    <p className="page-subtitle">Bellers, managers en admins - met hun activiteit van vandaag.</p>
                 </div>
                 <div className="flex gap-3" style={{ flexWrap: 'wrap' }}>
+                   {/* v88: link naar de publieke aanmeldpagina /aanmelden - kopieert naar het klembord zodat Noah 'm ergens kan versturen */}
+                   <button
+                     onClick={() => {
+                       const url = `${window.location.origin}/aanmelden`
+                       navigator.clipboard?.writeText(url)
+                         .then(() => toast('Aanmeldlink gekopieerd naar klembord', 'success'))
+                         .catch(() => toast(url, 'info'))
+                     }}
+                     className="btn btn-outline"
+                     title="Link naar de publieke aanmeldpagina voor nieuwe bellers (eenmalige bijdrage €50)"
+                   >
+                     <Link2 size={18} /> Aanmeldlink kopiëren
+                   </button>
                    <button onClick={() => setShowOrgs(v => !v)} className="btn btn-outline"><Shield size={18} /> Organisaties {orgs.length > 0 && `(${orgs.length})`}</button>
                    <button onClick={() => setShowTrash(v => !v)} className={`btn btn-outline ${showTrash ? 'border-error text-error' : ''}`} title="Verwijderde medewerkers, 30 dagen terug te zetten"><Trash2 size={18} /> Prullenbak {trashedUsers.length > 0 && `(${trashedUsers.length})`}</button>
                    <button onClick={() => setShowEmployee(true)} className="btn btn-primary"><UserPlus size={18} /> Nieuwe medewerker</button>
@@ -644,8 +657,14 @@ export default function Admin() {
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
                            <span className={`self-start shrink-0 whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : u.role === 'recruiter' ? 'bg-warning/20 text-warning' : u.role === 'backoffice' ? 'bg-primary/20 text-primary' : u.role === 'planning' ? 'bg-muted/20 text-muted' : u.role === 'extern' ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}`}>{u.role === 'employee' ? 'Beller' : u.role === 'recruiter' ? 'Recruiter' : u.role === 'backoffice' ? 'Backoffice' : u.role === 'planning' ? 'Planning' : u.role === 'extern' ? 'Extern' : u.role}</span>
-                           {u.is_active === false && (
+                           {/* v88: zelfregistratie-account dat nog op de EUR 50-betaling wacht - eigen badge i.p.v. het gewone "Inactief" (dat is voor bewust uitgezette medewerkers) */}
+                           {u.is_active === false && u.signup_source === 'self_service' && u.payment_status === 'pending' ? (
+                             <span className="whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-secondary/20 text-secondary" title="Zelf aangemeld via /aanmelden, wacht nog op de bevestiging van de €50-betaling">Wacht op betaling</span>
+                           ) : u.is_active === false && (
                              <span className="whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-error/20 text-error">Inactief</span>
+                           )}
+                           {u.is_active !== false && u.signup_source === 'self_service' && !u.can_manage_leads && (
+                             <span className="whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-success/20 text-success" title="Betaald via /aanmelden, nog aan geen project gekoppeld - gebruik 'Mag importeren' hieronder">Nieuw · nog te koppelen</span>
                            )}
                         </div>
                      </div>
