@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X, ListChecks, Flame } from 'lucide-react'
+import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X, ListChecks, Flame, Info } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
@@ -20,6 +20,7 @@ import LeadMap from '../components/LeadMap'
 import LeadKanban from '../components/LeadKanban'
 import MailingserviceModal from '../components/MailingserviceModal'
 import MailQueueView from '../components/MailQueueView'
+import LeadDetailModal from '../components/LeadDetailModal'
 
 // v62: gedeelde Leadlijst. Iedereen die in een project zit (team, manager,
 // planning-account met projectvlag) ziet ALLE leads van de gekozen lijst en
@@ -153,6 +154,11 @@ export default function LeadBoard() {
   const [sortBy, setSortBy] = useState('distance') // 'distance' | 'order'
   const [geocoding, setGeocoding] = useState(false)
   const [mailLead, setMailLead] = useState(null)
+  // v90: contactkaart apart van bellen kunnen openen - tot nu toe deed elke
+  // klik op een lead meteen claim_lead + belscherm open. Zo kon je een lead
+  // (bv. een "Bel mij terug"-verzoek) niet even rustig bekijken zonder hem
+  // meteen te claimen.
+  const [detailLead, setDetailLead] = useState(null)
   const [datePrompt, setDatePrompt] = useState(null)
   const [moving, setMoving] = useState(false)
   const [takeover, setTakeover] = useState(null)
@@ -266,6 +272,10 @@ export default function LeadBoard() {
   const vanPersoon = useCallback((l, id) => l.locked_by === id || l.assigned_to === id, [])
 
   const isLockedByOther = useCallback((l) => !!(l.locked_by && l.locked_by !== user?.id), [user?.id])
+  // v87: een lead die eerder aan een collega is toegewezen (assigned_to) telt ook
+  // als "van een ander", ook als hij nu even niet actief vergrendeld is. Anders
+  // pak je iemands lead per ongeluk gewoon over door hem te openen.
+  const needsTakeoverCheck = useCallback((l) => isLockedByOther(l) || !!(l.assigned_to && l.assigned_to !== user?.id), [isLockedByOther, user?.id])
   // Naam van wie de lead is (gepakt of toegewezen). Eigen lead = 'Jouw lead'.
   const ownerLabel = useCallback((l) => {
     const owner = l.locked_by || l.assigned_to
@@ -288,7 +298,7 @@ export default function LeadBoard() {
 
   const openLead = useCallback(async (lead) => {
     if (claimingId || isWorking) return
-    if (isLockedByOther(lead)) { setTakeover({ lead, doel: 'open' }); return }
+    if (needsTakeoverCheck(lead)) { setTakeover({ lead, doel: 'open' }); return }
     setClaimingId(lead.id)
     const row = await claim(lead)
     setClaimingId(null)
@@ -299,13 +309,13 @@ export default function LeadBoard() {
       return
     }
     toggleWorkingMode(row)
-  }, [claimingId, isWorking, isLockedByOther, claim, lockNames, toast, load, toggleWorkingMode])
+  }, [claimingId, isWorking, needsTakeoverCheck, claim, lockNames, toast, load, toggleWorkingMode])
 
   // Bevestigd overnemen. Daarna doen we alsnog wat je wilde: openen of slepen.
   const doeOvername = useCallback(async () => {
     if (!takeover || claimingId) return
     const { lead, doel, column } = takeover
-    const who = lockNames[lead.id] || 'een collega'
+    const who = lockNames[lead.id] || assignedNames[lead.assigned_to] || 'een collega'
     setClaimingId(lead.id)
     const row = await claim(lead, { force: true })
     setClaimingId(null)
@@ -366,7 +376,7 @@ export default function LeadBoard() {
   }
 
   function handleBoardDrop(column, lead) {
-    if (isLockedByOther(lead)) {
+    if (needsTakeoverCheck(lead)) {
       setTakeover({ lead, doel: 'drop', column })
       return
     }
@@ -460,9 +470,9 @@ export default function LeadBoard() {
     }
     if (mail && (mail.status_rank || 0) <= 1) {
       const d = daysSince(mail.gemaild_op)
-      // v91: als de lead ná het mailen nog gebeld/afgeboekt is (updated_at ligt na
+      // v87: als de lead ná het mailen nog gebeld/afgeboekt is (updated_at ligt na
       // gemaild_op) is er wél iets mee gedaan, ook al reageerde de ontvanger niet
-      // op de mail zelf - dan dus geen "niets mee gedaan"-signaal meer tonen.
+      // op de mail - dan dus geen "niets mee gedaan"-signaal meer tonen.
       const mailTime = mail.gemaild_op ? new Date(mail.gemaild_op).getTime() : null
       const updatedTime = lead.updated_at ? new Date(lead.updated_at).getTime() : null
       const touchedSindsMail = mailTime != null && updatedTime != null && updatedTime > mailTime
@@ -572,6 +582,14 @@ export default function LeadBoard() {
               disabled={claimingId === lead.id || isWorking}
             >
               <Phone size={10} /> Bel
+            </button>
+            <button
+              onClick={e => { e.stopPropagation(); setDetailLead(lead) }}
+              className="btn btn-outline btn-sm"
+              style={{ padding: '3px 6px', fontSize: '0.62rem' }}
+              title="Contactkaart bekijken (zonder te bellen)"
+            >
+              <Info size={10} />
             </button>
             {mailService && (
               <button
@@ -744,6 +762,7 @@ export default function LeadBoard() {
                 onDropItem={handleBoardDrop}
                 renderCard={renderBoardCard}
                 canDrag={lead => !isLockedByOther(lead)}
+                onCardClick={lead => setDetailLead(lead)}
               />
             ) : view === 'map' ? (
               <LeadMap
@@ -847,9 +866,12 @@ export default function LeadBoard() {
               <button onClick={() => setTakeover(null)} aria-label="Sluiten" style={{ position: 'absolute', top: 14, right: 14, background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
               <h2 style={{ margin: '0 0 6px', fontSize: '1.1rem' }}>Lead overnemen?</h2>
               <p className="text-muted" style={{ margin: '0 0 16px', fontSize: '0.85rem', lineHeight: 1.5 }}>
-                <strong style={{ color: 'var(--text-primary)' }}>{lockNames[takeover.lead.id] || 'Een collega'}</strong> heeft{' '}
-                <strong style={{ color: 'var(--text-primary)' }}>{takeover.lead.name}</strong> in behandeling
-                {takeover.lead.locked_at ? ` sinds ${dateShort(takeover.lead.locked_at)}` : ''}.
+                <strong style={{ color: 'var(--text-primary)' }}>{lockNames[takeover.lead.id] || assignedNames[takeover.lead.assigned_to] || 'Een collega'}</strong>{' '}
+                {takeover.lead.locked_at ? (
+                  <>heeft <strong style={{ color: 'var(--text-primary)' }}>{takeover.lead.name}</strong> in behandeling sinds {dateShort(takeover.lead.locked_at)}.</>
+                ) : (
+                  <>is eigenaar van <strong style={{ color: 'var(--text-primary)' }}>{takeover.lead.name}</strong>.</>
+                )}{' '}
                 Neem je hem over, dan krijgen jullie allebei een melding.
               </p>
               <div className="flex gap-2">
