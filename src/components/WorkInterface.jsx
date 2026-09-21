@@ -106,15 +106,21 @@ export default function WorkInterface() {
   // moet doorstromen naar bruto_deal (backoffice moet de monteur nog
   // inplannen) i.p.v. de gewone eindstatus 'deal'.
   const [isBackofficeCampaign, setIsBackofficeCampaign] = useState(false)
+  // v91: campaigns.appointment_scheduling_enabled - projecten waar "Afspraak
+  // gemaakt" een echt moment met datum/tijd is (bv. accountmanager-agenda),
+  // niet alleen recruitment-gesprekken. Vraagt hetzelfde datumveld uit als
+  // bij recruitment, maar dan voor elk project met deze vlag aan.
+  const [appointmentSchedulingEnabled, setAppointmentSchedulingEnabled] = useState(false)
   useEffect(() => {
     const listId = workingListId || workingLead?.lead_list_id
-    if (!isWorking || !listId) { setBriefing(null); setIsRecruitmentCampaign(false); setIsBackofficeCampaign(false); return }
+    if (!isWorking || !listId) { setBriefing(null); setIsRecruitmentCampaign(false); setIsBackofficeCampaign(false); setAppointmentSchedulingEnabled(false); return }
     let cancelled = false
-    supabase.from('lead_lists').select('campaign_id, campaigns(type)').eq('id', listId).maybeSingle()
+    supabase.from('lead_lists').select('campaign_id, campaigns(type, appointment_scheduling_enabled)').eq('id', listId).maybeSingle()
       .then(({ data }) => {
         if (cancelled) return
         setIsRecruitmentCampaign(data?.campaigns?.type === 'recruitment')
         setIsBackofficeCampaign(data?.campaigns?.type === 'backoffice')
+        setAppointmentSchedulingEnabled(data?.campaigns?.appointment_scheduling_enabled === true)
         if (!data?.campaign_id) { setBriefing(null); return }
         supabase.from('campaign_briefings')
           .select('call_script, project_info')
@@ -1080,12 +1086,14 @@ export default function WorkInterface() {
                   </h2>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                    {(selectedDisposition === 'terugbelafspraak' || selectedDisposition === 'later_bellen' || (isRecruitmentCampaign && selectedDisposition === 'afspraak_gemaakt')) && (
+                    {(selectedDisposition === 'terugbelafspraak' || selectedDisposition === 'later_bellen' || ((isRecruitmentCampaign || appointmentSchedulingEnabled) && selectedDisposition === 'afspraak_gemaakt')) && (
                       <div>
-                        {/* v57: in recruitment-modus is de datum bij GESPREK GEPLAND het
-                            gesprek zelf (leads.appointment_at, zichtbaar in de agenda) */}
+                        {/* v57/v91: bij recruitment (gesprek) of een project met
+                            appointment_scheduling_enabled (afspraak) is de datum bij
+                            AFSPRAAK GEMAAKT het moment zelf (leads.appointment_at,
+                            zichtbaar in de agenda), geen terugbelmoment. */}
                         <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>
-                          {selectedDisposition === 'afspraak_gemaakt' ? 'Wanneer is het gesprek?' : 'Wanneer moet er teruggebeld worden?'}
+                          {selectedDisposition === 'afspraak_gemaakt' ? (isRecruitmentCampaign ? 'Wanneer is het gesprek?' : 'Wanneer is de afspraak?') : 'Wanneer moet er teruggebeld worden?'}
                         </label>
                         <input
                           type="datetime-local"

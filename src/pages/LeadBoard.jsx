@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X, ListChecks, Flame, Info, Trash2 } from 'lucide-react'
+import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X, ListChecks, Flame, Info, Trash2, CalendarDays } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
@@ -135,6 +135,20 @@ export default function LeadBoard() {
 
   const currentList = useMemo(() => lists.find(l => l.id === listId) || null, [lists, listId])
   const boardEnabled = currentList?.campaigns?.board_view_enabled === true
+  // v91: projecten met appointment_scheduling_enabled vragen bij de kolom
+  // "Afspraak / offerte" ook een datum/tijd (leads.appointment_at), net als
+  // de terugbel-kolom dat al doet voor next_contact_date. Zo heeft de
+  // accountmanager een agenda in plaats van alleen een statuskolom.
+  const appointmentSchedulingEnabled = currentList?.campaigns?.appointment_scheduling_enabled === true
+  const boardColumns = useMemo(() => {
+    if (!appointmentSchedulingEnabled) return SALES_BOARD_COLUMNS
+    return SALES_BOARD_COLUMNS.map(c => c.id === 'offerte'
+      ? {
+          ...c, label: 'Afspraak (agenda)', needsDate: true, dateField: 'appointment_at',
+          dateTitle: 'Afspraak inplannen', dateLabel: 'Wanneer is de afspraak?', dateButton: 'Afspraak inplannen'
+        }
+      : c)
+  }, [appointmentSchedulingEnabled])
   const { mailService } = useProjectMailService(listId)
   const followUpDays = mailService?.follow_up_days || 5
 
@@ -605,6 +619,11 @@ export default function LeadBoard() {
             <Clock size={9} style={{ verticalAlign: -1, marginRight: 2 }} />Opvolgen {dateShort(lead.next_contact_date)}
           </div>
         )}
+        {lead.appointment_at && lead.status === 'afspraak_gemaakt' && (
+          <div style={{ fontSize: '0.6rem', marginTop: 3, color: 'var(--secondary)', fontWeight: 700 }} title="Afspraakmoment">
+            <CalendarDays size={9} style={{ verticalAlign: -1, marginRight: 2 }} />Afspraak {dateShort(lead.appointment_at)}
+          </div>
+        )}
         {!busy && ownerLabel(lead) && (
           <div style={{ fontSize: '0.6rem', marginTop: 3, color: 'var(--primary)', fontWeight: 700 }}>
             <User size={9} style={{ verticalAlign: -1, marginRight: 2 }} />{ownerLabel(lead)}
@@ -819,9 +838,9 @@ export default function LeadBoard() {
               <LoadingSpinner />
             ) : view === 'board' ? (
               <LeadKanban
-                columns={SALES_BOARD_COLUMNS}
+                columns={boardColumns}
                 items={visible}
-                columnFor={lead => boardColumnFor(lead)}
+                columnFor={lead => boardColumnFor(lead, boardColumns)}
                 onDropItem={handleBoardDrop}
                 renderCard={renderBoardCard}
                 canDrag={lead => !isLockedByOther(lead)}

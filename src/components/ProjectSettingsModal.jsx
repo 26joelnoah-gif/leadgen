@@ -73,6 +73,10 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   // bekijken op /leads. Geen aparte data: dezelfde leads, andere weergave.
   const [boardView, setBoardView] = useState(false)
   const [autoEnrich, setAutoEnrich] = useState(false) // v82
+  // v91: afspraken met een echt datum/tijd-moment (accountmanager-agenda),
+  // niet alleen bij recruitment. Beller vult bij "Afspraak gemaakt" een
+  // moment in (leads.appointment_at), zichtbaar op het bord/de agenda.
+  const [appointmentScheduling, setAppointmentScheduling] = useState(false)
 
   const allManagers = (agents || []).filter(a => a.role === 'manager')
 
@@ -84,6 +88,7 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
     setPlanningLeads(campaign.planning_can_view_leads === true)
     setBoardView(campaign.board_view_enabled === true)
     setAutoEnrich(campaign.auto_enrich === true)
+    setAppointmentScheduling(campaign.appointment_scheduling_enabled === true)
     setConfirmDelete(false)
     setLoading(true)
     Promise.all([
@@ -144,6 +149,10 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       }
       if (autoEnrich !== (campaign.auto_enrich === true)) {
         const { error } = await supabase.from('campaigns').update({ auto_enrich: autoEnrich }).eq('id', campaign.id)
+        if (error) throw error
+      }
+      if (appointmentScheduling !== (campaign.appointment_scheduling_enabled === true)) {
+        const { error } = await supabase.from('campaigns').update({ appointment_scheduling_enabled: appointmentScheduling }).eq('id', campaign.id)
         if (error) throw error
       }
 
@@ -320,6 +329,15 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
                 Leads van dit project zijn ook als bord (kanban) te bekijken op de pagina Leads
               </label>
               <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>Zelfde soort bord als bij sollicitanten: kolommen van nieuw tot klant, slepen zet de status. Staat de Mailingservice aan, dan opent de kolom "Mail verstuurd" de mailpopup - de mail gaat pas weg als je hem bevestigt.</p>
+            </div>
+
+            <div>
+              <label className={labelStyle}>Afspraken met datum en tijd</label>
+              <label className="flex items-center gap-2" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>
+                <input type="checkbox" checked={appointmentScheduling} onChange={e => setAppointmentScheduling(e.target.checked)} />
+                Bij de afboekreden "Afspraak gemaakt" vraagt het belscherm om een datum en tijd
+              </label>
+              <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>Zelfde datumveld als bij sollicitatiegesprekken, maar dan voor een afspraak met de klant. Die momenten zijn te zien op het bord in de kolom Agenda, zodat degene die de afspraken nabelt of nakomt weet wanneer.</p>
             </div>
 
             <div>
