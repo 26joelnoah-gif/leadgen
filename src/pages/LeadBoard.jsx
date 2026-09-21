@@ -536,8 +536,16 @@ export default function LeadBoard() {
   const visible = useMemo(() => {
     const rows = pool
       .filter(l => {
-        if (filter === 'open' && DONE_STATUSES.includes(l.status)) return false
-        if (filter === 'done' && !DONE_STATUSES.includes(l.status)) return false
+        // v87: het bord toont elke status in zijn eigen kolom (o.a. "Klant" en
+        // "Geen interesse" bestaan puur uit afgeronde statussen) - de
+        // open/afgerond-knoppen zijn daar dan ook niet op van toepassing.
+        // Zonder deze uitzondering leken afgeboekte leads in de bordweergave
+        // in het niets te verdwijnen, omdat de standaardfilter "Open" precies
+        // de statussen wegfiltert die in die kolommen thuishoren.
+        if (view !== 'board') {
+          if (filter === 'open' && DONE_STATUSES.includes(l.status)) return false
+          if (filter === 'done' && !DONE_STATUSES.includes(l.status)) return false
+        }
         if (filter === 'warm' && !isWarm(l)) return false
         if (wie === 'me' && !vanPersoon(l, user?.id)) return false
         if (wie !== 'all' && wie !== 'me' && !vanPersoon(l, wie)) return false
@@ -556,7 +564,7 @@ export default function LeadBoard() {
       return [...warm, ...rest]
     }
     return rows
-  }, [pool, filter, q, pos, sortBy, wie, vanPersoon, user?.id, isWarm, mailRows])
+  }, [pool, filter, q, pos, sortBy, wie, vanPersoon, user?.id, isWarm, mailRows, view])
   const openCount = pool.filter(l => !DONE_STATUSES.includes(l.status)).length
   const warmCount = useMemo(() => pool.filter(isWarm).length, [pool, isWarm])
   const busyCount = pool.filter(isLockedByOther).length
@@ -731,7 +739,10 @@ export default function LeadBoard() {
               <div className="flex gap-2">
                 {[
                   ...(mailService ? [['warm', `Warm (${warmCount})`]] : []),
-                  ['open', `Open (${openCount})`], ['done', `Afgerond (${pool.length - openCount})`], ['all', `Alles (${pool.length})`]
+                  // v87: op het bord staat elke status al in zijn eigen kolom,
+                  // dus Open/Afgerond/Alles voegen daar niets toe (en verstopten
+                  // juist de kolommen "Klant" en "Geen interesse").
+                  ...(view !== 'board' ? [['open', `Open (${openCount})`], ['done', `Afgerond (${pool.length - openCount})`], ['all', `Alles (${pool.length})`]] : [])
                 ].map(([k, label]) => (
                   <button key={k} type="button" onClick={() => setFilter(k)} className={`btn btn-sm ${filter === k ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 20, ...(k === 'warm' && warmCount > 0 && filter !== 'warm' ? { color: 'var(--secondary)', borderColor: 'var(--secondary)', fontWeight: 800 } : {}) }} title={k === 'warm' ? 'Leads die de offerte openden. Die bel je eerst.' : undefined}>
                     {k === 'warm' && <Flame size={12} style={{ verticalAlign: -2 }} />} {label}
