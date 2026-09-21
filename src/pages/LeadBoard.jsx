@@ -86,9 +86,8 @@ export default function LeadBoard() {
   const toast = useToast()
   const geo = useGeolocation()
   const isStaff = profile?.role === 'admin' || profile?.role === 'manager'
-  // v92: alleen wie leads mag beheren ziet de verwijderknop (afvalbak) op de kaart -
-  // zelfde recht als de bulk-verwijderknop in Admin/Manager (v49)
-  const canManageLeads = isStaff || !!profile?.can_manage_leads
+  // v93: verwijderknop (afvalbak) op de kaart alleen voor admin/manager, niet voor
+  // bellers met can_manage_leads (dat recht geldt alleen voor importeren, niet verwijderen)
 
   // Alleen bel-/acquisitielijsten; sollicitanten horen op de wervingspagina
   const lists = useMemo(
@@ -633,7 +632,7 @@ export default function LeadBoard() {
             >
               <Info size={10} />
             </button>
-            {canManageLeads && (
+            {isStaff && (
               <button
                 onClick={e => { e.stopPropagation(); askDeleteLead(lead) }}
                 className="btn btn-outline btn-sm"
