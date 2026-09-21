@@ -754,13 +754,13 @@ export default function Admin() {
                        </div>
                      )}
                      {u.id !== user.id && (
-                       <div className="mt-3 flex items-center gap-2">
+                       <div className="mt-3 flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
                           <span className="text-[10px] text-muted font-black uppercase tracking-widest">Rol</span>
                           <select
                             value={u.role}
                             onChange={e => handleUpdateFlow(u.id, { role: e.target.value })}
                             className="form-dark"
-                            style={{ padding: '6px 10px', fontSize: '0.75rem', flex: 1 }}
+                            style={{ padding: '6px 10px', fontSize: '0.75rem', flex: '1 1 120px', minWidth: '100px' }}
                           >
                              <option value="employee">Beller</option>
                              <option value="backoffice">Backoffice</option>
