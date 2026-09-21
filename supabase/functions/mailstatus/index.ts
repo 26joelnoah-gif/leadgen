@@ -179,24 +179,57 @@ Deno.serve(async (req: Request) => {
 
       const eigenaar = (lead.assigned_to as string | null) || (lead.locked_by as string | null);
 
-      const { data: nieuweLead, error: leadFout } = await admin
+      // v92: niet dubbel aanmaken. Klikt hetzelfde bureau (zelfde
+      // telefoonnummer, binnen dezelfde "Bel mij terug"-lijst) nog een keer,
+      // dan werken we de bestaande lead bij i.p.v. een nieuwe te maken.
+      const { data: bestaandeTerugbel } = await admin
         .from("leads")
-        .insert({
-          name: bureauNaam,
-          phone: telefoonVoorLead,
-          email: kort(body?.email, 254)?.toLowerCase() ?? null,
-          contact_person: naam,
-          notes: `Terugbelverzoek via MarketingKiezer${wensLabel ? " - " + wensLabel : ""}.`,
-          status: "new",
-          lead_list_id: targetListId,
-          organization_id: lead.organization_id ?? null,
-          assigned_to: eigenaar,
-          lead_source: "terugbelverzoek",
-        })
-        .select("id").single();
-      if (leadFout || !nieuweLead) {
-        console.error("[mailstatus] terugbelverzoek-lead aanmaken mislukt", leadFout?.message);
-        return json({ error: "Terugbelverzoek opslaan mislukt" }, 500);
+        .select("id, notes")
+        .eq("lead_list_id", targetListId)
+        .eq("phone", telefoonVoorLead)
+        .is("deleted_at", null)
+        .maybeSingle();
+
+      let terugbelLeadId: string;
+      let isNieuw = true;
+      if (bestaandeTerugbel) {
+        isNieuw = false;
+        terugbelLeadId = bestaandeTerugbel.id as string;
+        const nieuweNotitie = `Nogmaals "Bel mij terug" via MarketingKiezer${wensLabel ? " - " + wensLabel : ""} (${statusOp.slice(0, 10)}).`;
+        const { error: updateFout } = await admin
+          .from("leads")
+          .update({
+            notes: [bestaandeTerugbel.notes, nieuweNotitie].filter(Boolean).join("\n"),
+            contact_person: naam,
+            status: "new",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", terugbelLeadId);
+        if (updateFout) {
+          console.error("[mailstatus] terugbelverzoek-lead bijwerken mislukt", updateFout.message);
+          return json({ error: "Terugbelverzoek opslaan mislukt" }, 500);
+        }
+      } else {
+        const { data: nieuweLead, error: leadFout } = await admin
+          .from("leads")
+          .insert({
+            name: bureauNaam,
+            phone: telefoonVoorLead,
+            email: kort(body?.email, 254)?.toLowerCase() ?? null,
+            contact_person: naam,
+            notes: `Terugbelverzoek via MarketingKiezer${wensLabel ? " - " + wensLabel : ""}.`,
+            status: "new",
+            lead_list_id: targetListId,
+            organization_id: lead.organization_id ?? null,
+            assigned_to: eigenaar,
+            lead_source: "terugbelverzoek",
+          })
+          .select("id").single();
+        if (leadFout || !nieuweLead) {
+          console.error("[mailstatus] terugbelverzoek-lead aanmaken mislukt", leadFout?.message);
+          return json({ error: "Terugbelverzoek opslaan mislukt" }, 500);
+        }
+        terugbelLeadId = nieuweLead.id as string;
       }
 
       try {
@@ -210,9 +243,9 @@ Deno.serve(async (req: Request) => {
           await admin.from("notifications").insert(ontvangers.map((pid) => ({
             profile_id: pid,
             actor_id: null,
-            lead_id: nieuweLead.id,
+            lead_id: terugbelLeadId,
             type: "terugbelverzoek",
-            title: `${naam} (${bureauNaam}) wil teruggebeld worden`,
+            title: `${naam} (${bureauNaam}) wil ${isNieuw ? "" : "opnieuw "}teruggebeld worden`,
             body: [wensLabel, telefoonVoorLead].filter(Boolean).join(" \u00b7 "),
           })));
         }
@@ -220,7 +253,7 @@ Deno.serve(async (req: Request) => {
         console.error("[mailstatus] terugbelverzoek-melding mislukt", e);
       }
 
-      return json({ ok: true, lead_id: lead.id, terugbel_lead_id: nieuweLead.id });
+      return json({ ok: true, lead_id: lead.id, terugbel_lead_id: terugbelLeadId, nieuw: isNieuw });
     }
 
     const { data: bestaand } = await admin
@@ -263,6 +296,36 @@ Deno.serve(async (req: Request) => {
     if (error) {
       console.error("[mailstatus] opslaan mislukt", error.message);
       return json({ error: "Opslaan mislukt" }, 500);
+    }
+
+    // v92: een status die niet in STAPPEN/SYNONIEMEN staat werd voorheen
+    // soms stilletjes genegeerd als er al een hogere stap lag opgeslagen -
+    // dat was precies de "Bel mij terug"-bug. Nu altijd een melding, zodat
+    // een nieuwe stapnaam van de bron nooit meer onopgemerkt blijft liggen.
+    if (!stap) {
+      try {
+        let ontvangers: string[] = [];
+        const eigenaarOnbekend = (lead.assigned_to as string | null) || (lead.locked_by as string | null);
+        if (eigenaarOnbekend) ontvangers = [eigenaarOnbekend];
+        else if (campaignId) {
+          const { data: mgrs } = await admin.from("campaign_managers").select("manager_id").eq("campaign_id", campaignId);
+          ontvangers = (mgrs || []).map((m: { manager_id: string }) => m.manager_id).filter(Boolean);
+        }
+        if (ontvangers.length) {
+          await admin.from("notifications").insert(ontvangers.map((pid) => ({
+            profile_id: pid,
+            actor_id: null,
+            lead_id: lead.id,
+            type: "mailstatus_onbekend",
+            title: `Onbekende mailstatus "${status}" van ${source}`,
+            body: vooruit
+              ? "Bewaard bij de lead, maar niet in de gewone volgorde. Check of dit een nieuwe stap is."
+              : "Genegeerd omdat de lead al verder stond. Check of dit een nieuwe stap is die moet worden toegevoegd.",
+          })));
+        }
+      } catch (e) {
+        console.error("[mailstatus] onbekende-status-melding mislukt", e);
+      }
     }
 
     // v88: warme lead -> melding (belletje) voor de eigenaar van de lead, of
