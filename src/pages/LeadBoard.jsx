@@ -438,11 +438,14 @@ export default function LeadBoard() {
     toast(sendAt ? `${mailTypeLabel(mailType)} ingepland voor ${dateShort(sendAt)}` : `${mailTypeLabel(mailType)} bewaard in de mailinglijst`, 'success')
   }
 
-  // v82: warm = de bron zag een klik of een geopende offerte, en er is nog
-  // geen deal of afwijzing. Getekend/betaald (rang 4/5) is geen belmoment meer.
+  // v88: warm = de bron zag de offerte GEOPEND, en er is nog geen deal of
+  // afwijzing. Alleen op de link geklikt (rang 2) is nog geen warm signaal -
+  // dat laat alleen de neutrale chip "Link geklikt" zien (mailInfo hieronder),
+  // want iemand die klikte maar niet doorging naar de offerte hoeft nog geen
+  // "bel nu"-behandeling. Getekend/betaald (rang 4/5) is geen belmoment meer.
   const isWarm = useCallback((lead) => {
     const r = mailRows[lead.id]?.status_rank || 0
-    return (r === 2 || r === 3) && !DONE_STATUSES.includes(lead.status)
+    return r === 3 && !DONE_STATUSES.includes(lead.status)
   }, [mailRows])
 
   // Wat vraagt om actie op deze lead?
@@ -450,7 +453,7 @@ export default function LeadBoard() {
     const out = []
     const mail = mailRows[lead.id]
     if (isWarm(lead)) {
-      out.push({ label: mail.status_rank === 3 ? 'Bel nu: offerte open' : 'Bel nu: geklikt', color: '#fff', bg: 'var(--secondary)', warm: true })
+      out.push({ label: 'Bel nu: offerte open', color: '#fff', bg: 'var(--secondary)', warm: true })
     }
     if (isFollowUpDue(lead) && !DONE_STATUSES.includes(lead.status)) {
       out.push({ label: lead.status === 'mail_verstuurd' ? 'Opvolgen na mail' : 'Opvolgen', color: 'var(--warning)', bg: 'var(--warning-bg)' })
@@ -655,7 +658,7 @@ export default function LeadBoard() {
                   ...(mailService ? [['warm', `Warm (${warmCount})`]] : []),
                   ['open', `Open (${openCount})`], ['done', `Afgerond (${pool.length - openCount})`], ['all', `Alles (${pool.length})`]
                 ].map(([k, label]) => (
-                  <button key={k} type="button" onClick={() => setFilter(k)} className={`btn btn-sm ${filter === k ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 20, ...(k === 'warm' && warmCount > 0 && filter !== 'warm' ? { color: 'var(--secondary)', borderColor: 'var(--secondary)', fontWeight: 800 } : {}) }} title={k === 'warm' ? 'Leads die op de link klikten of de offerte openden. Die bel je eerst.' : undefined}>
+                  <button key={k} type="button" onClick={() => setFilter(k)} className={`btn btn-sm ${filter === k ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 20, ...(k === 'warm' && warmCount > 0 && filter !== 'warm' ? { color: 'var(--secondary)', borderColor: 'var(--secondary)', fontWeight: 800 } : {}) }} title={k === 'warm' ? 'Leads die de offerte openden. Die bel je eerst.' : undefined}>
                     {k === 'warm' && <Flame size={12} style={{ verticalAlign: -2 }} />} {label}
                   </button>
                 ))}
@@ -746,7 +749,7 @@ export default function LeadBoard() {
                 height={Math.max(420, (typeof window !== 'undefined' ? window.innerHeight : 800) - 300)}
               />
             ) : visible.length === 0 ? (
-              <EmptyState icon={Inbox} title="Geen leads" message={filter === 'open' ? 'Alle leads in deze lijst zijn afgerond.' : filter === 'warm' ? 'Nog geen warme leads. Zodra een bureau op je mail klikt of de offerte opent, komt hij hier bovenaan.' : 'Niets gevonden.'} />
+              <EmptyState icon={Inbox} title="Geen leads" message={filter === 'open' ? 'Alle leads in deze lijst zijn afgerond.' : filter === 'warm' ? 'Nog geen warme leads. Zodra een bureau de offerte opent, komt hij hier bovenaan.' : 'Niets gevonden.'} />
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {visible.map(lead => {

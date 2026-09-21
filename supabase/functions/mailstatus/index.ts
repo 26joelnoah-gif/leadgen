@@ -167,10 +167,13 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Opslaan mislukt" }, 500);
     }
 
-    // v82: warme lead -> melding (belletje) voor de eigenaar van de lead, of
+    // v88: warme lead -> melding (belletje) voor de eigenaar van de lead, of
     // anders de managers van het project. Alleen als de stap echt vooruit
     // ging, dus een dubbele of late melding geeft nooit een tweede belletje.
-    if (vooruit && rang >= 2 && rang > oudeRang) {
+    // Alleen op de link geklikt (rang 2) is nog GEEN belmoment - dat zet
+    // alleen de status op "Link geklikt", zonder melding. Pas als de offerte
+    // echt open staat (rang 3) is het warm genoeg voor een belletje.
+    if (vooruit && rang >= 3 && rang > oudeRang) {
       try {
         let ontvangers: string[] = [];
         const eigenaar = (lead.assigned_to as string | null) || (lead.locked_by as string | null);
@@ -181,13 +184,11 @@ Deno.serve(async (req: Request) => {
         }
         const naam = (rij.bureau as string | null) || lead.name || "Lead";
         const TITELS: Record<number, string> = {
-          2: `${naam} heeft je mail geopend en op de link geklikt`,
           3: `${naam} bekijkt de offerte`,
           4: `${naam} heeft getekend`,
           5: `${naam} heeft betaald`,
         };
         const BODY: Record<number, string> = {
-          2: "Warme lead: bel nu, dan zit je er bovenop.",
           3: "Heel warm: de offerte staat open. Even bellen om vragen weg te nemen.",
           4: "Gefeliciteerd. Check of alles klopt en of de klant nog iets nodig heeft.",
           5: "De klant heeft betaald. Mooi resultaat.",

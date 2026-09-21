@@ -63,7 +63,8 @@ export default function MyMailStats() {
         ;(st || []).forEach(r => { best[r.lead_id] = Math.max(best[r.lead_id] || 0, r.status_rank || 0) })
         Object.entries(best).forEach(([id, r]) => {
           if (r >= 2) geklikt++
-          if ((r === 2 || r === 3) && !DONE_STATUSES.includes(statusOf[id])) warm++
+          // v88: warm = de offerte staat OPEN (rang 3), niet alleen geklikt (rang 2)
+          if (r === 3 && !DONE_STATUSES.includes(statusOf[id])) warm++
           if (r >= 4) getekend++
         })
       }
@@ -82,7 +83,7 @@ export default function MyMailStats() {
   const items = [
     { label: 'Mails vandaag', val: stats.vandaag, sub: `${stats.dezeWeek} deze week, ${stats.totaal} totaal`, icon: Mail, color: 'var(--primary)' },
     { label: 'Link geklikt', val: stats.geklikt, sub: `van ${stats.leads} gemailde leads${stats.getekend ? `, ${stats.getekend} getekend` : ''}`, icon: MousePointerClick, color: 'var(--info)' },
-    { label: 'Warme leads', val: stats.warm, sub: stats.warm ? 'Bel die eerst' : 'Nog niemand geklikt', icon: Flame, color: 'var(--secondary)', to: '/leads' },
+    { label: 'Warme leads', val: stats.warm, sub: stats.warm ? 'Bel die eerst' : 'Nog niemand bij de offerte', icon: Flame, color: 'var(--secondary)', to: '/leads' },
     { label: 'Nog te versturen', val: stats.gepland, sub: 'in je mailinglijst', icon: ListChecks, color: 'var(--text-muted)', to: '/leads' }
   ]
 
