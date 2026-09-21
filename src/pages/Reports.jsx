@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { motion } from 'framer-motion'
-import { Users, PhoneCall, CheckCircle, Download, Clock, Filter, Calendar, TrendingUp, Phone, Briefcase, Mail, MousePointerClick, FileText } from 'lucide-react'
+import { Users, PhoneCall, CheckCircle, Download, Clock, Filter, Calendar, TrendingUp, Phone, Briefcase, Mail, MousePointerClick, FileText, BarChart3 } from 'lucide-react'
 import { mailTypeLabel } from '../lib/mailSources'
 import { getStatusDetails } from '../utils/statusUtils'
 import { effectiveSeconds, isCapped } from '../utils/callTimeUtils'
@@ -10,6 +10,7 @@ import { exportToCSV } from '../utils/exportUtils'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import Header from '../components/Header'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
 // Seconden -> "1u 11m 22s"
 function fmtDuration(totalSeconds) {
@@ -323,6 +324,31 @@ export default function Reports() {
   }, [mailStats])
   const mailTypes = useMemo(() => Object.keys(mailTotals.perType).sort(), [mailTotals])
 
+  // ===== Grafiek: gesprekken, resultaten en mails per beller in één oogopslag =====
+  // Zelfde project-/team-/beller-filters als de rest van de pagina. Kleuren volgen
+  // de betekenis die de Totalen-kaarten hierboven al gebruiken (primary=gesprekken/
+  // mails, info=afspraken/geklikt, success=deals) - twee metrieken met een heel
+  // verschillende schaal (bv. gesprekken vs deals) komen bewust in aparte grafieken.
+  const chartCallsData = useMemo(() => (
+    [...agentStats]
+      .sort((a, b) => b.calls - a.calls)
+      .map(a => ({ name: a.name, Gesprekken: a.calls }))
+  ), [agentStats])
+
+  const chartResultsData = useMemo(() => (
+    [...agentStats]
+      .sort((a, b) => (b.afspraken + b.deals) - (a.afspraken + a.deals))
+      .map(a => ({ name: a.name, Afspraken: a.afspraken, Deals: a.deals }))
+  ), [agentStats])
+
+  const chartMailsData = useMemo(() => (
+    [...mailStats]
+      .sort((a, b) => b.mails - a.mails)
+      .map(a => ({ name: a.name, 'Mails verstuurd': a.mails, 'Link geklikt': a.geklikt }))
+  ), [mailStats])
+
+  const chartHeight = (rows) => Math.max(160, rows.length * 42 + 40)
+
   // ===== Gesprekkenlijst met filters =====
   const uniqueResults = useMemo(() => {
     const r = new Set()
@@ -461,7 +487,7 @@ export default function Reports() {
             </div>
           </div>
           <div className="flex gap-2">
-            {canExport && (
+            {canExport && activeTab !== 'grafiek' && (
               <button className="btn btn-outline btn-sm" onClick={handleExport}><Download size={16} /> Export CSV</button>
             )}
             <button className="btn btn-secondary btn-sm" onClick={() => { fetchCallLogs(); fetchMails() }}><TrendingUp size={16} /> Verversen</button>
@@ -499,6 +525,7 @@ export default function Reports() {
             { id: 'bellers', label: 'Statistieken per beller', icon: <Users size={15} /> },
             { id: 'projecten', label: 'Per project', icon: <Briefcase size={15} /> },
             { id: 'mails', label: 'Mails', icon: <Mail size={15} /> },
+            { id: 'grafiek', label: 'Grafiek', icon: <BarChart3 size={15} /> },
             // KPI-only managers zien geen individuele gesprekken of leadgegevens
             ...(kpiOnly ? [] : [{ id: 'gesprekken', label: 'Alle gesprekken', icon: <Phone size={15} /> }])
           ].map(t => (
@@ -732,6 +759,72 @@ export default function Reports() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+          </div>
+        ) : activeTab === 'grafiek' ? (
+          <div className="grid gap-4">
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title"><PhoneCall size={20} /> Gesprekken per beller</span>
+              </div>
+              {chartCallsData.length === 0 ? (
+                <EmptyState title="Nog geen gesprekken" message="In deze periode zijn er geen afboekingen geregistreerd." />
+              ) : (
+                <ResponsiveContainer width="100%" height={chartHeight(chartCallsData)}>
+                  <BarChart data={chartCallsData} layout="vertical" margin={{ top: 8, right: 24, left: 8, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                    <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
+                    <YAxis type="category" dataKey="name" width={140} tick={{ fill: 'var(--text-primary)', fontSize: 12 }} />
+                    <Tooltip contentStyle={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }} />
+                    <Bar dataKey="Gesprekken" fill="var(--primary)" radius={[0, 4, 4, 0]} maxBarSize={26} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title"><Calendar size={20} /> Afspraken en deals per beller</span>
+              </div>
+              {chartResultsData.length === 0 ? (
+                <EmptyState title="Nog geen resultaten" message="In deze periode zijn er geen afspraken of deals geregistreerd." />
+              ) : (
+                <ResponsiveContainer width="100%" height={chartHeight(chartResultsData)}>
+                  <BarChart data={chartResultsData} layout="vertical" margin={{ top: 8, right: 24, left: 8, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                    <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
+                    <YAxis type="category" dataKey="name" width={140} tick={{ fill: 'var(--text-primary)', fontSize: 12 }} />
+                    <Tooltip contentStyle={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }} />
+                    <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
+                    <Bar dataKey="Afspraken" fill="var(--info)" radius={[0, 4, 4, 0]} maxBarSize={22} />
+                    <Bar dataKey="Deals" fill="var(--success)" radius={[0, 4, 4, 0]} maxBarSize={22} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+
+            {!kpiOnly && (
+              <div className="card">
+                <div className="card-header" style={{ flexWrap: 'wrap', gap: '12px' }}>
+                  <span className="card-title"><Mail size={20} /> Mails per beller</span>
+                  <span className="text-muted" style={{ fontSize: '0.8rem' }}>Verstuurd via de Mailingservice, en hoeveel daarvan een link hebben geklikt (bron bijv. MarketingKiezer)</span>
+                </div>
+                {chartMailsData.length === 0 ? (
+                  <EmptyState title="Nog geen mails" message="In deze periode zijn er geen mails verstuurd via de Mailingservice." />
+                ) : (
+                  <ResponsiveContainer width="100%" height={chartHeight(chartMailsData)}>
+                    <BarChart data={chartMailsData} layout="vertical" margin={{ top: 8, right: 24, left: 8, bottom: 8 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" horizontal={false} />
+                      <XAxis type="number" allowDecimals={false} tick={{ fill: 'var(--text-muted)', fontSize: 12 }} />
+                      <YAxis type="category" dataKey="name" width={140} tick={{ fill: 'var(--text-primary)', fontSize: 12 }} />
+                      <Tooltip contentStyle={{ background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)' }} />
+                      <Legend wrapperStyle={{ fontSize: '0.8rem' }} />
+                      <Bar dataKey="Mails verstuurd" fill="var(--primary)" radius={[0, 4, 4, 0]} maxBarSize={22} />
+                      <Bar dataKey="Link geklikt" fill="var(--success)" radius={[0, 4, 4, 0]} maxBarSize={22} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             )}
           </div>
