@@ -216,3 +216,17 @@ Twee-zijdig platform:
   op deleted_at is null filteren. Migratie: migration_v86_prullenbak_medewerkers.sql
   (toegepast). Terugzetten maakt altijd actief, ook als iemand vóór het
   verwijderen al inactief stond.
+
+- **LEAD BLIJFT VAN DE EIGENAAR, OOK BUITEN ACTIEVE VERGRENDELING (v87,
+  2026-09-21):** aanleiding: Noah opende een lead ("Havas Media", status
+  mail_gepland) die aan Lily was toegewezen maar op dat moment niet actief
+  vergrendeld was (locked_by leeg). claim_lead pakte hem zonder waarschuwing
+  en zonder melding aan Lily, en het bord toonde hem meteen als "Jouw lead".
+  Fix: claim_lead (migration_v87) telt een lead nu ook als "bezet" wanneer
+  hij eerder aan iemand anders is toegewezen (assigned_to), ook zonder
+  actieve locked_by - net als bij een actief vergrendelde lead (v75) krijg
+  je hem zonder p_force niet, en met overnemen krijgen jullie allebei een
+  melding. LeadBoard.jsx: openLead/handleBoardDrop tonen nu ook de
+  "Lead overnemen?"-popup wanneer een lead alleen assigned_to is (niet
+  locked_by) aan een collega; de popup-tekst en de "wie heeft hem"-naam in
+  doeOvername vallen terug op assignedNames als er geen actieve lock is.
