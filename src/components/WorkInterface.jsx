@@ -573,22 +573,29 @@ export default function WorkInterface() {
   }
 
   // v87: bij een terugbelafspraak (TBA) moet vastliggen MET WIE we dat hebben
-  // afgesproken - de naam van de contactpersoon wordt apart en eerst
-  // opgeslagen, zodat de afboeking zelf niet vastloopt als dit misgaat.
+  // afgesproken - naam is verplicht, en als de contactpersoon een (ander)
+  // rechtstreeks nummer achterlaat mag dat er meteen bij. Beide gaan direct
+  // en automatisch in de lead zelf (niet alleen in de notities), zodat de
+  // volgende beller ze meteen ziet - en apart van de afboeking zelf
+  // opgeslagen, zodat die niet vastloopt als dit misgaat.
   const handleFinalDisposition = async () => {
     if (!selectedDisposition) return
     if (selectedDisposition === 'terugbelafspraak') {
       const contactpersoon = (editableLead.contact_person || '').trim()
       if (!contactpersoon) return
-      if (contactpersoon !== (currentLead.contact_person || '').trim()) {
-        const { error } = await supabase.from('leads').update({ contact_person: contactpersoon }).eq('id', currentLead.id)
+      const telefoonnummer = (editableLead.phone || '').trim()
+      const changes = {}
+      if (contactpersoon !== (currentLead.contact_person || '').trim()) changes.contact_person = contactpersoon
+      if (telefoonnummer && telefoonnummer !== (currentLead.phone || '').trim()) changes.phone = telefoonnummer
+      if (Object.keys(changes).length > 0) {
+        const { error } = await supabase.from('leads').update(changes).eq('id', currentLead.id)
         if (error) {
           logAppError('afboeken.contactpersoonOpslaan', error, { leadId: currentLead.id })
-          toast(`Naam contactpersoon niet opgeslagen: ${foutTekst(error)}`, 'error', 7000)
+          toast(`Contactgegevens niet opgeslagen: ${foutTekst(error)}`, 'error', 7000)
           return
         }
-        baselineRef.current = { ...(baselineRef.current || {}), contact_person: contactpersoon }
-        setLiveLead(prev => (prev && prev.id === currentLead.id) ? { ...prev, contact_person: contactpersoon } : prev)
+        baselineRef.current = { ...(baselineRef.current || {}), ...changes }
+        setLiveLead(prev => (prev && prev.id === currentLead.id) ? { ...prev, ...changes } : prev)
       }
     }
     submitDisposition(selectedDisposition, dispositionNotes, nextContactDate || null)
@@ -1100,6 +1107,21 @@ export default function WorkInterface() {
                           value={editableLead.contact_person || ''}
                           onChange={e => setEditableLead({ ...editableLead, contact_person: e.target.value })}
                           placeholder="Met wie is dit terugbelmoment afgesproken?"
+                          style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }}
+                        />
+                      </div>
+                    )}
+
+                    {selectedDisposition === 'terugbelafspraak' && (
+                      <div>
+                        <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>
+                          Telefoonnummer (optioneel)
+                        </label>
+                        <input
+                          type="tel"
+                          value={editableLead.phone || ''}
+                          onChange={e => setEditableLead({ ...editableLead, phone: e.target.value })}
+                          placeholder="Laat de contactpersoon een ander nummer achter, vul het hier in"
                           style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }}
                         />
                       </div>
