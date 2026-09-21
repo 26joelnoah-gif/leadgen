@@ -72,7 +72,7 @@ export default function LeadKanban({
                       background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 7,
                       padding: '6px 7px', cursor: draggable ? 'grab' : 'not-allowed',
                       opacity: draggingId === item.id ? 0.4 : (draggable ? 1 : 0.55),
-                      overflow: 'hidden', minWidth: 0, maxWidth: '100%'
+                      overflow: 'hidden', minWidth: 0, maxWidth: '100%', flexShrink: 0
                     }}
                   >
                     {renderCard(item)}
