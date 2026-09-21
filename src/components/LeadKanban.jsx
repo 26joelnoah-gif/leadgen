@@ -54,7 +54,7 @@ export default function LeadKanban({
               <span style={{ fontWeight: 800, fontSize: '0.72rem', color: col.color, lineHeight: 1.2 }}>{col.label}</span>
               <span style={{ background: 'var(--bg-elevated)', padding: '1px 6px', borderRadius: 10, fontSize: '0.68rem', fontWeight: 700, flexShrink: 0 }}>{list.length}</span>
             </div>
-            <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5, flex: 1 }}>
+            <div style={{ overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 5, flex: 1, minWidth: 0 }}>
               {list.map(item => {
                 const draggable = canDrag(item)
                 return (
@@ -71,7 +71,8 @@ export default function LeadKanban({
                     style={{
                       background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 7,
                       padding: '6px 7px', cursor: draggable ? 'grab' : 'not-allowed',
-                      opacity: draggingId === item.id ? 0.4 : (draggable ? 1 : 0.55)
+                      opacity: draggingId === item.id ? 0.4 : (draggable ? 1 : 0.55),
+                      overflow: 'hidden', minWidth: 0, maxWidth: '100%'
                     }}
                   >
                     {renderCard(item)}
