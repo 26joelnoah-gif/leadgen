@@ -17,6 +17,12 @@
 //   }
 //   Optioneel: "source" (standaard MARKETINGKIEZER).
 //
+//   Knop "Bel mij terug" (status "terugbellen") werkt anders: dat is geen
+//   funnelstap. Verplicht dan: "naam" (wie het formulier invulde). Optioneel:
+//   "telefoon" en "wens" (snel/ochtend/middag). Maakt een nieuwe lead aan in
+//   de lijst "Bel mij terug" van hetzelfde project + een melding voor de
+//   eigenaar/managers.
+//
 // De sleutel staat in Supabase secret MAILSTATUS_KEY; bij de bron is dat
 // dezelfde waarde (in Netlify: LEADGEN_STATUS_KEY).
 // verify_jwt = false: de bron is een server, geen ingelogde gebruiker.
@@ -115,7 +121,7 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     const { data: lead } = await admin
-      .from("leads").select("id, name, organization_id, lead_list_id, deleted_at, assigned_to, locked_by")
+      .from("leads").select("id, name, phone, email, organization_id, lead_list_id, deleted_at, assigned_to, locked_by")
       .eq("id", leadId).maybeSingle();
     if (!lead || lead.deleted_at) return json({ error: "Lead niet gevonden" }, 404);
 
@@ -123,6 +129,98 @@ Deno.serve(async (req: Request) => {
     if (lead.lead_list_id) {
       const { data: list } = await admin.from("lead_lists").select("campaign_id").eq("id", lead.lead_list_id).maybeSingle();
       campaignId = list?.campaign_id ?? null;
+    }
+
+    // v89: knop "Bel mij terug" (MarketingKiezer, 21 sep 2026) - GEEN stap in
+    // de mailfunnel hieronder (rang/vooruit): een bureau dat al verder stond
+    // (bv. offerte open) mag ook om een belletje vragen, en dat werd tot nu
+    // toe stilletjes genegeerd omdat een lagere "rang" nooit won. Zo iemand
+    // moet een beller ECHT zien, dus dit maakt er een aparte, nieuwe lead van
+    // in de lijst "Bel mij terug" binnen hetzelfde project (i.p.v. hem te
+    // verstoppen in lead_mail_status) en stuurt meteen een melding.
+    if (status === "terugbellen") {
+      const naam = kort(body?.naam, 120);
+      if (!naam) return json({ error: "naam ontbreekt" }, 400);
+
+      const telefoonRuw = kort(body?.telefoon, 40);
+      const telefoon = telefoonRuw && /^[0-9+()\s-]{6,40}$/.test(telefoonRuw) ? telefoonRuw : null;
+      const wensRuw = (kort(body?.wens, 20) || "").toLowerCase();
+      const WENS_LABELS: Record<string, string> = {
+        snel: "Zo snel mogelijk", ochtend: "Liefst in de ochtend", middag: "Liefst in de middag",
+      };
+      const wensLabel = WENS_LABELS[wensRuw] || null;
+
+      const bureauNaam = kort(body?.bureau, 160) ?? kort(lead.name, 160) ?? "Onbekend bureau";
+      const telefoonVoorLead = telefoon || (lead.phone as string | null) || null;
+      if (!telefoonVoorLead) return json({ error: "Geen telefoonnummer bekend" }, 400);
+
+      // Lijst "Bel mij terug" binnen hetzelfde project; bestaat hij nog niet
+      // (eerste terugbelverzoek van dit project), dan maken we hem aan. Geen
+      // project bekend (zeldzaam) -> terug in dezelfde lijst als het origineel,
+      // dan verdwijnt het verzoek in elk geval niet.
+      let targetListId: string | null = null;
+      if (campaignId) {
+        const { data: bestaandeLijst } = await admin
+          .from("lead_lists").select("id")
+          .eq("campaign_id", campaignId).eq("name", "Bel mij terug").is("deleted_at", null)
+          .maybeSingle();
+        if (bestaandeLijst) {
+          targetListId = bestaandeLijst.id as string;
+        } else {
+          const { data: nieuweLijst, error: lijstFout } = await admin
+            .from("lead_lists")
+            .insert({ name: "Bel mij terug", campaign_id: campaignId })
+            .select("id").single();
+          if (lijstFout) console.error("[mailstatus] lijst 'Bel mij terug' aanmaken mislukt", lijstFout.message);
+          targetListId = nieuweLijst?.id ?? null;
+        }
+      }
+      if (!targetListId) targetListId = lead.lead_list_id as string | null;
+
+      const eigenaar = (lead.assigned_to as string | null) || (lead.locked_by as string | null);
+
+      const { data: nieuweLead, error: leadFout } = await admin
+        .from("leads")
+        .insert({
+          name: bureauNaam,
+          phone: telefoonVoorLead,
+          email: kort(body?.email, 254)?.toLowerCase() ?? null,
+          contact_person: naam,
+          notes: `Terugbelverzoek via MarketingKiezer${wensLabel ? " - " + wensLabel : ""}.`,
+          status: "new",
+          lead_list_id: targetListId,
+          organization_id: lead.organization_id ?? null,
+          assigned_to: eigenaar,
+          lead_source: "terugbelverzoek",
+        })
+        .select("id").single();
+      if (leadFout || !nieuweLead) {
+        console.error("[mailstatus] terugbelverzoek-lead aanmaken mislukt", leadFout?.message);
+        return json({ error: "Terugbelverzoek opslaan mislukt" }, 500);
+      }
+
+      try {
+        let ontvangers: string[] = [];
+        if (eigenaar) ontvangers = [eigenaar];
+        else if (campaignId) {
+          const { data: mgrs } = await admin.from("campaign_managers").select("manager_id").eq("campaign_id", campaignId);
+          ontvangers = (mgrs || []).map((m: { manager_id: string }) => m.manager_id).filter(Boolean);
+        }
+        if (ontvangers.length) {
+          await admin.from("notifications").insert(ontvangers.map((pid) => ({
+            profile_id: pid,
+            actor_id: null,
+            lead_id: nieuweLead.id,
+            type: "terugbelverzoek",
+            title: `${naam} (${bureauNaam}) wil teruggebeld worden`,
+            body: [wensLabel, telefoonVoorLead].filter(Boolean).join(" \u00b7 "),
+          })));
+        }
+      } catch (e) {
+        console.error("[mailstatus] terugbelverzoek-melding mislukt", e);
+      }
+
+      return json({ ok: true, lead_id: lead.id, terugbel_lead_id: nieuweLead.id });
     }
 
     const { data: bestaand } = await admin
