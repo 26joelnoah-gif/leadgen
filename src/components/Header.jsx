@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
 import { Zap, Settings, LogOut, Phone, Menu, X, Sun, Moon, HelpCircle } from 'lucide-react'
@@ -9,11 +9,18 @@ import AccountSettingsModal from './AccountSettingsModal'
 import { useToolAccess } from '../hooks/useToolAccess'
 import { useLeadBoardAccess } from '../hooks/useLeadBoardAccess'
 import { useAccountManagementAccess } from '../hooks/useAccountManagement'
+import { useLeadLists } from '../hooks/useLeadLists'
+import { useToast } from './Toast'
 
 export default function Header({ onOpenSettings }) {
-  const { profile, signOut, sessionCallCount, toggleWorkingMode, isWorking } = useAuth()
+  const { profile, signOut, sessionCallCount, toggleWorkingMode, startWorkingWithList, isWorking } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const location = useLocation()
+  const navigate = useNavigate()
+  const toast = useToast()
+  // v87: de lijsten die deze medewerker mag bellen, om de knop "Werk" hieronder
+  // altijd een lijst te laten kiezen voordat de belmodus opent.
+  const { leadLists } = useLeadLists()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   // v35: "Mijn account" (o.a. eigen wachtwoord wijzigen) - overal beschikbaar
   // via het tandwiel, ongeacht of een pagina zelf nog onOpenSettings gebruikt.
@@ -28,6 +35,28 @@ export default function Header({ onOpenSettings }) {
   const isAdmin = profile?.role === 'admin'
   const isManager = profile?.role === 'manager'
   const isRecruiter = profile?.role === 'recruiter'
+
+  // v87: "Werk" opende voorheen de belmodus zonder ooit een lijst te kiezen
+  // (toggleWorkingMode zet workingListId niet), waardoor WorkInterface nooit
+  // een lead claimde en meteen "Wachtrij leeg" toonde - leek een lege lead.
+  // Dashboard/Recruitment kiezen wel altijd eerst een lijst (startWorkingWithList);
+  // deze knop doet dat nu ook, op dezelfde manier als die pagina's.
+  function handleWerkClick() {
+    if (isWorking) { toggleWorkingMode(); return }
+    if (isRecruiter) {
+      const recruitmentLists = leadLists.filter(l => l.campaigns?.type === 'recruitment')
+      const homeList = recruitmentLists.find(l => l.assigned_to === profile?.id) || recruitmentLists[0]
+      if (!homeList) { toast('Geen sollicitatieproject gekoppeld aan je account.', 'error'); return }
+      startWorkingWithList(homeList.id)
+      return
+    }
+    const belLists = leadLists.filter(l => l.campaigns?.type !== 'accountmanagement' && l.campaigns?.type !== 'recruitment')
+    if (belLists.length === 0) { toast('Geen belproject gekoppeld aan je account.', 'error'); return }
+    if (belLists.length === 1) { startWorkingWithList(belLists[0].id); return }
+    // Meerdere projecten: net als op het Dashboard laten we daar kiezen
+    // i.p.v. zelf te gokken welke lijst bedoeld is.
+    navigate('/')
+  }
   const isBackoffice = profile?.role === 'backoffice'
   // v52: planning-account = alleen roosters doorgeven, geen enkele andere pagina.
   const isPlanning = profile?.role === 'planning'
@@ -145,7 +174,7 @@ export default function Header({ onOpenSettings }) {
           <NotificationBell />
           {(profile?.role === 'employee' || isRecruiter || isBackoffice) && (
             <button
-              onClick={toggleWorkingMode}
+              onClick={handleWerkClick}
               className="btn btn-sm"
               style={{
                 background: isWorking ? 'var(--warning-bg)' : 'var(--accent)',
