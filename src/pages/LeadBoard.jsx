@@ -738,10 +738,12 @@ export default function LeadBoard() {
               <div className="flex gap-2">
                 {[
                   ...(mailService ? [['warm', `Warm (${warmCount})`]] : []),
-                  // v87: op het bord staat elke status al in zijn eigen kolom,
-                  // dus Open/Afgerond/Alles voegen daar niets toe (en verstopten
-                  // juist de kolommen "Klant" en "Geen interesse").
-                  ...(view !== 'board' ? [['open', `Open (${openCount})`], ['done', `Afgerond (${pool.length - openCount})`], ['all', `Alles (${pool.length})`]] : [])
+                  // v87/v93: Open/Afgerond/Alles hebben op het bord geen effect
+                  // (elke status staat daar al in zijn eigen kolom, zie de
+                  // v87-uitzondering in de `visible`-filter hierboven), maar
+                  // blijven wel zichtbaar zodat het bord er hetzelfde uitziet
+                  // als lijst-/kaartweergave.
+                  ['open', `Open (${openCount})`], ['done', `Afgerond (${pool.length - openCount})`], ['all', `Alles (${pool.length})`]
                 ].map(([k, label]) => (
                   <button key={k} type="button" onClick={() => setFilter(k)} className={`btn btn-sm ${filter === k ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 20, ...(k === 'warm' && warmCount > 0 && filter !== 'warm' ? { color: 'var(--secondary)', borderColor: 'var(--secondary)', fontWeight: 800 } : {}) }} title={k === 'warm' ? 'Leads die de offerte openden. Die bel je eerst.' : undefined}>
                     {k === 'warm' && <Flame size={12} style={{ verticalAlign: -2 }} />} {label}
