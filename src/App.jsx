@@ -22,6 +22,7 @@ import Tools from './pages/Tools'
 import LeadBoard from './pages/LeadBoard'
 import Outside from './pages/Outside'
 import Tekenen from './pages/Tekenen'
+import Home from './pages/Home'
 import Aanmelden from './pages/Aanmelden'
 import AanmeldenBedankt from './pages/AanmeldenBedankt'
 import AccountManagement from './pages/AccountManagement'
@@ -199,12 +200,19 @@ function AppRoutes() {
       <Route path="/aanmelden/bedankt" element={<AanmeldenBedankt />} />
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/setup" element={user ? <Setup /> : <Navigate to="/login" replace />} />
+      {/* v90: "/" is nu de publieke homepage voor wie nog niet is ingelogd
+          (nieuws + uitleg over LeadGen). Wie al is ingelogd ziet hier gewoon
+          zijn eigen startscherm, precies als voorheen - dat verandert niet. */}
       <Route
         path="/"
         element={
-          <ProtectedRoute>
-            <HomeRoute />
-          </ProtectedRoute>
+          user ? (
+            <ProtectedRoute>
+              <HomeRoute />
+            </ProtectedRoute>
+          ) : (
+            <Home />
+          )
         }
       />
       <Route

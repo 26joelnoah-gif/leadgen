@@ -12,7 +12,7 @@ import {
   Plus, Users, Settings, UserPlus, Phone, PhoneOff, Mail,
   UserCheck, Shield, Activity, Download, Play, Zap, Upload,
   X, CheckCircle, AlertTriangle, Bell, Megaphone, Target,
-  DollarSign, Calendar, List, ChevronRight, Layers, Trash2, Search, KeyRound, Tag, Wrench, Link2
+  DollarSign, Calendar, List, ChevronRight, Layers, Trash2, Search, KeyRound, Tag, Wrench, Link2, Newspaper, Pencil
 } from 'lucide-react'
 import { STATUS_MAP } from '../utils/statusUtils'
 import { exportToCSV } from '../utils/exportUtils'
@@ -101,10 +101,93 @@ export default function Admin() {
   const [newOrgName, setNewOrgName] = useState('')
   const [creatingOrg, setCreatingOrg] = useState(false)
 
+  // v90: nieuwsberichten voor de publieke homepage, zelf te beheren
+  const [newsItems, setNewsItems] = useState([])
+  const [newsForm, setNewsForm] = useState({ title: '', body: '', is_published: true })
+  const [editingNewsId, setEditingNewsId] = useState(null)
+  const [savingNews, setSavingNews] = useState(false)
+
   useEffect(() => {
     fetchData()
     fetchLeadLists()
+    fetchNews()
   }, [isDemoMode])
+
+  async function fetchNews() {
+    try {
+      const { data, error } = await supabase
+        .from('news_items')
+        .select('*')
+        .order('created_at', { ascending: false })
+      if (error) throw error
+      setNewsItems(data || [])
+    } catch (err) {
+      toast(err.message, 'error')
+    }
+  }
+
+  function startEditNews(item) {
+    setEditingNewsId(item.id)
+    setNewsForm({ title: item.title, body: item.body, is_published: item.is_published })
+  }
+
+  function cancelEditNews() {
+    setEditingNewsId(null)
+    setNewsForm({ title: '', body: '', is_published: true })
+  }
+
+  async function handleSaveNews() {
+    if (!newsForm.title.trim() || !newsForm.body.trim()) {
+      toast('Titel en tekst zijn verplicht', 'error')
+      return
+    }
+    setSavingNews(true)
+    try {
+      if (editingNewsId) {
+        const { error } = await supabase.from('news_items')
+          .update({ title: newsForm.title.trim(), body: newsForm.body.trim(), is_published: newsForm.is_published })
+          .eq('id', editingNewsId)
+        if (error) throw error
+        toast('Nieuwsbericht bijgewerkt', 'success')
+      } else {
+        const { error } = await supabase.from('news_items').insert({
+          title: newsForm.title.trim(),
+          body: newsForm.body.trim(),
+          is_published: newsForm.is_published,
+          created_by: profile?.id,
+        })
+        if (error) throw error
+        toast('Nieuwsbericht geplaatst', 'success')
+      }
+      cancelEditNews()
+      fetchNews()
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setSavingNews(false)
+    }
+  }
+
+  async function handleDeleteNews(id) {
+    try {
+      const { error } = await supabase.from('news_items').delete().eq('id', id)
+      if (error) throw error
+      setNewsItems(prev => prev.filter(n => n.id !== id))
+      toast('Nieuwsbericht verwijderd', 'success')
+    } catch (err) {
+      toast(err.message, 'error')
+    }
+  }
+
+  async function handleTogglePublishNews(item) {
+    try {
+      const { error } = await supabase.from('news_items').update({ is_published: !item.is_published }).eq('id', item.id)
+      if (error) throw error
+      setNewsItems(prev => prev.map(n => n.id === item.id ? { ...n, is_published: !n.is_published } : n))
+    } catch (err) {
+      toast(err.message, 'error')
+    }
+  }
 
   async function handleAddEmployee(employeeData) {
     if (isDemoMode) {
@@ -460,6 +543,7 @@ export default function Admin() {
              { id: 'data', label: 'Projecten & Leads', Icon: Layers },
              { id: 'medewerkers', label: 'Team', Icon: Users },
              { id: 'verdiensten', label: 'Uitbetaling', Icon: DollarSign },
+             { id: 'nieuws', label: 'Nieuws', Icon: Newspaper },
              { id: 'dashboard', label: 'Dashboard', Icon: Activity }
            ].map(t => (
              <button
@@ -880,6 +964,78 @@ export default function Admin() {
 
         {activeTab === 'verdiensten' && (
            <PayoutSettings />
+        )}
+
+        {/* v90: Nieuws - berichten voor de publieke homepage (/), zelf te beheren */}
+        {activeTab === 'nieuws' && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <div className="flex justify-between items-center mb-6" style={{ flexWrap: 'wrap', gap: '16px' }}>
+              <div>
+                <h1 className="page-title">Nieuws</h1>
+                <p className="text-muted text-sm mt-1">Berichten hieronder staan op de publieke homepage (leadgendash.netlify.app), zichtbaar voor iedereen zonder account.</p>
+              </div>
+            </div>
+
+            <div className="glass-panel p-6 mb-6">
+              <h2 className="text-lg font-black mb-4">{editingNewsId ? 'Bericht bewerken' : 'Nieuw bericht'}</h2>
+              <div className="form-group mb-4">
+                <label className="text-[10px] font-black uppercase text-muted tracking-widest mb-2 block">Titel *</label>
+                <input
+                  className="form-dark w-full"
+                  value={newsForm.title}
+                  onChange={e => setNewsForm({ ...newsForm, title: e.target.value })}
+                  placeholder="Bijv. Nieuwe functie: offertes op afstand tekenen"
+                />
+              </div>
+              <div className="form-group mb-4">
+                <label className="text-[10px] font-black uppercase text-muted tracking-widest mb-2 block">Tekst *</label>
+                <textarea
+                  className="form-dark w-full"
+                  rows={4}
+                  value={newsForm.body}
+                  onChange={e => setNewsForm({ ...newsForm, body: e.target.value })}
+                  placeholder="Wat wil je vertellen?"
+                />
+              </div>
+              <label className="flex items-center gap-2 mb-4 text-sm">
+                <input type="checkbox" checked={newsForm.is_published} onChange={e => setNewsForm({ ...newsForm, is_published: e.target.checked })} />
+                Meteen publiceren
+              </label>
+              <div className="flex gap-3">
+                <button className="btn btn-primary" onClick={handleSaveNews} disabled={savingNews}>
+                  {editingNewsId ? 'Wijziging opslaan' : 'Plaatsen'}
+                </button>
+                {editingNewsId && (
+                  <button className="btn btn-outline" onClick={cancelEditNews}>Annuleren</button>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3">
+              {newsItems.length === 0 && <p className="text-muted text-sm">Nog geen nieuwsberichten geplaatst.</p>}
+              {newsItems.map(item => (
+                <div key={item.id} className="glass-panel p-5 flex justify-between items-start" style={{ gap: '16px', flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: '200px' }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-black">{item.title}</h3>
+                      {!item.is_published && (
+                        <span className="px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-muted/20 text-muted">Concept</span>
+                      )}
+                    </div>
+                    <p className="text-muted text-sm whitespace-pre-wrap">{item.body}</p>
+                    <p className="text-faint text-xs mt-2">{new Date(item.created_at).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button className="btn btn-outline btn-sm" onClick={() => handleTogglePublishNews(item)} title={item.is_published ? 'Terugzetten naar concept' : 'Publiceren'}>
+                      {item.is_published ? 'Verbergen' : 'Publiceren'}
+                    </button>
+                    <button className="btn btn-outline btn-sm" onClick={() => startEditNews(item)} title="Bewerken"><Pencil size={14}/></button>
+                    <button className="btn btn-outline btn-sm" onClick={() => handleDeleteNews(item.id)} title="Verwijderen"><Trash2 size={14}/></button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </motion.div>
         )}
 
         {/* MODAL: ADD LEAD */}
