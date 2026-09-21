@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X, ListChecks, Flame, Info } from 'lucide-react'
+import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X, ListChecks, Flame, Info, Trash2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
@@ -86,6 +86,9 @@ export default function LeadBoard() {
   const toast = useToast()
   const geo = useGeolocation()
   const isStaff = profile?.role === 'admin' || profile?.role === 'manager'
+  // v92: alleen wie leads mag beheren ziet de verwijderknop (afvalbak) op de kaart -
+  // zelfde recht als de bulk-verwijderknop in Admin/Manager (v49)
+  const canManageLeads = isStaff || !!profile?.can_manage_leads
 
   // Alleen bel-/acquisitielijsten; sollicitanten horen op de wervingspagina
   const lists = useMemo(
@@ -162,6 +165,9 @@ export default function LeadBoard() {
   const [datePrompt, setDatePrompt] = useState(null)
   const [moving, setMoving] = useState(false)
   const [takeover, setTakeover] = useState(null)
+  // v92: klik-nogmaals-bevestiging voor de verwijderknop op een kaart, per lead-id
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null)
+  const [deletingId, setDeletingId] = useState(null)
   // v75: admin/manager kan het bord per persoon bekijken ('all' | 'me' | profiel-id)
   const [wie, setWie] = useState('all')
   const [mensen, setMensen] = useState([])
@@ -349,6 +355,34 @@ export default function LeadBoard() {
     if (!user?.id) return
     supabase.from('activities').insert({ lead_id: leadId, user_id: user.id, action: 'status_change', notes })
       .then(({ error }) => { if (error) console.error('activiteit loggen mislukt:', error) })
+  }
+
+  // v92: lead direct vanaf de kaart verwijderen (soft delete via RPC delete_leads,
+  // zelfde RPC + autorisatie als de bulk-verwijderknop in Admin/Manager, v49).
+  // Klik-nogmaals bevestiging, reset vanzelf na een paar seconden.
+  function askDeleteLead(lead) {
+    if (confirmDeleteId !== lead.id) {
+      setConfirmDeleteId(lead.id)
+      toast('Klik nogmaals om deze lead definitief te verwijderen', 'info')
+      setTimeout(() => setConfirmDeleteId(id => id === lead.id ? null : id), 4000)
+      return
+    }
+    setConfirmDeleteId(null)
+    deleteLead(lead)
+  }
+
+  async function deleteLead(lead) {
+    setDeletingId(lead.id)
+    try {
+      const { error } = await supabase.rpc('delete_leads', { p_lead_ids: [lead.id] })
+      if (error) throw error
+      setLeads(prev => prev.filter(l => l.id !== lead.id))
+      toast('Lead verwijderd', 'success')
+    } catch (err) {
+      toast(err.message || 'Verwijderen mislukt', 'error')
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   async function moveLead(lead, status, extra = {}) {
@@ -591,6 +625,23 @@ export default function LeadBoard() {
             >
               <Info size={10} />
             </button>
+            {canManageLeads && (
+              <button
+                onClick={e => { e.stopPropagation(); askDeleteLead(lead) }}
+                className="btn btn-outline btn-sm"
+                style={{
+                  padding: '3px 6px',
+                  fontSize: '0.62rem',
+                  color: confirmDeleteId === lead.id ? '#fff' : 'var(--danger)',
+                  background: confirmDeleteId === lead.id ? 'var(--danger)' : undefined,
+                  borderColor: 'var(--danger)'
+                }}
+                disabled={deletingId === lead.id}
+                title={confirmDeleteId === lead.id ? 'Klik nogmaals om definitief te verwijderen' : 'Lead verwijderen'}
+              >
+                <Trash2 size={10} />
+              </button>
+            )}
             {mailService && (
               <button
                 onClick={e => { e.stopPropagation(); setMailLead(lead) }}
