@@ -108,7 +108,7 @@ export function AuthProvider({ children }) {
         // v88: zelfregistratie-account dat nog op de EUR 50-betaling wacht
         // krijgt een ander bericht dan een door de beheerder inactief gezet account.
         if (prof.signup_source === 'self_service' && prof.payment_status === 'pending') {
-          throw new Error('Je account wacht nog op de bevestiging van je betaling van €50. Nog niet betaald? Rond de betaling af via de link die je net kreeg, of neem contact op met de beheerder.')
+          throw new Error('Je account wacht nog op de bevestiging van je eerste maandbetaling van €50. Nog niet betaald? Rond de betaling af via de link die je net kreeg, of neem contact op met de beheerder.')
         }
         throw new Error('Dit account is inactief gezet. Vraag je beheerder om je weer te activeren.')
       }

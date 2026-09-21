@@ -70,7 +70,7 @@ export default function AanmeldenBedankt() {
           {state === 'paid' && (<>
             <div className="ico ok">✓</div>
             <h1>Bedankt, je account is geactiveerd</h1>
-            <p>Je kunt nu inloggen met het e-mailadres en wachtwoord die je net hebt opgegeven.</p>
+            <p>Je kunt nu inloggen met het e-mailadres en wachtwoord die je net hebt opgegeven. De €50 wordt vanaf nu maandelijks afgeschreven, elke maand opzegbaar.</p>
             <a className="btn" href="/login">Naar inloggen</a>
           </>)}
           {state === 'pending' && (<>

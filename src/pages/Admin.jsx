@@ -351,6 +351,25 @@ export default function Admin() {
       const { error } = await supabase.from('profiles').update({ is_active: !nowActive }).eq('id', u.id)
       if (error) throw error
       setUsers(prev => prev.map(x => x.id === u.id ? { ...x, is_active: !nowActive } : x))
+      // v89: bij inactief zetten van een zelfregistratie-account (EUR 50/maand
+      // via Mollie) ook meteen de subscription opzeggen, anders blijft Mollie
+      // gewoon maandelijks afschrijven terwijl diegene geen toegang meer heeft.
+      if (nowActive && u.signup_source === 'self_service' && u.mollie_subscription_id) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession()
+          const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/cancel-subscription`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+            body: JSON.stringify({ profileId: u.id }),
+          })
+          const data = await res.json().catch(() => ({}))
+          if (!res.ok || data.error) throw new Error(data.error || 'Opzeggen bij Mollie mislukt')
+          setUsers(prev => prev.map(x => x.id === u.id ? { ...x, mollie_subscription_id: null } : x))
+        } catch (subErr) {
+          toast(`${u.full_name} is inactief gezet, maar het maandabonnement bij Mollie opzeggen is niet gelukt: ${subErr.message}. Zeg dit handmatig op in Mollie.`, 'error')
+          return
+        }
+      }
       toast(nowActive ? `${u.full_name} is inactief gezet en kan niet meer inloggen` : `${u.full_name} is weer actief`, 'success')
     } catch (err) {
       toast(err.message, 'error')
@@ -527,7 +546,7 @@ export default function Admin() {
                          .catch(() => toast(url, 'info'))
                      }}
                      className="btn btn-outline"
-                     title="Link naar de publieke aanmeldpagina voor nieuwe bellers (eenmalige bijdrage €50)"
+                     title="Link naar de publieke aanmeldpagina voor nieuwe bellers (€50 per maand, opzegbaar)"
                    >
                      <Link2 size={18} /> Aanmeldlink kopiëren
                    </button>
@@ -659,12 +678,12 @@ export default function Admin() {
                            <span className={`self-start shrink-0 whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : u.role === 'recruiter' ? 'bg-warning/20 text-warning' : u.role === 'backoffice' ? 'bg-primary/20 text-primary' : u.role === 'planning' ? 'bg-muted/20 text-muted' : u.role === 'extern' ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}`}>{u.role === 'employee' ? 'Beller' : u.role === 'recruiter' ? 'Recruiter' : u.role === 'backoffice' ? 'Backoffice' : u.role === 'planning' ? 'Planning' : u.role === 'extern' ? 'Extern' : u.role}</span>
                            {/* v88: zelfregistratie-account dat nog op de EUR 50-betaling wacht - eigen badge i.p.v. het gewone "Inactief" (dat is voor bewust uitgezette medewerkers) */}
                            {u.is_active === false && u.signup_source === 'self_service' && u.payment_status === 'pending' ? (
-                             <span className="whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-secondary/20 text-secondary" title="Zelf aangemeld via /aanmelden, wacht nog op de bevestiging van de €50-betaling">Wacht op betaling</span>
+                             <span className="whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-secondary/20 text-secondary" title="Zelf aangemeld via /aanmelden, wacht nog op de bevestiging van de eerste maandbetaling (€50/maand)">Wacht op betaling</span>
                            ) : u.is_active === false && (
                              <span className="whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-error/20 text-error">Inactief</span>
                            )}
                            {u.is_active !== false && u.signup_source === 'self_service' && !u.can_manage_leads && (
-                             <span className="whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-success/20 text-success" title="Betaald via /aanmelden, nog aan geen project gekoppeld - gebruik 'Mag importeren' hieronder">Nieuw · nog te koppelen</span>
+                             <span className="whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-success/20 text-success" title="Eerste maandbetaling gelukt via /aanmelden, nog aan geen project gekoppeld - gebruik 'Mag importeren' hieronder">Nieuw · nog te koppelen</span>
                            )}
                         </div>
                      </div>
@@ -698,7 +717,7 @@ export default function Admin() {
                             <button
                               onClick={() => handleToggleActive(u)}
                               className={`p-2 rounded-lg transition-all ${u.is_active === false ? 'text-success hover:bg-success/20' : 'text-muted hover:bg-secondary/20 hover:text-secondary opacity-0 group-hover:opacity-100'}`}
-                              title={u.is_active === false ? 'Weer activeren (kan dan weer inloggen)' : 'Inactief zetten - kan niet meer inloggen, historie blijft bewaard'}
+                              title={u.is_active === false ? 'Weer activeren (kan dan weer inloggen)' : (u.signup_source === 'self_service' ? 'Inactief zetten - kan niet meer inloggen, zegt ook meteen het maandabonnement bij Mollie op' : 'Inactief zetten - kan niet meer inloggen, historie blijft bewaard')}
                             >
                               {u.is_active === false ? <Play size={18}/> : <PhoneOff size={18}/>}
                             </button>

@@ -1,11 +1,15 @@
-// LEADGEN v88 — zelfregistratie bellers (publieke aanmeldpagina /aanmelden).
+// LEADGEN v89 — zelfregistratie bellers (publieke aanmeldpagina /aanmelden).
 // Geen login nodig. Maakt zelf het auth-account aan (admin.auth.admin.
 // createUser, service-role) - NOOIT via de publieke supabase.auth.signUp,
 // want dan zou de anon key een account kunnen forceren dat meteen
 // is_active=true heeft (de default). Zet daarna zelf is_active=false,
-// payment_status='pending', signup_source='self_service' en maakt een
-// Mollie-betaling van EUR 50 aan. Pas als mollie-webhook 'paid' bevestigt
-// wordt het account actief.
+// payment_status='pending', signup_source='self_service'.
+//
+// Betaling is EUR 50 PER MAAND, opzegbaar (v89, was eenmalig in v88).
+// Mollie recurring: maakt een Customer + een eerste betaling met
+// sequenceType 'first' (zet het betaalmandaat). Pas als mollie-webhook
+// bevestigt dat die eerste betaling gelukt is, wordt het account actief
+// EN wordt daar de eigenlijke maandelijkse subscription aangemaakt.
 //
 // Secrets: MOLLIE_API_KEY, APP_URL (bv. https://leadgendash.netlify.app)
 //
@@ -64,16 +68,36 @@ Deno.serve(async (req: Request) => {
 
     const mollieKey = Deno.env.get("MOLLIE_API_KEY");
     if (!mollieKey) throw new Error("Betalingen zijn nog niet ingesteld (MOLLIE_API_KEY ontbreekt). Neem contact op met de beheerder.");
+    const mollieHeaders = { Authorization: `Bearer ${mollieKey}`, "Content-Type": "application/json" };
+
+    // Eerst een Mollie-customer, nodig voor recurring (maandelijkse) betalingen.
+    const custRes = await fetch("https://api.mollie.com/v2/customers", {
+      method: "POST",
+      headers: mollieHeaders,
+      body: JSON.stringify({ name: fullName, email, metadata: { profile_id: newUserId } }),
+    });
+    const customer = await custRes.json();
+    if (!custRes.ok || !customer?.id) {
+      throw new Error("Mollie-klant aanmaken mislukt: " + (customer?.detail || custRes.status));
+    }
+
+    const { error: custErr } = await admin.from("profiles").update({ mollie_customer_id: customer.id }).eq("id", newUserId);
+    if (custErr) throw new Error("Mollie-klant koppelen mislukt: " + custErr.message);
 
     const appUrl = Deno.env.get("APP_URL") || "https://leadgendash.netlify.app";
+    // sequenceType 'first' zet het betaalmandaat voor de latere maandelijkse
+    // afschrijvingen; Mollie toont hierdoor alleen methodes die recurring
+    // ondersteunen (creditcard, iDEAL-met-mandaat, etc.).
     const mollieRes = await fetch("https://api.mollie.com/v2/payments", {
       method: "POST",
-      headers: { Authorization: `Bearer ${mollieKey}`, "Content-Type": "application/json" },
+      headers: mollieHeaders,
       body: JSON.stringify({
         amount: { currency: "EUR", value: "50.00" },
-        description: `LeadGen aanmelding — ${fullName}`,
+        description: `LeadGen aanmelding (eerste maand) — ${fullName}`,
         redirectUrl: `${appUrl}/aanmelden/bedankt?p=${newUserId}`,
         webhookUrl: `${Deno.env.get("SUPABASE_URL")}/functions/v1/mollie-webhook`,
+        sequenceType: "first",
+        customerId: customer.id,
         metadata: { profile_id: newUserId },
       }),
     });
@@ -87,6 +111,7 @@ Deno.serve(async (req: Request) => {
       mollie_payment_id: molliePayment.id,
       amount: 50.00,
       status: "open",
+      sequence_type: "first",
     });
     if (payErr) throw new Error("Betaling registreren mislukt: " + payErr.message);
 

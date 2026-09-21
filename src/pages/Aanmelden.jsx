@@ -75,7 +75,7 @@ export default function Aanmelden() {
       <style>{CSS}</style>
       <div className="wrap">
         <h1>Aan de slag als beller</h1>
-        <p className="sub">Maak hieronder je account aan. Na een eenmalige bijdrage van €50 wordt je account geactiveerd en kun je inloggen.</p>
+        <p className="sub">Maak hieronder je account aan. Voor €50 per maand (elke maand opzegbaar) wordt je account geactiveerd en kun je inloggen.</p>
         <div className="card">
           <form onSubmit={handleSubmit}>
             <label htmlFor="fullName">Volledige naam</label>
@@ -92,13 +92,13 @@ export default function Aanmelden() {
 
             <label className="check">
               <input type="checkbox" checked={form.werkAkkoord} onChange={e => set('werkAkkoord', e.target.checked)} />
-              <span>Ik wil als medewerker (beller) aan de slag. Hier hoort een eenmalige bijdrage van €50 bij, die ik zo betaal via Mollie.</span>
+              <span>Ik wil als medewerker (beller) aan de slag. Hier hoort €50 per maand bij, die ik zo via Mollie ga betalen. Elke maand weer opzegbaar.</span>
             </label>
 
             {error && <div className="err">{error}</div>}
 
             <button type="submit" className="btn" disabled={loading}>
-              {loading ? 'Bezig...' : 'Doorgaan naar betaling (€50)'}
+              {loading ? 'Bezig...' : 'Doorgaan naar betaling (€50/maand)'}
             </button>
           </form>
           <p className="note">
