@@ -21,6 +21,7 @@ import MailingserviceModal from './MailingserviceModal'
 import { useToast } from './Toast'
 import { foutTekst } from '../lib/retry'
 import { logAppError } from '../lib/errorLog'
+import { APPOINTMENT_LABEL, APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
 
 // v36: labels van de dispositie-knoppen (footer) voor recruitment-projecten.
 // Zelfde status-keys/logica als sales, alleen de tekst op de knop wijkt af.
@@ -268,7 +269,11 @@ export default function WorkInterface() {
           setConflictWarning(null)
           return
         }
-        const targetEnd = new Date(targetDate.getTime() + 45 * 60 * 1000)
+        // Elke afspraak (shoot) duurt APPOINTMENT_DURATION_MINUTES (2,5
+        // uur) - de conflictcontrole gebruikt diezelfde duur, zowel voor
+        // blokkades als voor bestaande afspraken, zodat een overlappende
+        // shoot altijd wordt gesignaleerd.
+        const targetEnd = new Date(targetDate.getTime() + APPOINTMENT_DURATION_MINUTES * 60 * 1000)
 
         // 1. Check tijdsblokkades in agenda_blocks
         const { data: blocks } = await supabase
@@ -287,10 +292,13 @@ export default function WorkInterface() {
           return
         }
 
-        // 2. Check bestaande afspraken (+/- 30 min)
-        const conflictMarginStart = new Date(targetDate.getTime() - 30 * 60 * 1000).toISOString()
-        const conflictMarginEnd = new Date(targetDate.getTime() + 30 * 60 * 1000).toISOString()
-        const { data: existingAppts } = await supabase
+        // 2. Check bestaande afspraken - elke afspraak duurt zelf ook
+        // APPOINTMENT_DURATION_MINUTES, dus we halen alles op dat binnen die
+        // marge rond het gekozen moment zou kunnen overlappen en toetsen de
+        // echte overlap in JS (i.p.v. een vaste +/- marge).
+        const conflictMarginStart = new Date(targetDate.getTime() - APPOINTMENT_DURATION_MINUTES * 60 * 1000).toISOString()
+        const conflictMarginEnd = new Date(targetDate.getTime() + APPOINTMENT_DURATION_MINUTES * 60 * 1000).toISOString()
+        const { data: nearbyAppts } = await supabase
           .from('leads')
           .select('id, name, appointment_at')
           .eq('assigned_to', selectedAmId)
@@ -301,9 +309,14 @@ export default function WorkInterface() {
           .is('deleted_at', null)
 
         if (cancelled) return
-        if (existingAppts && existingAppts.length > 0) {
+        const overlapping = (nearbyAppts || []).find(a => {
+          const aStart = new Date(a.appointment_at)
+          const aEnd = new Date(aStart.getTime() + APPOINTMENT_DURATION_MINUTES * 60 * 1000)
+          return aStart < targetEnd && aEnd > targetDate
+        })
+        if (overlapping) {
           const amName = accountmanagers.find(a => a.id === selectedAmId)?.full_name || 'Accountmanager'
-          setConflictWarning(`⚠️ ${amName} heeft rond dit tijdstip al een afspraak staan (${existingAppts[0].name}). Kies een ander moment.`)
+          setConflictWarning(`⚠️ ${amName} heeft rond dit tijdstip al een afspraak staan (${overlapping.name}). Kies een ander moment.`)
           setCheckingConflict(false)
           return
         }
@@ -1230,6 +1243,9 @@ export default function WorkInterface() {
 
                         <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>
                           {selectedDisposition === 'afspraak_gemaakt' ? (isRecruitmentCampaign ? 'Wanneer is het gesprek?' : 'Wanneer is de afspraak?') : 'Wanneer moet er teruggebeld worden?'}
+                          {selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled && !isRecruitmentCampaign && (
+                            <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> ({APPOINTMENT_LABEL}, duurt 2,5 uur)</span>
+                          )}
                         </label>
                         <input
                           type="datetime-local"

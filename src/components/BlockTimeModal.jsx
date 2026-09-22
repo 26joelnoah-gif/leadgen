@@ -12,6 +12,25 @@ function toDateInput(d) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
+function toTimeInput(d) {
+  const date = d instanceof Date ? d : new Date()
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+function addMinutesToTime(hhmm, minutes) {
+  const [h, m] = hhmm.split(':').map(Number)
+  const total = (h * 60 + m + minutes + 24 * 60) % (24 * 60)
+  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`
+}
+
+// Heeft initialDate een echt tijdstip (bv. vanuit een klik in de weekgrid),
+// of is het gewoon "vandaag/deze dag" zonder specifieke tijd? Bij 00:00
+// exact gaan we uit van geen tijd meegegeven en houden we de standaard
+// 09:00-10:00 aan.
+function hasExplicitTime(d) {
+  return d instanceof Date && !(d.getHours() === 0 && d.getMinutes() === 0)
+}
+
 export default function BlockTimeModal({
   isOpen,
   onClose,
@@ -34,8 +53,14 @@ export default function BlockTimeModal({
   useEffect(() => {
     if (isOpen) {
       setDate(toDateInput(initialDate))
-      setStartTime('09:00')
-      setEndTime('10:00')
+      if (hasExplicitTime(initialDate)) {
+        const start = toTimeInput(initialDate)
+        setStartTime(start)
+        setEndTime(addMinutesToTime(start, 60))
+      } else {
+        setStartTime('09:00')
+        setEndTime('10:00')
+      }
       setTitle('')
       setSelectedUserId(defaultUserId || user?.id)
       setErrorMsg('')

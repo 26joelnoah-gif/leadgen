@@ -1,9 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
-  Calendar as CalendarIcon, Clock, ChevronLeft, ChevronRight, Plus,
-  Lock, Trash2, Phone, Mail, User, Building, ExternalLink, AlertCircle,
-  CheckCircle, RefreshCw, Filter, List, Grid, CalendarDays
+  ChevronLeft, ChevronRight,
+  Lock, Trash2, User,
+  RefreshCw, Filter, List, Grid, CalendarDays
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
@@ -12,6 +11,7 @@ import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import BlockTimeModal from '../components/BlockTimeModal'
 import LeadDetailModal from '../components/LeadDetailModal'
+import { APPOINTMENT_LABEL, APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
 
 function startOfWeek(date) {
   const d = new Date(date)
@@ -40,7 +40,59 @@ function formatDateNl(d) {
   return d.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' })
 }
 
-const HOURS = Array.from({ length: 11 }, (_, i) => i + 8) // 08:00 t/m 18:00
+// Google Calendar-achtige weekgrid: uren op de y-as, dagen op de x-as.
+// 1 minuut = 1 pixel (HOUR_PX = 60), dat houdt de tijd-wiskunde simpel.
+const GRID_START_HOUR = 7
+const GRID_END_HOUR = 21 // exclusief - laatste getekende lijn
+const HOUR_PX = 60
+const GRID_START_MIN = GRID_START_HOUR * 60
+const GRID_END_MIN = GRID_END_HOUR * 60
+const GRID_TOTAL_MIN = GRID_END_MIN - GRID_START_MIN
+const GRID_HEIGHT = GRID_TOTAL_MIN * (HOUR_PX / 60)
+const SNAP_MIN = 15
+const HOURS_DISPLAY = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => GRID_START_HOUR + i)
+
+function minutesSinceMidnight(d) {
+  return d.getHours() * 60 + d.getMinutes()
+}
+
+function clamp(n, min, max) { return Math.max(min, Math.min(max, n)) }
+
+// Verdeelt items van 1 dag over kolommen zodat overlappende afspraken/
+// blokkades naast elkaar komen te staan i.p.v. over elkaar heen (zoals
+// Google Calendar dat ook doet).
+function layoutDayItems(items) {
+  const sorted = [...items].sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin)
+  const clusters = []
+  let current = []
+  let clusterEnd = -Infinity
+  sorted.forEach(it => {
+    if (current.length && it.startMin >= clusterEnd) {
+      clusters.push(current)
+      current = []
+      clusterEnd = -Infinity
+    }
+    current.push(it)
+    clusterEnd = Math.max(clusterEnd, it.endMin)
+  })
+  if (current.length) clusters.push(current)
+
+  const positioned = []
+  clusters.forEach(cluster => {
+    const columnEnds = []
+    const colOf = new Map()
+    cluster.forEach(it => {
+      let placed = false
+      for (let c = 0; c < columnEnds.length; c++) {
+        if (columnEnds[c] <= it.startMin) { columnEnds[c] = it.endMin; colOf.set(it.id, c); placed = true; break }
+      }
+      if (!placed) { columnEnds.push(it.endMin); colOf.set(it.id, columnEnds.length - 1) }
+    })
+    const numCols = columnEnds.length
+    cluster.forEach(it => positioned.push({ ...it, col: colOf.get(it.id), numCols }))
+  })
+  return positioned
+}
 
 export default function Agenda() {
   const { user, profile, effectiveRole } = useAuth()
@@ -49,6 +101,7 @@ export default function Agenda() {
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date()))
   const [viewMode, setViewMode] = useState('week') // 'week' | 'list'
   const [loading, setLoading] = useState(true)
+  const [now, setNow] = useState(() => new Date())
 
   const [accountmanagers, setAccountmanagers] = useState([])
   const [selectedAmId, setSelectedAmId] = useState('all')
@@ -64,6 +117,12 @@ export default function Agenda() {
 
   const isRealAdmin = profile?.role === 'admin'
   const isAm = profile?.role === 'accountmanager' || effectiveRole === 'accountmanager'
+
+  // Klok voor de rode "nu"-lijn, elke minuut bijgewerkt
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60000)
+    return () => clearInterval(t)
+  }, [])
 
   // Haal accountmanagers op
   const fetchAccountmanagers = useCallback(async () => {
@@ -187,7 +246,49 @@ export default function Agenda() {
     }
   }
 
-  // Items per dag indelen
+  // Items per dag indelen (voor de weekgrid, met start/eind in minuten)
+  const itemsByDay = useMemo(() => {
+    const map = weekDays.map(() => [])
+    weekDays.forEach((day, dayIdx) => {
+      const dayStr = day.toDateString()
+
+      appointments.forEach(l => {
+        if (!l.appointment_at) return
+        const at = new Date(l.appointment_at)
+        if (at.toDateString() !== dayStr) return
+        const startMin = minutesSinceMidnight(at)
+        map[dayIdx].push({
+          kind: 'appointment',
+          id: `a-${l.id}`,
+          leadId: l.id,
+          at,
+          startMin,
+          endMin: startMin + APPOINTMENT_DURATION_MINUTES,
+          lead: l
+        })
+      })
+
+      blockedSlots.forEach(b => {
+        if (!b.start_at) return
+        const at = new Date(b.start_at)
+        if (at.toDateString() !== dayStr) return
+        const end = new Date(b.end_at)
+        map[dayIdx].push({
+          kind: 'block',
+          id: `b-${b.id}`,
+          blockId: b.id,
+          at,
+          end,
+          startMin: minutesSinceMidnight(at),
+          endMin: minutesSinceMidnight(at) + Math.max(15, (end - at) / 60000),
+          block: b
+        })
+      })
+    })
+    return map.map(layoutDayItems)
+  }, [weekDays, appointments, blockedSlots])
+
+  // Simpele lijst per dag (voor de lijstweergave, ongewijzigd)
   function getItemsForDay(date) {
     const dayStr = date.toDateString()
 
@@ -221,6 +322,124 @@ export default function Agenda() {
     return map
   }, [accountmanagers])
 
+  // ---- Drag & drop: een afspraak of blokkade verslepen naar een ander
+  // moment (dag + tijd), zoals in Google Calendar. Muis-gebaseerd (geen
+  // externe library nodig): mousedown start het slepen pas na een kleine
+  // beweging, zodat een gewone klik nog steeds de leadkaart/detail opent.
+  const gridBodyRef = useRef(null)
+  const dragStateRef = useRef(null)
+  const [dragPreview, setDragPreview] = useState(null) // { itemId, dayIdx, startMin }
+  const [savingDragId, setSavingDragId] = useState(null)
+
+  const handleItemMouseDown = useCallback((e, item, dayIdx) => {
+    if (e.button !== 0) return
+    const gridEl = gridBodyRef.current
+    if (!gridEl) return
+    const gridRect = gridEl.getBoundingClientRect()
+    dragStateRef.current = {
+      item,
+      startDayIdx: dayIdx,
+      pointerStartX: e.clientX,
+      pointerStartY: e.clientY,
+      grabOffsetMin: (e.clientY - gridRect.top) - (item.startMin - GRID_START_MIN),
+      moved: false,
+      gridRect
+    }
+
+    const handleMove = (ev) => {
+      const ds = dragStateRef.current
+      if (!ds) return
+      const dx = ev.clientX - ds.pointerStartX
+      const dy = ev.clientY - ds.pointerStartY
+      if (!ds.moved && Math.abs(dx) < 6 && Math.abs(dy) < 6) return
+      ds.moved = true
+
+      const colWidth = ds.gridRect.width / 7
+      const dayIdxNew = clamp(Math.floor((ev.clientX - ds.gridRect.left) / colWidth), 0, 6)
+      const rawMin = ((ev.clientY - ds.gridRect.top) - ds.grabOffsetMin)
+      const snapped = clamp(Math.round(rawMin / SNAP_MIN) * SNAP_MIN, 0, GRID_TOTAL_MIN - SNAP_MIN)
+      setDragPreview({ itemId: ds.item.id, dayIdx: dayIdxNew, startMin: GRID_START_MIN + snapped })
+    }
+
+    const handleUp = async (ev) => {
+      window.removeEventListener('mousemove', handleMove)
+      window.removeEventListener('mouseup', handleUp)
+      const ds = dragStateRef.current
+      dragStateRef.current = null
+      setDragPreview(null)
+      if (!ds) return
+
+      if (!ds.moved) {
+        // Geen sleep, gewone klik - open het detail
+        if (ds.item.kind === 'appointment') setDetailLead(ds.item.lead)
+        return
+      }
+
+      const colWidth = ds.gridRect.width / 7
+      const dayIdxNew = clamp(Math.floor((ev.clientX - ds.gridRect.left) / colWidth), 0, 6)
+      const rawMin = ((ev.clientY - ds.gridRect.top) - ds.grabOffsetMin)
+      const snapped = clamp(Math.round(rawMin / SNAP_MIN) * SNAP_MIN, 0, GRID_TOTAL_MIN - SNAP_MIN)
+      const newStartMin = GRID_START_MIN + snapped
+
+      const newDate = addDays(currentWeekStart, dayIdxNew)
+      newDate.setHours(0, newStartMin, 0, 0)
+
+      // Niets veranderd? Dan niets opslaan.
+      if (dayIdxNew === ds.startDayIdx && newStartMin === ds.item.startMin) return
+
+      setSavingDragId(ds.item.id)
+      try {
+        if (ds.item.kind === 'appointment') {
+          const { error } = await supabase
+            .from('leads')
+            .update({ appointment_at: newDate.toISOString() })
+            .eq('id', ds.item.leadId)
+          if (error) throw error
+          setAppointments(prev => prev.map(a => a.id === ds.item.leadId ? { ...a, appointment_at: newDate.toISOString() } : a))
+          toast(`Afspraak verplaatst naar ${formatDateNl(newDate)} ${formatTime(newDate.toISOString())}`, 'success')
+        } else {
+          const durationMs = ds.item.end.getTime() - ds.item.at.getTime()
+          const newEnd = new Date(newDate.getTime() + durationMs)
+          const { error } = await supabase
+            .from('agenda_blocks')
+            .update({ start_at: newDate.toISOString(), end_at: newEnd.toISOString() })
+            .eq('id', ds.item.blockId)
+          if (error) throw error
+          setBlockedSlots(prev => prev.map(b => b.id === ds.item.blockId ? { ...b, start_at: newDate.toISOString(), end_at: newEnd.toISOString() } : b))
+          toast('Blokkade verplaatst', 'success')
+        }
+      } catch (err) {
+        console.error('Verplaatsen mislukt:', err)
+        toast(err.message || 'Kon niet verplaatsen', 'error')
+        fetchData()
+      } finally {
+        setSavingDragId(null)
+      }
+    }
+
+    window.addEventListener('mousemove', handleMove)
+    window.addEventListener('mouseup', handleUp)
+  }, [currentWeekStart, toast, fetchData])
+
+  // Klikken op een leeg stuk van de grid -> snel een blokkade aanmaken op
+  // dat exacte moment (net als in Google Calendar).
+  function handleGridClick(e, dayIdx) {
+    if (dragStateRef.current?.moved) return // was een sleep, geen klik
+    const gridEl = gridBodyRef.current
+    if (!gridEl) return
+    const gridRect = gridEl.getBoundingClientRect()
+    const rawMin = e.clientY - gridRect.top
+    const snapped = clamp(Math.round(rawMin / SNAP_MIN) * SNAP_MIN, 0, GRID_TOTAL_MIN - SNAP_MIN)
+    const clickDate = addDays(currentWeekStart, dayIdx)
+    clickDate.setHours(0, GRID_START_MIN + snapped, 0, 0)
+    setBlockModalDate(clickDate)
+    setShowBlockModal(true)
+  }
+
+  const nowMin = minutesSinceMidnight(now)
+  const showNowLine = nowMin >= GRID_START_MIN && nowMin <= GRID_END_MIN
+  const nowLineTop = (nowMin - GRID_START_MIN) * (HOUR_PX / 60)
+
   return (
     <>
       <Header />
@@ -232,7 +451,7 @@ export default function Agenda() {
               <CalendarDays size={26} className="text-primary" /> Agenda &amp; Afspraken
             </h1>
             <p className="page-subtitle text-xs" style={{ margin: '4px 0 0' }}>
-              Ingeplande afspraken van leads en geblokkeerde tijdvakken van accountmanagers.
+              Sleep een afspraak of blokkade naar een ander moment om hem te verzetten. Elke afspraak is een {APPOINTMENT_LABEL.toLowerCase()} van 2,5 uur.
             </p>
           </div>
 
@@ -282,7 +501,9 @@ export default function Agenda() {
             <button
               type="button"
               onClick={() => {
-                setBlockModalDate(new Date())
+                const d = new Date()
+                d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0)
+                setBlockModalDate(d)
                 setShowBlockModal(true)
               }}
               className="btn btn-secondary btn-sm"
@@ -354,194 +575,191 @@ export default function Agenda() {
             <div className="text-muted text-xs mt-3">Agenda laden...</div>
           </div>
         ) : viewMode === 'week' ? (
-          /* WEEK WEERGAVE GRID */
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            gap: '12px',
-            alignItems: 'stretch'
-          }}>
-            {weekDays.map(day => {
-              const isToday = day.toDateString() === new Date().toDateString()
-              const items = getItemsForDay(day)
+          /* WEEK WEERGAVE - GOOGLE CALENDAR-ACHTIGE TIJDGRID */
+          <div className="glass-panel border border-border" style={{ borderRadius: '12px', overflow: 'hidden' }}>
+            {/* Dagkoppen */}
+            <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(7, 1fr)', borderBottom: '1px solid var(--border)' }}>
+              <div />
+              {weekDays.map(day => {
+                const isToday = day.toDateString() === new Date().toDateString()
+                return (
+                  <div
+                    key={day.toISOString()}
+                    style={{
+                      padding: '8px 6px',
+                      textAlign: 'center',
+                      background: isToday ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-elevated)',
+                      borderLeft: '1px solid var(--border)'
+                    }}
+                  >
+                    <div style={{
+                      fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.5px',
+                      color: isToday ? 'var(--primary)' : 'var(--text-main)'
+                    }}>
+                      {day.toLocaleDateString('nl-NL', { weekday: 'short' })}
+                    </div>
+                    <div className="text-muted text-xs">
+                      {day.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
 
-              return (
+            {/* Scrollbare tijdgrid */}
+            <div style={{ maxHeight: '72vh', overflowY: 'auto' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '56px repeat(7, 1fr)', position: 'relative' }}>
+                {/* Uur-labels kolom */}
+                <div style={{ position: 'relative', height: GRID_HEIGHT }}>
+                  {HOURS_DISPLAY.map(h => (
+                    <div
+                      key={h}
+                      style={{
+                        position: 'absolute', top: (h - GRID_START_HOUR) * HOUR_PX - 7, right: 8,
+                        fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 600
+                      }}
+                    >
+                      {pad(h)}:00
+                    </div>
+                  ))}
+                </div>
+
+                {/* 7 dagkolommen, samen de sleep/klik-grid */}
                 <div
-                  key={day.toISOString()}
-                  className="glass-panel"
+                  ref={gridBodyRef}
                   style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    minHeight: '440px',
-                    borderRadius: '12px',
-                    border: isToday ? '2px solid var(--primary)' : '1px solid var(--border)',
-                    background: isToday ? 'rgba(59, 130, 246, 0.04)' : 'var(--bg-card)',
-                    overflow: 'hidden'
+                    gridColumn: '2 / span 7', display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)',
+                    position: 'relative', height: GRID_HEIGHT
                   }}
                 >
-                  {/* Dag Header */}
-                  <div style={{
-                    padding: '10px 12px',
-                    borderBottom: '1px solid var(--border)',
-                    background: isToday ? 'rgba(59, 130, 246, 0.15)' : 'var(--bg-elevated)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}>
-                    <div>
-                      <div style={{
-                        fontSize: '0.8rem',
-                        fontWeight: 800,
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.5px',
-                        color: isToday ? 'var(--primary)' : 'var(--text-main)'
-                      }}>
-                        {day.toLocaleDateString('nl-NL', { weekday: 'short' })}
-                      </div>
-                      <div className="text-muted text-xs">
-                        {day.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })}
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setBlockModalDate(day)
-                        setShowBlockModal(true)
+                  {/* Urenlijnen (horizontaal, over alle dagen heen) */}
+                  {HOURS_DISPLAY.map(h => (
+                    <div
+                      key={h}
+                      style={{
+                        position: 'absolute', left: 0, right: 0, top: (h - GRID_START_HOUR) * HOUR_PX,
+                        borderTop: '1px solid var(--border)', opacity: 0.6
                       }}
-                      className="btn btn-ghost btn-sm"
-                      style={{ padding: '3px 6px', fontSize: '0.65rem' }}
-                      title={`Tijd blokkeren op ${formatDateNl(day)}`}
-                    >
-                      <Plus size={14} />
-                    </button>
-                  </div>
+                    />
+                  ))}
 
-                  {/* Items lijst in de dag */}
-                  <div style={{ padding: '10px', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, overflowY: 'auto' }}>
-                    {items.length === 0 ? (
-                      <div className="text-muted text-[11px] text-center italic py-10 opacity-50">
-                        Geen afspraken
-                      </div>
-                    ) : (
-                      items.map(item => {
+                  {/* Rode "nu"-lijn */}
+                  {showNowLine && (
+                    <div style={{ position: 'absolute', left: 0, right: 0, top: nowLineTop, zIndex: 5, pointerEvents: 'none' }}>
+                      <div style={{ position: 'absolute', left: -4, top: -4, width: 8, height: 8, borderRadius: '50%', background: '#EF4444' }} />
+                      <div style={{ borderTop: '2px solid #EF4444' }} />
+                    </div>
+                  )}
+
+                  {weekDays.map((day, dayIdx) => (
+                    <div
+                      key={day.toISOString()}
+                      onClick={e => handleGridClick(e, dayIdx)}
+                      style={{
+                        position: 'relative', borderLeft: '1px solid var(--border)', cursor: 'copy',
+                        background: day.toDateString() === new Date().toDateString() ? 'rgba(59, 130, 246, 0.04)' : 'transparent'
+                      }}
+                      title="Klik om een tijdvak te blokkeren op dit moment"
+                    >
+                      {itemsByDay[dayIdx].map(item => {
+                        const isDragPreviewSource = dragPreview?.itemId === item.id
+                        const displayDayIdx = isDragPreviewSource ? dragPreview.dayIdx : dayIdx
+                        if (isDragPreviewSource && displayDayIdx !== dayIdx) return null // wordt in de doelkolom getekend
+
+                        const top = ((isDragPreviewSource ? dragPreview.startMin : item.startMin) - GRID_START_MIN) * (HOUR_PX / 60)
+                        const height = Math.max(20, (item.endMin - item.startMin) * (HOUR_PX / 60))
+                        const widthPct = 100 / item.numCols
+                        const leftPct = item.col * widthPct
+                        const isSaving = savingDragId === item.id
+
                         if (item.kind === 'appointment') {
                           const l = item.lead
                           const amName = amMap[l.assigned_to] || 'Onbekend'
+                          const startLabel = isDragPreviewSource
+                            ? `${pad(Math.floor(dragPreview.startMin / 60))}:${pad(dragPreview.startMin % 60)}`
+                            : formatTime(l.appointment_at)
                           return (
                             <div
                               key={item.id}
-                              onClick={() => setDetailLead(l)}
+                              onMouseDown={e => handleItemMouseDown(e, item, dayIdx)}
                               style={{
-                                background: 'rgba(59, 130, 246, 0.12)',
-                                border: '1px solid rgba(59, 130, 246, 0.35)',
-                                borderRadius: '8px',
-                                padding: '8px 10px',
-                                cursor: 'pointer',
-                                transition: 'all 0.15s ease'
+                                position: 'absolute', top, height, left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
+                                background: 'rgba(59, 130, 246, 0.85)',
+                                border: '1px solid rgba(59, 130, 246, 1)',
+                                borderRadius: '6px', padding: '4px 6px', overflow: 'hidden',
+                                cursor: isSaving ? 'wait' : 'grab', color: '#fff', zIndex: isDragPreviewSource ? 20 : 2,
+                                opacity: isSaving ? 0.6 : 1, boxShadow: isDragPreviewSource ? '0 4px 14px rgba(0,0,0,0.4)' : 'none',
+                                transition: isDragPreviewSource ? 'none' : 'top 0.12s ease'
                               }}
-                              className="hover:border-primary"
-                              title="Klik om leadkaart te openen"
+                              title={`${APPOINTMENT_LABEL} · ${l.name} · sleep om te verzetten, klik om te openen`}
                             >
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                                <span style={{
-                                  fontSize: '0.7rem',
-                                  fontWeight: 900,
-                                  background: 'var(--primary)',
-                                  color: '#fff',
-                                  padding: '1px 6px',
-                                  borderRadius: '4px'
-                                }}>
-                                  {formatTime(l.appointment_at)}
-                                </span>
-                                <span className="text-[10px] text-muted truncate max-w-[90px]" title={l.lead_lists?.campaigns?.name || ''}>
-                                  {l.lead_lists?.campaigns?.name || ''}
-                                </span>
-                              </div>
-
-                              <div style={{ fontWeight: 700, fontSize: '0.78rem', color: 'var(--text-main)', marginBottom: 2 }} className="truncate">
-                                {l.name}
-                              </div>
-
-                              {l.contact_person && (
-                                <div className="text-muted text-[11px] truncate flex items-center gap-1">
-                                  <User size={10} /> {l.contact_person}
+                              <div style={{ fontSize: '0.68rem', fontWeight: 800 }}>{startLabel} · {APPOINTMENT_LABEL}</div>
+                              <div style={{ fontSize: '0.72rem', fontWeight: 700 }} className="truncate">{l.name}</div>
+                              {height > 44 && l.contact_person && (
+                                <div style={{ fontSize: '0.65rem', opacity: 0.9 }} className="truncate">
+                                  <User size={9} style={{ verticalAlign: -1, marginRight: 2 }} />{l.contact_person}
                                 </div>
                               )}
-
-                              {l.phone && (
-                                <div className="text-[11px] text-muted truncate flex items-center gap-1 mt-0.5">
-                                  <Phone size={10} /> {l.phone}
-                                </div>
-                              )}
-
-                              {selectedAmId === 'all' && (
-                                <div className="text-[9px] text-primary/80 font-bold uppercase tracking-wider mt-1 truncate">
-                                  👤 {amName}
-                                </div>
-                              )}
-                            </div>
-                          )
-                        } else {
-                          // Geblokkeerd tijdvak
-                          const b = item.block
-                          const amName = amMap[b.user_id] || 'Accountmanager'
-                          return (
-                            <div
-                              key={item.id}
-                              style={{
-                                background: 'repeating-linear-gradient(45deg, rgba(245, 158, 11, 0.08), rgba(245, 158, 11, 0.08) 6px, rgba(245, 158, 11, 0.14) 6px, rgba(245, 158, 11, 0.14) 12px)',
-                                border: '1px solid rgba(245, 158, 11, 0.35)',
-                                borderRadius: '8px',
-                                padding: '8px 10px',
-                                position: 'relative'
-                              }}
-                            >
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <span style={{
-                                  fontSize: '0.7rem',
-                                  fontWeight: 800,
-                                  color: 'var(--warning)',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  gap: 4
-                                }}>
-                                  <Lock size={11} /> {formatTime(b.start_at)} &ndash; {formatTime(b.end_at)}
-                                </span>
-
-                                <button
-                                  type="button"
-                                  onClick={e => {
-                                    e.stopPropagation()
-                                    if (confirmDeleteId === b.id) { handleDeleteBlock(b.id) }
-                                    else { setConfirmDeleteId(b.id) }
-                                  }}
-                                  className={confirmDeleteId === b.id ? 'text-error' : 'text-muted hover:text-error'}
-                                  style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', fontSize: '0.65rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 3 }}
-                                  title={confirmDeleteId === b.id ? 'Klik nogmaals om te bevestigen' : 'Blokkade opheffen'}
-                                >
-                                  <Trash2 size={12} /> {confirmDeleteId === b.id ? 'Zeker?' : ''}
-                                </button>
-                              </div>
-
-                              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-main)', marginTop: 3 }}>
-                                {b.title || 'Geblokkeerd'}
-                              </div>
-
-                              {selectedAmId === 'all' && (
-                                <div className="text-[9px] text-muted font-bold uppercase tracking-wider mt-1 truncate">
-                                  👤 {amName}
-                                </div>
+                              {height > 60 && selectedAmId === 'all' && (
+                                <div style={{ fontSize: '0.6rem', opacity: 0.85, fontWeight: 700, marginTop: 2 }} className="truncate">👤 {amName}</div>
                               )}
                             </div>
                           )
                         }
-                      })
-                    )}
-                  </div>
+
+                        // Geblokkeerd tijdvak
+                        const b = item.block
+                        const amName = amMap[b.user_id] || 'Accountmanager'
+                        return (
+                          <div
+                            key={item.id}
+                            onMouseDown={e => handleItemMouseDown(e, item, dayIdx)}
+                            style={{
+                              position: 'absolute', top, height, left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
+                              background: 'repeating-linear-gradient(45deg, rgba(245, 158, 11, 0.25), rgba(245, 158, 11, 0.25) 6px, rgba(245, 158, 11, 0.35) 6px, rgba(245, 158, 11, 0.35) 12px)',
+                              border: '1px solid rgba(245, 158, 11, 0.7)',
+                              borderRadius: '6px', padding: '4px 6px', overflow: 'hidden',
+                              cursor: isSaving ? 'wait' : 'grab', zIndex: isDragPreviewSource ? 20 : 1,
+                              opacity: isSaving ? 0.6 : 1, boxShadow: isDragPreviewSource ? '0 4px 14px rgba(0,0,0,0.4)' : 'none',
+                              transition: isDragPreviewSource ? 'none' : 'top 0.12s ease'
+                            }}
+                            title={`Geblokkeerd · sleep om te verzetten`}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                              <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                                <Lock size={10} /> {formatTime(b.start_at)}
+                              </span>
+                              <button
+                                type="button"
+                                onMouseDown={e => e.stopPropagation()}
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  if (confirmDeleteId === b.id) { handleDeleteBlock(b.id) }
+                                  else { setConfirmDeleteId(b.id) }
+                                }}
+                                className={confirmDeleteId === b.id ? 'text-error' : 'text-muted hover:text-error'}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '0.6rem', fontWeight: 800 }}
+                                title={confirmDeleteId === b.id ? 'Klik nogmaals om te bevestigen' : 'Blokkade opheffen'}
+                              >
+                                <Trash2 size={11} />
+                              </button>
+                            </div>
+                            {height > 30 && (
+                              <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-main)', marginTop: 1 }} className="truncate">
+                                {b.title || 'Geblokkeerd'}
+                              </div>
+                            )}
+                            {height > 48 && selectedAmId === 'all' && (
+                              <div style={{ fontSize: '0.58rem', color: 'var(--text-muted)', fontWeight: 700, marginTop: 1 }} className="truncate">👤 {amName}</div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ))}
                 </div>
-              )
-            })}
+              </div>
+            </div>
           </div>
         ) : (
           /* LIJSTWEERGAVE */
@@ -565,6 +783,7 @@ export default function Agenda() {
                     if (item.kind === 'appointment') {
                       const l = item.data
                       const amName = amMap[l.assigned_to] || 'Onbekend'
+                      const endLabel = formatTime(new Date(item.at.getTime() + APPOINTMENT_DURATION_MINUTES * 60000).toISOString())
                       return (
                         <div
                           key={`l-${l.id}`}
@@ -575,13 +794,13 @@ export default function Agenda() {
                           <div className="flex items-center gap-4">
                             <div className="text-center min-w-[70px]">
                               <div className="text-xs font-bold text-primary">{formatDateNl(item.at)}</div>
-                              <div className="text-base font-black text-body">{formatTime(l.appointment_at)}</div>
+                              <div className="text-base font-black text-body">{formatTime(l.appointment_at)}&ndash;{endLabel}</div>
                             </div>
 
                             <div>
                               <div className="font-bold text-body text-base flex items-center gap-2">
                                 {l.name}
-                                <span className="badge badge-info text-[10px]">Afspraak</span>
+                                <span className="badge badge-info text-[10px]">{APPOINTMENT_LABEL}</span>
                               </div>
                               <div className="text-xs text-muted mt-0.5 flex gap-3">
                                 {l.contact_person && <span>👤 {l.contact_person}</span>}
