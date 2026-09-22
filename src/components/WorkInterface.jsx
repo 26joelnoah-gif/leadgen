@@ -5,7 +5,7 @@ import {
   Calendar, Clock, AlertCircle, CheckCircle2,
   ChevronRight, ChevronDown, Copy, Save, Users, Target, Ban,
   BookOpen, Info, History, Tag, Maximize2, Minimize2, FileSignature,
-  RefreshCw, AlertTriangle
+  RefreshCw, AlertTriangle, ExternalLink
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
@@ -100,6 +100,9 @@ export default function WorkInterface() {
   // De open/dicht-stand blijft staan tijdens de hele belsessie.
   const [briefing, setBriefing] = useState(null)
   const [briefingTab, setBriefingTab] = useState(null) // null | 'script' | 'info'
+  // v95: campaign_id van het huidige project, om het script in een apart
+  // browsertabblad te kunnen openen (/briefing/:campaignId)
+  const [briefingCampaignId, setBriefingCampaignId] = useState(null)
   // v36: type van de campagne ('sales' | 'recruitment') - bepaalt of de
   // dispositie-knoppen en veldlabels als sollicitant-tekst getoond worden.
   const [isRecruitmentCampaign, setIsRecruitmentCampaign] = useState(false)
@@ -114,7 +117,7 @@ export default function WorkInterface() {
   const [appointmentSchedulingEnabled, setAppointmentSchedulingEnabled] = useState(false)
   useEffect(() => {
     const listId = workingListId || workingLead?.lead_list_id
-    if (!isWorking || !listId) { setBriefing(null); setIsRecruitmentCampaign(false); setIsBackofficeCampaign(false); setAppointmentSchedulingEnabled(false); return }
+    if (!isWorking || !listId) { setBriefing(null); setBriefingCampaignId(null); setIsRecruitmentCampaign(false); setIsBackofficeCampaign(false); setAppointmentSchedulingEnabled(false); return }
     let cancelled = false
     supabase.from('lead_lists').select('campaign_id, campaigns(type, appointment_scheduling_enabled)').eq('id', listId).maybeSingle()
       .then(({ data }) => {
@@ -122,6 +125,7 @@ export default function WorkInterface() {
         setIsRecruitmentCampaign(data?.campaigns?.type === 'recruitment')
         setIsBackofficeCampaign(data?.campaigns?.type === 'backoffice')
         setAppointmentSchedulingEnabled(data?.campaigns?.appointment_scheduling_enabled === true)
+        setBriefingCampaignId(data?.campaign_id || null)
         if (!data?.campaign_id) { setBriefing(null); return }
         supabase.from('campaign_briefings')
           .select('call_script, project_info')
@@ -506,11 +510,17 @@ export default function WorkInterface() {
     const base = baselineRef.current || currentLead || {}
     const changed = {}
     Object.keys(cleaned).forEach(key => {
-      if (['id', 'created_at', 'updated_at', 'lead_lists'].includes(key)) return
+      // 'status' bewust ook uitgesloten: dit veld slaat alleen VRIJE
+      // veldwijzigingen (o.a. notities) op, geen dispositie. Via
+      // updateLeadStatus liep dit eerder mee met de later_bellen/
+      // geen_gehoor-herkansingslogica, puur omdat de status toevallig al
+      // die waarde had - dat kon contact_attempts/next_contact_date dubbel
+      // ophogen zodra dit vlak vóór een afboeking wordt aangeroepen.
+      if (['id', 'created_at', 'updated_at', 'lead_lists', 'status'].includes(key)) return
       if ((cleaned[key] ?? '') !== (base[key] ?? '')) changed[key] = cleaned[key]
     })
     if (Object.keys(changed).length === 0) return
-    const error = await updateLeadStatus(currentLead.id, currentLead.status, changed)
+    const { error } = await supabase.from('leads').update({ ...changed, updated_at: new Date().toISOString() }).eq('id', currentLead.id)
     if (!error) {
       baselineRef.current = { ...base, ...changed }
       setLiveLead(prev => (prev && prev.id === currentLead.id) ? { ...prev, ...changed } : prev)
@@ -576,6 +586,12 @@ export default function WorkInterface() {
     // onthouden wat we probeerden, zodat "opnieuw proberen" exact hetzelfde doet
     laatstePogingRef.current = { dispositionType, notes, nextDate, customDispositionId }
     try {
+      // Bugfix: notities/velden die de beller direct in het belscherm typt
+      // (editableLead) werden nooit opgeslagen tenzij eerst expliciet op
+      // "Opslaan" werd geklikt - bij de 1-klik dispositieknoppen (quick)
+      // ging zo'n notitie stilletjes verloren. Eerst de openstaande
+      // wijzigingen opslaan, dan pas afboeken.
+      await saveLeadEdits()
       const resultaat = await handleLeadDisposition(
         currentLead.id,
         listName,
@@ -883,10 +899,13 @@ export default function WorkInterface() {
             </div>
           )}
 
-          {/* v29: briefing-tabs - belscript en projectinfo, inklapbaar */}
-          {(briefing?.call_script || briefing?.project_info) && (
+          {/* v29: briefing-tabs - belscript en projectinfo, inklapbaar
+              v95: + link om hetzelfde script in een apart browsertabblad te
+              openen/bewerken (/briefing/:campaignId), ook als er nog niets
+              staat - zo kan een beller er zelf een aanmaken. */}
+          {(briefing?.call_script || briefing?.project_info || briefingCampaignId) && (
             <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: isMobile ? '8px 12px' : '8px 24px' }}>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                 {[
                   briefing?.call_script && { id: 'script', label: 'Belscript', icon: <BookOpen size={14} /> },
                   briefing?.project_info && { id: 'info', label: 'Projectinfo', icon: <Info size={14} /> }
@@ -909,6 +928,22 @@ export default function WorkInterface() {
                     </button>
                   )
                 })}
+                {briefingCampaignId && (
+                  <a
+                    href={`/briefing/${briefingCampaignId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Script en projectinfo op een apart tabblad openen en zelf bewerken"
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '6px',
+                      background: 'var(--bg-elevated)', color: 'var(--text-muted)',
+                      border: '1px solid var(--border)', padding: '6px 12px', borderRadius: '8px',
+                      fontWeight: 700, fontSize: '0.78rem', textDecoration: 'none', marginLeft: 'auto'
+                    }}
+                  >
+                    <ExternalLink size={13} /> Script bewerken (nieuw tabblad)
+                  </a>
+                )}
               </div>
               {briefingTab && (
                 <div style={{

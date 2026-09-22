@@ -27,6 +27,7 @@ import Home from './pages/Home'
 import Aanmelden from './pages/Aanmelden'
 import AanmeldenBedankt from './pages/AanmeldenBedankt'
 import AccountManagement from './pages/AccountManagement'
+import BriefingScript from './pages/BriefingScript'
 import { useToolAccess } from './hooks/useToolAccess'
 import WorkInterface from './components/WorkInterface'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -234,6 +235,16 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <AccountManagement />
+          </ProtectedRoute>
+        }
+      />
+      {/* v95: los tabblad met het belscript per project - open te zetten
+          naast het belscherm, door bellers zelf te bewerken (RLS v95) */}
+      <Route
+        path="/briefing/:campaignId"
+        element={
+          <ProtectedRoute allowPlanning allowExtern>
+            <BriefingScript />
           </ProtectedRoute>
         }
       />
