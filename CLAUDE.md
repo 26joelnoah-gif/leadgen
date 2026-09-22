@@ -278,3 +278,19 @@ Twee-zijdig platform:
   "klik nogmaals" patroon als Admin > Prullenbak. En AuthContext.signOut()
   wist nu ook leadgen-effective-role/leadgen-project-roles uit localStorage,
   zodat een nieuwe sessie altijd met de echte rol start.
+
+- **"ZET IN AGENDA" - VISUELE AGENDAKEUZE BIJ AFSPRAAK GEMAAKT (v96,
+  2026-09-22):** bij "Afspraak gemaakt" in het belscherm (projecten met
+  appointment_scheduling_enabled) typte de beller voorheen blind een datum/tijd
+  en zag pas na een losse conflictcheck of de accountmanager al bezet was.
+  Nieuwe knop "Zet in agenda" naast dat veld opent AgendaPickerModal.jsx: een
+  compacte weekagenda (zelfde databronnen als Agenda.jsx - leads met
+  status afspraak_gemaakt in projecten met appointment_scheduling_enabled, en
+  agenda_blocks) met een keuzemenu voor de accountmanager. Bezette/geblokkeerde
+  tijd is niet aanklikbaar (client-side overlapcheck tegen dezelfde
+  APPOINTMENT_DURATION_MINUTES als de bestaande conflictcheck); klikken op een
+  vrij moment + "Bevestig dit moment" vult gewoon selectedAmId en
+  nextContactDate in WorkInterface.jsx (via toDatetimeLocalValue) - de
+  bestaande conflictcheck-useEffect en de rest van de afhandel-flow blijven
+  ongewijzigd. Puur een fijnere manier om bij die twee velden te komen, geen
+  nieuwe databronnen of migratie nodig.

@@ -5,7 +5,7 @@ import {
   Calendar, Clock, AlertCircle, CheckCircle2,
   ChevronRight, ChevronDown, Copy, Save, Users, Target, Ban,
   BookOpen, Info, History, Tag, Maximize2, Minimize2, FileSignature,
-  RefreshCw, AlertTriangle, ExternalLink
+  RefreshCw, AlertTriangle, ExternalLink, CalendarClock
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
@@ -18,10 +18,18 @@ import { useProjectTools, offerteHrefForLead, verduurzamingHrefForLead } from '.
 import { useProjectMailService } from '../hooks/useProjectMailService'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
 import MailingserviceModal from './MailingserviceModal'
+import AgendaPickerModal from './AgendaPickerModal'
 import { useToast } from './Toast'
 import { foutTekst } from '../lib/retry'
 import { logAppError } from '../lib/errorLog'
 import { APPOINTMENT_LABEL, APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
+
+// v96: Date -> waarde voor een <input type="datetime-local">, in lokale tijd
+// (niet UTC, anders schuift het gekozen moment een paar uur op).
+function toDatetimeLocalValue(date) {
+  const pad = n => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
 
 // v36: labels van de dispositie-knoppen (footer) voor recruitment-projecten.
 // Zelfde status-keys/logica als sales, alleen de tekst op de knop wijkt af.
@@ -224,6 +232,11 @@ export default function WorkInterface() {
   const [selectedAmId, setSelectedAmId] = useState(null)
   const [conflictWarning, setConflictWarning] = useState(null)
   const [checkingConflict, setCheckingConflict] = useState(false)
+  // v96: "Zet in agenda" - i.p.v. blind een datum/tijd typen, kiest de
+  // beller de accountmanager en het moment visueel in diens weekagenda
+  // (zelfde data als /agenda). Bevestigen vult gewoon selectedAmId +
+  // nextContactDate, de rest van de flow hieronder blijft ongewijzigd.
+  const [showAgendaPicker, setShowAgendaPicker] = useState(false)
 
   // Call tracking: wanneer kwam deze lead in beeld + teller van vandaag
   const leadStartRef = useRef(new Date().toISOString())
@@ -1244,6 +1257,20 @@ export default function WorkInterface() {
             />
           )}
 
+          {showAgendaPicker && (
+            <AgendaPickerModal
+              accountmanagers={accountmanagers}
+              defaultAmId={selectedAmId}
+              excludeLeadId={currentLead?.id}
+              onClose={() => setShowAgendaPicker(false)}
+              onConfirm={({ amId, date }) => {
+                setSelectedAmId(amId)
+                setNextContactDate(toDatetimeLocalValue(date))
+                setShowAgendaPicker(false)
+              }}
+            />
+          )}
+
           {/* Disposition Modal */}
           {showDispositionModal && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
@@ -1289,6 +1316,25 @@ export default function WorkInterface() {
                           onChange={e => setNextContactDate(e.target.value)}
                           style={{ width: '100%', padding: '12px', borderRadius: '8px', border: conflictWarning ? '1px solid var(--error, #EF4444)' : '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }}
                         />
+
+                        {/* v96: visuele agendakeuze i.p.v. blind typen - toont
+                            meteen de agenda (afspraken + blokkades) van de
+                            gekozen accountmanager */}
+                        {selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled && accountmanagers.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => setShowAgendaPicker(true)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '8px',
+                              marginTop: '8px', padding: '10px 14px', borderRadius: '8px',
+                              border: '1px solid var(--primary)', background: 'transparent',
+                              color: 'var(--primary)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer'
+                            }}
+                          >
+                            <CalendarClock size={16} />
+                            Zet in agenda
+                          </button>
+                        )}
 
                         {checkingConflict && (
                           <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
