@@ -559,49 +559,22 @@ export default function Admin() {
       <Header />
 
       <main className="container-wide py-6 px-8">
-        {/* v94: Rol-switcher voor admin - direct bovenaan Admin zichtbaar op ELKE tab */}
-        <div className="glass-panel p-5 mb-6 border border-primary/40" style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)', boxShadow: '0 4px 20px rgba(59, 130, 246, 0.1)' }}>
-          <div className="flex justify-between items-start mb-4" style={{ flexWrap: 'wrap', gap: '12px' }}>
-            <div>
+        {/* v94: per-project rolkiezer voor admin. De algemene werkmodus (Admin/Beller/
+            Accountmanager) schakel je met de rol-pill rechtsboven in de header - die staat
+            nu maar op 1 plek, om verwarring/dubbele UI te voorkomen. */}
+        {campaigns.length > 0 && (
+          <div className="glass-panel p-5 mb-6 border border-primary/40" style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)', boxShadow: '0 4px 20px rgba(59, 130, 246, 0.1)' }}>
+            <div className="mb-3">
               <h3 className="font-black text-sm uppercase tracking-widest text-primary flex items-center gap-2">
-                <Shield size={16} /> Mijn Werkmodus &amp; Rol-Switcher
+                <Shield size={16} /> Rol per project
               </h3>
               <p className="text-muted text-xs mt-1" style={{ maxWidth: '680px' }}>
-                Als beheerder kun je hier je actieve werkmodus kiezen. Schakel direct naar <strong>Beller</strong> om leads te bellen via de dialer, of naar <strong>Accountmanager</strong> om afspraken in de agenda te zien en te beheren.
+                Stel je specifieke rol per project in - handig als je in het ene project als
+                accountmanager werkt en in het andere als beller. Je algemene werkmodus wissel
+                je met de knop rechtsboven in de header.
               </p>
             </div>
-            <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
-              {[
-                { id: 'admin', label: '🛡️ Admin (Beheer)', desc: 'Volledige admin-interface' },
-                { id: 'employee', label: '📞 Beller', desc: 'Bellen via belwachtrij' },
-                { id: 'accountmanager', label: '💼 Accountmanager', desc: 'Leadbord & agenda' }
-              ].map(m => {
-                const isActive = (effectiveRole || 'admin') === m.id
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => {
-                      setEffectiveRole(m.id)
-                      toast(`Werkmodus gewijzigd naar: ${m.label}`, 'success')
-                    }}
-                    className={`btn btn-sm ${isActive ? 'btn-primary' : 'btn-outline'}`}
-                    style={{ fontWeight: 800, padding: '7px 14px' }}
-                    title={m.desc}
-                  >
-                    {m.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Per-project rolkiezer */}
-          {campaigns.length > 0 && (
-            <div className="pt-3 border-t border-border/40">
-              <div className="text-[11px] font-bold text-muted uppercase tracking-wider mb-2">
-                Of stel je specifieke rol per project in:
-              </div>
+            <div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
                 {campaigns.map(c => {
                   const currentRole = getProjectRole(c.id)
@@ -626,8 +599,8 @@ export default function Admin() {
                 })}
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* TABS MENU */}
         <div className="tab-bar mb-8">

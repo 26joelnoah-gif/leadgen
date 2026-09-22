@@ -163,11 +163,10 @@ export default function Header({ onOpenSettings }) {
             marginLeft: '16px',
             flex: 1,
             display: 'flex',
+            flexWrap: 'wrap',
+            rowGap: '4px',
             gap: '3px',
-            minWidth: 0,
-            overflowX: 'auto',
-            whiteSpace: 'nowrap',
-            scrollbarWidth: 'none'
+            minWidth: 0
           }}
         >
           {navLinks.map(link => (
@@ -199,29 +198,6 @@ export default function Header({ onOpenSettings }) {
             </Link>
           ))}
 
-          {/* Mobiel: rol-switcher direct in menu */}
-          {isRealAdmin && (
-            <div className="pt-2 border-t border-border mt-2 flex flex-col gap-1 md:hidden">
-              <span className="text-[10px] uppercase font-bold text-muted px-2">Rol wisselen:</span>
-              <div className="flex gap-1 p-1 bg-dark/60 rounded-lg">
-                {[
-                  { id: 'admin', label: '🛡️ Admin' },
-                  { id: 'employee', label: '📞 Beller' },
-                  { id: 'accountmanager', label: '💼 AM' }
-                ].map(r => (
-                  <button
-                    key={r.id}
-                    type="button"
-                    onClick={() => { setEffectiveRole(r.id); setMobileMenuOpen(false); toast(`Werkmodus: ${r.label}`, 'info') }}
-                    className={`btn btn-sm flex-1 ${activeRole === r.id ? 'btn-primary' : 'btn-outline'}`}
-                    style={{ fontSize: '0.75rem', padding: '6px' }}
-                  >
-                    {r.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </nav>
 
         <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
@@ -362,8 +338,6 @@ export default function Header({ onOpenSettings }) {
 
       <AccountSettingsModal isOpen={showAccount} onClose={() => setShowAccount(false)} profile={profile} />
       <style>{`
-        .nav { overflow-x: auto; scrollbar-width: none; }
-        .nav::-webkit-scrollbar { display: none; }
         .nav a {
           color: var(--text-muted); text-decoration: none; transition: color 0.15s, background 0.15s;
           white-space: nowrap; font-size: 0.85rem; font-weight: 600;

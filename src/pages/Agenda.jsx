@@ -77,15 +77,24 @@ export default function Agenda() {
 
       if (!error && data) {
         setAccountmanagers(data)
-        // Als gebruiker zelf accountmanager is, selecteer zichzelf standaard
-        if (isAm && !isRealAdmin) {
-          setSelectedAmId(user.id)
-        }
       }
     } catch (err) {
       console.error('Fout bij ophalen accountmanagers:', err)
     }
-  }, [user?.id, isAm, isRealAdmin])
+  }, [])
+
+  // v94-fix: een accountmanager (ook een admin die via de rol-pill "werkt als"
+  // accountmanager) ziet standaard ALLEEN zijn eigen agenda, nooit die van
+  // collega's - dat kon eerder omdat de select-query van bovenstaande lijst
+  // soms later klaar was dan de eerste keer laden, waardoor selectedAmId op
+  // 'all' bleef staan. Nu zet dit los effect het altijd meteen goed, ook bij
+  // het wisselen van werkmodus. Via het "AM:"-filter hierboven kan een
+  // accountmanager zelf nog altijd naar een collega's agenda schakelen; een
+  // gewone beller of admin ziet standaard gewoon iedereen (nodig om voor
+  // meerdere accountmanagers een afspraak te kunnen inplannen).
+  useEffect(() => {
+    setSelectedAmId(isAm ? (user?.id || 'all') : 'all')
+  }, [isAm, user?.id])
 
   // Haal afspraken en blokkades op voor de huidige week (met ruime marge)
   const fetchData = useCallback(async () => {
