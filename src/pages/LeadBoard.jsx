@@ -10,6 +10,7 @@ import { getStatusDetails } from '../utils/statusUtils'
 import { distanceM, formatDistance, distanceBand } from '../utils/geoUtils'
 import { nextContactOnOtherDaypart, isFollowUpDue, daysSince } from '../utils/followUpUtils'
 import { SALES_BOARD_COLUMNS, BOARD_CLOSED_STATUSES, boardColumnFor } from '../lib/leadBoard'
+import { APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
 import { stopMailsVoorLead } from '../lib/mailStop'
 import { MAIL_STATUS } from '../components/MailStatus'
@@ -443,11 +444,16 @@ export default function LeadBoard() {
     if (!datePrompt?.value) return
     const { lead, column, value } = datePrompt
 
-    // v94: check of het gekozen moment geblokkeerd is in agenda_blocks
+    // v94/v95: check of het gekozen moment beschikbaar is bij de
+    // accountmanager - zowel geblokkeerde tijdvakken (agenda_blocks) als
+    // een afspraak die een ANDERE beller er al voor dezelfde AM heeft
+    // ingepland (leads.appointment_at). Zelfde controle als in het
+    // belscherm (WorkInterface.jsx), hier ook nodig omdat een afspraak
+    // ook via het bord (slepen naar "Afspraak (agenda)") wordt ingepland.
     if (column.dateField === 'appointment_at') {
       try {
         const targetDate = new Date(value)
-        const targetEnd = new Date(targetDate.getTime() + 45 * 60 * 1000)
+        const targetEnd = new Date(targetDate.getTime() + APPOINTMENT_DURATION_MINUTES * 60 * 1000)
         const amId = lead.assigned_to || user?.id
 
         if (amId) {
@@ -462,9 +468,35 @@ export default function LeadBoard() {
             toast(`⚠️ Dit tijdvak is geblokkeerd ("${blocks[0].title || 'Niet beschikbaar'}"). Kies een ander moment.`, 'error', 7000)
             return
           }
+
+          // Bestaande afspraken van dezelfde AM: elke afspraak duurt zelf
+          // ook APPOINTMENT_DURATION_MINUTES, dus haal alles op dat binnen
+          // die marge rond het gekozen moment kan overlappen en toets de
+          // echte overlap in JS.
+          const marginStart = new Date(targetDate.getTime() - APPOINTMENT_DURATION_MINUTES * 60 * 1000).toISOString()
+          const marginEnd = new Date(targetDate.getTime() + APPOINTMENT_DURATION_MINUTES * 60 * 1000).toISOString()
+          const { data: nearbyAppts } = await supabase
+            .from('leads')
+            .select('id, name, appointment_at')
+            .eq('assigned_to', amId)
+            .eq('status', 'afspraak_gemaakt')
+            .neq('id', lead.id)
+            .gte('appointment_at', marginStart)
+            .lte('appointment_at', marginEnd)
+            .is('deleted_at', null)
+
+          const overlapping = (nearbyAppts || []).find(a => {
+            const aStart = new Date(a.appointment_at)
+            const aEnd = new Date(aStart.getTime() + APPOINTMENT_DURATION_MINUTES * 60 * 1000)
+            return aStart < targetEnd && aEnd > targetDate
+          })
+          if (overlapping) {
+            toast(`⚠️ Er staat al een afspraak op dit tijdstip (${overlapping.name}). Kies een ander moment.`, 'error', 7000)
+            return
+          }
         }
       } catch (err) {
-        console.error('Check agenda_blocks mislukt:', err)
+        console.error('Check beschikbaarheid mislukt:', err)
       }
     }
 
@@ -1000,7 +1032,7 @@ export default function LeadBoard() {
           onClose={() => setDetailLead(null)}
           lead={detailLead}
           assignedName={detailLead ? ownerLabel(detailLead) : ''}
-          onUpdated={(id, updates) => setLeads(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l))}
+          onUpdated={(id, updates) => { setLeads(prev => prev.map(l => l.id === id ? { ...l, ...updates } : l)); setDetailLead(prev => (prev && prev.id === id) ? { ...prev, ...updates } : prev) }}
         />
 
         {/* v75: overnemen van een collega gaat nooit per ongeluk. */}
