@@ -19,6 +19,7 @@ import { useProjectMailService } from '../hooks/useProjectMailService'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
 import MailingserviceModal from './MailingserviceModal'
 import AgendaPickerModal from './AgendaPickerModal'
+import { SENTIMENTS } from '../lib/appointments'
 import { useToast } from './Toast'
 import { foutTekst } from '../lib/retry'
 import { logAppError } from '../lib/errorLog'
@@ -237,6 +238,9 @@ export default function WorkInterface() {
   // (zelfde data als /agenda). Bevestigen vult gewoon selectedAmId +
   // nextContactDate, de rest van de flow hieronder blijft ongewijzigd.
   const [showAgendaPicker, setShowAgendaPicker] = useState(false)
+  // v97: bij het inplannen van een afspraak geeft de beller ook op hoe de
+  // klant erin staat (positief/neutraal/negatief) - verplicht.
+  const [appointmentSentiment, setAppointmentSentiment] = useState(null)
 
   // Call tracking: wanneer kwam deze lead in beeld + teller van vandaag
   const leadStartRef = useRef(new Date().toISOString())
@@ -248,6 +252,9 @@ export default function WorkInterface() {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  // v97: sentiment hoort bij één afspraak - bij een nieuwe lead weer leeg
+  useEffect(() => { setAppointmentSentiment(null) }, [currentLead?.id])
 
   // v94: Haal accountmanagers op zodra 'afspraak_gemaakt' wordt gekozen
   useEffect(() => {
@@ -737,6 +744,13 @@ export default function WorkInterface() {
   // en automatisch in de lead zelf (niet alleen in de notities), zodat de
   // volgende beller ze meteen ziet - en apart van de afboeking zelf
   // opgeslagen, zodat die niet vastloopt als dit misgaat.
+  const afspraakDetailsCompleet = !!(
+    (editableLead.contact_person || '').trim() &&
+    (editableLead.address || '').trim() &&
+    (editableLead.city || '').trim() &&
+    appointmentSentiment
+  )
+
   const handleFinalDisposition = async () => {
     if (!selectedDisposition) return
     if (selectedDisposition === 'terugbelafspraak') {
@@ -762,11 +776,32 @@ export default function WorkInterface() {
         toast(conflictWarning, 'error', 7000)
         return
       }
-      if (selectedAmId) {
-        try {
-          await supabase.from('leads').update({ assigned_to: selectedAmId }).eq('id', currentLead.id)
-        } catch { /* negeer fout, afboeken gaat door */ }
+      // v97: contactpersoon, adres en sentiment zijn verplicht en gaan direct
+      // in de lead zelf, zodat de accountmanager ze in de agenda ziet.
+      if (!afspraakDetailsCompleet) {
+        toast('Vul contactpersoon, adres, plaats en hoe de klant erin staat in', 'error', 6000)
+        return
       }
+      const changes = {
+        contact_person: (editableLead.contact_person || '').trim(),
+        address: (editableLead.address || '').trim(),
+        house_number: (editableLead.house_number || '').trim() || null,
+        postal_code: (editableLead.postal_code || '').trim() || null,
+        city: (editableLead.city || '').trim(),
+        appointment_sentiment: appointmentSentiment,
+        appointment_outcome: null,
+        appointment_outcome_at: null,
+        appointment_outcome_by: null,
+      }
+      if (selectedAmId) changes.assigned_to = selectedAmId
+      const { error } = await supabase.from('leads').update(changes).eq('id', currentLead.id)
+      if (error) {
+        logAppError('afboeken.afspraakDetailsOpslaan', error, { leadId: currentLead.id })
+        toast(`Afspraakgegevens niet opgeslagen: ${foutTekst(error)}`, 'error', 7000)
+        return
+      }
+      baselineRef.current = { ...(baselineRef.current || {}), ...changes }
+      setLiveLead(prev => (prev && prev.id === currentLead.id) ? { ...prev, ...changes } : prev)
     }
     submitDisposition(selectedDisposition, dispositionNotes, nextContactDate || null)
   }
@@ -1354,6 +1389,65 @@ export default function WorkInterface() {
                       </div>
                     )}
 
+                    {/* v97: afspraakdetails voor de accountmanager - contactpersoon,
+                        adres (met navigatie in de agenda) en hoe de klant erin staat */}
+                    {selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled && (() => {
+                      const inputStyle = { width: '100%', padding: '11px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontSize: '0.9rem' }
+                      const labelStyle = { display: 'block', color: 'var(--text-muted)', marginBottom: '6px', fontSize: '0.85rem' }
+                      const set = (k) => (e) => setEditableLead({ ...editableLead, [k]: e.target.value })
+                      return (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <div>
+                            <label style={labelStyle}>Contactpersoon (verplicht)</label>
+                            <input type="text" value={editableLead.contact_person || ''} onChange={set('contact_person')} placeholder="Met wie is de afspraak?" style={inputStyle} />
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: '8px' }}>
+                            <div>
+                              <label style={labelStyle}>Straat (verplicht)</label>
+                              <input type="text" value={editableLead.address || ''} onChange={set('address')} placeholder="Straatnaam" style={inputStyle} />
+                            </div>
+                            <div>
+                              <label style={labelStyle}>Nr.</label>
+                              <input type="text" value={editableLead.house_number || ''} onChange={set('house_number')} placeholder="12" style={inputStyle} />
+                            </div>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '8px' }}>
+                            <div>
+                              <label style={labelStyle}>Postcode</label>
+                              <input type="text" value={editableLead.postal_code || ''} onChange={set('postal_code')} placeholder="1234 AB" style={inputStyle} />
+                            </div>
+                            <div>
+                              <label style={labelStyle}>Plaats (verplicht)</label>
+                              <input type="text" value={editableLead.city || ''} onChange={set('city')} placeholder="Plaats" style={inputStyle} />
+                            </div>
+                          </div>
+                          <div>
+                            <label style={labelStyle}>Hoe staat de klant erin? (verplicht)</label>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              {SENTIMENTS.map(s => {
+                                const actief = appointmentSentiment === s.id
+                                return (
+                                  <button
+                                    key={s.id}
+                                    type="button"
+                                    onClick={() => setAppointmentSentiment(s.id)}
+                                    style={{
+                                      flex: 1, padding: '10px 6px', borderRadius: '8px', cursor: 'pointer', fontWeight: 800, fontSize: '0.85rem',
+                                      border: `2px solid ${actief ? s.color : 'var(--border)'}`,
+                                      background: actief ? `${s.color}22` : 'transparent',
+                                      color: actief ? s.color : 'var(--text-primary)'
+                                    }}
+                                  >
+                                    {s.emoji} {s.label}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
+
                     {selectedDisposition === 'terugbelafspraak' && (
                       <div>
                         <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>
@@ -1403,7 +1497,7 @@ export default function WorkInterface() {
                         isSubmitting ||
                         (selectedDisposition === 'wil_annuleren' && !dispositionNotes.trim()) ||
                         (selectedDisposition === 'terugbelafspraak' && !(editableLead.contact_person || '').trim()) ||
-                        (selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled && (!!conflictWarning || checkingConflict || !nextContactDate))
+                        (selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled && (!!conflictWarning || checkingConflict || !nextContactDate || !afspraakDetailsCompleet))
                       }
                       style={{
                         background: dispositions.find(d => d.id === selectedDisposition)?.color,

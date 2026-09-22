@@ -294,3 +294,24 @@ Twee-zijdig platform:
   bestaande conflictcheck-useEffect en de rest van de afhandel-flow blijven
   ongewijzigd. Puur een fijnere manier om bij die twee velden te komen, geen
   nieuwe databronnen of migratie nodig.
+
+- **AFSPRAAKDETAILS, NAVIGATIE, AFBOEKEN DOOR AM, VERPLAATSEN/VERWIJDEREN
+  (v97, 2026-09-22, migratie toegepast):**
+  1. Inplannen (belscherm WorkInterface EN bord LeadBoard confirmDatePrompt,
+     alleen projecten met appointment_scheduling_enabled): contactpersoon,
+     straat, plaats en sentiment zijn verplicht (huisnr/postcode optioneel).
+     Sentiment = nieuwe kolom leads.appointment_sentiment
+     (positief/neutraal/negatief). Adres gaat in de bestaande adreskolommen.
+  2. Agenda: klik op een afspraak opent AppointmentModal.jsx met bel-link,
+     adres als navigatieknop (Google Maps dir-link) en afboeken.
+  3. Afboeken door de accountmanager van de afspraak (of admin/manager):
+     leads.appointment_outcome = wil_nadenken | deal | betaald (+ _at/_by).
+     deal/betaald zetten leads.status op 'deal' (sale_date als die leeg is),
+     wil_nadenken laat status op afspraak_gemaakt. Agenda toont nu status
+     afspraak_gemaakt EN deal, gekleurd per uitkomst.
+  4. Verplaatsen (slepen of via de popup, incl. andere AM) en verwijderen mag
+     alleen profile.role admin/manager. Verplaatsen doet de conflictcheck
+     (findAppointmentConflict in src/lib/appointments.js). Verwijderen =
+     appointment_at leeg, status later_bellen, next_contact_date nu,
+     assigned_to leeg (lead terug in de pool), met activity-log.
+  Migratie: migration_v97_afspraak_details_uitkomst.sql.

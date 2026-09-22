@@ -11,6 +11,7 @@ import { distanceM, formatDistance, distanceBand } from '../utils/geoUtils'
 import { nextContactOnOtherDaypart, isFollowUpDue, daysSince } from '../utils/followUpUtils'
 import { SALES_BOARD_COLUMNS, BOARD_CLOSED_STATUSES, boardColumnFor } from '../lib/leadBoard'
 import { APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
+import { SENTIMENTS } from '../lib/appointments'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
 import { stopMailsVoorLead } from '../lib/mailStop'
 import { MAIL_STATUS } from '../components/MailStatus'
@@ -79,6 +80,11 @@ function Chip({ label, color, bg, title }) {
       color, background: bg, whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis'
     }}>{label}</span>
   )
+}
+
+// v97: bij een afspraak zijn contactpersoon, adres, plaats en sentiment verplicht
+function afspraakPromptCompleet(p) {
+  return !!(p && (p.contact_person || '').trim() && (p.address || '').trim() && (p.city || '').trim() && p.sentiment)
 }
 
 export default function LeadBoard() {
@@ -434,7 +440,12 @@ export default function LeadBoard() {
       return
     }
     if (column.needsDate) {
-      setDatePrompt({ lead, column, value: toLocalInput(lead[column.dateField]) || defaultTbaDateTimeLocal() })
+      setDatePrompt({
+        lead, column, value: toLocalInput(lead[column.dateField]) || defaultTbaDateTimeLocal(),
+        // v97: afspraakdetails (alleen gebruikt bij appointment_at)
+        contact_person: lead.contact_person || '', address: lead.address || '', house_number: lead.house_number || '',
+        postal_code: lead.postal_code || '', city: lead.city || '', sentiment: null
+      })
       return
     }
     moveLead(lead, column.dropStatus)
@@ -443,6 +454,11 @@ export default function LeadBoard() {
   async function confirmDatePrompt() {
     if (!datePrompt?.value) return
     const { lead, column, value } = datePrompt
+    const isAfspraak = column.dateField === 'appointment_at'
+    if (isAfspraak && !afspraakPromptCompleet(datePrompt)) {
+      toast('Vul contactpersoon, adres, plaats en hoe de klant erin staat in', 'error', 6000)
+      return
+    }
 
     // v94/v95: check of het gekozen moment beschikbaar is bij de
     // accountmanager - zowel geblokkeerde tijdvakken (agenda_blocks) als
@@ -500,7 +516,19 @@ export default function LeadBoard() {
       }
     }
 
-    moveLead(lead, column.dropStatus, { [column.dateField]: new Date(value).toISOString() })
+    const extra = { [column.dateField]: new Date(value).toISOString() }
+    if (isAfspraak) {
+      Object.assign(extra, {
+        contact_person: datePrompt.contact_person.trim(),
+        address: datePrompt.address.trim(),
+        house_number: datePrompt.house_number.trim() || null,
+        postal_code: datePrompt.postal_code.trim() || null,
+        city: datePrompt.city.trim(),
+        appointment_sentiment: datePrompt.sentiment,
+        appointment_outcome: null, appointment_outcome_at: null, appointment_outcome_by: null,
+      })
+    }
+    moveLead(lead, column.dropStatus, extra)
     setDatePrompt(null)
   }
 
@@ -1062,7 +1090,7 @@ export default function LeadBoard() {
 
         {datePrompt && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20, width: '100%', maxWidth: 420, padding: 24, position: 'relative' }}>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20, width: '100%', maxWidth: 420, padding: 24, position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
               <button onClick={() => setDatePrompt(null)} aria-label="Sluiten" style={{ position: 'absolute', top: 14, right: 14, background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
               <h2 style={{ margin: '0 0 6px', fontSize: '1.1rem' }}>{datePrompt.column.dateTitle}</h2>
               <p className="text-muted" style={{ margin: '0 0 16px', fontSize: '0.85rem' }}>{datePrompt.lead.name}</p>
@@ -1074,9 +1102,41 @@ export default function LeadBoard() {
                 value={datePrompt.value}
                 onChange={e => setDatePrompt(p => ({ ...p, value: e.target.value }))}
               />
+              {datePrompt.column.dateField === 'appointment_at' && (() => {
+                const upd = (k) => (e) => { const v = e.target.value; setDatePrompt(p => ({ ...p, [k]: v })) }
+                const lbl = { display: 'block', color: 'var(--text-muted)', margin: '12px 0 5px', fontSize: '0.82rem' }
+                return (
+                  <div>
+                    <label style={lbl}>Contactpersoon (verplicht)</label>
+                    <input className="form-control" style={{ width: '100%', fontSize: 16 }} value={datePrompt.contact_person} onChange={upd('contact_person')} placeholder="Met wie is de afspraak?" />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 8 }}>
+                      <div><label style={lbl}>Straat (verplicht)</label><input className="form-control" style={{ width: '100%', fontSize: 16 }} value={datePrompt.address} onChange={upd('address')} /></div>
+                      <div><label style={lbl}>Nr.</label><input className="form-control" style={{ width: '100%', fontSize: 16 }} value={datePrompt.house_number} onChange={upd('house_number')} /></div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: 8 }}>
+                      <div><label style={lbl}>Postcode</label><input className="form-control" style={{ width: '100%', fontSize: 16 }} value={datePrompt.postal_code} onChange={upd('postal_code')} /></div>
+                      <div><label style={lbl}>Plaats (verplicht)</label><input className="form-control" style={{ width: '100%', fontSize: 16 }} value={datePrompt.city} onChange={upd('city')} /></div>
+                    </div>
+                    <label style={lbl}>Hoe staat de klant erin? (verplicht)</label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      {SENTIMENTS.map(s => {
+                        const actief = datePrompt.sentiment === s.id
+                        return (
+                          <button key={s.id} type="button" onClick={() => setDatePrompt(p => ({ ...p, sentiment: s.id }))}
+                            style={{ flex: 1, padding: '9px 4px', borderRadius: 8, cursor: 'pointer', fontWeight: 800, fontSize: '0.8rem',
+                              border: `2px solid ${actief ? s.color : 'var(--border)'}`, background: actief ? `${s.color}22` : 'transparent',
+                              color: actief ? s.color : 'var(--text-primary)' }}>
+                            {s.emoji} {s.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })()}
               <div className="flex gap-2" style={{ marginTop: 18 }}>
                 <button type="button" className="btn btn-outline" style={{ flex: 1 }} onClick={() => setDatePrompt(null)}>Annuleren</button>
-                <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={confirmDatePrompt} disabled={!datePrompt.value}>{datePrompt.column.dateButton}</button>
+                <button type="button" className="btn btn-primary" style={{ flex: 1 }} onClick={confirmDatePrompt} disabled={!datePrompt.value || (datePrompt.column.dateField === 'appointment_at' && !afspraakPromptCompleet(datePrompt))}>{datePrompt.column.dateButton}</button>
               </div>
             </div>
           </div>

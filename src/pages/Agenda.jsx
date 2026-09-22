@@ -12,6 +12,8 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import BlockTimeModal from '../components/BlockTimeModal'
 import LeadDetailModal from '../components/LeadDetailModal'
 import { APPOINTMENT_LABEL, APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
+import AppointmentModal from '../components/AppointmentModal'
+import { findAppointmentConflict, outcomeInfo, sentimentInfo, leadAddressText, navigationUrl } from '../lib/appointments'
 
 function startOfWeek(date) {
   const d = new Date(date)
@@ -112,11 +114,15 @@ export default function Agenda() {
   const [showBlockModal, setShowBlockModal] = useState(false)
   const [blockModalDate, setBlockModalDate] = useState(null)
   const [detailLead, setDetailLead] = useState(null)
+  // v97: afspraakpopup (navigatie, afboeken, verplaatsen, verwijderen)
+  const [apptLead, setApptLead] = useState(null)
   // Project-conventie: geen window.confirm, klik nogmaals om te bevestigen (zelfde patroon als Admin > Prullenbak)
   const [confirmDeleteId, setConfirmDeleteId] = useState(null)
 
   const isRealAdmin = profile?.role === 'admin'
   const isAm = profile?.role === 'accountmanager' || effectiveRole === 'accountmanager'
+  // v97: alleen admin en manager mogen afspraken verplaatsen of verwijderen
+  const canManage = profile?.role === 'admin' || profile?.role === 'manager'
 
   // Klok voor de rode "nu"-lijn, elke minuut bijgewerkt
   useEffect(() => {
@@ -173,10 +179,12 @@ export default function Agenda() {
         .from('leads')
         .select(`
           id, name, contact_person, phone, email, status, appointment_at, notes,
-          assigned_to, lead_list_id,
+          assigned_to, lead_list_id, sale_date,
+          address, house_number, postal_code, city,
+          appointment_sentiment, appointment_outcome, appointment_outcome_at,
           lead_lists!inner(id, name, campaign_id, campaigns!inner(id, name, appointment_scheduling_enabled))
         `)
-        .eq('status', 'afspraak_gemaakt')
+        .in('status', ['afspraak_gemaakt', 'deal'])
         .eq('lead_lists.campaigns.appointment_scheduling_enabled', true)
         .gte('appointment_at', rangeStart)
         .lte('appointment_at', rangeEnd)
@@ -340,6 +348,8 @@ export default function Agenda() {
 
   const handleItemMouseDown = useCallback((e, item, dayIdx) => {
     if (e.button !== 0) return
+    // v97: afspraken slepen mag alleen admin/manager; anderen klikken alleen (popup)
+    const mayDrag = item.kind !== 'appointment' || canManage
     const gridEl = gridBodyRef.current
     if (!gridEl) return
     const gridRect = gridEl.getBoundingClientRect()
@@ -359,6 +369,7 @@ export default function Agenda() {
       const dx = ev.clientX - ds.pointerStartX
       const dy = ev.clientY - ds.pointerStartY
       if (!ds.moved && Math.abs(dx) < 6 && Math.abs(dy) < 6) return
+      if (!mayDrag) return
       ds.moved = true
 
       const colWidth = ds.gridRect.width / 7
@@ -378,7 +389,7 @@ export default function Agenda() {
 
       if (!ds.moved) {
         // Geen sleep, gewone klik - open het detail
-        if (ds.item.kind === 'appointment') setDetailLead(ds.item.lead)
+        if (ds.item.kind === 'appointment') setApptLead(ds.item.lead)
         return
       }
 
@@ -397,6 +408,12 @@ export default function Agenda() {
       setSavingDragId(ds.item.id)
       try {
         if (ds.item.kind === 'appointment') {
+          // v97: niet slepen op een moment waar de accountmanager al bezet is
+          const conflict = await findAppointmentConflict({ amId: ds.item.lead.assigned_to, start: newDate, excludeLeadId: ds.item.leadId })
+          if (conflict) {
+            toast(`${conflict}. Afspraak niet verplaatst.`, 'error', 7000)
+            return
+          }
           const { error } = await supabase
             .from('leads')
             .update({ appointment_at: newDate.toISOString() })
@@ -426,7 +443,7 @@ export default function Agenda() {
 
     window.addEventListener('mousemove', handleMove)
     window.addEventListener('mouseup', handleUp)
-  }, [currentWeekStart, toast, fetchData])
+  }, [currentWeekStart, toast, fetchData, canManage])
 
   // Klikken op een leeg stuk van de grid -> snel een blokkade aanmaken op
   // dat exacte moment (net als in Google Calendar).
@@ -458,7 +475,7 @@ export default function Agenda() {
               <CalendarDays size={26} className="text-primary" /> Agenda &amp; Afspraken
             </h1>
             <p className="page-subtitle text-xs" style={{ margin: '4px 0 0' }}>
-              Sleep een afspraak of blokkade naar een ander moment om hem te verzetten. Elke afspraak is een {APPOINTMENT_LABEL.toLowerCase()} van 2,5 uur.
+              Klik op een afspraak voor adres, navigatie en afboeken.{canManage ? ' Sleep een afspraak naar een ander moment om hem te verzetten.' : ''} Elke afspraak is een {APPOINTMENT_LABEL.toLowerCase()} van 2,5 uur.
             </p>
           </div>
 
@@ -682,6 +699,9 @@ export default function Agenda() {
                         if (item.kind === 'appointment') {
                           const l = item.lead
                           const amName = amMap[l.assigned_to] || 'Onbekend'
+                          const oc = outcomeInfo(l.appointment_outcome)
+                          const snt = sentimentInfo(l.appointment_sentiment)
+                          const kleur = oc ? oc.color : '#3B82F6'
                           const startLabel = isDragPreviewSource
                             ? `${pad(Math.floor(dragPreview.startMin / 60))}:${pad(dragPreview.startMin % 60)}`
                             : formatTime(l.appointment_at)
@@ -692,23 +712,26 @@ export default function Agenda() {
                               onClick={e => e.stopPropagation()}
                               style={{
                                 position: 'absolute', top, height, left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
-                                background: 'rgba(59, 130, 246, 0.85)',
-                                border: '1px solid rgba(59, 130, 246, 1)',
+                                background: kleur,
+                                border: `1px solid ${kleur}`,
                                 borderRadius: '6px', padding: '4px 6px', overflow: 'hidden',
-                                cursor: isSaving ? 'wait' : 'grab', color: '#fff', zIndex: isDragPreviewSource ? 20 : 2,
+                                cursor: isSaving ? 'wait' : (canManage ? 'grab' : 'pointer'), color: '#fff', zIndex: isDragPreviewSource ? 20 : 2,
                                 opacity: isSaving ? 0.6 : 1, boxShadow: isDragPreviewSource ? '0 4px 14px rgba(0,0,0,0.4)' : 'none',
                                 transition: isDragPreviewSource ? 'none' : 'top 0.12s ease'
                               }}
-                              title={`${APPOINTMENT_LABEL} · ${l.name} · sleep om te verzetten, klik om te openen`}
+                              title={`${APPOINTMENT_LABEL} · ${l.name}${canManage ? ' · sleep om te verzetten' : ''}, klik om te openen`}
                             >
-                              <div style={{ fontSize: '0.68rem', fontWeight: 800 }}>{startLabel} · {APPOINTMENT_LABEL}</div>
+                              <div style={{ fontSize: '0.68rem', fontWeight: 800 }}>{snt ? `${snt.emoji} ` : ''}{startLabel} · {oc ? oc.label : APPOINTMENT_LABEL}</div>
                               <div style={{ fontSize: '0.72rem', fontWeight: 700 }} className="truncate">{l.name}</div>
                               {height > 44 && l.contact_person && (
                                 <div style={{ fontSize: '0.65rem', opacity: 0.9 }} className="truncate">
                                   <User size={9} style={{ verticalAlign: -1, marginRight: 2 }} />{l.contact_person}
                                 </div>
                               )}
-                              {height > 60 && selectedAmId === 'all' && (
+                              {height > 60 && (l.city || l.address) && (
+                                <div style={{ fontSize: '0.62rem', opacity: 0.9 }} className="truncate">📍 {l.city || l.address}</div>
+                              )}
+                              {height > 76 && selectedAmId === 'all' && (
                                 <div style={{ fontSize: '0.6rem', opacity: 0.85, fontWeight: 700, marginTop: 2 }} className="truncate">👤 {amName}</div>
                               )}
                             </div>
@@ -796,9 +819,9 @@ export default function Agenda() {
                       return (
                         <div
                           key={`l-${l.id}`}
-                          onClick={() => setDetailLead(l)}
+                          onClick={() => setApptLead(l)}
                           className="card glow-hover p-4 flex justify-between items-center cursor-pointer"
-                          style={{ borderLeft: '4px solid var(--primary)' }}
+                          style={{ borderLeft: `4px solid ${outcomeInfo(l.appointment_outcome)?.color || 'var(--primary)'}`, gap: '12px', flexWrap: 'wrap' }}
                         >
                           <div className="flex items-center gap-4">
                             <div className="text-center min-w-[70px]">
@@ -809,13 +832,26 @@ export default function Agenda() {
                             <div>
                               <div className="font-bold text-body text-base flex items-center gap-2">
                                 {l.name}
-                                <span className="badge badge-info text-[10px]">{APPOINTMENT_LABEL}</span>
+                                <span className="badge badge-info text-[10px]">{outcomeInfo(l.appointment_outcome)?.label || APPOINTMENT_LABEL}</span>
+                                {sentimentInfo(l.appointment_sentiment) && <span title={`Klant ${sentimentInfo(l.appointment_sentiment).label.toLowerCase()}`}>{sentimentInfo(l.appointment_sentiment).emoji}</span>}
                               </div>
                               <div className="text-xs text-muted mt-0.5 flex gap-3">
                                 {l.contact_person && <span>👤 {l.contact_person}</span>}
                                 {l.phone && <span>📞 {l.phone}</span>}
                                 {l.lead_lists?.campaigns?.name && <span>🏷️ {l.lead_lists.campaigns.name}</span>}
                               </div>
+                              {navigationUrl(l) && (
+                                <a
+                                  href={navigationUrl(l)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={e => e.stopPropagation()}
+                                  className="text-xs text-primary font-bold"
+                                  style={{ display: 'inline-block', marginTop: 4, textDecoration: 'none' }}
+                                >
+                                  📍 {leadAddressText(l)} · navigeer
+                                </a>
+                              )}
                             </div>
                           </div>
 
@@ -886,6 +922,25 @@ export default function Agenda() {
           accountmanagers={accountmanagers}
           defaultUserId={selectedAmId !== 'all' ? selectedAmId : user?.id}
         />
+
+        {/* v97: afspraakpopup */}
+        {apptLead && (
+          <AppointmentModal
+            lead={apptLead}
+            accountmanagers={accountmanagers}
+            canManage={canManage}
+            onClose={() => setApptLead(null)}
+            onOpenContactCard={(l) => { setApptLead(null); setDetailLead(l) }}
+            onChanged={(id, updates, opts) => {
+              if (opts?.removed) {
+                setAppointments(prev => prev.filter(a => a.id !== id))
+              } else {
+                setAppointments(prev => prev.map(a => a.id === id ? { ...a, ...updates } : a))
+                setApptLead(prev => prev && prev.id === id ? { ...prev, ...updates } : prev)
+              }
+            }}
+          />
+        )}
 
         {/* Contactkaart LeadDetailModal */}
         <LeadDetailModal
