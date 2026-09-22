@@ -305,11 +305,30 @@ export default function Admin() {
 
   if (profile && profile.role !== 'admin') return <Navigate to="/dashboard" />
 
+  // v93: leads ophalen zonder Supabase's stilzwijgende default-limiet van 1000
+  // rijen per request (geen .range() = automatisch afgekapt). Voor Admin (alle
+  // leads van de organisatie) halen we door in pagina's van 1000 tot een pagina
+  // niet meer vol zit, zodat ook orgs met >1000 leads compleet in beeld komen.
+  async function fetchAllLeads() {
+    const PAGE = 1000
+    const all = []
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(from, from + PAGE - 1)
+      if (error) throw error
+      all.push(...(data || []))
+      if (!data || data.length < PAGE) break
+    }
+    return all
+  }
+
   async function fetchData() {
     setLoading(true)
     try {
-      const { data: l, error: lErr } = await supabase.from('leads').select('*').order('created_at', { ascending: false })
-      if (lErr) throw lErr
+      const l = await fetchAllLeads()
       const { data: u, error: uErr } = await supabase.from('profiles').select('*').order('full_name')
       if (uErr) throw uErr
       const { data: pm } = await supabase.from('campaign_managers').select('campaign_id, manager_id')
