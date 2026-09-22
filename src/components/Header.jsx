@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
@@ -142,7 +142,22 @@ export default function Header({ onOpenSettings }) {
     return !sibling
   }
 
+  // Sidebar-navigatie: alleen voor de echte admin (Noah), ongeacht welke
+  // werkmodus (effectiveRole) actief staat. Andere rollen houden de
+  // bovenste horizontale nav zoals die was. body-class zorgt dat de
+  // paginacontent (elke pagina heeft zijn eigen <main>/wrapper) automatisch
+  // opschuift voor de vaste sidebar, zonder dat elke pagina aangepast hoeft.
+  useEffect(() => {
+    if (isRealAdmin) {
+      document.body.classList.add('has-admin-sidebar')
+    } else {
+      document.body.classList.remove('has-admin-sidebar')
+    }
+    return () => { document.body.classList.remove('has-admin-sidebar') }
+  }, [isRealAdmin])
+
   return (
+    <>
     <header className="header">
       <div className="container header-content">
         <div className="header-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
@@ -158,7 +173,7 @@ export default function Header({ onOpenSettings }) {
         </div>
 
         <nav
-          className={`nav ${mobileMenuOpen ? 'mobile-open' : ''}`}
+          className={`nav ${mobileMenuOpen ? 'mobile-open' : ''} ${isRealAdmin ? 'admin-has-sidebar' : ''}`}
           style={{
             marginLeft: '16px',
             flex: 1,
@@ -336,6 +351,39 @@ export default function Header({ onOpenSettings }) {
         </div>
       </div>
 
+    </header>
+
+    {/* Linker sidebar met alle navigatieknoppen, alleen voor de echte admin.
+        Andere rollen behouden de horizontale nav in de header hierboven. */}
+    {isRealAdmin && (
+      <aside className="admin-sidebar">
+        <div className="admin-sidebar-logo">
+          <Logo size="small" />
+        </div>
+        <nav className="admin-sidebar-nav">
+          {navLinks.map(link => (
+            <Link
+              key={link.path}
+              to={link.path}
+              className={isActive(link.path) ? 'active' : ''}
+            >
+              {link.label}
+            </Link>
+          ))}
+          <div className="admin-sidebar-label">Beheer</div>
+          {adminLinks.map(link => (
+            <Link
+              key={link.path}
+              to={link.path}
+              className={isActive(link.path) ? 'active' : ''}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </nav>
+      </aside>
+    )}
+
       <AccountSettingsModal isOpen={showAccount} onClose={() => setShowAccount(false)} profile={profile} />
       <style>{`
         .nav a {
@@ -348,6 +396,41 @@ export default function Header({ onOpenSettings }) {
         .nav a.active::after { display: none; }
         .nav-divider { width: 1px; align-self: stretch; background: var(--border-strong); margin: 2px 4px; }
         .mobile-menu-btn { display: none !important; }
+
+        /* ===== Admin-sidebar (linkerkant), alleen desktop (>900px) ===== */
+        .admin-sidebar { display: none; }
+        @media (min-width: 901px) {
+          .nav.admin-has-sidebar { display: none !important; }
+          body.has-admin-sidebar { padding-left: 220px; }
+          .admin-sidebar {
+            display: flex;
+            flex-direction: column;
+            position: fixed;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 220px;
+            background: var(--bg-surface);
+            border-right: 1px solid var(--border);
+            z-index: 1001;
+            overflow-y: auto;
+            padding: 16px 12px 24px;
+          }
+          .admin-sidebar-logo { padding: 4px 8px 16px; }
+          .admin-sidebar-nav { display: flex; flex-direction: column; gap: 2px; }
+          .admin-sidebar-nav a {
+            color: var(--text-muted); text-decoration: none; font-weight: 600;
+            font-size: 0.85rem; padding: 9px 12px; border-radius: 8px;
+            transition: color 0.15s, background 0.15s;
+          }
+          .admin-sidebar-nav a:hover { color: var(--text-primary); background: var(--bg-elevated); }
+          .admin-sidebar-nav a.active { color: var(--accent); background: var(--accent-soft); }
+          .admin-sidebar-label {
+            margin: 14px 12px 4px; font-size: 0.72rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); opacity: 0.7;
+          }
+        }
+
         @media (max-width: 900px) {
           .header-content { flex-direction: column; align-items: stretch; gap: 16px; padding: 12px 0; }
           .header-brand { width: 100%; }
@@ -361,6 +444,6 @@ export default function Header({ onOpenSettings }) {
           .header-actions { justify-content: space-between; overflow-x: auto; padding-bottom: 8px; }
         }
       `}</style>
-    </header>
+    </>
   )
 }
