@@ -682,6 +682,7 @@ export default function Agenda() {
                             <div
                               key={item.id}
                               onMouseDown={e => handleItemMouseDown(e, item, dayIdx)}
+                              onClick={e => e.stopPropagation()}
                               style={{
                                 position: 'absolute', top, height, left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
                                 background: 'rgba(59, 130, 246, 0.85)',
@@ -714,6 +715,7 @@ export default function Agenda() {
                           <div
                             key={item.id}
                             onMouseDown={e => handleItemMouseDown(e, item, dayIdx)}
+                            onClick={e => e.stopPropagation()}
                             style={{
                               position: 'absolute', top, height, left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
                               background: 'repeating-linear-gradient(45deg, rgba(245, 158, 11, 0.25), rgba(245, 158, 11, 0.25) 6px, rgba(245, 158, 11, 0.35) 6px, rgba(245, 158, 11, 0.35) 12px)',
