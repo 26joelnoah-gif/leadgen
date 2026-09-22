@@ -163,14 +163,21 @@ export default function Agenda() {
 
     try {
       // 1. Leads met afspraak
+      // Alleen projecten met campaigns.appointment_scheduling_enabled horen in
+      // deze accountmanager-agenda thuis (v91). Sollicitanten uit recruitment-
+      // projecten (type 'recruitment') krijgen ook appointment_at + status
+      // 'afspraak_gemaakt' voor hun gesprek, maar horen NIET in deze agenda -
+      // elk project heeft zijn eigen agenda. Daarom hier een !inner-join op
+      // lead_lists/campaigns zodat we op die vlag kunnen filteren.
       let leadsQuery = supabase
         .from('leads')
         .select(`
           id, name, contact_person, phone, email, status, appointment_at, notes,
           assigned_to, lead_list_id,
-          lead_lists(id, name, campaign_id, campaigns(id, name))
+          lead_lists!inner(id, name, campaign_id, campaigns!inner(id, name, appointment_scheduling_enabled))
         `)
         .eq('status', 'afspraak_gemaakt')
+        .eq('lead_lists.campaigns.appointment_scheduling_enabled', true)
         .gte('appointment_at', rangeStart)
         .lte('appointment_at', rangeEnd)
         .is('deleted_at', null)
