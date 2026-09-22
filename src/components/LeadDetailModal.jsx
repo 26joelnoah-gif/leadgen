@@ -261,6 +261,12 @@ export default function LeadDetailModal({ isOpen, onClose, lead, assignedName, o
               <User size={15} style={{ flexShrink: 0 }} />
               <span>Toegewezen aan: {assignedName || 'Niemand'}</span>
             </div>
+            {lead.appointment_at && (
+              <div className="flex items-center gap-2 text-primary font-bold" style={{ minWidth: 0 }}>
+                <Calendar size={15} style={{ flexShrink: 0 }} />
+                <span>Afspraak: {formatDateTime(lead.appointment_at)}</span>
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '14px', marginBottom: '20px' }}>

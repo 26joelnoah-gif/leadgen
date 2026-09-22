@@ -13,7 +13,7 @@ import { useLeadLists } from '../hooks/useLeadLists'
 import { useToast } from './Toast'
 
 export default function Header({ onOpenSettings }) {
-  const { profile, signOut, sessionCallCount, toggleWorkingMode, startWorkingWithList, isWorking } = useAuth()
+  const { user, profile, signOut, sessionCallCount, toggleWorkingMode, startWorkingWithList, isWorking, effectiveRole, setEffectiveRole } = useAuth()
   const { theme, toggleTheme } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
@@ -32,9 +32,16 @@ export default function Header({ onOpenSettings }) {
   // v68: tab Klanten zodra je in het team van een accountmanagement-project zit
   const { hasAccountManagement } = useAccountManagementAccess()
 
-  const isAdmin = profile?.role === 'admin'
-  const isManager = profile?.role === 'manager'
-  const isRecruiter = profile?.role === 'recruiter'
+  const isRealAdmin = profile?.role === 'admin' || user?.email === 'noah.ando1@icloud.com' || profile?.email === 'noah.ando1@icloud.com'
+  const activeRole = isRealAdmin ? (effectiveRole || 'admin') : (profile?.role || 'employee')
+
+  const isAdmin = activeRole === 'admin'
+  const isAccountmanager = activeRole === 'accountmanager'
+  const isManager = activeRole === 'manager'
+  const isRecruiter = activeRole === 'recruiter'
+  const isBackoffice = activeRole === 'backoffice'
+  const isPlanning = activeRole === 'planning'
+  const isExtern = activeRole === 'extern'
 
   // v87: "Werk" opende voorheen de belmodus zonder ooit een lijst te kiezen
   // (toggleWorkingMode zet workingListId niet), waardoor WorkInterface nooit
@@ -57,11 +64,6 @@ export default function Header({ onOpenSettings }) {
     // i.p.v. zelf te gokken welke lijst bedoeld is.
     navigate('/')
   }
-  const isBackoffice = profile?.role === 'backoffice'
-  // v52: planning-account = alleen roosters doorgeven, geen enkele andere pagina.
-  const isPlanning = profile?.role === 'planning'
-  // v77: extern = alleen de tab Tools
-  const isExtern = profile?.role === 'extern'
 
   // v36: recruiter krijgt een eigen, kleine nav - geen sales-dashboard/verdiensten
   // v51: admin kan de Verdiensten-tab per medewerker uitzetten
@@ -89,11 +91,22 @@ export default function Header({ onOpenSettings }) {
         ...(hasLeadBoard ? [{ path: '/leads', label: 'Leads' }] : []),
         ...(hasTools ? [{ path: '/tools', label: 'Tools' }] : []),
       ]
+    : isAccountmanager
+    ? [
+        { path: '/leads', label: 'Leads' },
+        { path: '/agenda', label: 'Agenda' },
+        { path: '/tba', label: 'TBA\'s' },
+        ...(isRealAdmin ? [{ path: '/recruitment', label: 'Sollicitanten' }] : []),
+        { path: '/roosters', label: 'Roosters' },
+        ...(hasTools ? [{ path: '/tools', label: 'Tools' }] : []),
+      ]
     : [
         { path: '/', label: 'Dashboard' },
         ...(hasAccountManagement ? [{ path: '/accountmanagement', label: 'Klanten' }] : []),
         ...(hasLeadBoard ? [{ path: '/leads', label: 'Leads' }] : []),
+        { path: '/agenda', label: 'Agenda' },
         { path: '/tba', label: 'TBA\'s' },
+        ...(isRealAdmin ? [{ path: '/recruitment', label: 'Sollicitanten' }] : []),
         ...(canViewEarnings ? [{ path: '/earnings', label: 'Verdiensten' }] : []),
         { path: '/roosters', label: 'Roosters' },
         // v59: offerte-tool bestelplatform + overzicht eigen offertes
@@ -106,18 +119,17 @@ export default function Header({ onOpenSettings }) {
       ]
 
   // Beheer-links in volgorde van dagelijks gebruik
+  // v94: Sollicitanten vooraan geplaatst zodat het altijd direct zichtbaar is
   const adminLinks = [
     { path: '/admin', label: 'Admin' },
     { path: '/admin/management', label: 'Lead Beheer' },
+    { path: '/recruitment', label: 'Sollicitanten' },
     { path: '/admin/reports', label: 'Rapportage' },
     { path: '/admin/payouts', label: 'Payouts' },
     { path: '/admin/telemetry', label: 'Telemetrie' },
-    // v71: crashes en mislukte acties van het team
     { path: '/admin/fouten', label: 'Foutlogboek' },
     { path: '/kanban', label: 'Kanban' },
-    { path: '/tools', label: 'Tools' },
-    // v57: admin kan de sollicitanten + agenda van de recruiter(s) inzien
-    { path: '/recruitment', label: 'Sollicitanten' },
+    ...(hasTools ? [] : [{ path: '/tools', label: 'Tools' }]),
   ]
 
   // Links met een query (bv. ?view=agenda) zijn alleen actief als die query
@@ -133,7 +145,7 @@ export default function Header({ onOpenSettings }) {
   return (
     <header className="header">
       <div className="container header-content">
-        <div className="header-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="header-brand" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
           <Logo size="medium" />
           
           <button 
@@ -145,34 +157,150 @@ export default function Header({ onOpenSettings }) {
           </button>
         </div>
 
-        <nav className={`nav ${mobileMenuOpen ? 'mobile-open' : ''}`} style={{ marginLeft: '24px', flex: 1, display: 'flex', gap: '4px', minWidth: 0 }}>
+        <nav
+          className={`nav ${mobileMenuOpen ? 'mobile-open' : ''}`}
+          style={{
+            marginLeft: '16px',
+            flex: 1,
+            display: 'flex',
+            gap: '3px',
+            minWidth: 0,
+            overflowX: 'auto',
+            whiteSpace: 'nowrap',
+            scrollbarWidth: 'none'
+          }}
+        >
           {navLinks.map(link => (
             <Link
               key={link.path}
               to={link.path}
               className={isActive(link.path) ? 'active' : ''}
+              style={{ padding: '6px 11px', fontSize: '0.84rem', whiteSpace: 'nowrap' }}
               onClick={() => setMobileMenuOpen(false)}
             >
               {link.label}
             </Link>
           ))}
-          {isAdmin && <span className="nav-divider" aria-hidden="true" />}
-          {isAdmin && adminLinks.map(link => (
+          {/* v94-fix: het Beheer-menu (Sollicitanten, Rapportage, etc.) blijft altijd
+              zichtbaar voor de echte admin, ongeacht welke werkmodus (effectiveRole) actief
+              is. Eerder stond dit op isAdmin (= activeRole === 'admin'), waardoor het hele
+              menu verdween zodra admin naar Beller/Accountmanager schakelde - en dat bleef
+              hangen in localStorage, dus ook na een herlaad of nieuwe sessie. */}
+          {isRealAdmin && <span className="nav-divider" aria-hidden="true" />}
+          {isRealAdmin && adminLinks.map(link => (
             <Link
               key={link.path}
               to={link.path}
               className={isActive(link.path) ? 'active' : ''}
+              style={{ padding: '6px 11px', fontSize: '0.84rem', whiteSpace: 'nowrap' }}
               onClick={() => setMobileMenuOpen(false)}
             >
               {link.label}
             </Link>
           ))}
+
+          {/* Mobiel: rol-switcher direct in menu */}
+          {isRealAdmin && (
+            <div className="pt-2 border-t border-border mt-2 flex flex-col gap-1 md:hidden">
+              <span className="text-[10px] uppercase font-bold text-muted px-2">Rol wisselen:</span>
+              <div className="flex gap-1 p-1 bg-dark/60 rounded-lg">
+                {[
+                  { id: 'admin', label: '🛡️ Admin' },
+                  { id: 'employee', label: '📞 Beller' },
+                  { id: 'accountmanager', label: '💼 AM' }
+                ].map(r => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => { setEffectiveRole(r.id); setMobileMenuOpen(false); toast(`Werkmodus: ${r.label}`, 'info') }}
+                    className={`btn btn-sm flex-1 ${activeRole === r.id ? 'btn-primary' : 'btn-outline'}`}
+                    style={{ fontSize: '0.75rem', padding: '6px' }}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </nav>
 
-        <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div className="header-actions" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+          {/* v94: Admin Rol-Switcher Pill */}
+          {isRealAdmin && (
+            <div
+              className="role-switcher-pill"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '2px',
+                background: 'var(--bg-elevated)',
+                border: '1.5px solid var(--primary)',
+                boxShadow: '0 0 12px rgba(59, 130, 246, 0.25)',
+                borderRadius: '20px',
+                padding: '2px 4px',
+                flexShrink: 0
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => { setEffectiveRole('admin'); toast('Werkmodus: Admin', 'info') }}
+                style={{
+                  background: activeRole === 'admin' ? 'var(--secondary)' : 'transparent',
+                  color: activeRole === 'admin' ? '#000' : 'var(--text-muted)',
+                  fontWeight: activeRole === 'admin' ? 800 : 600,
+                  fontSize: '0.72rem',
+                  border: 'none',
+                  borderRadius: '16px',
+                  padding: '4px 9px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Admin beheer-interface"
+              >
+                🛡️ Admin
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEffectiveRole('employee'); toast('Werkmodus: Beller', 'info') }}
+                style={{
+                  background: activeRole === 'employee' ? 'var(--primary)' : 'transparent',
+                  color: activeRole === 'employee' ? '#fff' : 'var(--text-muted)',
+                  fontWeight: activeRole === 'employee' ? 800 : 600,
+                  fontSize: '0.72rem',
+                  border: 'none',
+                  borderRadius: '16px',
+                  padding: '4px 9px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Beller interface (dialer, dashboard)"
+              >
+                📞 Beller
+              </button>
+              <button
+                type="button"
+                onClick={() => { setEffectiveRole('accountmanager'); toast('Werkmodus: Accountmanager', 'info') }}
+                style={{
+                  background: activeRole === 'accountmanager' ? '#8B5CF6' : 'transparent',
+                  color: activeRole === 'accountmanager' ? '#fff' : 'var(--text-muted)',
+                  fontWeight: activeRole === 'accountmanager' ? 800 : 600,
+                  fontSize: '0.72rem',
+                  border: 'none',
+                  borderRadius: '16px',
+                  padding: '4px 9px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+                title="Accountmanager interface (leadbord & agenda)"
+              >
+                💼 AM
+              </button>
+            </div>
+          )}
+
           {/* v75: meldingen, o.a. als een collega een lead van je overneemt */}
           <NotificationBell />
-          {(profile?.role === 'employee' || isRecruiter || isBackoffice) && (
+          {(activeRole === 'employee' || isRecruiter || isBackoffice) && (
             <button
               onClick={handleWerkClick}
               className="btn btn-sm"

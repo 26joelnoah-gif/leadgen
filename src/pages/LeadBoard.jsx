@@ -439,9 +439,35 @@ export default function LeadBoard() {
     moveLead(lead, column.dropStatus)
   }
 
-  function confirmDatePrompt() {
+  async function confirmDatePrompt() {
     if (!datePrompt?.value) return
     const { lead, column, value } = datePrompt
+
+    // v94: check of het gekozen moment geblokkeerd is in agenda_blocks
+    if (column.dateField === 'appointment_at') {
+      try {
+        const targetDate = new Date(value)
+        const targetEnd = new Date(targetDate.getTime() + 45 * 60 * 1000)
+        const amId = lead.assigned_to || user?.id
+
+        if (amId) {
+          const { data: blocks } = await supabase
+            .from('agenda_blocks')
+            .select('*')
+            .eq('user_id', amId)
+            .lt('start_at', targetEnd.toISOString())
+            .gt('end_at', targetDate.toISOString())
+
+          if (blocks && blocks.length > 0) {
+            toast(`⚠️ Dit tijdvak is geblokkeerd ("${blocks[0].title || 'Niet beschikbaar'}"). Kies een ander moment.`, 'error', 7000)
+            return
+          }
+        }
+      } catch (err) {
+        console.error('Check agenda_blocks mislukt:', err)
+      }
+    }
+
     moveLead(lead, column.dropStatus, { [column.dateField]: new Date(value).toISOString() })
     setDatePrompt(null)
   }
@@ -449,18 +475,26 @@ export default function LeadBoard() {
   // Mailen blijft handmatig: de Mailingservice stuurt pas na bevestiging, en pas
   // als de mail echt weg is gaat de lead op "Mail verstuurd" met een opvolgdatum
   // (zelfde regels als in het belscherm, v69/v70).
+  // v93: staat de lead al op een terugbelafspraak (TBA), dan is deze mail een
+  // HERINNERING erbovenop - geen nieuwe dispositie. Status en terugbelmoment
+  // blijven dan gewoon staan, anders verdween de TBA uit "Terugbellen" en was
+  // hij nergens meer terug te vinden zodra je ook nog een mail stuurde.
   async function handleMailSent({ email, contactpersoon, followUpDays: dagen, source, mailType }) {
     const lead = mailLead
     if (!lead) return
-    const updates = { status: 'mail_verstuurd', updated_at: new Date().toISOString() }
-    if (boardEnabled && user?.id) updates.assigned_to = user.id // v79
-    // Wie mailt, pakt de lead (zelfde regel als in het belscherm, v75), als hij nog van niemand is.
-    if (!lead.locked_by && user?.id) { updates.locked_by = user.id; updates.locked_at = new Date().toISOString() }
+    const behoudTba = lead.status === 'terugbelafspraak'
+    const updates = { updated_at: new Date().toISOString() }
+    if (!behoudTba) {
+      updates.status = 'mail_verstuurd'
+      const next = new Date()
+      next.setDate(next.getDate() + (Number(dagen) || followUpDays))
+      updates.next_contact_date = next.toISOString()
+      if (boardEnabled && user?.id) updates.assigned_to = user.id // v79
+      // Wie mailt, pakt de lead (zelfde regel als in het belscherm, v75), als hij nog van niemand is.
+      if (!lead.locked_by && user?.id) { updates.locked_by = user.id; updates.locked_at = new Date().toISOString() }
+    }
     if (email && email !== (lead.email || '').trim().toLowerCase()) updates.email = email
     if (contactpersoon && contactpersoon !== (lead.contact_person || '').trim()) updates.contact_person = contactpersoon
-    const next = new Date()
-    next.setDate(next.getDate() + (Number(dagen) || followUpDays))
-    updates.next_contact_date = next.toISOString()
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, ...updates } : l))
     const { error } = await supabase.from('leads').update(updates).eq('id', lead.id)
     setMailLead(null)
@@ -469,17 +503,25 @@ export default function LeadBoard() {
       load(true)
       return
     }
-    logBoardActivity(lead.id, `Mailingservice (${mailSourceLabel(source)}): ${mailTypeLabel(mailType).toLowerCase()} verstuurd naar ${email} (bord)`)
-    toast(`${mailTypeLabel(mailType)} verstuurd naar ${email}`, 'success')
+    logBoardActivity(lead.id, `Mailingservice (${mailSourceLabel(source)}): ${mailTypeLabel(mailType).toLowerCase()} verstuurd naar ${email}${behoudTba ? ' - terugbelafspraak blijft staan' : ''} (bord)`)
+    toast(behoudTba ? `${mailTypeLabel(mailType)} verstuurd naar ${email} - de terugbelafspraak blijft staan` : `${mailTypeLabel(mailType)} verstuurd naar ${email}`, 'success')
   }
 
   // v78: mail bewaard voor later. Lead op 'mail_gepland' zonder opvolgdatum;
   // die komt pas als de mail vanuit de Mailinglijst echt verstuurd is.
+  // v93: staat de lead al op een terugbelafspraak (TBA), dan blijft die gewoon
+  // staan - dit plant alleen een extra herinneringsmail, het is geen nieuwe
+  // dispositie (zie handleMailSent hierboven).
   async function handleMailQueued({ email, contactpersoon, source, mailType, sendAt }) {
     const lead = mailLead
     if (!lead) return
-    const updates = { status: 'mail_gepland', next_contact_date: null, updated_at: new Date().toISOString() }
-    if (boardEnabled && user?.id) updates.assigned_to = user.id // v79
+    const behoudTba = lead.status === 'terugbelafspraak'
+    const updates = { updated_at: new Date().toISOString() }
+    if (!behoudTba) {
+      updates.status = 'mail_gepland'
+      updates.next_contact_date = null
+      if (boardEnabled && user?.id) updates.assigned_to = user.id // v79
+    }
     if (email && email !== (lead.email || '').trim().toLowerCase()) updates.email = email
     if (contactpersoon && contactpersoon !== (lead.contact_person || '').trim()) updates.contact_person = contactpersoon
     setLeads(prev => prev.map(l => l.id === lead.id ? { ...l, ...updates } : l))
@@ -491,7 +533,7 @@ export default function LeadBoard() {
       return
     }
     const wanneer = sendAt ? ` (gaat automatisch op ${dateShort(sendAt)})` : '' // v83
-    logBoardActivity(lead.id, `Mailingservice (${mailSourceLabel(source)}): ${mailTypeLabel(mailType).toLowerCase()} bewaard in de mailinglijst voor ${email}${wanneer} (bord)`)
+    logBoardActivity(lead.id, `Mailingservice (${mailSourceLabel(source)}): ${mailTypeLabel(mailType).toLowerCase()} bewaard in de mailinglijst voor ${email}${wanneer}${behoudTba ? ' - terugbelafspraak blijft staan' : ''} (bord)`)
     toast(sendAt ? `${mailTypeLabel(mailType)} ingepland voor ${dateShort(sendAt)}` : `${mailTypeLabel(mailType)} bewaard in de mailinglijst`, 'success')
   }
 

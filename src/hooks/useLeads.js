@@ -58,14 +58,24 @@ export function useLeads() {
     try {
       let filteredLeads = []
       
-      if (profile?.role === 'admin') {
-        const { data, error } = await supabase
-          .from('leads')
-          .select('*, lead_lists(assigned_team_id, campaigns(type))')
-          .is('deleted_at', null)
-          .order('created_at', { ascending: false })
-        if (error) throw error
-        filteredLeads = data || []
+      const isUserAdmin = profile?.role === 'admin'
+      const PAGE = 1000
+
+      if (isUserAdmin) {
+        // v93/v94: pagineer in blokken van 1000 zodat organisaties met >1000 leads compleet worden opgehaald
+        const all = []
+        for (let from = 0; ; from += PAGE) {
+          const { data, error } = await supabase
+            .from('leads')
+            .select('*, lead_lists(assigned_team_id, campaigns(type))')
+            .is('deleted_at', null)
+            .order('created_at', { ascending: false })
+            .range(from, from + PAGE - 1)
+          if (error) throw error
+          all.push(...(data || []))
+          if (!data || data.length < PAGE) break
+        }
+        filteredLeads = all
       } else {
         const me = user?.id
         // 1. Get user's teams
@@ -90,11 +100,7 @@ export function useLeads() {
           }
         }
 
-        // 2b. v57: lijsten die van mij zijn (of die ik heb aangemaakt) tellen
-        // ook mee. Zonder dit zag bijvoorbeeld een recruiter alleen leads met
-        // assigned_to = zichzelf, dus niet de sollicitanten die een admin in
-        // zijn eigen lijst had gezet of waarvan assigned_to leeg was geraakt.
-        // RLS (leads_select -> my_list_ids) staat dit al toe.
+        // 2b. v57: lijsten die van mij zijn (of die ik heb aangemaakt) tellen ook mee
         let ownListIds = []
         {
           const { data: ownLists } = await supabase
@@ -105,19 +111,36 @@ export function useLeads() {
           ownListIds = ownLists?.map(l => l.id) || []
         }
 
+        // 2c. v94: accountmanager heeft ook toegang tot actieve accountmanagement-projecten
+        let amListIds = []
+        if (profile?.role === 'accountmanager') {
+          const { data: amLists } = await supabase
+            .from('lead_lists')
+            .select('id, campaigns(type)')
+            .is('deleted_at', null)
+          amListIds = (amLists || []).filter(l => l.campaigns?.type === 'accountmanagement').map(l => l.id)
+        }
+
         // 3. Build OR filter: assigned to me OR in my team's lists OR in my own lists
         let query = supabase.from('leads').select('*, lead_lists(assigned_team_id, campaigns(type))').is('deleted_at', null)
 
-        const visibleListIds = [...new Set([...teamListIds, ...ownListIds])]
+        const visibleListIds = [...new Set([...teamListIds, ...ownListIds, ...amListIds])]
         if (visibleListIds.length > 0) {
           query = query.or(`assigned_to.eq.${me},lead_list_id.in.(${visibleListIds.join(',')})`)
         } else {
           query = query.eq('assigned_to', me)
         }
         
-        const { data, error } = await query.order('created_at', { ascending: false })
-        if (error) throw error
-        filteredLeads = data || []
+        const all = []
+        for (let from = 0; ; from += PAGE) {
+          const { data, error } = await query
+            .order('created_at', { ascending: false })
+            .range(from, from + PAGE - 1)
+          if (error) throw error
+          all.push(...(data || []))
+          if (!data || data.length < PAGE) break
+        }
+        filteredLeads = all
       }
 
       const scoredLeads = filteredLeads.map(l => ({

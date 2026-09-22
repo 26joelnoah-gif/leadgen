@@ -25,6 +25,14 @@ export function AuthProvider({ children }) {
   const [sessionCallCount, setSessionCallCount] = useState(0)
   const pingClickCountRef = useRef(0) // v43: klik-teller voor intensiteit/ingelogde-tijd (Admin)
 
+  // v94: rol-switcher voor admin (kan werken als admin, beller of accountmanager)
+  const [effectiveRoleState, setEffectiveRoleState] = useState(() => {
+    try { return localStorage.getItem('leadgen-effective-role') || null } catch { return null }
+  })
+  const [projectRoles, setProjectRoles] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('leadgen-project-roles') || '{}') } catch { return {} }
+  })
+
   // Check if Supabase is configured, otherwise use demo mode
   useEffect(() => {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
@@ -116,15 +124,31 @@ export function AuthProvider({ children }) {
     return data
   }
 
+  // v94-fix: de rol-switcher (effectiveRole/projectRoles) stond in localStorage
+  // zonder ooit gewist te worden, dus een admin die 1x "Beller" of
+  // "Accountmanager" had gekozen bleef daar - ook na uitloggen en weer
+  // inloggen (of voor een andere admin op hetzelfde apparaat) - in staan.
+  // Wissen bij signOut zodat een nieuwe sessie altijd met de echte rol start.
+  function clearEffectiveRoleStorage() {
+    try {
+      localStorage.removeItem('leadgen-effective-role')
+      localStorage.removeItem('leadgen-project-roles')
+    } catch { /* private browsing */ }
+    setEffectiveRoleState(null)
+    setProjectRoles({})
+  }
+
   async function signOut() {
     if (isDemoMode) {
       setUser(null)
       setProfile(null)
+      clearEffectiveRoleStorage()
       return
     }
     await supabase.auth.signOut()
     setUser(null)
     setProfile(null)
+    clearEffectiveRoleStorage()
   }
 
   function toggleWorkingMode(lead = null) {
@@ -206,11 +230,47 @@ export function AuthProvider({ children }) {
     setProfile(prev => (prev ? { ...prev, ...patch } : prev))
   }
 
+  // v94: rol-switcher helpers
+  const isOwner = user?.email === 'noah.ando1@icloud.com' || profile?.email === 'noah.ando1@icloud.com'
+  const isAdmin = profile?.role === 'admin' || isOwner
+  const effectiveRole = (isAdmin && effectiveRoleState) ? effectiveRoleState : (profile?.role || 'employee')
+
+  function setEffectiveRole(role) {
+    setEffectiveRoleState(role)
+    try {
+      if (role) localStorage.setItem('leadgen-effective-role', role)
+      else localStorage.removeItem('leadgen-effective-role')
+    } catch { /* private browsing */ }
+  }
+
+  function setProjectRole(projectId, role) {
+    setProjectRoles(prev => {
+      const next = { ...prev, [projectId]: role }
+      try { localStorage.setItem('leadgen-project-roles', JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }
+
+  function getProjectRole(projectId) {
+    if (projectId && projectRoles[projectId]) return projectRoles[projectId]
+    return effectiveRole
+  }
+
   return (
     <AuthContext.Provider value={{ 
       user, profile, loading, signIn, signOut, isDemoMode, 
       isWorking, toggleWorkingMode, startWorkingWithList, workingListId, setWorkingListId, workingLead, setWorkingLead, sessionCallCount, logCall,
-      updateProfileLocal
+      updateProfileLocal,
+      effectiveRole,
+      setEffectiveRole,
+      projectRoles,
+      setProjectRole,
+      getProjectRole,
+      isEffectiveAdmin: effectiveRole === 'admin',
+      isEffectiveAccountmanager: effectiveRole === 'accountmanager',
+      isEffectiveEmployee: effectiveRole === 'employee',
+      isEffectiveManager: effectiveRole === 'manager',
+      isEffectiveRecruiter: effectiveRole === 'recruiter'
     }}>
       {children}
     </AuthContext.Provider>

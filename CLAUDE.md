@@ -1,5 +1,7 @@
 # LEADGEN — Project Visie & Context
 
+> Werk je hier vanuit Antigravity (Minimax of Gemini)? Lees eerst `.agents/rules/00-start-here.md`, dat wordt automatisch geladen en verwijst hierheen terug. Dit bestand blijft de volledige bron van waarheid voor alle AI's op dit project.
+
 ## Eigenaar
 Noah Ando — noah.ando1@icloud.com
 Bouwt zonder programmeerervaring, dag 3-4 op moment van documenteren.
@@ -52,6 +54,8 @@ Twee-zijdig platform:
 - **Minimax** (Claude terminal Antigravity): complexe refactors, hooks, logica
 - **Gemini Flash** (apart venster Antigravity): snelle targeted fixes, CSS, simpele wijzigingen
 - **Claude (Cowork)**: architectuur, bugs vinden, directe fixes, visie bewaken
+
+**2026-09-22:** regels voor Antigravity staan nu ook los in `.agents/rules/` (wordt automatisch geladen, geen copy-paste meer nodig). Losse taak-briefings gaan in `.claude/shared/STATUS.md` (korte momentopname, overschrijven bij elke update). De oude `inbox_*.md`-bestanden zijn verouderd en verplaatst naar `.claude/shared/_archief/`.
 
 ## Belangrijke Beslissingen
 - WorkInterface = globale overlay via AuthContext (niet prop-based)
@@ -230,3 +234,47 @@ Twee-zijdig platform:
   "Lead overnemen?"-popup wanneer een lead alleen assigned_to is (niet
   locked_by) aan een collega; de popup-tekst en de "wie heeft hem"-naam in
   doeOvername vallen terug op assignedNames als er geen actieve lock is.
+
+- **ACCOUNTMANAGER ROL, AGENDA & TIJDSBLOKKADES (v94, 2026-09-22, migratie toegepast):**
+  Nieuwe rol 'accountmanager' in profiles_role_check.
+  1. Werkplek accountmanager: landt direct op het leadbord (/leads) en heeft
+     een afsprakenagenda (/agenda) met week- en lijstweergave.
+  2. Blokkades: accountmanager kan tijdvakken blokkeren via tabel agenda_blocks
+     (start_at, end_at, title), met RLS (inzage hele org, beheer eigen regels + admin).
+  3. Inplannen door bellers: WorkInterface en LeadBoard controleren realtime
+     tegen agenda_blocks en bestaande afspraken van de gekozen accountmanager.
+     Bij conflict wordt inplannen geblokkeerd en toont het scherm een duidelijke
+     waarschuwing.
+  4. Rol-switcher voor admin: Noah kan via een subtiele pill in de header
+     en op het Dashboard direct wisselen tussen Admin, Beller en Accountmanager
+     (globaal en per project) zonder uit te loggen.
+  Migratie: migration_v94_accountmanager_agenda.sql (toegepast op Supabase).
+
+- **v94-NAZORG (2026-09-22): drie regressies van de eerste Antigravity-poging
+  gefixt.** Antigravity had de rol-switcher (effectiveRole) en de bijbehorende
+  UI gebouwd, maar drie dingen gingen mis:
+  1. Sollicitanten (en de rest van het Beheer-menu: Rapportage, Payouts, etc.)
+     verdwenen uit de header zodra admin naar Beller/Accountmanager schakelde,
+     en dat bleef hangen in localStorage (ook na herladen/opnieuw inloggen).
+     Oorzaak: Header.jsx toonde het Beheer-menu op `isAdmin` (= de GEKOZEN
+     werkmodus), niet op de echte rol. Gefixt: het Beheer-menu gebruikt nu
+     altijd `isRealAdmin` (de echte profile.role), dus een admin kan het nooit
+     meer kwijtraken, ongeacht welke werkmodus actief is.
+  2. Sollicitanten-tellers stonden op (bijna) 0: Recruitment.jsx liet admin
+     altijd maar 1 recruitment-lijst zien (`recruitmentLists[0]`), niet alle
+     lijsten gepoold. Antigravity's eerste poging om dit te fixen voegde een
+     eigen ongepagineerde query toe (`fetchRecruitmentLeads`) die tegen
+     Supabase's default limiet van 1000 rijen kon aanlopen - dezelfde bug als
+     v93 net had opgelost. Vereenvoudigd: baseApplicants poolt nu gewoon alle
+     recruitment-lijsten uit de leads die useLeads() al compleet en
+     gepagineerd ophaalt voor admin, met een dropdown om te filteren op 1
+     lijst. Geen aparte query meer nodig.
+  3. De migratie (profiles_role_check + tabel agenda_blocks) stond wel in de
+     repo maar was nog niet uitgevoerd in Supabase, dus de rol 'accountmanager'
+     opslaan of de agenda gebruiken zou een DB-fout hebben gegeven. Nu
+     toegepast.
+  Klein: Agenda.jsx gebruikte window.confirm() bij het verwijderen van een
+  blokkade - dat mag niet (zie CLAUDE.md-regels), vervangen door hetzelfde
+  "klik nogmaals" patroon als Admin > Prullenbak. En AuthContext.signOut()
+  wist nu ook leadgen-effective-role/leadgen-project-roles uit localStorage,
+  zodat een nieuwe sessie altijd met de echte rol start.

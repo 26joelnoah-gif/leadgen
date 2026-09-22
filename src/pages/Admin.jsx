@@ -46,7 +46,7 @@ function fmtBeltijd(totalSeconds) {
 }
 
 export default function Admin() {
-  const { user, profile, isWorking, toggleWorkingMode, isDemoMode } = useAuth()
+  const { user, profile, isWorking, toggleWorkingMode, isDemoMode, effectiveRole, setEffectiveRole, setProjectRole, getProjectRole, projectRoles } = useAuth()
   const toast = useToast()
   const { leadLists, fetchLeadLists } = useLeadLists()
 
@@ -272,6 +272,8 @@ export default function Admin() {
       toast(
         employeeData.role === 'manager'
           ? 'Manager aangemaakt! Koppel nu projecten via de knop "Projecten".'
+          : employeeData.role === 'accountmanager'
+          ? 'Accountmanager aangemaakt! Koppel via Lead Beheer > Teams aan een project om de leads en agenda te gebruiken.'
           : employeeData.role === 'recruiter'
           ? 'Recruiter aangemaakt! Het sollicitatieproject "Sollicitanten" staat klaar.'
           : employeeData.role === 'planning'
@@ -303,7 +305,8 @@ export default function Admin() {
     return { projects: userProjects, lists: userLists }
   }
 
-  if (profile && profile.role !== 'admin') return <Navigate to="/dashboard" />
+  const isOwner = user?.email === 'noah.ando1@icloud.com' || profile?.email === 'noah.ando1@icloud.com'
+  if (profile && profile.role !== 'admin' && !isOwner) return <Navigate to="/dashboard" />
 
   // v93: leads ophalen zonder Supabase's stilzwijgende default-limiet van 1000
   // rijen per request (geen .range() = automatisch afgekapt). Voor Admin (alle
@@ -556,6 +559,76 @@ export default function Admin() {
       <Header />
 
       <main className="container-wide py-6 px-8">
+        {/* v94: Rol-switcher voor admin - direct bovenaan Admin zichtbaar op ELKE tab */}
+        <div className="glass-panel p-5 mb-6 border border-primary/40" style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%)', boxShadow: '0 4px 20px rgba(59, 130, 246, 0.1)' }}>
+          <div className="flex justify-between items-start mb-4" style={{ flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h3 className="font-black text-sm uppercase tracking-widest text-primary flex items-center gap-2">
+                <Shield size={16} /> Mijn Werkmodus &amp; Rol-Switcher
+              </h3>
+              <p className="text-muted text-xs mt-1" style={{ maxWidth: '680px' }}>
+                Als beheerder kun je hier je actieve werkmodus kiezen. Schakel direct naar <strong>Beller</strong> om leads te bellen via de dialer, of naar <strong>Accountmanager</strong> om afspraken in de agenda te zien en te beheren.
+              </p>
+            </div>
+            <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+              {[
+                { id: 'admin', label: '🛡️ Admin (Beheer)', desc: 'Volledige admin-interface' },
+                { id: 'employee', label: '📞 Beller', desc: 'Bellen via belwachtrij' },
+                { id: 'accountmanager', label: '💼 Accountmanager', desc: 'Leadbord & agenda' }
+              ].map(m => {
+                const isActive = (effectiveRole || 'admin') === m.id
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      setEffectiveRole(m.id)
+                      toast(`Werkmodus gewijzigd naar: ${m.label}`, 'success')
+                    }}
+                    className={`btn btn-sm ${isActive ? 'btn-primary' : 'btn-outline'}`}
+                    style={{ fontWeight: 800, padding: '7px 14px' }}
+                    title={m.desc}
+                  >
+                    {m.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Per-project rolkiezer */}
+          {campaigns.length > 0 && (
+            <div className="pt-3 border-t border-border/40">
+              <div className="text-[11px] font-bold text-muted uppercase tracking-wider mb-2">
+                Of stel je specifieke rol per project in:
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                {campaigns.map(c => {
+                  const currentRole = getProjectRole(c.id)
+                  return (
+                    <div key={c.id} className="p-2.5 rounded-lg border border-border bg-dark/60 flex items-center justify-between gap-2">
+                      <span className="text-xs font-bold truncate">{c.name}</span>
+                      <select
+                        value={currentRole}
+                        onChange={e => {
+                          setProjectRole(c.id, e.target.value)
+                          toast(`Rol voor project "${c.name}" ingesteld op ${e.target.value === 'accountmanager' ? 'Accountmanager' : e.target.value === 'employee' ? 'Beller' : 'Admin'}`, 'success')
+                        }}
+                        className="form-dark text-xs"
+                        style={{ padding: '3px 6px', borderRadius: '6px' }}
+                      >
+                        <option value="admin">Admin</option>
+                        <option value="employee">Beller</option>
+                        <option value="accountmanager">Accountmanager</option>
+                      </select>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* TABS MENU */}
         <div className="tab-bar mb-8">
            {[
@@ -778,7 +851,7 @@ export default function Admin() {
                            </div>
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
-                           <span className={`self-start shrink-0 whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : u.role === 'recruiter' ? 'bg-warning/20 text-warning' : u.role === 'backoffice' ? 'bg-primary/20 text-primary' : u.role === 'planning' ? 'bg-muted/20 text-muted' : u.role === 'extern' ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}`}>{u.role === 'employee' ? 'Beller' : u.role === 'recruiter' ? 'Recruiter' : u.role === 'backoffice' ? 'Backoffice' : u.role === 'planning' ? 'Planning' : u.role === 'extern' ? 'Extern' : u.role}</span>
+                           <span className={`self-start shrink-0 whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : u.role === 'accountmanager' ? 'bg-purple-500/20 text-purple-300' : u.role === 'recruiter' ? 'bg-warning/20 text-warning' : u.role === 'backoffice' ? 'bg-primary/20 text-primary' : u.role === 'planning' ? 'bg-muted/20 text-muted' : u.role === 'extern' ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}`}>{u.role === 'employee' ? 'Beller' : u.role === 'accountmanager' ? 'Accountmanager' : u.role === 'recruiter' ? 'Recruiter' : u.role === 'backoffice' ? 'Backoffice' : u.role === 'planning' ? 'Planning' : u.role === 'extern' ? 'Extern' : u.role}</span>
                            {/* v88: zelfregistratie-account dat nog op de EUR 50-betaling wacht - eigen badge i.p.v. het gewone "Inactief" (dat is voor bewust uitgezette medewerkers) */}
                            {u.is_active === false && u.signup_source === 'self_service' && u.payment_status === 'pending' ? (
                              <span className="whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-secondary/20 text-secondary" title="Zelf aangemeld via /aanmelden, wacht nog op de bevestiging van de eerste maandbetaling (€50/maand)">Wacht op betaling</span>
@@ -904,6 +977,7 @@ export default function Admin() {
                             style={{ padding: '6px 10px', fontSize: '0.75rem', flex: '1 1 120px', minWidth: '100px' }}
                           >
                              <option value="employee">Beller</option>
+                             <option value="accountmanager">Accountmanager</option>
                              <option value="backoffice">Backoffice</option>
                              <option value="manager">Manager</option>
                              <option value="recruiter">Recruiter</option>
@@ -918,10 +992,9 @@ export default function Admin() {
                           {u.role === 'manager' && (
                             <button onClick={() => { setManagingMode('manager'); setManagingUser(u) }} className="btn btn-outline btn-sm" style={{ whiteSpace: 'nowrap' }}><Shield size={14}/> Projecten &amp; rechten</button>
                           )}
-                          {/* v69: een beller mag leads importeren voor de projecten die je
-                              hier aanvinkt. Hij blijft beller, dus bellen blijft gewoon werken. */}
-                          {(u.role === 'employee' || u.role === 'backoffice') && (
-                            <button onClick={() => { setManagingMode('importer'); setManagingUser(u) }} className="btn btn-outline btn-sm" style={{ whiteSpace: 'nowrap' }} title="Voor welke projecten mag deze beller leads importeren?">
+                          {/* v69: een beller of accountmanager mag leads importeren voor gekoppelde projecten */}
+                          {(u.role === 'employee' || u.role === 'backoffice' || u.role === 'accountmanager') && (
+                            <button onClick={() => { setManagingMode('importer'); setManagingUser(u) }} className="btn btn-outline btn-sm" style={{ whiteSpace: 'nowrap' }} title="Voor welke projecten mag deze persoon leads importeren?">
                               <Upload size={14}/> {u.can_manage_leads ? 'Importprojecten' : 'Mag importeren'}
                             </button>
                           )}

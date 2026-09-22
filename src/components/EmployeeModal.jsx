@@ -107,6 +107,7 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
               <label><Shield size={14} /> Rol</label>
               <select value={role} onChange={e => setRole(e.target.value)}>
                 <option value="employee">Beller (medewerker)</option>
+                <option value="accountmanager">Accountmanager (leads &amp; agenda)</option>
                 <option value="backoffice">Backoffice</option>
                 <option value="manager">Manager</option>
                 <option value="recruiter">Recruiter</option>
@@ -114,6 +115,11 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
                 <option value="extern">Extern (alleen tools)</option>
                 <option value="admin">Admin</option>
               </select>
+              {role === 'accountmanager' && (
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  Krijgt toegang tot het bord met leads en een eigen afsprakenagenda. Kan tijdvakken blokkeren in de agenda waarin bellers geen afspraken mogen inplannen. Koppel na het aanmaken aan een team (Lead Beheer &gt; Teams).
+                </p>
+              )}
               {role === 'extern' && (
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
                   Voor iemand van buiten, bijvoorbeeld een installateur. Ziet alleen de tab Tools met de tools die je na het aanmaken aanvinkt via de knop "Tools" op zijn kaart. Geen leads, lijsten, chat of roosters.

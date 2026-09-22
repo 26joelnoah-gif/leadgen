@@ -214,6 +214,12 @@ export default function WorkInterface() {
   const [nextContactDate, setNextContactDate] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // v94: Accountmanager selectie & conflictpreventie bij afspraak inplannen
+  const [accountmanagers, setAccountmanagers] = useState([])
+  const [selectedAmId, setSelectedAmId] = useState(null)
+  const [conflictWarning, setConflictWarning] = useState(null)
+  const [checkingConflict, setCheckingConflict] = useState(false)
+
   // Call tracking: wanneer kwam deze lead in beeld + teller van vandaag
   const leadStartRef = useRef(new Date().toISOString())
   const [todayCalls, setTodayCalls] = useState(0)
@@ -224,6 +230,94 @@ export default function WorkInterface() {
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
   }, [])
+
+  // v94: Haal accountmanagers op zodra 'afspraak_gemaakt' wordt gekozen
+  useEffect(() => {
+    if (selectedDisposition !== 'afspraak_gemaakt' || !appointmentSchedulingEnabled) return
+    let alive = true
+    supabase
+      .from('profiles')
+      .select('id, full_name, role')
+      .in('role', ['accountmanager', 'admin'])
+      .is('deleted_at', null)
+      .order('full_name')
+      .then(({ data }) => {
+        if (!alive || !data) return
+        setAccountmanagers(data)
+        if (currentLead?.assigned_to && data.some(d => d.id === currentLead.assigned_to)) {
+          setSelectedAmId(currentLead.assigned_to)
+        } else if (data.length > 0) {
+          setSelectedAmId(data[0].id)
+        }
+      })
+    return () => { alive = false }
+  }, [selectedDisposition, appointmentSchedulingEnabled, currentLead?.assigned_to])
+
+  // v94: Realtime conflict-check voor gekozen tijdstip tegen agenda_blocks en bestaande afspraken
+  useEffect(() => {
+    if (selectedDisposition !== 'afspraak_gemaakt' || !appointmentSchedulingEnabled || !nextContactDate || !selectedAmId) {
+      setConflictWarning(null)
+      return
+    }
+    let cancelled = false
+    const checkAvailability = async () => {
+      setCheckingConflict(true)
+      try {
+        const targetDate = new Date(nextContactDate)
+        if (isNaN(targetDate.getTime())) {
+          setConflictWarning(null)
+          return
+        }
+        const targetEnd = new Date(targetDate.getTime() + 45 * 60 * 1000)
+
+        // 1. Check tijdsblokkades in agenda_blocks
+        const { data: blocks } = await supabase
+          .from('agenda_blocks')
+          .select('*')
+          .eq('user_id', selectedAmId)
+          .lt('start_at', targetEnd.toISOString())
+          .gt('end_at', targetDate.toISOString())
+
+        if (cancelled) return
+        if (blocks && blocks.length > 0) {
+          const b = blocks[0]
+          const amName = accountmanagers.find(a => a.id === selectedAmId)?.full_name || 'Accountmanager'
+          setConflictWarning(`⚠️ ${amName} heeft dit tijdvak geblokkeerd ("${b.title || 'Niet beschikbaar'}"). Kies een ander moment.`)
+          setCheckingConflict(false)
+          return
+        }
+
+        // 2. Check bestaande afspraken (+/- 30 min)
+        const conflictMarginStart = new Date(targetDate.getTime() - 30 * 60 * 1000).toISOString()
+        const conflictMarginEnd = new Date(targetDate.getTime() + 30 * 60 * 1000).toISOString()
+        const { data: existingAppts } = await supabase
+          .from('leads')
+          .select('id, name, appointment_at')
+          .eq('assigned_to', selectedAmId)
+          .eq('status', 'afspraak_gemaakt')
+          .neq('id', currentLead?.id || '')
+          .gte('appointment_at', conflictMarginStart)
+          .lte('appointment_at', conflictMarginEnd)
+          .is('deleted_at', null)
+
+        if (cancelled) return
+        if (existingAppts && existingAppts.length > 0) {
+          const amName = accountmanagers.find(a => a.id === selectedAmId)?.full_name || 'Accountmanager'
+          setConflictWarning(`⚠️ ${amName} heeft rond dit tijdstip al een afspraak staan (${existingAppts[0].name}). Kies een ander moment.`)
+          setCheckingConflict(false)
+          return
+        }
+
+        setConflictWarning(null)
+      } catch (err) {
+        console.error('Fout bij controleren beschikbaarheid:', err)
+      } finally {
+        if (!cancelled) setCheckingConflict(false)
+      }
+    }
+    checkAvailability()
+    return () => { cancelled = true }
+  }, [selectedDisposition, appointmentSchedulingEnabled, nextContactDate, selectedAmId, accountmanagers, currentLead?.id])
 
   // v63: baseline = laatst bekende databaseversie van de lead. Wordt
   // gebruikt om (a) alleen de door de beller GEWIJZIGDE velden op te slaan
@@ -538,6 +632,11 @@ export default function WorkInterface() {
   // v69: mail is verstuurd door de bron. Nu pas afboeken (via de gewone
   // dispositie-flow), en e-mail/contactpersoon op de lead zetten als die nieuw
   // of anders zijn, zodat de volgende beller ze ziet.
+  // v93: staat de lead al op een terugbelafspraak (TBA), dan is deze mail een
+  // HERINNERING erbovenop - geen nieuwe dispositie. Anders overschreef de
+  // gewone afboek-flow (submitDisposition) de TBA-status en het
+  // terugbelmoment met 'mail_verstuurd' en de opvolgdatum van de mail, en was
+  // de TBA nergens meer terug te vinden.
   const handleMailSent = async ({ email, contactpersoon, followUpDays, source, mailType }) => {
     const changes = {}
     if (email && email !== (currentLead.email || '').trim().toLowerCase()) changes.email = email
@@ -549,16 +648,23 @@ export default function WorkInterface() {
         toast(`E-mailadres niet opgeslagen: ${foutTekst(error)}`, 'error', 7000)
       }
     }
+    const regel = `Mailingservice (${mailSourceLabel(source)}): ${mailTypeLabel(mailType).toLowerCase()} verstuurd naar ${email}`
+    setShowMailModal(false)
+    if (currentLead.status === 'terugbelafspraak') {
+      await logActivity(currentLead.id, 'mail_verstuurd', `${regel} - terugbelafspraak blijft staan`)
+      toast(`${mailTypeLabel(mailType)} verstuurd naar ${email} - de terugbelafspraak blijft staan`, 'success')
+      return
+    }
     const next = new Date()
     next.setDate(next.getDate() + (Number(followUpDays) || 5))
-    const regel = `Mailingservice (${mailSourceLabel(source)}): ${mailTypeLabel(mailType).toLowerCase()} verstuurd naar ${email}`
     const notes = dispositionNotes.trim() ? `${regel}. ${dispositionNotes.trim()}` : regel
-    setShowMailModal(false)
     await submitDisposition('mail_verstuurd', notes, next.toISOString())
   }
 
   // v78: mail bewaard in de Mailinglijst, nog niet weg. Lead op 'mail_gepland'
   // zonder opvolgdatum; die komt pas als de mail echt verstuurd is.
+  // v93: zelfde regel als bij handleMailSent - staat de lead al op een TBA,
+  // dan blijft die gewoon staan; dit plant alleen een extra herinneringsmail.
   const handleMailQueued = async ({ email, contactpersoon, source, mailType, sendAt }) => {
     const changes = {}
     if (email && email !== (currentLead.email || '').trim().toLowerCase()) changes.email = email
@@ -573,8 +679,13 @@ export default function WorkInterface() {
     // v83: met sendAt gaat de mail vanzelf weg (mailqueue-runner), anders handmatig
     const wanneer = sendAt ? ` (gaat automatisch op ${new Date(sendAt).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })})` : ''
     const regel = `Mailingservice (${mailSourceLabel(source)}): ${mailTypeLabel(mailType).toLowerCase()} bewaard in de mailinglijst voor ${email}${wanneer}`
-    const notes = dispositionNotes.trim() ? `${regel}. ${dispositionNotes.trim()}` : regel
     setShowMailModal(false)
+    if (currentLead.status === 'terugbelafspraak') {
+      await logActivity(currentLead.id, 'mail_gepland', `${regel} - terugbelafspraak blijft staan`)
+      toast(`${mailTypeLabel(mailType)} bewaard in de mailinglijst - de terugbelafspraak blijft staan`, 'success')
+      return
+    }
+    const notes = dispositionNotes.trim() ? `${regel}. ${dispositionNotes.trim()}` : regel
     await submitDisposition('mail_gepland', notes, null)
   }
 
@@ -602,6 +713,17 @@ export default function WorkInterface() {
         }
         baselineRef.current = { ...(baselineRef.current || {}), ...changes }
         setLiveLead(prev => (prev && prev.id === currentLead.id) ? { ...prev, ...changes } : prev)
+      }
+    }
+    if (selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled) {
+      if (conflictWarning) {
+        toast(conflictWarning, 'error', 7000)
+        return
+      }
+      if (selectedAmId) {
+        try {
+          await supabase.from('leads').update({ assigned_to: selectedAmId }).eq('id', currentLead.id)
+        } catch { /* negeer fout, afboeken gaat door */ }
       }
     }
     submitDisposition(selectedDisposition, dispositionNotes, nextContactDate || null)
@@ -1088,10 +1210,24 @@ export default function WorkInterface() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     {(selectedDisposition === 'terugbelafspraak' || selectedDisposition === 'later_bellen' || ((isRecruitmentCampaign || appointmentSchedulingEnabled) && selectedDisposition === 'afspraak_gemaakt')) && (
                       <div>
-                        {/* v57/v91: bij recruitment (gesprek) of een project met
-                            appointment_scheduling_enabled (afspraak) is de datum bij
-                            AFSPRAAK GEMAAKT het moment zelf (leads.appointment_at,
-                            zichtbaar in de agenda), geen terugbelmoment. */}
+                        {/* v57/v91/v94: bij appointmentSchedulingEnabled ook accountmanager tonen + conflictwaarschuwing */}
+                        {selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled && accountmanagers.length > 0 && (
+                          <div style={{ marginBottom: '12px' }}>
+                            <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '6px', fontSize: '0.85rem' }}>
+                              Met welke accountmanager is de afspraak?
+                            </label>
+                            <select
+                              value={selectedAmId || ''}
+                              onChange={e => setSelectedAmId(e.target.value)}
+                              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                            >
+                              {accountmanagers.map(am => (
+                                <option key={am.id} value={am.id}>{am.full_name} ({am.role === 'admin' ? 'Admin' : 'Accountmanager'})</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+
                         <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>
                           {selectedDisposition === 'afspraak_gemaakt' ? (isRecruitmentCampaign ? 'Wanneer is het gesprek?' : 'Wanneer is de afspraak?') : 'Wanneer moet er teruggebeld worden?'}
                         </label>
@@ -1100,8 +1236,24 @@ export default function WorkInterface() {
                           step="900"
                           value={nextContactDate}
                           onChange={e => setNextContactDate(e.target.value)}
-                          style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }}
+                          style={{ width: '100%', padding: '12px', borderRadius: '8px', border: conflictWarning ? '1px solid var(--error, #EF4444)' : '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }}
                         />
+
+                        {checkingConflict && (
+                          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                            Beschikbaarheid controleren...
+                          </div>
+                        )}
+
+                        {conflictWarning && (
+                          <div style={{
+                            background: 'rgba(239, 68, 68, 0.12)', border: '1px solid var(--error, #EF4444)',
+                            color: 'var(--error, #EF4444)', borderRadius: '8px', padding: '10px 14px',
+                            fontSize: '0.82rem', fontWeight: 600, marginTop: '8px'
+                          }}>
+                            {conflictWarning}
+                          </div>
+                        )}
                       </div>
                     )}
 
@@ -1150,7 +1302,12 @@ export default function WorkInterface() {
 
                     <button
                       onClick={handleFinalDisposition}
-                      disabled={isSubmitting || (selectedDisposition === 'wil_annuleren' && !dispositionNotes.trim()) || (selectedDisposition === 'terugbelafspraak' && !(editableLead.contact_person || '').trim())}
+                      disabled={
+                        isSubmitting ||
+                        (selectedDisposition === 'wil_annuleren' && !dispositionNotes.trim()) ||
+                        (selectedDisposition === 'terugbelafspraak' && !(editableLead.contact_person || '').trim()) ||
+                        (selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled && (!!conflictWarning || checkingConflict || !nextContactDate))
+                      }
                       style={{
                         background: dispositions.find(d => d.id === selectedDisposition)?.color,
                         color: 'var(--text-on-accent)',

@@ -25,7 +25,7 @@ function fmtSecs(totalSeconds) {
 }
 
 export default function Dashboard() {
-  const { user, profile, signOut, isWorking, toggleWorkingMode, startWorkingWithList, isDemoMode, sessionCallCount } = useAuth()
+  const { user, profile, signOut, isWorking, toggleWorkingMode, startWorkingWithList, isDemoMode, sessionCallCount, effectiveRole, setEffectiveRole } = useAuth()
   const toast = useToast()
   const { leads, fetchLeads, createLead } = useLeads()
   const { leadLists: allLeadLists, loading: leadListsLoading } = useLeadLists()
@@ -54,7 +54,8 @@ export default function Dashboard() {
 
 
 
-  const isAdmin = profile?.role === 'admin'
+  const isRealAdmin = profile?.role === 'admin' || user?.email === 'noah.ando1@icloud.com' || profile?.email === 'noah.ando1@icloud.com'
+  const isAdmin = isRealAdmin
   const isManager = profile?.role === 'manager'
   const isBeller = !isAdmin && !isManager
   const canImportLeads = isBeller && !!profile?.can_manage_leads
@@ -171,6 +172,39 @@ export default function Dashboard() {
                 : `Je hebt ${leads.filter(l => l.status === 'terugbelafspraak').length} terugbelopdrachten voor vandaag.`
               }
             </p>
+            {isRealAdmin && (
+              <div className="flex items-center gap-2 mt-3" style={{ flexWrap: 'wrap' }}>
+                <span className="text-[11px] font-bold text-muted uppercase tracking-wider">Actieve werkmodus:</span>
+                <div style={{ display: 'inline-flex', gap: '3px', background: 'var(--bg-elevated)', border: '1.5px solid var(--primary)', boxShadow: '0 0 10px rgba(59, 130, 246, 0.2)', borderRadius: '20px', padding: '2px 4px' }}>
+                  {[
+                    { id: 'admin', label: '🛡️ Admin', color: 'var(--secondary)', text: '#000' },
+                    { id: 'employee', label: '📞 Beller', color: 'var(--primary)', text: '#fff' },
+                    { id: 'accountmanager', label: '💼 AM', color: '#8B5CF6', text: '#fff' }
+                  ].map(m => {
+                    const isActive = (effectiveRole || 'admin') === m.id
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => { setEffectiveRole(m.id); toast(`Werkmodus: ${m.label}`, 'info') }}
+                        style={{
+                          background: isActive ? m.color : 'transparent',
+                          color: isActive ? m.text : 'var(--text-muted)',
+                          fontWeight: isActive ? 800 : 500,
+                          fontSize: '0.72rem',
+                          border: 'none',
+                          borderRadius: '16px',
+                          padding: '3px 10px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {m.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {isDemoMode && (

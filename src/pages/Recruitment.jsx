@@ -133,27 +133,44 @@ export default function Recruitment() {
   const [editForm, setEditForm] = useState(EMPTY_FORM)
   const [savingEdit, setSavingEdit] = useState(false)
 
+  const isAdmin = profile?.role === 'admin'
+  const [selectedListId, setSelectedListId] = useState('all')
+
   // De recruiter heeft precies één lijst nodig om in te werken: die met
   // assigned_to = zichzelf (zo gezet bij het aanmaken van het account).
-  // RLS scopet leadLists voor een recruiter al tot eigen lijsten, maar een
-  // admin/manager ziet via dezelfde hook ALLE lijsten in de organisatie
-  // (sales + recruitment door elkaar) - zonder deze filter viel de fallback
-  // op leadLists[0] terug, oftewel de nieuwste lijst van de hele org, wat
-  // sales-leads liet lekken in het sollicitanten-scherm. Filter daarom altijd
-  // eerst op recruitment-campagnes voordat we een "thuislijst" kiezen.
+  // Admin ziet standaard ALLE recruitment-lijsten gepoold, en kan met de
+  // dropdown hieronder filteren op één specifieke lijst.
   const recruitmentLists = useMemo(
     () => leadLists.filter(l => l.campaigns?.type === 'recruitment'),
     [leadLists]
   )
-  const homeList = useMemo(
-    () => recruitmentLists.find(l => l.assigned_to === user?.id) || recruitmentLists[0] || null,
-    [recruitmentLists, user?.id]
-  )
+  const recruitmentListIds = useMemo(() => new Set(recruitmentLists.map(l => l.id)), [recruitmentLists])
 
-  const baseApplicants = useMemo(
-    () => (homeList ? leads.filter(l => l.lead_list_id === homeList.id) : leads),
-    [leads, homeList]
-  )
+  const homeList = useMemo(() => {
+    if (isAdmin && selectedListId !== 'all') {
+      return recruitmentLists.find(l => l.id === selectedListId) || null
+    }
+    return recruitmentLists.find(l => l.assigned_to === user?.id) || recruitmentLists[0] || null
+  }, [recruitmentLists, selectedListId, isAdmin, user?.id])
+
+  // v94: admin ziet standaard ALLE sollicitanten van alle recruitment-lijsten
+  // van de organisatie gepoold (voorheen viel dit terug op maar 1 lijst),
+  // tenzij hij met de dropdown een specifieke lijst kiest. `leads` komt uit
+  // useLeads(), die voor een admin altijd VOLLEDIG gepagineerd alle leads van
+  // de organisatie ophaalt (zie src/hooks/useLeads.js) - dus geen aparte,
+  // ongepagineerde query hier nodig (die liep tegen Supabase's 1000-rijen-
+  // limiet aan zodra de organisatie meer dan 1000 leads had).
+  const baseApplicants = useMemo(() => {
+    if (isAdmin) {
+      if (selectedListId !== 'all') {
+        return leads.filter(l => l.lead_list_id === selectedListId)
+      }
+      return leads.filter(l => recruitmentListIds.has(l.lead_list_id))
+    }
+    return homeList
+      ? leads.filter(l => l.lead_list_id === homeList.id)
+      : leads.filter(l => recruitmentListIds.has(l.lead_list_id))
+  }, [leads, isAdmin, selectedListId, homeList, recruitmentListIds])
 
   const hiredProfileKey = useMemo(
     () => [...new Set(baseApplicants.filter(l => l.referred_by && l.hired_profile_id).map(l => l.hired_profile_id))].sort().join(','),
@@ -204,7 +221,7 @@ export default function Recruitment() {
     const listIds = new Set(recruitmentLists.map(l => l.id))
     const items = []
     leads.forEach(l => {
-      if (!listIds.has(l.lead_list_id)) return
+      if (!listIds.has(l.lead_list_id) && l.lead_lists?.campaigns?.type !== 'recruitment') return
       if (l.appointment_at && !AGENDA_HIDDEN_STATUSES.includes(l.status)) {
         items.push({ id: `i-${l.id}`, kind: 'interview', at: new Date(l.appointment_at), lead: l })
       }
@@ -518,7 +535,32 @@ export default function Recruitment() {
       <main className="container">
         <div className="page-header flex justify-between items-end" style={{ flexWrap: 'wrap', gap: '12px' }}>
           <div>
-            <h1>Sollicitanten</h1>
+            <div className="flex items-center gap-3">
+              <h1>Sollicitanten</h1>
+              {isAdmin && recruitmentLists.length > 0 && (
+                <select
+                  value={selectedListId}
+                  onChange={e => setSelectedListId(e.target.value)}
+                  className="form-dark text-xs font-bold"
+                  style={{
+                    padding: '5px 12px',
+                    borderRadius: '8px',
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--text-main)',
+                    cursor: 'pointer'
+                  }}
+                  title="Filter sollicitanten op project of bekijk alles tegelijk"
+                >
+                  <option value="all">Alle sollicitatielijsten ({recruitmentLists.length})</option>
+                  {recruitmentLists.map(l => (
+                    <option key={l.id} value={l.id}>
+                      {l.name} {l.campaigns?.name ? `(${l.campaigns.name})` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
             <p>Voeg sollicitanten toe of laad ze in, houd het bord bij, bel na en plan gesprekken in de agenda.</p>
           </div>
           <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
@@ -528,22 +570,24 @@ export default function Recruitment() {
             <Link to="/tba" className="btn btn-outline btn-sm">
               <Clock size={16} /> Mijn TBA's
             </Link>
-            <button className="btn btn-outline btn-sm" onClick={() => setShowImport(true)} disabled={!homeList}>
+            <button className="btn btn-outline btn-sm" onClick={() => setShowImport(true)} disabled={!homeList && !isAdmin}>
               <Upload size={16} /> Importeren
             </button>
-            <button className="btn btn-secondary btn-sm" onClick={() => setShowNew(true)} disabled={!homeList}>
+            <button className="btn btn-secondary btn-sm" onClick={() => setShowNew(true)} disabled={!homeList && !isAdmin}>
               <Plus size={16} /> Nieuwe sollicitant
             </button>
           </div>
         </div>
 
-        {!loading && !homeList && (
+        {!loading && !homeList && recruitmentLists.length === 0 && (
           <div className="card mb-4" style={{ padding: '24px', textAlign: 'center', color: 'var(--text-muted)' }}>
-            Er is nog geen sollicitatieproject aan jouw account gekoppeld. Vraag de beheerder om dit in te stellen.
+            {isAdmin 
+              ? 'Er is nog geen sollicitatieproject aangemaakt. Maak een recruiter aan in Admin of stel een campagne in van type "recruitment".'
+              : 'Er is nog geen sollicitatieproject aan jouw account gekoppeld. Vraag de beheerder om dit in te stellen.'}
           </div>
         )}
 
-        {homeList && (
+        {(homeList || baseApplicants.length > 0 || recruitmentLists.length > 0 || isAdmin) && (
           <>
             <div className="stats-grid mb-4" style={{ marginTop: '16px' }}>
               {[

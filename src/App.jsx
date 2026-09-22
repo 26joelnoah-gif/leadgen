@@ -22,6 +22,7 @@ import Tools from './pages/Tools'
 import LeadBoard from './pages/LeadBoard'
 import Outside from './pages/Outside'
 import Tekenen from './pages/Tekenen'
+import Agenda from './pages/Agenda'
 import Home from './pages/Home'
 import Aanmelden from './pages/Aanmelden'
 import AanmeldenBedankt from './pages/AanmeldenBedankt'
@@ -154,11 +155,14 @@ function ProtectedRoute({ children, requireAdmin = false, allowManager = false, 
 
 // v36: recruiters landen niet op het sales-dashboard maar meteen op hun
 // eigen sollicitanten-scherm (zelfde route "/", geen aparte diepe link nodig).
+// v94: accountmanagers landen direct op het leadbord
 function HomeRoute() {
-  const { profile } = useAuth()
-  if (profile?.role === 'planning') return <Navigate to="/roosters" replace />
-  if (profile?.role === 'extern') return <Navigate to="/tools" replace />
-  if (profile?.role === 'recruiter') return <Navigate to="/recruitment" replace />
+  const { profile, effectiveRole } = useAuth()
+  const active = profile?.role === 'admin' ? (effectiveRole || 'admin') : profile?.role
+  if (active === 'planning') return <Navigate to="/roosters" replace />
+  if (active === 'extern') return <Navigate to="/tools" replace />
+  if (active === 'recruiter') return <Navigate to="/recruitment" replace />
+  if (active === 'accountmanager') return <Navigate to="/leads" replace />
   return <Dashboard />
 }
 
@@ -342,6 +346,15 @@ function AppRoutes() {
           // alleen leads door van projecten met planning_can_view_leads)
           <ProtectedRoute allowPlanning>
             <LeadBoard />
+          </ProtectedRoute>
+        }
+      />
+      {/* v94: agenda voor afspraken en blokkades */}
+      <Route
+        path="/agenda"
+        element={
+          <ProtectedRoute>
+            <Agenda />
           </ProtectedRoute>
         }
       />
