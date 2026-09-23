@@ -72,9 +72,31 @@ export function mailStatusSamenvatting(r) {
   return parts.join(' · ')
 }
 
-export function MailStatusBriefing({ leadId }) {
+export function MailStatusBriefing({ leadId, compact = false }) {
   const { mailStatus } = useMailStatus(leadId)
   if (mailStatus.length === 0) return null
+  // 23-09: compacte versie voor het belscherm op desktop - één regel per mail,
+  // naast elkaar, zodat de contactkaart eronder zonder scrollen past.
+  if (compact) {
+    return (
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+        {mailStatus.map(r => {
+          const s = statusInfo(r.status)
+          return (
+            <div key={r.id} title={r.email || ''} style={{
+              display: 'flex', gap: 8, alignItems: 'center', padding: '5px 10px', borderRadius: 8,
+              background: s.bg, borderLeft: `3px solid ${s.color}`, fontSize: '0.78rem', minWidth: 0,
+            }}>
+              <MailCheck size={14} style={{ color: s.color, flex: 'none' }} />
+              <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>{mailTypeLabel(r.mail_soort)}</span>
+              <MailStatusChip status={r.status} />
+              <span style={{ color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{mailStatusSamenvatting(r)}</span>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
   return (
     <>
       {mailStatus.map(r => {
