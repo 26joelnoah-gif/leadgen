@@ -163,15 +163,24 @@ export default function LeadManagement({ standalone = true }) {
     setLoadingLeads(true)
     setSelectedLeadIds([])
     try {
-      const { data, error } = await supabase
-        .from('leads')
-        .select('*')
-        .eq('lead_list_id', listId)
-        .is('deleted_at', null) // Only active leads
-        .order('updated_at', { ascending: false })
-      
-      if (error) throw error
-      setLeads(data || [])
+      // Supabase geeft max 1000 rijen per keer terug: in blokken ophalen,
+      // anders blijft het totaal op 1000 hangen bij grote lijsten.
+      const PAGE = 1000
+      let all = []
+      for (let from = 0; ; from += PAGE) {
+        const { data, error } = await supabase
+          .from('leads')
+          .select('*')
+          .eq('lead_list_id', listId)
+          .is('deleted_at', null) // Only active leads
+          .order('updated_at', { ascending: false })
+          .order('id', { ascending: true })
+          .range(from, from + PAGE - 1)
+        if (error) throw error
+        all = all.concat(data || [])
+        if (!data || data.length < PAGE) break
+      }
+      setLeads(all)
     } catch (err) {
       toast(err.message, 'error')
     } finally {
@@ -733,7 +742,7 @@ export default function LeadManagement({ standalone = true }) {
                       {/* Batch Intelligence Summary */}
                       <div className="grid grid-cols-4 border-b border-border">
                          <div className="p-4 border-r border-border text-center">
-                            <div className="text-[10px] font-black text-muted uppercase mb-1">Pijplijn Totaal</div>
+                            <div className="text-[10px] font-black text-muted uppercase mb-1">Totaal leads</div>
                             <div className="text-xl font-black">{leads.length}</div>
                          </div>
                          <div className="p-4 border-r border-border text-center bg-primary/5">
