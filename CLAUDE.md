@@ -357,3 +357,8 @@ Twee-zijdig platform:
   7. Checklist: src/components/ComplianceChecklist.jsx, stap 4 in
      NewProjectWizard en blok in ProjectSettingsModal. Cijfers via
      project_compliance_stats(). Migratie: migration_v98_compliance.sql.
+  8. (v98f) Tabel public.afmeldingen: bedrijfsnaam + bron + reden + project per
+     afmelding, blijft staan na het wissen van de lead (Admin > Compliance).
+     Mailpauze (later_mailen) zichtbaar als chip + filter "Later mailen" op
+     /leads, blok in belscherm/contactkaart en lijst in Admin > Compliance.
+     norm_domein neemt alleen het echte domein ("x.nl](https://x.nl" -> x.nl).

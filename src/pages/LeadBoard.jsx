@@ -56,6 +56,9 @@ import { leadBelstatus, BELSTATUS, useProjectCompliance, urenTotWissen, rechtsvo
 const POLL_MS = 8000
 const DONE_STATUSES = ['deal', 'bruto_deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer', 'cold', 'blacklist', 'monteur_ingepland', 'wil_annuleren']
 
+// v98: bureau vroeg via de mail "mail me later" (mailstatus later_mailen)
+const isMailPauze = (l) => !!l?.mail_pauze_tot && new Date(l.mail_pauze_tot) > new Date()
+
 const dateShort = (iso) => iso ? new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
 
 function defaultTbaDateTimeLocal() {
@@ -207,7 +210,7 @@ export default function LeadBoard() {
     if (!silent) setLoading(true)
     const [{ data: rows, error }, ...lockResults] = await Promise.all([
       supabase.from('leads')
-        .select('id, lead_list_id, name, phone, email, website, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, updated_at, lat, lng, rechtsvorm, rechtsvorm_bron, opt_in_at, opt_in_bewijs, afgemeld_at, afgemeld_bron')
+        .select('id, lead_list_id, name, phone, email, website, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, updated_at, lat, lng, rechtsvorm, rechtsvorm_bron, opt_in_at, opt_in_bewijs, afgemeld_at, afgemeld_bron, mail_pauze_tot')
         .in('lead_list_id', listIds)
         .is('deleted_at', null)
         .order('created_at', { ascending: true }),
@@ -626,6 +629,9 @@ export default function LeadBoard() {
   const signalsFor = useCallback((lead) => {
     const out = []
     const bs = belstatusVan(lead)
+    if (isMailPauze(lead)) {
+      out.push({ label: `Later mailen (tot ${new Date(lead.mail_pauze_tot).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })})`, color: 'var(--info)', bg: 'var(--info-bg)' })
+    }
     if (bs === 'afgemeld') {
       const u = urenTotWissen(lead)
       out.push({ label: `Afgemeld · weg over ${u}u`, color: '#fff', bg: 'var(--danger)' })
@@ -685,6 +691,7 @@ export default function LeadBoard() {
         }
         if (filter === 'warm' && !isWarm(l)) return false
         if (filter === 'afgemeld' && belstatusVan(l) !== 'afgemeld') return false
+        if (filter === 'later_mailen' && !isMailPauze(l)) return false
         if (filter === 'kvk' && belstatusVan(l) !== 'kvk_check') return false
         if (filter === 'toestemming' && belstatusVan(l) !== 'toestemming_nodig') return false
         if (wie === 'me' && !vanPersoon(l, user?.id)) return false
@@ -708,6 +715,7 @@ export default function LeadBoard() {
   const openCount = pool.filter(l => !DONE_STATUSES.includes(l.status)).length
   const warmCount = useMemo(() => pool.filter(isWarm).length, [pool, isWarm])
   const afgemeldeLeads = useMemo(() => pool.filter(l => belstatusVan(l) === 'afgemeld'), [pool, belstatusVan])
+  const laterMailenCount = useMemo(() => pool.filter(isMailPauze).length, [pool])
   const kvkCount = useMemo(() => pool.filter(l => !DONE_STATUSES.includes(l.status) && belstatusVan(l) === 'kvk_check').length, [pool, belstatusVan])
   const toestemmingCount = useMemo(() => pool.filter(l => !DONE_STATUSES.includes(l.status) && belstatusVan(l) === 'toestemming_nodig').length, [pool, belstatusVan])
 
@@ -907,7 +915,8 @@ export default function LeadBoard() {
                   // v98: compliance-filters
                   ...(kvkCount > 0 ? [['kvk', `KvK-check (${kvkCount})`]] : []),
                   ...(toestemmingCount > 0 ? [['toestemming', `Toestemming nodig (${toestemmingCount})`]] : []),
-                  ...(afgemeldeLeads.length > 0 || filter === 'afgemeld' ? [['afgemeld', `Afgemeld (${afgemeldeLeads.length})`]] : [])
+                  ...(afgemeldeLeads.length > 0 || filter === 'afgemeld' ? [['afgemeld', `Afgemeld (${afgemeldeLeads.length})`]] : []),
+                  ...(laterMailenCount > 0 || filter === 'later_mailen' ? [['later_mailen', `Later mailen (${laterMailenCount})`]] : [])
                 ].map(([k, label]) => (
                   <button key={k} type="button" onClick={() => setFilter(k)} className={`btn btn-sm ${filter === k ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 20, ...(k === 'warm' && warmCount > 0 && filter !== 'warm' ? { color: 'var(--secondary)', borderColor: 'var(--secondary)', fontWeight: 800 } : {}) }} title={k === 'warm' ? 'Leads die de offerte openden. Die bel je eerst.' : undefined}>
                     {k === 'warm' && <Flame size={12} style={{ verticalAlign: -2 }} />} {label}
@@ -959,6 +968,11 @@ export default function LeadBoard() {
                       <Trash2 size={13} style={{ verticalAlign: -2 }} /> {wissen ? 'Bezig...' : wisBevestig ? `Zeker? Klik nogmaals (${afgemeldeLeads.length})` : `Nu verwijderen (${afgemeldeLeads.length})`}
                     </button>
                   )}
+                </span>
+              )}
+              {filter === 'later_mailen' && (
+                <span style={{ width: '100%', color: 'var(--info)', fontWeight: 700 }}>
+                  Deze bureaus willen nu geen mail, maar wel later. Mailen kan pas weer na de datum op de kaart. Bellen mag wel.
                 </span>
               )}
               {filter === 'kvk' && (

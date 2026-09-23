@@ -92,14 +92,22 @@ export function ComplianceLeadBlok({ lead, project, onChanged, compact = false }
     </div>
   )
 
+  const pauze = lead.mail_pauze_tot && new Date(lead.mail_pauze_tot) > new Date()
+    ? (
+      <div style={{ ...kaart, marginBottom: 8, background: 'var(--info-bg)', border: '1px solid var(--info)', fontSize: '0.82rem' }}>
+        <strong style={{ color: 'var(--info)' }}>Later mailen.</strong> Dit bureau wil pas weer mail na {new Date(lead.mail_pauze_tot).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}. Bellen mag wel.
+      </div>
+    ) : null
+
   if (status === 'ok') {
     // Rustige regel: waarom mag dit?
     let reden = null
     if (lead.opt_in_at) reden = `Toestemming ${dag(lead.opt_in_at)}${lead.opt_in_bewijs ? ': ' + lead.opt_in_bewijs : ''}`
     else if (zakelijk && lead.rechtsvorm) reden = `${rechtsvormLabel(lead.rechtsvorm)} (${BRON_LABEL[lead.rechtsvorm_bron] || 'bekend'})`
-    if (!reden && !compact) return <div style={{ display: 'flex', justifyContent: 'flex-end' }}>{meldingKnop}{modal}</div>
-    if (!reden) return modal || null
+    if (!reden && !compact) return <>{pauze}<div style={{ display: 'flex', justifyContent: 'flex-end' }}>{meldingKnop}{modal}</div></>
+    if (!reden) return <>{pauze}{modal}</>
     return (
+      <>{pauze}
       <div style={{ ...kaart, background: 'var(--bg-elevated)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <ShieldCheck size={15} color="var(--success)" />
         <span className="text-muted" style={{ flex: 1, minWidth: 160 }}>{reden}</span>
@@ -110,10 +118,12 @@ export function ComplianceLeadBlok({ lead, project, onChanged, compact = false }
         {wijzigRv && <div style={{ width: '100%' }}>{rvKnoppen}</div>}
         {modal}
       </div>
+      </>
     )
   }
 
   return (
+    <>{pauze}
     <div style={{ ...kaart, background: info.bg, border: `1px solid ${info.color}`, color: 'var(--text-primary)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, color: info.color }}>
         <ShieldAlert size={16} /> {status === 'kvk_check' ? 'Eerst KvK checken, dan pas bellen' : status === 'afgemeld' ? 'Afgemeld: niet bellen, niet mailen' : 'Niet bellen: alleen na toestemming'}
@@ -188,6 +198,7 @@ export function ComplianceLeadBlok({ lead, project, onChanged, compact = false }
       <div style={{ marginTop: 8 }}>{meldingKnop}</div>
       {modal}
     </div>
+    </>
   )
 }
 
@@ -287,17 +298,23 @@ export function ComplianceOverzicht() {
   const toast = useToast()
   const [meldingen, setMeldingen] = useState([])
   const [wislog, setWislog] = useState([])
+  const [afmeldingen, setAfmeldingen] = useState([])
+  const [laterMailen, setLaterMailen] = useState([])
   const [blokkades, setBlokkades] = useState(0)
   const [filter, setFilter] = useState('open')
   const [afhandelId, setAfhandelId] = useState(null)
   const [afhandelTekst, setAfhandelTekst] = useState('')
 
   async function laad() {
-    const [m, w, b] = await Promise.all([
+    const [m, w, b, af, lm] = await Promise.all([
       supabase.from('compliance_meldingen').select('id, lead_id, lead_naam, soort, tekst, melding_op, created_at, afgehandeld_at, afhandeling, campaign:campaigns(name), door:profiles!compliance_meldingen_created_by_fkey(full_name)').order('melding_op', { ascending: false }).limit(500),
       supabase.from('lead_wis_log').select('id, created_at, aantal, reden').order('created_at', { ascending: false }).limit(30),
       supabase.from('contact_blokkades').select('id', { count: 'exact', head: true }),
+      supabase.from('afmeldingen').select('id, created_at, bedrijfsnaam, bron, reden, campaign:campaigns(name)').order('created_at', { ascending: false }).limit(300),
+      supabase.from('leads').select('id, name, mail_pauze_tot, status').gt('mail_pauze_tot', new Date().toISOString()).is('deleted_at', null).order('mail_pauze_tot').limit(300),
     ])
+    setAfmeldingen(af.data || [])
+    setLaterMailen(lm.data || [])
     if (m.error) console.error('compliance_meldingen', m.error)
     setMeldingen(m.data || [])
     setWislog(w.data || [])
@@ -364,6 +381,36 @@ export function ComplianceOverzicht() {
           ))}
         </div>
       )}
+      <div className="card" style={{ padding: 14, margin: 0 }}>
+        <strong>Afmeldingen ({afmeldingen.length})</strong>
+        <p className="text-muted" style={{ fontSize: '0.85rem', margin: '4px 0 8px' }}>Wie zich afmeldde, via de mail of aan de telefoon. Blijft hier staan, ook als de lead zelf na 48 uur is verwijderd.</p>
+        {afmeldingen.length === 0 ? (
+          <p className="text-muted" style={{ fontSize: '0.85rem', fontStyle: 'italic', margin: 0 }}>Nog geen afmeldingen.</p>
+        ) : (
+          <div style={{ display: 'grid', gap: 4, fontSize: '0.85rem' }}>
+            {afmeldingen.map(a => (
+              <div key={a.id} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <span className="text-muted" style={{ minWidth: 110 }}>{new Date(a.created_at).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                <strong>{a.bedrijfsnaam || 'Onbekend'}</strong>
+                <span className="text-muted">{a.bron === 'mail' ? 'via de mail' : a.bron === 'beller' ? 'aan de telefoon' : a.bron === 'melding' ? 'via een melding' : a.bron}{a.campaign?.name ? ` · ${a.campaign.name}` : ''}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="card" style={{ padding: 14, margin: 0 }}>
+        <strong>Later mailen ({laterMailen.length})</strong>
+        <p className="text-muted" style={{ fontSize: '0.85rem', margin: '4px 0 8px' }}>Deze bureaus willen nu geen mail. Mailen kan pas weer na de datum. Bellen mag wel.</p>
+        {laterMailen.length === 0 ? (
+          <p className="text-muted" style={{ fontSize: '0.85rem', fontStyle: 'italic', margin: 0 }}>Niemand.</p>
+        ) : (
+          <div style={{ display: 'grid', gap: 4, fontSize: '0.85rem' }}>
+            {laterMailen.map(l => (
+              <div key={l.id}><strong>{l.name}</strong> <span className="text-muted">tot {new Date(l.mail_pauze_tot).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })}</span></div>
+            ))}
+          </div>
+        )}
+      </div>
       <div className="card" style={{ padding: 14, margin: 0 }}>
         <strong>Afmeldlijst en automatisch wissen</strong>
         <p className="text-muted" style={{ fontSize: '0.85rem', margin: '4px 0 8px' }}>

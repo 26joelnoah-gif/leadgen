@@ -602,3 +602,95 @@ language sql stable security definer set search_path to 'public' as $$
 $$;
 revoke execute on function public.project_compliance_stats(uuid) from public, anon;
 grant execute on function public.project_compliance_stats(uuid) to authenticated;
+
+-- ---------- 13. (v98f) afmeldingen blijvend terug te zien + domein-fix ----------
+-- norm_domein pakt nu alleen het echte domein (ook bij rommel als "x.nl](https://x.nl").
+-- Tabel afmeldingen: bedrijfsnaam, bron, reden, project. Blijft staan als de lead
+-- na 48 uur gewist is. blokkeer_contact kreeg p_naam en p_list_id erbij.
+create or replace function public.norm_domein(p text) returns text
+language sql immutable as $$
+  select case when position('.' in t) > 1 then t end
+  from (select substring(regexp_replace(regexp_replace(lower(trim(coalesce(p, ''))),
+          '^[a-z]+://', ''), '^www\.', '') from '^[a-z0-9.-]+') as t) x
+$$;
+create table if not exists public.afmeldingen (
+  id uuid primary key default gen_random_uuid(),
+  created_at timestamptz not null default now(),
+  bedrijfsnaam text,
+  bron text not null,
+  reden text,
+  campaign_id uuid references public.campaigns(id) on delete set null,
+  door uuid references public.profiles(id) on delete set null
+);
+alter table public.afmeldingen enable row level security;
+drop policy if exists afmeldingen_select on public.afmeldingen;
+create policy afmeldingen_select on public.afmeldingen for select to authenticated
+  using (public.is_admin() or exists (select 1 from public.profiles p where p.id = auth.uid() and p.role = 'manager'));
+
+drop function if exists public.blokkeer_contact(text, text, text, text, text);
+create or replace function public.blokkeer_contact(p_email text, p_telefoon text, p_website text,
+  p_bron text, p_reden text default null, p_naam text default null, p_list_id uuid default null)
+returns integer language plpgsql security definer set search_path to 'public' as $$
+declare
+  v_e text := public.blokkade_hash('email', public.norm_email(p_email));
+  v_t text := public.blokkade_hash('telefoon', public.norm_telefoon(p_telefoon));
+  v_d text := public.blokkade_hash('domein', public.norm_domein(p_website));
+  v_n integer := 0;
+begin
+  perform set_config('leadgen.systeem', '1', true);
+  if v_e is not null then insert into public.contact_blokkades (soort, hash, bron, reden, created_by)
+    values ('email', v_e, p_bron, p_reden, auth.uid()) on conflict do nothing; end if;
+  if v_t is not null then insert into public.contact_blokkades (soort, hash, bron, reden, created_by)
+    values ('telefoon', v_t, p_bron, p_reden, auth.uid()) on conflict do nothing; end if;
+  if v_d is not null then insert into public.contact_blokkades (soort, hash, bron, reden, created_by)
+    values ('domein', v_d, p_bron, p_reden, auth.uid()) on conflict do nothing; end if;
+  insert into public.afmeldingen (bedrijfsnaam, bron, reden, campaign_id, door)
+  values (p_naam, p_bron, p_reden, (select campaign_id from public.lead_lists where id = p_list_id), auth.uid());
+  update public.leads l set
+    afgemeld_at = coalesce(l.afgemeld_at, now()),
+    afgemeld_bron = coalesce(l.afgemeld_bron, p_bron),
+    status = case when public.is_klant_status(l.status) then l.status else 'blacklist' end,
+    next_contact_date = null,
+    locked_by = null, locked_at = null
+  where l.afgemeld_at is null
+    and not public.lead_is_recruitment(l.lead_list_id)
+    and (
+      (v_e is not null and public.blokkade_hash('email', public.norm_email(l.email)) = v_e)
+      or (v_t is not null and public.blokkade_hash('telefoon', public.norm_telefoon(l.phone)) = v_t)
+      or (v_d is not null and public.blokkade_hash('domein', public.norm_domein(l.website)) = v_d)
+    );
+  get diagnostics v_n = row_count;
+  delete from public.mail_queue q using public.leads l
+  where q.lead_id = l.id and l.afgemeld_at is not null and q.status <> 'verzonden';
+  perform set_config('leadgen.systeem', '', true);
+  return v_n;
+end $$;
+revoke execute on function public.blokkeer_contact(text, text, text, text, text, text, uuid) from public, anon, authenticated;
+
+create or replace function public.blokkeer_lead(p_lead_id uuid, p_bron text default 'handmatig', p_reden text default null)
+returns integer language plpgsql security definer set search_path to 'public' as $$
+declare l public.leads;
+begin
+  if not exists (select 1 from public.leads where id = p_lead_id) then
+    raise exception 'Lead niet gevonden' using errcode = '42501';
+  end if;
+  select * into l from public.leads where id = p_lead_id;
+  perform set_config('leadgen.systeem', '1', true);
+  update public.leads set afgemeld_at = coalesce(afgemeld_at, now()),
+    afgemeld_bron = coalesce(afgemeld_bron, p_bron),
+    status = case when public.is_klant_status(status) then status else 'blacklist' end,
+    next_contact_date = null
+  where id = p_lead_id;
+  return public.blokkeer_contact(l.email, l.phone, l.website, p_bron, p_reden, l.name, l.lead_list_id) + 1;
+end $$;
+
+create or replace function public.leads_blacklist_afmelden()
+returns trigger language plpgsql security definer set search_path to 'public' as $$
+begin
+  if public.leadgen_systeem() then return null; end if;
+  if new.status = 'blacklist' and old.status is distinct from 'blacklist'
+     and not public.lead_is_recruitment(new.lead_list_id) then
+    perform public.blokkeer_contact(new.email, new.phone, new.website, 'beller', 'Niet meer benaderen (afboeking)', new.name, new.lead_list_id);
+  end if;
+  return null;
+end $$;
