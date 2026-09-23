@@ -1411,28 +1411,29 @@ export default function WorkInterface() {
 
           {/* Disposition Modal */}
           {showDispositionModal && (
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-               <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '24px', width: '100%', maxWidth: '500px', padding: '30px', position: 'relative' }}>
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px' }}>
+               {/* Popup past altijd in het scherm: max. schermhoogte, scrollt zelf en de afrondknop blijft onderaan staan */}
+               <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '24px', width: '100%', maxWidth: '500px', maxHeight: 'calc(100dvh - 24px)', overflowY: 'auto', padding: (selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled) ? '18px 22px 0' : '30px 30px 0', position: 'relative' }}>
                   <button onClick={() => setShowDispositionModal(false)} style={{ position: 'absolute', top: '15px', right: '15px', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={24} /></button>
 
-                  <h2 style={{ color: 'var(--text-primary)', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <h2 style={{ color: 'var(--text-primary)', marginBottom: (selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled) ? '12px' : '20px', fontSize: (selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled) ? '1.15rem' : undefined, display: 'flex', alignItems: 'center', gap: '12px', paddingRight: '28px' }}>
                     {dispositions.find(d => d.id === selectedDisposition)?.icon}
                     {dispositions.find(d => d.id === selectedDisposition)?.label} AFHANDELEN
                   </h2>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: (selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled) ? '10px' : '16px' }}>
                     {(selectedDisposition === 'terugbelafspraak' || selectedDisposition === 'later_bellen' || ((isRecruitmentCampaign || appointmentSchedulingEnabled) && selectedDisposition === 'afspraak_gemaakt')) && (
                       <div>
                         {/* v57/v91/v94: bij appointmentSchedulingEnabled ook accountmanager tonen + conflictwaarschuwing */}
                         {selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled && accountmanagers.length > 0 && (
-                          <div style={{ marginBottom: '12px' }}>
-                            <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '6px', fontSize: '0.85rem' }}>
+                          <div style={{ marginBottom: '10px' }}>
+                            <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '4px', fontSize: '0.85rem' }}>
                               Met welke accountmanager is de afspraak?
                             </label>
                             <select
                               value={selectedAmId || ''}
                               onChange={e => setSelectedAmId(e.target.value)}
-                              style={{ width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                              style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
                             >
                               {accountmanagers.map(am => (
                                 <option key={am.id} value={am.id}>{am.full_name} ({am.role === 'admin' ? 'Admin' : 'Accountmanager'})</option>
@@ -1447,12 +1448,13 @@ export default function WorkInterface() {
                             <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> ({APPOINTMENT_LABEL}, duurt 2,5 uur)</span>
                           )}
                         </label>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
                         <input
                           type="datetime-local"
                           step="900"
                           value={nextContactDate}
                           onChange={e => setNextContactDate(e.target.value)}
-                          style={{ width: '100%', padding: '12px', borderRadius: '8px', border: conflictWarning ? '1px solid var(--error, #EF4444)' : '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }}
+                          style={{ flex: 1, minWidth: 0, width: '100%', padding: '9px 12px', borderRadius: '8px', border: conflictWarning ? '1px solid var(--error, #EF4444)' : '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }}
                         />
 
                         {/* v96: visuele agendakeuze i.p.v. blind typen - toont
@@ -1464,7 +1466,7 @@ export default function WorkInterface() {
                             onClick={() => setShowAgendaPicker(true)}
                             style={{
                               display: 'flex', alignItems: 'center', gap: '8px',
-                              marginTop: '8px', padding: '10px 14px', borderRadius: '8px',
+                              padding: '0 12px', borderRadius: '8px', whiteSpace: 'nowrap', flexShrink: 0,
                               border: '1px solid var(--primary)', background: 'transparent',
                               color: 'var(--primary)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer'
                             }}
@@ -1473,6 +1475,7 @@ export default function WorkInterface() {
                             Zet in agenda
                           </button>
                         )}
+                        </div>
 
                         {checkingConflict && (
                           <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
@@ -1495,11 +1498,11 @@ export default function WorkInterface() {
                     {/* v97: afspraakdetails voor de accountmanager - contactpersoon,
                         adres (met navigatie in de agenda) en hoe de klant erin staat */}
                     {selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled && (() => {
-                      const inputStyle = { width: '100%', padding: '11px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontSize: '0.9rem' }
-                      const labelStyle = { display: 'block', color: 'var(--text-muted)', marginBottom: '6px', fontSize: '0.85rem' }
+                      const inputStyle = { width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontSize: '0.9rem' }
+                      const labelStyle = { display: 'block', color: 'var(--text-muted)', marginBottom: '4px', fontSize: '0.85rem' }
                       const set = (k) => (e) => setEditableLead({ ...editableLead, [k]: e.target.value })
                       return (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                           <div>
                             <label style={labelStyle}>Contactpersoon (verplicht)</label>
                             <input type="text" value={editableLead.contact_person || ''} onChange={set('contact_person')} placeholder="Met wie is de afspraak?" style={inputStyle} />
@@ -1535,7 +1538,7 @@ export default function WorkInterface() {
                                     type="button"
                                     onClick={() => setAppointmentSentiment(s.id)}
                                     style={{
-                                      flex: 1, padding: '10px 6px', borderRadius: '8px', cursor: 'pointer', fontWeight: 800, fontSize: '0.85rem',
+                                      flex: 1, padding: '8px 6px', borderRadius: '8px', cursor: 'pointer', fontWeight: 800, fontSize: '0.85rem',
                                       border: `2px solid ${actief ? s.color : 'var(--border)'}`,
                                       background: actief ? `${s.color}22` : 'transparent',
                                       color: actief ? s.color : 'var(--text-primary)'
@@ -1613,8 +1616,8 @@ export default function WorkInterface() {
                         value={dispositionNotes}
                         onChange={e => setDispositionNotes(e.target.value)}
                         placeholder={selectedDisposition === 'wil_annuleren' ? 'Waarom wil de klant annuleren?' : 'Wat is er besproken? Waarom deze status?'}
-                        rows={4}
-                        style={{ width: '100%', padding: '15px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }}
+                        rows={(selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled) ? 2 : 4}
+                        style={{ width: '100%', padding: (selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled) ? '10px 12px' : '15px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)' }}
                       />
                     </div>
 
@@ -1636,7 +1639,11 @@ export default function WorkInterface() {
                         fontWeight: 800,
                         fontSize: '1.1rem',
                         cursor: isSubmitting ? 'not-allowed' : 'pointer',
-                        marginTop: '10px',
+                        marginTop: '4px',
+                        position: 'sticky',
+                        bottom: 0,
+                        zIndex: 2,
+                        boxShadow: '0 -10px 14px var(--bg-card)',
                         opacity: isSubmitting ? 0.7 : 1,
                         display: 'flex',
                         alignItems: 'center',
@@ -1653,6 +1660,7 @@ export default function WorkInterface() {
                         'AFRONDEN & VOLGENDE'
                       )}
                     </button>
+                    <div style={{ height: (selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled) ? '14px' : '24px', flexShrink: 0 }} />
                   </div>
                </motion.div>
             </div>
