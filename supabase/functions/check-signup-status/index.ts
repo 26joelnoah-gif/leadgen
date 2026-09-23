@@ -13,12 +13,25 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// v100: rate limit via public.rate_limit_hit (true = te veel). Faalt open:
+// als de DB-check zelf faalt, laten we het verzoek door.
+async function teVeel(key: string, max: number, windowSec: number): Promise<boolean> {
+  try {
+    const svc = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { data, error } = await svc.rpc("rate_limit_hit", { p_key: key, p_max: max, p_window_seconds: windowSec });
+    return !error && data === true;
+  } catch { return false; }
+}
+const clientIp = (req: Request) =>
+  (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "onbekend";
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   try {
+    if (await teVeel(`signup-status:${clientIp(req)}`, 120, 600)) return json({ error: "te_veel_verzoeken" }, 429);
     const url = new URL(req.url);
     let profileId = url.searchParams.get("p") || "";
     if (!profileId) {

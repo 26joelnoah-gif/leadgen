@@ -22,6 +22,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// v100: rate limit via public.rate_limit_hit (true = te veel). Faalt open:
+// als de DB-check zelf faalt, laten we het verzoek door.
+async function teVeel(key: string, max: number, windowSec: number): Promise<boolean> {
+  try {
+    const svc = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { data, error } = await svc.rpc("rate_limit_hit", { p_key: key, p_max: max, p_window_seconds: windowSec });
+    return !error && data === true;
+  } catch { return false; }
+}
+const clientIp = (req: Request) =>
+  (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "onbekend";
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   const json = (body: unknown, status = 200) =>
@@ -43,6 +55,13 @@ Deno.serve(async (req: Request) => {
     if (!phone || phone.replace(/\D/g, "").length < 8) return json({ error: "Vul een geldig telefoonnummer in." }, 400);
     if (!password || password.length < 6) return json({ error: "Je wachtwoord moet minimaal 6 tekens zijn." }, 400);
     if (!werkAkkoord) return json({ error: "Vink aan dat je als beller aan de slag wilt." }, 400);
+
+    // v100: tegen bots/spam. Per IP 5 pogingen per uur, per e-mail 3 per uur,
+    // en in totaal 50 aanmeldingen per uur.
+    const ip = clientIp(req);
+    if (await teVeel(`signup-ip:${ip}`, 5, 3600) || await teVeel(`signup-mail:${email}`, 3, 3600) || await teVeel("signup-totaal", 50, 3600)) {
+      return json({ error: "Te veel aanmeldpogingen. Probeer het over een uur opnieuw." }, 429);
+    }
 
     const { data: created, error: createErr } = await admin.auth.admin.createUser({
       email, password, email_confirm: true, user_metadata: { full_name: fullName },

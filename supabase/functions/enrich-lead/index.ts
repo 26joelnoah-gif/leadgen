@@ -16,6 +16,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// v100: rate limit via public.rate_limit_hit (true = te veel). Faalt open:
+// als de DB-check zelf faalt, laten we het verzoek door.
+async function teVeel(key: string, max: number, windowSec: number): Promise<boolean> {
+  try {
+    const svc = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { data, error } = await svc.rpc("rate_limit_hit", { p_key: key, p_max: max, p_window_seconds: windowSec });
+    return !error && data === true;
+  } catch { return false; }
+}
+const clientIp = (req: Request) =>
+  (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "onbekend";
+
 const MAX_LEADS = 10;
 
 function cleanWebsite(raw: string): string {
@@ -110,6 +122,12 @@ Deno.serve(async (req: Request) => {
     // automatisch, voor leads in projecten met auto_enrich aan (check hieronder).
     const allowed = profile.role === "admin" || !!profile.can_manage_leads || auto;
     if (!allowed) return json({ error: "Geen toestemming: alleen admins of medewerkers met het recht 'Leads beheren' kunnen verrijken." }, 403);
+
+    // v100: max per gebruiker per uur (1 aanroep = max 10 leads). Handmatig kan
+    // Perplexity aanroepen (kost geld), automatisch alleen de gratis scan.
+    if (auto ? await teVeel(`enrich-auto:${uid}`, 30, 3600) : await teVeel(`enrich:${uid}`, 30, 3600)) {
+      return json({ error: "Je hebt het maximum aantal verrijkingen per uur bereikt. Probeer het over een uur opnieuw." }, 429);
+    }
 
     const leadIds: string[] = Array.isArray(body?.leadIds) ? body.leadIds.slice(0, MAX_LEADS) : [];
     if (!leadIds.length) return json({ error: "Geen leadIds meegegeven" }, 400);

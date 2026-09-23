@@ -375,3 +375,21 @@ Twee-zijdig platform:
   (lead blijft in zijn lijst): hier verplaatst de beller hem zelf met deze knop.
   Geen activate_at op de kwartaallijst, anders ziet de beller de lead niet meer.
   Migratie: migration_v99_nieuw_kwartaal.sql.
+
+- **RATE LIMITING + OPEN NETLIFY-FUNCTIE DICHT (v100, 2026-09-24, migratie
+  toegepast, Edge Functions live):**
+  1. netlify/functions/create-user.js maakte met de service-role key accounts
+     (ook admin) aan ZONDER te checken wie belde. Nu uitgeschakeld (altijd
+     410). SUPABASE_SERVICE_ROLE_KEY hoort NIET in de Netlify-omgeving.
+  2. Tabel public.rate_limit_hits + public.rate_limit_hit(key, max,
+     window_seconds) -> true = te veel (vast venster, alleen service_role).
+     pg_cron leadgen-rate-limit-cleanup ruimt rijen ouder dan 2 dagen op.
+     In Edge Functions: helper teVeel() (faalt open) + clientIp().
+  3. Limieten: signup-freelancer 5/uur per IP, 3/uur per e-mail, 50/uur
+     totaal; check-signup-status 120 per 10 min per IP; enrich-lead 30
+     aanroepen/uur per gebruiker (handmatig en auto apart, 1 aanroep = max
+     10 leads); parse-paste 30/uur per gebruiker. Bestond al: mailingservice/
+     mailqueue-runner 40/uur per beller, offerte-sign 40 per 10 min per IP
+     (in-memory). Nieuwe publieke of betaalde functies: altijd teVeel() erin.
+  Migratie: migration_v100_rate_limit.sql.
+

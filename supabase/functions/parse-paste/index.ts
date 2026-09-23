@@ -12,6 +12,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// v100: rate limit via public.rate_limit_hit (true = te veel). Faalt open:
+// als de DB-check zelf faalt, laten we het verzoek door.
+async function teVeel(key: string, max: number, windowSec: number): Promise<boolean> {
+  try {
+    const svc = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const { data, error } = await svc.rpc("rate_limit_hit", { p_key: key, p_max: max, p_window_seconds: windowSec });
+    return !error && data === true;
+  } catch { return false; }
+}
+const clientIp = (req: Request) =>
+  (req.headers.get("cf-connecting-ip") || req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "onbekend";
+
 const MAX_CHARS = 20000;
 
 Deno.serve(async (req: Request) => {
@@ -44,6 +56,9 @@ Deno.serve(async (req: Request) => {
     const allowed = profile && profile.is_active !== false &&
       (profile.role === "admin" || (profile.role === "manager" && profile.can_manage_leads));
     if (!allowed) return json({ error: "Geen toestemming" }, 403);
+    if (await teVeel(`parse-paste:${userData.user.id}`, 30, 3600)) {
+      return json({ error: "Je hebt het maximum aantal AI-herkenningen per uur bereikt. Probeer het over een uur opnieuw." }, 429);
+    }
 
     const body = await req.json().catch(() => ({}));
     const text = String(body?.text || "").slice(0, MAX_CHARS);
