@@ -241,6 +241,9 @@ export default function WorkInterface() {
   const [notesExpanded, setNotesExpanded] = useState(false)
   const [showDispositionModal, setShowDispositionModal] = useState(false)
   const [selectedDisposition, setSelectedDisposition] = useState(null)
+  // Zichtbare terugkoppeling op de knop Opslaan: null | 'bezig' | 'ok' | 'niets'
+  const [opslaanStatus, setOpslaanStatus] = useState(null)
+  const opslaanTimerRef = useRef(null)
   const [nextContactDate, setNextContactDate] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
@@ -555,17 +558,33 @@ export default function WorkInterface() {
       if (['id', 'created_at', 'updated_at', 'lead_lists', 'status'].includes(key)) return
       if ((cleaned[key] ?? '') !== (base[key] ?? '')) changed[key] = cleaned[key]
     })
-    if (Object.keys(changed).length === 0) return
+    if (Object.keys(changed).length === 0) return 'niets'
     const { error } = await supabase.from('leads').update({ ...changed, updated_at: new Date().toISOString() }).eq('id', currentLead.id)
     if (!error) {
       baselineRef.current = { ...base, ...changed }
       setLiveLead(prev => (prev && prev.id === currentLead.id) ? { ...prev, ...changed } : prev)
       logActivity(currentLead.id, 'edit', 'Lead gegevens gewijzigd')
+      return 'ok'
     } else {
       // v71: hiervoor verdween een mislukte wijziging geruisloos
       toast(`Wijziging niet opgeslagen: ${foutTekst(error)}`, 'error', 8000)
+      return 'fout'
     }
   }
+
+  // Knop Opslaan: laat zien dat het gelukt is (voorheen gebeurde er
+  // zichtbaar niets, ook als het wel was opgeslagen)
+  const klikOpslaan = async () => {
+    if (opslaanStatus === 'bezig') return
+    setOpslaanStatus('bezig')
+    let uitkomst = 'fout'
+    try { uitkomst = await saveLeadEdits() } catch (err) { toast(`Wijziging niet opgeslagen: ${foutTekst(err)}`, 'error', 8000) }
+    setOpslaanStatus(uitkomst === 'fout' ? null : uitkomst)
+    clearTimeout(opslaanTimerRef.current)
+    opslaanTimerRef.current = setTimeout(() => setOpslaanStatus(null), 2500)
+  }
+  const opslaanTekst = opslaanStatus === 'bezig' ? 'Bezig...' : opslaanStatus === 'ok' ? 'Opgeslagen' : opslaanStatus === 'niets' ? 'Al opgeslagen' : 'Opslaan'
+  const opslaanKleur = (opslaanStatus === 'ok' || opslaanStatus === 'niets') ? 'var(--success, #10B981)' : 'var(--primary)'
 
 
   // quick: true = direct afboeken met 1 klik, geen modal en geen verplichte notitie
@@ -1113,8 +1132,8 @@ export default function WorkInterface() {
                   </div>
                   <textarea value={editableLead.notes || ''} onChange={e => setEditableLead({ ...editableLead, notes: e.target.value })} rows={notesExpanded ? 14 : 6} style={{ width: '100%', padding: '10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.95rem', lineHeight: 1.4, resize: 'vertical' }} placeholder="Notities en bijzonderheden..." />
                   <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-                    <button onClick={saveLeadEdits} style={{ flex: 1, background: 'var(--primary)', color: 'var(--text-on-accent)', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
-                      <Save size={14} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Opslaan
+                    <button onClick={klikOpslaan} disabled={opslaanStatus === 'bezig'} style={{ flex: 1, background: opslaanKleur, color: 'var(--text-on-accent)', border: 'none', padding: '10px', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', transition: 'background 0.2s' }}>
+                      {opslaanStatus === 'ok' || opslaanStatus === 'niets' ? <CheckCircle2 size={14} style={{ verticalAlign: '-2px', marginRight: '6px' }} /> : <Save size={14} style={{ verticalAlign: '-2px', marginRight: '6px' }} />}{opslaanTekst}
                     </button>
                     <button onClick={() => setShowMobileDetails(v => !v)} style={{ flex: 1, background: 'var(--bg-elevated)', color: 'var(--text-primary)', border: '1px solid var(--border)', padding: '10px', borderRadius: '8px', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
                       {showMobileDetails ? 'Verberg gegevens' : 'Alle gegevens'}
@@ -1247,8 +1266,8 @@ export default function WorkInterface() {
                         style={{ width: '100%', flex: 1, minHeight: notesExpanded ? '340px' : '150px', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem', lineHeight: '1.5', resize: 'vertical', transition: 'min-height 0.15s ease' }}
                         placeholder="Voer hier alle relevante gespreksnotities in..."
                       />
-                      <button onClick={saveLeadEdits} style={{ alignSelf: 'flex-end', background: 'var(--primary)', color: 'var(--text-on-accent)', border: 'none', padding: '8px 18px', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem' }}>
-                        <Save size={15} /> Opslaan
+                      <button onClick={klikOpslaan} disabled={opslaanStatus === 'bezig'} style={{ alignSelf: 'flex-end', background: opslaanKleur, color: 'var(--text-on-accent)', border: 'none', padding: '8px 18px', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', transition: 'background 0.2s' }}>
+                        {opslaanStatus === 'ok' || opslaanStatus === 'niets' ? <CheckCircle2 size={15} /> : <Save size={15} />} {opslaanTekst}
                       </button>
                       {renderCallHistory()}
                     </div>
