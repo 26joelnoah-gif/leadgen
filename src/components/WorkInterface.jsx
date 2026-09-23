@@ -126,16 +126,22 @@ export default function WorkInterface() {
   // niet alleen recruitment-gesprekken. Vraagt hetzelfde datumveld uit als
   // bij recruitment, maar dan voor elk project met deze vlag aan.
   const [appointmentSchedulingEnabled, setAppointmentSchedulingEnabled] = useState(false)
+  // v99: campaigns.kwartaal_bellen_enabled - knop "NIEUW KWARTAAL": lead gaat
+  // naar lijst "Q<n> <jaar>" in hetzelfde project en komt terug op de eerste
+  // werkdag van dat kwartaal (RPC lead_naar_kwartaal).
+  const [kwartaalBellenEnabled, setKwartaalBellenEnabled] = useState(false)
+  const [gekozenKwartaal, setGekozenKwartaal] = useState(null)
   useEffect(() => {
     const listId = workingListId || workingLead?.lead_list_id
-    if (!isWorking || !listId) { setBriefing(null); setBriefingCampaignId(null); setIsRecruitmentCampaign(false); setIsBackofficeCampaign(false); setAppointmentSchedulingEnabled(false); return }
+    if (!isWorking || !listId) { setBriefing(null); setBriefingCampaignId(null); setIsRecruitmentCampaign(false); setIsBackofficeCampaign(false); setAppointmentSchedulingEnabled(false); setKwartaalBellenEnabled(false); return }
     let cancelled = false
-    supabase.from('lead_lists').select('campaign_id, campaigns(type, appointment_scheduling_enabled)').eq('id', listId).maybeSingle()
+    supabase.from('lead_lists').select('campaign_id, campaigns(type, appointment_scheduling_enabled, kwartaal_bellen_enabled)').eq('id', listId).maybeSingle()
       .then(({ data }) => {
         if (cancelled) return
         setIsRecruitmentCampaign(data?.campaigns?.type === 'recruitment')
         setIsBackofficeCampaign(data?.campaigns?.type === 'backoffice')
         setAppointmentSchedulingEnabled(data?.campaigns?.appointment_scheduling_enabled === true)
+        setKwartaalBellenEnabled(data?.campaigns?.kwartaal_bellen_enabled === true)
         setBriefingCampaignId(data?.campaign_id || null)
         if (!data?.campaign_id) { setBriefing(null); return }
         supabase.from('campaign_briefings')
@@ -579,6 +585,7 @@ export default function WorkInterface() {
     { id: 'afspraak_gemaakt', label: dLabel('afspraak_gemaakt', 'AFSPRAAK'), color: '#3B82F6', icon: <Calendar size={18} /> },
     { id: 'terugbelafspraak', label: 'TBA (Terugbel)', color: '#8B5CF6', icon: <Clock size={18} /> },
     { id: 'later_bellen', label: 'LATER BELLEN', color: '#F59E0B', icon: <Clock size={18} /> },
+    ...(kwartaalBellenEnabled ? [{ id: 'nieuw_kwartaal', label: 'NIEUW KWARTAAL', color: '#14B8A6', icon: <CalendarClock size={18} /> }] : []),
     { id: 'geen_gehoor', label: 'GEEN GEHOOR', color: '#64748B', icon: <Phone size={18} />, quick: true },
     { id: 'verkeerd_nummer', label: 'FOUTIEVE INFO', color: '#EF4444', icon: <AlertCircle size={18} />, quick: true },
     { id: 'geen_interesse', label: dLabel('geen_interesse', 'GEEN INTERESSE'), color: '#334155', icon: <X size={18} />, quick: true },
@@ -786,6 +793,21 @@ export default function WorkInterface() {
 
   const handleFinalDisposition = async () => {
     if (!selectedDisposition) return
+    // v99: eerst naar de kwartaallijst verplaatsen (database rekent de
+    // opvolgdatum uit), dan gewoon afboeken als 'later_bellen'.
+    if (selectedDisposition === 'nieuw_kwartaal') {
+      if (isSubmitting || !gekozenKwartaal) return
+      const { data, error } = await supabase.rpc('lead_naar_kwartaal', { p_lead_id: currentLead.id, p_kwartaal_start: gekozenKwartaal })
+      if (error || !data) {
+        logAppError('afboeken.nieuwKwartaal', error, { leadId: currentLead.id })
+        toast(`Niet verplaatst: ${foutTekst(error)}`, 'error', 8000)
+        return
+      }
+      const notitie = `Nieuw kwartaal: bellen in ${data.list_name}${dispositionNotes.trim() ? ` - ${dispositionNotes.trim()}` : ''}`
+      toast(`Lead staat nu in lijst ${data.list_name}`, 'success', 4000)
+      submitDisposition('later_bellen', notitie, data.next_contact_date)
+      return
+    }
     if (selectedDisposition === 'terugbelafspraak') {
       const contactpersoon = (editableLead.contact_person || '').trim()
       if (!contactpersoon) return
@@ -1281,6 +1303,7 @@ export default function WorkInterface() {
                     // 1 klik = direct afgeboekt, geen notitie nodig
                     submitDisposition(d.id)
                   } else {
+                    if (d.id === 'nieuw_kwartaal') setGekozenKwartaal(komendeKwartalen()[0].start)
                     setSelectedDisposition(d.id)
                     setShowDispositionModal(true)
                   }
@@ -1539,6 +1562,30 @@ export default function WorkInterface() {
                       </div>
                     )}
 
+                    {selectedDisposition === 'nieuw_kwartaal' && (
+                      <div>
+                        <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>
+                          In welk kwartaal bellen we terug?
+                        </label>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                          {komendeKwartalen().map(k => {
+                            const actief = gekozenKwartaal === k.start
+                            return (
+                              <button key={k.start} type="button" onClick={() => setGekozenKwartaal(k.start)}
+                                style={{ padding: '10px 4px', borderRadius: '8px', cursor: 'pointer', fontWeight: 800, fontSize: '0.85rem',
+                                  border: `2px solid ${actief ? '#14B8A6' : 'var(--border)'}`, background: actief ? 'rgba(20,184,166,0.13)' : 'transparent',
+                                  color: actief ? '#14B8A6' : 'var(--text-primary)' }}>
+                                {k.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                          De lead gaat naar de lijst {komendeKwartalen().find(k => k.start === gekozenKwartaal)?.label || ''} en komt op de eerste werkdag van dat kwartaal terug.
+                        </div>
+                      </div>
+                    )}
+
                     <div>
                       <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>
                         {selectedDisposition === 'wil_annuleren' ? 'Reden van annulering (verplicht)' : 'Gespreksverslag / Toelichting'}
@@ -1557,6 +1604,7 @@ export default function WorkInterface() {
                       disabled={
                         isSubmitting ||
                         (selectedDisposition === 'wil_annuleren' && !dispositionNotes.trim()) ||
+                        (selectedDisposition === 'nieuw_kwartaal' && !gekozenKwartaal) ||
                         (selectedDisposition === 'terugbelafspraak' && !(editableLead.contact_person || '').trim()) ||
                         (selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled && (!!conflictWarning || checkingConflict || !nextContactDate || !afspraakDetailsCompleet))
                       }
@@ -1594,4 +1642,19 @@ export default function WorkInterface() {
       )}
     </AnimatePresence>
   )
+}
+
+// v99: de komende 4 kwartalen (volgend kwartaal eerst), start als YYYY-MM-DD
+function komendeKwartalen() {
+  const nu = new Date()
+  let jaar = nu.getFullYear()
+  let q = Math.floor(nu.getMonth() / 3) + 1
+  const uit = []
+  for (let i = 0; i < 4; i++) {
+    q += 1
+    if (q > 4) { q = 1; jaar += 1 }
+    const maand = String((q - 1) * 3 + 1).padStart(2, '0')
+    uit.push({ start: `${jaar}-${maand}-01`, label: `Q${q} ${jaar}` })
+  }
+  return uit
 }

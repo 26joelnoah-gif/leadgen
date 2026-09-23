@@ -362,3 +362,16 @@ Twee-zijdig platform:
      Mailpauze (later_mailen) zichtbaar als chip + filter "Later mailen" op
      /leads, blok in belscherm/contactkaart en lijst in Admin > Compliance.
      norm_domein neemt alleen het echte domein ("x.nl](https://x.nl" -> x.nl).
+
+- **IN NIEUW KWARTAAL BELLEN (v99, 2026-09-23, migratie toegepast):**
+  Per project aan te zetten in ProjectSettingsModal (campaigns.kwartaal_bellen_enabled),
+  aan voor PROSELL. Belscherm (WorkInterface) toont dan de knop "NIEUW KWARTAAL":
+  beller kiest een van de komende 4 kwartalen. RPC public.lead_naar_kwartaal(lead, kwartaalstart)
+  (security definer, zelfde toegangsregel als claim_lead) zoekt of maakt de lijst
+  "Q<n> <jaar>" in hetzelfde project (kopie van assigned_to/team/tarieven van de bronlijst),
+  verplaatst de lead en geeft de opvolgdatum terug: eerste werkdag van het kwartaal
+  (niet 1 januari) 09:00 NL. Daarna gewone afboeking 'later_bellen' met die datum en
+  notitie "Nieuw kwartaal: bellen in Q1 2027". Bewuste uitzondering op ROUTING V17
+  (lead blijft in zijn lijst): hier verplaatst de beller hem zelf met deze knop.
+  Geen activate_at op de kwartaallijst, anders ziet de beller de lead niet meer.
+  Migratie: migration_v99_nieuw_kwartaal.sql.

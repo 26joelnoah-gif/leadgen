@@ -78,6 +78,7 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   // niet alleen bij recruitment. Beller vult bij "Afspraak gemaakt" een
   // moment in (leads.appointment_at), zichtbaar op het bord/de agenda.
   const [appointmentScheduling, setAppointmentScheduling] = useState(false)
+  const [kwartaalBellen, setKwartaalBellen] = useState(false) // v99
   // v98: compliance-checklist (doelgroep, rechtsvorm-modus, afspraken met het team)
   const [compliance, setCompliance] = useState({ doelgroep: null, rechtsvorm_modus: 'waarschuwen', checklist: {} })
   const [complianceOrig, setComplianceOrig] = useState(null)
@@ -93,6 +94,7 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
     setBoardView(campaign.board_view_enabled === true)
     setAutoEnrich(campaign.auto_enrich === true)
     setAppointmentScheduling(campaign.appointment_scheduling_enabled === true)
+    setKwartaalBellen(campaign.kwartaal_bellen_enabled === true)
     setConfirmDelete(false)
     setLoading(true)
     Promise.all([
@@ -165,6 +167,10 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       }
       if (appointmentScheduling !== (campaign.appointment_scheduling_enabled === true)) {
         const { error } = await supabase.from('campaigns').update({ appointment_scheduling_enabled: appointmentScheduling }).eq('id', campaign.id)
+        if (error) throw error
+      }
+      if (kwartaalBellen !== (campaign.kwartaal_bellen_enabled === true)) {
+        const { error } = await supabase.from('campaigns').update({ kwartaal_bellen_enabled: kwartaalBellen }).eq('id', campaign.id)
         if (error) throw error
       }
 
@@ -368,6 +374,15 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
                 Bij de afboekreden "Afspraak gemaakt" vraagt het belscherm om een datum en tijd
               </label>
               <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>Zelfde datumveld als bij sollicitatiegesprekken, maar dan voor een afspraak met de klant. Die momenten zijn te zien op het bord in de kolom Agenda, zodat degene die de afspraken nabelt of nakomt weet wanneer.</p>
+            </div>
+
+            <div>
+              <label className={labelStyle}>In nieuw kwartaal bellen</label>
+              <label className="flex items-center gap-2" style={{ cursor: 'pointer', fontSize: '0.85rem' }}>
+                <input type="checkbox" checked={kwartaalBellen} onChange={e => setKwartaalBellen(e.target.checked)} />
+                Knop "Nieuw kwartaal" in het belscherm
+              </label>
+              <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>De beller kiest een kwartaal. De lead gaat dan naar de lijst "Q1 2027" (of Q2, Q3, Q4) in dit project. Bestaat die lijst nog niet, dan wordt hij gemaakt. Op de eerste werkdag van dat kwartaal komt de lead vanzelf terug om te bellen.</p>
             </div>
 
             <div>
