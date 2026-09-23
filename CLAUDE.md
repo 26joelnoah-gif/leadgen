@@ -315,3 +315,45 @@ Twee-zijdig platform:
      appointment_at leeg, status later_bellen, next_contact_date nu,
      assigned_to leeg (lead terug in de pool), met activity-log.
   Migratie: migration_v97_afspraak_details_uitkomst.sql.
+
+- **AVG/ACM-COMPLIANCE (v98, 2026-09-23, migratie toegepast, Edge Functions
+  mailstatus v8 / mailingservice v9 / mailqueue-runner v2 live):**
+  Aanleiding: sinds 1 juli 2026 (art. 11.7 Tw) mag je zonder toestemming
+  alleen rechtspersonen bellen (bv, nv, stichting, vereniging, cooperatie).
+  Eenmanszaak, vof, cv, maatschap = opt-in zoals consumenten.
+  1. leads.rechtsvorm (+_bron naam|import|kvk_beller|handmatig, _at, _by).
+     Trigger haalt hem uit de naam ("B.V.", "VOF") bij insert/naamwijziging.
+     Import herkent kolom "Rechtsvorm" (ook bij Verrijken). Toestemming =
+     bestaande opt_in_* (v65) + opt_in_bewijs; alleen admin/manager mag
+     opt-in zetten (behalve Outside 'door'), trigger leads_compliance_guard.
+  2. campaigns.doelgroep (zakelijk | particulier | geen_telemarketing | null =
+     niet ingesteld = geen filter) + rechtsvorm_modus (waarschuwen | streng) +
+     compliance_checklist/compliance_ok_at. Regel: lead_belstatus_basis() ->
+     ok | kvk_check | toestemming_nodig | afgemeld; zelfde regel in JS
+     (src/lib/compliance.js leadBelstatus). claim_next_lead laat alleen ok en
+     kvk_check door. Belscherm verbergt het nummer tot de beller de
+     rechtsvorm kiest (KvK-link), knop "Niet bellen, volgende lead".
+  3. Afmeldlijst public.contact_blokkades (sha256 van e-mail/telefoon(9
+     cijfers)/domein). blokkeer_contact()/blokkeer_lead() markeren ALLE
+     leads met die gegevens: afgemeld_at + status blacklist (klantstatussen
+     houden hun status). Beller zet blacklist -> trigger meldt af. Nieuwe lead
+     of gewijzigd adres die op de lijst staat -> meteen afgemeld. Recruitment
+     doet niet mee. Systeemupdates zetten set_config('leadgen.systeem','1')
+     zodat lock-/eigenaar-triggers ze doorlaten.
+  4. mailstatus: 'afgemeld' = blokkeer_lead + melding; 'later_mailen' =
+     leads.mail_pauze_tot (later_op of +90 dagen), geplande mails weg.
+     'terugbellen' zet nu opt_in (web) op de terugbel-lead. mailingservice en
+     mailqueue-runner checken mail_geblokkeerd() (afgemeld, e-mail/domein op
+     de lijst, mailpauze).
+  5. Wissen: leads_wissen_intern() verwijdert echt (call_logs.notes leeg,
+     mailservice_logs.email leeg, rest via FK), logt aantal in lead_wis_log.
+     pg_cron leadgen-afgemeld-wissen (elk uur, 48 uur na afmelden) en
+     leadgen-bewaartermijn (02:45 UTC, 12 maanden niets mee gebeurd +
+     prullenbak ouder dan 12 maanden). Nu wissen: RPC
+     afgemelde_leads_wissen_nu (admin/manager) via filter "Afgemeld" op /leads.
+  6. Klachtenlog: public.compliance_meldingen (klacht|bezwaar|avg_verzoek|acm|
+     anders, tekst, datum, afgehandeld). Knop "Compliance-melding" in
+     belscherm en contactkaart, overzicht in Admin > Compliance.
+  7. Checklist: src/components/ComplianceChecklist.jsx, stap 4 in
+     NewProjectWizard en blok in ProjectSettingsModal. Cijfers via
+     project_compliance_stats(). Migratie: migration_v98_compliance.sql.

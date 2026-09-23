@@ -28,6 +28,7 @@ const FIELDS = [
   { id: 'lead_source', label: 'Bron' },
   { id: 'email', label: 'E-mail' },
   { id: 'website', label: 'Website' },
+  { id: 'rechtsvorm', label: 'Rechtsvorm (KvK)' },
   { id: 'address', label: 'Straat' },
   { id: 'house_number', label: 'Huisnummer' },
   { id: 'postal_code', label: 'Postcode' },
@@ -182,11 +183,29 @@ function cleanPhone(raw) {
   return p
 }
 
+// v98: rechtsvorm uit een KvK-export (bv. "Besloten Vennootschap", "BV",
+// "Eenmanszaak", "Vennootschap onder firma"). Onbekend = leeg laten.
+function parseRechtsvorm(raw) {
+  const v = String(raw || '').toLowerCase().replace(/[.\s]/g, '')
+  if (!v) return null
+  if (/^bv$|beslotenvennootschap|^bvio$/.test(v)) return 'bv'
+  if (/^nv$|naamlozevennootschap/.test(v)) return 'nv'
+  if (/stichting/.test(v)) return 'stichting'
+  if (/vereniging/.test(v)) return 'vereniging'
+  if (/co[oö]peratie|^ua$|^wa$|^ba$/.test(v)) return 'cooperatie'
+  if (/eenmanszaak|eenmanszaakmet|^zzp$/.test(v)) return 'eenmanszaak'
+  if (/^vof$|vennootschaponderfirma/.test(v)) return 'vof'
+  if (/^cv$|commanditairevennootschap/.test(v)) return 'cv'
+  if (/maatschap/.test(v)) return 'maatschap'
+  return null
+}
+
 function guessFieldForHeader(header) {
   const h = header.toLowerCase().trim()
   // Specifieke velden eerst, anders pakt "nummer" ook "huisnummer" of "kvk-nummer"
   if (/huisnr|huisnummer|house/.test(h)) return 'house_number'
   if (/postcode|zip|postal/.test(h)) return 'postal_code'
+  if (/rechtsvorm|legal.?form|rechtspersoon/.test(h)) return 'rechtsvorm'
   if (/kvk|btw|iban/.test(h)) return 'skip'
   if (/bron|source/.test(h)) return 'lead_source'
   if (/contact|persoon|voornaam|achternaam|aanspreek/.test(h)) return 'contact_person'
@@ -350,7 +369,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
       for (let from = 0; from < 20000; from += PAGE) {
         const { data, error } = await supabase
           .from('leads')
-          .select('id, name, phone, website, email, contact_person, function, address, house_number, postal_code, city, notes, extra_info1, extra_info2, extra_info3, decision_maker')
+          .select('id, name, phone, website, email, contact_person, function, address, house_number, postal_code, city, notes, extra_info1, extra_info2, extra_info3, decision_maker, rechtsvorm, rechtsvorm_bron')
           .is('deleted_at', null)
           .order('created_at', { ascending: true })
           .range(from, from + PAGE - 1)
@@ -490,6 +509,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         if (!value) return
         if (field === 'notes' || field === 'verrijking') lead.notes = lead.notes ? `${lead.notes} | ${value}` : value
         else if (field === 'website') lead.website = normalizeWebsite(value)
+        else if (field === 'rechtsvorm') { const rv = parseRechtsvorm(value); if (rv) { lead.rechtsvorm = rv; lead.rechtsvorm_bron = 'import'; lead.rechtsvorm_at = new Date().toISOString() } }
         else if (field === 'phone') lead.phone = cleanPhone(value)
         else if (field === 'decision_maker') lead.decision_maker = parseDecisionMaker(value)
         else if (field === 'sale_date') { const d = parseSaleDate(value); if (d) lead.sale_date = d }
@@ -563,6 +583,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         if (!value) return
         if (field === 'notes') row.notes = row.notes ? `${row.notes} | ${value}` : value
         else if (field === 'website') row.website = normalizeWebsite(value)
+        else if (field === 'rechtsvorm') { const rv = parseRechtsvorm(value); if (rv) row.rechtsvorm = rv }
         else if (field === 'phone') row.phone = cleanPhone(value)
         else if (field === 'decision_maker') row.decision_maker = parseDecisionMaker(value)
         else if (field === 'contact_person') {
@@ -614,6 +635,12 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         if (row[f] && !(lead[f] || '').toString().trim()) additions[f] = row[f]
       })
       if (row.decision_maker === true && lead.decision_maker !== true) additions.decision_maker = true
+      // v98: rechtsvorm uit de KvK-export aanvullen als hij leeg/onbekend is of alleen uit de naam kwam
+      if (row.rechtsvorm && row.rechtsvorm !== lead.rechtsvorm && (!lead.rechtsvorm || lead.rechtsvorm === 'onbekend' || lead.rechtsvorm_bron === 'naam')) {
+        additions.rechtsvorm = row.rechtsvorm
+        additions.rechtsvorm_bron = 'import'
+        additions.rechtsvorm_at = new Date().toISOString()
+      }
 
       // Notities: geplakte notitie alleen als het veld leeg is; stonden er
       // meerdere contactpersonen in één cel, dan komen die er als gelabelde
@@ -1166,7 +1193,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                                           <span style={{ marginLeft: '8px', fontSize: '0.65rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--primary)', background: 'rgba(59,130,246,0.12)', padding: '2px 7px', borderRadius: '6px' }}>match op {m.via}</span>
                                         </div>
                                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
-                                          {Object.entries(m.additions).map(([f, v]) => {
+                                          {Object.entries(m.additions).filter(([f]) => f !== 'rechtsvorm_bron' && f !== 'rechtsvorm_at').map(([f, v]) => {
                                             // Bij notities alleen tonen wat er NIEUW bijkomt, niet de bestaande notities
                                             let disp = String(v)
                                             if (f === 'decision_maker') disp = 'ja'

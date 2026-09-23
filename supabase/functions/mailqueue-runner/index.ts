@@ -104,6 +104,9 @@ Deno.serve(async (req: Request) => {
         .eq("id", rij.lead_id).maybeSingle();
       if (!lead || lead.deleted_at) { await faal("Lead bestaat niet meer"); continue; }
       if (lead.status === "blacklist") { await faal("Lead staat op de blacklist"); continue; }
+      // v98: afgemeld, e-mailadres op de afmeldlijst of "mail me later"
+      const { data: blokReden } = await admin.rpc("mail_geblokkeerd", { p_lead_id: lead.id, p_email: email });
+      if (blokReden) { await faal(String(blokReden)); continue; }
       if (!lead.lead_list_id) { await faal("Lead hoort niet bij een project"); continue; }
 
       const { data: list } = await admin.from("lead_lists").select("campaign_id").eq("id", lead.lead_list_id).maybeSingle();

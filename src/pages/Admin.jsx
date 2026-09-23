@@ -33,6 +33,7 @@ import ManagerProjectsModal from '../components/ManagerProjectsModal'
 import UserToolsModal from '../components/UserToolsModal' // v77
 import NewProjectWizard from '../components/NewProjectWizard'
 import PayoutSettings from '../components/PayoutSettings'
+import { ComplianceOverzicht } from '../components/Compliance'
 import ImportLeadsModal from '../components/ImportLeadsModal'
 import LeadManagement from './LeadManagement' // IMPORT THE MANAGEMENT COMPONENT
 
@@ -609,6 +610,7 @@ export default function Admin() {
              { id: 'medewerkers', label: 'Team', Icon: Users },
              { id: 'verdiensten', label: 'Uitbetaling', Icon: DollarSign },
              { id: 'nieuws', label: 'Nieuws', Icon: Newspaper },
+             { id: 'compliance', label: 'Compliance', Icon: Shield },
              { id: 'dashboard', label: 'Dashboard', Icon: Activity }
            ].map(t => (
              <button
@@ -1025,6 +1027,13 @@ export default function Admin() {
            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
               <LeadManagement standalone={false} />
            </motion.div>
+        )}
+
+        {/* v98: klachtenlog, afmeldlijst en wat er automatisch gewist is */}
+        {activeTab === 'compliance' && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <ComplianceOverzicht />
+          </motion.div>
         )}
 
         {activeTab === 'verdiensten' && (

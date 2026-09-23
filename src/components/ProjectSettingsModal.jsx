@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase'
 import { useToast } from './Toast'
 import { TOOLS } from '../lib/tools'
 import { MAIL_SOURCES } from '../lib/mailSources'
+import ComplianceChecklist, { checklistCompleet } from './ComplianceChecklist'
 
 // Uitgebreid instellingenpaneel per project (campagne) - vervangt de krappe
 // inline chip-rijtjes op de projectkaart in Projecten & Leads. Hier kan een
@@ -77,6 +78,9 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   // niet alleen bij recruitment. Beller vult bij "Afspraak gemaakt" een
   // moment in (leads.appointment_at), zichtbaar op het bord/de agenda.
   const [appointmentScheduling, setAppointmentScheduling] = useState(false)
+  // v98: compliance-checklist (doelgroep, rechtsvorm-modus, afspraken met het team)
+  const [compliance, setCompliance] = useState({ doelgroep: null, rechtsvorm_modus: 'waarschuwen', checklist: {} })
+  const [complianceOrig, setComplianceOrig] = useState(null)
 
   const allManagers = (agents || []).filter(a => a.role === 'manager')
 
@@ -95,8 +99,16 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       supabase.from('campaign_managers').select('manager_id').eq('campaign_id', campaign.id),
       supabase.from('campaign_teams').select('team_id').eq('campaign_id', campaign.id),
       supabase.from('campaign_tools').select('tool_key').eq('campaign_id', campaign.id),
-      supabase.from('campaign_mail_services').select('enabled, source, follow_up_days').eq('campaign_id', campaign.id).maybeSingle()
-    ]).then(([mRes, tRes, toolRes, mailRes]) => {
+      supabase.from('campaign_mail_services').select('enabled, source, follow_up_days').eq('campaign_id', campaign.id).maybeSingle(),
+      supabase.from('campaigns').select('doelgroep, rechtsvorm_modus, compliance_checklist, compliance_ok_at').eq('id', campaign.id).maybeSingle()
+    ]).then(([mRes, tRes, toolRes, mailRes, compRes]) => {
+      const comp = {
+        doelgroep: compRes.data?.doelgroep || null,
+        rechtsvorm_modus: compRes.data?.rechtsvorm_modus || 'waarschuwen',
+        checklist: compRes.data?.compliance_checklist || {},
+      }
+      setCompliance(comp)
+      setComplianceOrig({ ...comp, ok_at: compRes.data?.compliance_ok_at || null })
       setSelectedManagers((mRes.data || []).map(r => r.manager_id))
       setSelectedTeams((tRes.data || []).map(r => r.team_id))
       setSelectedTools((toolRes.data || []).map(r => r.tool_key))
@@ -153,6 +165,21 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       }
       if (appointmentScheduling !== (campaign.appointment_scheduling_enabled === true)) {
         const { error } = await supabase.from('campaigns').update({ appointment_scheduling_enabled: appointmentScheduling }).eq('id', campaign.id)
+        if (error) throw error
+      }
+
+      // v98: compliance-checklist
+      if (complianceOrig && JSON.stringify({ d: compliance.doelgroep, m: compliance.rechtsvorm_modus, c: compliance.checklist })
+          !== JSON.stringify({ d: complianceOrig.doelgroep, m: complianceOrig.rechtsvorm_modus, c: complianceOrig.checklist })) {
+        const compleet = checklistCompleet(compliance, mailEnabled)
+        const { data: { user: ik } } = await supabase.auth.getUser()
+        const { error } = await supabase.from('campaigns').update({
+          doelgroep: compliance.doelgroep,
+          rechtsvorm_modus: compliance.rechtsvorm_modus || 'waarschuwen',
+          compliance_checklist: compliance.checklist || {},
+          compliance_ok_at: compleet ? (complianceOrig.ok_at || new Date().toISOString()) : null,
+          compliance_ok_by: compleet ? (ik?.id || null) : null,
+        }).eq('id', campaign.id)
         if (error) throw error
       }
 
@@ -312,6 +339,9 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
                 </>
               )}
             </div>
+
+            {/* v98: AVG / art. 11.7 Tw - per project doorlopen */}
+            <ComplianceChecklist value={compliance} onChange={setCompliance} campaignId={campaign.id} mailEnabled={mailEnabled} />
 
             <div>
               <label className={labelStyle}>Leadlijst voor planning-accounts</label>

@@ -23,6 +23,7 @@ import LeadKanban from '../components/LeadKanban'
 import MailingserviceModal from '../components/MailingserviceModal'
 import MailQueueView from '../components/MailQueueView'
 import LeadDetailModal from '../components/LeadDetailModal'
+import { leadBelstatus, BELSTATUS, useProjectCompliance, urenTotWissen, rechtsvormLabel } from '../lib/compliance'
 
 // v62: gedeelde Leadlijst. Iedereen die in een project zit (team, manager,
 // planning-account met projectvlag) ziet ALLE leads van de gekozen lijst en
@@ -158,6 +159,12 @@ export default function LeadBoard() {
   }, [appointmentSchedulingEnabled])
   const { mailService } = useProjectMailService(listId)
   const followUpDays = mailService?.follow_up_days || 5
+  // v98: compliance. Belstatus per lead (zelfde regel als claim_next_lead) +
+  // lijst "Afgemeld": zelf verwijderen, anders gaat het na 48 uur vanzelf.
+  const complianceProject = useProjectCompliance(listId)
+  const belstatusVan = useCallback((l) => leadBelstatus(l, complianceProject || null), [complianceProject])
+  const [wisBevestig, setWisBevestig] = useState(false)
+  const [wissen, setWissen] = useState(false)
 
   const [leads, setLeads] = useState([])
   const [lockNames, setLockNames] = useState({})
@@ -200,7 +207,7 @@ export default function LeadBoard() {
     if (!silent) setLoading(true)
     const [{ data: rows, error }, ...lockResults] = await Promise.all([
       supabase.from('leads')
-        .select('id, lead_list_id, name, phone, email, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, updated_at, lat, lng')
+        .select('id, lead_list_id, name, phone, email, website, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, updated_at, lat, lng, rechtsvorm, rechtsvorm_bron, opt_in_at, opt_in_bewijs, afgemeld_at, afgemeld_bron')
         .in('lead_list_id', listIds)
         .is('deleted_at', null)
         .order('created_at', { ascending: true }),
@@ -324,6 +331,14 @@ export default function LeadBoard() {
 
   const openLead = useCallback(async (lead) => {
     if (claimingId || isWorking) return
+    // v98: afgemeld of toestemming nodig = niet bellen. Open de contactkaart,
+    // daar staat waarom (en kan admin/manager toestemming vastleggen).
+    const bs = belstatusVan(lead)
+    if (bs === 'afgemeld' || bs === 'toestemming_nodig') {
+      toast(bs === 'afgemeld' ? 'Deze lead heeft zich afgemeld. Niet bellen.' : 'Deze lead mag je alleen met toestemming bellen.', 'error')
+      setDetailLead(lead)
+      return
+    }
     if (needsTakeoverCheck(lead)) { setTakeover({ lead, doel: 'open' }); return }
     setClaimingId(lead.id)
     const row = await claim(lead)
@@ -335,7 +350,7 @@ export default function LeadBoard() {
       return
     }
     toggleWorkingMode(row)
-  }, [claimingId, isWorking, needsTakeoverCheck, claim, lockNames, toast, load, toggleWorkingMode])
+  }, [claimingId, isWorking, needsTakeoverCheck, claim, lockNames, toast, load, toggleWorkingMode, belstatusVan])
 
   // Bevestigd overnemen. Daarna doen we alsnog wat je wilde: openen of slepen.
   const doeOvername = useCallback(async () => {
@@ -610,6 +625,13 @@ export default function LeadBoard() {
   // Wat vraagt om actie op deze lead?
   const signalsFor = useCallback((lead) => {
     const out = []
+    const bs = belstatusVan(lead)
+    if (bs === 'afgemeld') {
+      const u = urenTotWissen(lead)
+      out.push({ label: `Afgemeld · weg over ${u}u`, color: '#fff', bg: 'var(--danger)' })
+    } else if (bs !== 'ok') {
+      out.push({ label: BELSTATUS[bs].kort + (lead.rechtsvorm && lead.rechtsvorm !== 'onbekend' ? ` (${rechtsvormLabel(lead.rechtsvorm)})` : ''), color: BELSTATUS[bs].color, bg: BELSTATUS[bs].bg })
+    }
     const mail = mailRows[lead.id]
     if (isWarm(lead)) {
       out.push({ label: 'Bel nu: offerte open', color: '#fff', bg: 'var(--secondary)', warm: true })
@@ -635,7 +657,7 @@ export default function LeadBoard() {
       out.push({ label: 'Nog niet gemaild', color: 'var(--text-muted)', bg: 'var(--bg-card)' })
     }
     return out
-  }, [mailRows, mailService, followUpDays, isWarm])
+  }, [mailRows, mailService, followUpDays, isWarm, belstatusVan])
 
   const pos = geo.enabled ? geo.position : null
   const q = search.trim().toLowerCase()
@@ -662,6 +684,9 @@ export default function LeadBoard() {
           if (filter === 'done' && !DONE_STATUSES.includes(l.status)) return false
         }
         if (filter === 'warm' && !isWarm(l)) return false
+        if (filter === 'afgemeld' && belstatusVan(l) !== 'afgemeld') return false
+        if (filter === 'kvk' && belstatusVan(l) !== 'kvk_check') return false
+        if (filter === 'toestemming' && belstatusVan(l) !== 'toestemming_nodig') return false
         if (wie === 'me' && !vanPersoon(l, user?.id)) return false
         if (wie !== 'all' && wie !== 'me' && !vanPersoon(l, wie)) return false
         if (!q) return true
@@ -679,9 +704,23 @@ export default function LeadBoard() {
       return [...warm, ...rest]
     }
     return rows
-  }, [pool, filter, q, pos, sortBy, wie, vanPersoon, user?.id, isWarm, mailRows, view])
+  }, [pool, filter, q, pos, sortBy, wie, vanPersoon, user?.id, isWarm, mailRows, view, belstatusVan])
   const openCount = pool.filter(l => !DONE_STATUSES.includes(l.status)).length
   const warmCount = useMemo(() => pool.filter(isWarm).length, [pool, isWarm])
+  const afgemeldeLeads = useMemo(() => pool.filter(l => belstatusVan(l) === 'afgemeld'), [pool, belstatusVan])
+  const kvkCount = useMemo(() => pool.filter(l => !DONE_STATUSES.includes(l.status) && belstatusVan(l) === 'kvk_check').length, [pool, belstatusVan])
+  const toestemmingCount = useMemo(() => pool.filter(l => !DONE_STATUSES.includes(l.status) && belstatusVan(l) === 'toestemming_nodig').length, [pool, belstatusVan])
+
+  async function wisAfgemeldeNu() {
+    if (!wisBevestig) { setWisBevestig(true); return }
+    setWissen(true)
+    const { data, error } = await supabase.rpc('afgemelde_leads_wissen_nu', { p_ids: afgemeldeLeads.map(l => l.id) })
+    setWissen(false)
+    setWisBevestig(false)
+    if (error) { toast(error.message || 'Verwijderen mislukt', 'error'); return }
+    toast(`${data || 0} afgemelde lead${data === 1 ? '' : 's'} verwijderd`, 'success')
+    load(true)
+  }
   const busyCount = pool.filter(isLockedByOther).length
   const actionCount = useMemo(
     () => pool.filter(l => !DONE_STATUSES.includes(l.status) && isFollowUpDue(l)).length,
@@ -864,7 +903,11 @@ export default function LeadBoard() {
                   // v87-uitzondering in de `visible`-filter hierboven), maar
                   // blijven wel zichtbaar zodat het bord er hetzelfde uitziet
                   // als lijst-/kaartweergave.
-                  ['open', `Open (${openCount})`], ['done', `Afgerond (${pool.length - openCount})`], ['all', `Alles (${pool.length})`]
+                  ['open', `Open (${openCount})`], ['done', `Afgerond (${pool.length - openCount})`], ['all', `Alles (${pool.length})`],
+                  // v98: compliance-filters
+                  ...(kvkCount > 0 ? [['kvk', `KvK-check (${kvkCount})`]] : []),
+                  ...(toestemmingCount > 0 ? [['toestemming', `Toestemming nodig (${toestemmingCount})`]] : []),
+                  ...(afgemeldeLeads.length > 0 || filter === 'afgemeld' ? [['afgemeld', `Afgemeld (${afgemeldeLeads.length})`]] : [])
                 ].map(([k, label]) => (
                   <button key={k} type="button" onClick={() => setFilter(k)} className={`btn btn-sm ${filter === k ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 20, ...(k === 'warm' && warmCount > 0 && filter !== 'warm' ? { color: 'var(--secondary)', borderColor: 'var(--secondary)', fontWeight: 800 } : {}) }} title={k === 'warm' ? 'Leads die de offerte openden. Die bel je eerst.' : undefined}>
                     {k === 'warm' && <Flame size={12} style={{ verticalAlign: -2 }} />} {label}
@@ -902,6 +945,25 @@ export default function LeadBoard() {
               {warmCount > 0 && (
                 <span style={{ color: 'var(--secondary)', fontWeight: 800 }}>
                   <Flame size={12} style={{ verticalAlign: -2 }} /> {warmCount} warme lead{warmCount === 1 ? '' : 's'}: {warmCount === 1 ? 'heeft' : 'hebben'} je mail geopend of de offerte bekeken. Bel die eerst.
+                </span>
+              )}
+              {filter === 'afgemeld' && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', width: '100%', padding: '8px 12px', borderRadius: 10, background: 'var(--danger-bg)', border: '1px solid var(--danger)', color: 'var(--text-primary)' }}>
+                  <span style={{ flex: 1, minWidth: 220 }}>
+                    <strong style={{ color: 'var(--danger)' }}>Afgemeld of opt-out.</strong> Niet bellen en niet mailen. Ze staan op de afmeldlijst, dus ook bij een nieuwe import komen ze niet terug.
+                    {' '}Na 48 uur worden ze automatisch verwijderd.
+                  </span>
+                  {isStaff && afgemeldeLeads.length > 0 && (
+                    <button type="button" className="btn btn-sm" disabled={wissen} onClick={wisAfgemeldeNu}
+                      style={{ background: 'var(--danger)', color: '#fff', border: 'none' }}>
+                      <Trash2 size={13} style={{ verticalAlign: -2 }} /> {wissen ? 'Bezig...' : wisBevestig ? `Zeker? Klik nogmaals (${afgemeldeLeads.length})` : `Nu verwijderen (${afgemeldeLeads.length})`}
+                    </button>
+                  )}
+                </span>
+              )}
+              {filter === 'kvk' && (
+                <span style={{ width: '100%', color: 'var(--warning)', fontWeight: 700 }}>
+                  Van deze leads is de rechtsvorm nog niet bekend. Open een lead, zoek hem op bij kvk.nl en kies de rechtsvorm. Pas daarna zie je het nummer.
                 </span>
               )}
               {actionCount > 0 && (
@@ -1066,7 +1128,7 @@ export default function LeadBoard() {
         {/* v75: overnemen van een collega gaat nooit per ongeluk. */}
         {takeover && (
           <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20, width: '100%', maxWidth: 420, padding: 24, position: 'relative' }}>
+            <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 20, width: '100%', maxWidth: 420, padding: 24, position: 'relative', maxHeight: '90vh', overflowY: 'auto' }}>
               <button onClick={() => setTakeover(null)} aria-label="Sluiten" style={{ position: 'absolute', top: 14, right: 14, background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
               <h2 style={{ margin: '0 0 6px', fontSize: '1.1rem' }}>Lead overnemen?</h2>
               <p className="text-muted" style={{ margin: '0 0 16px', fontSize: '0.85rem', lineHeight: 1.5 }}>

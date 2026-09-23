@@ -23,6 +23,10 @@
 //   de lijst "Bel mij terug" van hetzelfde project + een melding voor de
 //   eigenaar/managers.
 //
+//   v98: status "afgemeld" = afmelden voor alle kanalen (afmeldlijst, niet meer
+//   bellen, binnen 48 uur gewist). Status "later_mailen" = alleen mails pauzeren
+//   (optioneel "later_op", standaard 90 dagen).
+//
 // De sleutel staat in Supabase secret MAILSTATUS_KEY; bij de bron is dat
 // dezelfde waarde (in Netlify: LEADGEN_STATUS_KEY).
 // verify_jwt = false: de bron is een server, geen ingelogde gebruiker.
@@ -178,6 +182,7 @@ Deno.serve(async (req: Request) => {
       if (!targetListId) targetListId = lead.lead_list_id as string | null;
 
       const eigenaar = (lead.assigned_to as string | null) || (lead.locked_by as string | null);
+      const toestemmingTekst = `Knop "Bel mij terug" in mail van ${source}, ingevuld door ${naam} op ${statusOp.slice(0, 16).replace("T", " ")} (UTC)${telefoon ? ", nummer " + telefoon : ""}.`;
 
       // v92: niet dubbel aanmaken. Klikt hetzelfde bureau (zelfde
       // telefoonnummer, binnen dezelfde "Bel mij terug"-lijst) nog een keer,
@@ -203,6 +208,10 @@ Deno.serve(async (req: Request) => {
             contact_person: naam,
             status: "new",
             updated_at: new Date().toISOString(),
+            // v98: zelf om een belletje gevraagd = toestemming (art. 11.7 Tw)
+            opt_in_at: statusOp,
+            opt_in_source: "web",
+            opt_in_bewijs: toestemmingTekst,
           })
           .eq("id", terugbelLeadId);
         if (updateFout) {
@@ -223,6 +232,10 @@ Deno.serve(async (req: Request) => {
             organization_id: lead.organization_id ?? null,
             assigned_to: eigenaar,
             lead_source: "terugbelverzoek",
+            // v98: zelf om een belletje gevraagd = toestemming (art. 11.7 Tw)
+            opt_in_at: statusOp,
+            opt_in_source: "web",
+            opt_in_bewijs: toestemmingTekst,
           })
           .select("id").single();
         if (leadFout || !nieuweLead) {
@@ -254,6 +267,54 @@ Deno.serve(async (req: Request) => {
       }
 
       return json({ ok: true, lead_id: lead.id, terugbel_lead_id: terugbelLeadId, nieuw: isNieuw });
+    }
+
+    // v98: afmelden via /mailvoorkeur of List-Unsubscribe. Een afmelding geldt
+    // voor ALLE kanalen: de lead gaat op de afmeldlijst (e-mail, telefoon en
+    // domein), bellers krijgen hem niet meer, geplande mails vervallen en
+    // binnen 48 uur wordt hij gewist (pg_cron afgemelde_leads_wissen).
+    if (status === "afgemeld" || status === "uitgeschreven" || status === "unsubscribe") {
+      const { error: blokFout } = await admin.rpc("blokkeer_lead", {
+        p_lead_id: lead.id, p_bron: "mail", p_reden: `Afgemeld via ${source} (${statusOp.slice(0, 10)})`,
+      });
+      if (blokFout) {
+        console.error("[mailstatus] afmelden mislukt", blokFout.message);
+        return json({ error: "Afmelden mislukt" }, 500);
+      }
+      try {
+        const eigenaar = (lead.assigned_to as string | null) || (lead.locked_by as string | null);
+        let ontvangers: string[] = eigenaar ? [eigenaar] : [];
+        if (!ontvangers.length && campaignId) {
+          const { data: mgrs } = await admin.from("campaign_managers").select("manager_id").eq("campaign_id", campaignId);
+          ontvangers = (mgrs || []).map((m: { manager_id: string }) => m.manager_id).filter(Boolean);
+        }
+        if (ontvangers.length) {
+          await admin.from("notifications").insert(ontvangers.map((pid) => ({
+            profile_id: pid, actor_id: null, lead_id: lead.id, type: "lead_afgemeld",
+            title: `${kort(lead.name, 120) || "Een lead"} heeft zich afgemeld`,
+            body: "Niet meer bellen of mailen. Wordt binnen 48 uur automatisch verwijderd.",
+          })));
+        }
+      } catch (e) {
+        console.error("[mailstatus] afmeldmelding mislukt", e);
+      }
+      return json({ ok: true, lead_id: lead.id, afgemeld: true });
+    }
+
+    // v98: "mail me later" - alleen de mailflow pauzeert, bellen mag nog.
+    // Optioneel "later_op" (datum), anders 90 dagen.
+    if (status === "later_mailen") {
+      const laterRaw = kort(body?.later_op, 40);
+      const laterMs = laterRaw ? Date.parse(laterRaw) : NaN;
+      const maxMs = nu + 365 * 24 * 3600_000;
+      const tot = new Date(Number.isFinite(laterMs) && laterMs > nu && laterMs < maxMs ? laterMs : nu + 90 * 24 * 3600_000).toISOString();
+      const { error: pauzeFout } = await admin.from("leads").update({ mail_pauze_tot: tot }).eq("id", lead.id);
+      if (pauzeFout) {
+        console.error("[mailstatus] mailpauze opslaan mislukt", pauzeFout.message);
+        return json({ error: "Opslaan mislukt" }, 500);
+      }
+      await admin.from("mail_queue").delete().eq("lead_id", lead.id).neq("status", "verzonden");
+      return json({ ok: true, lead_id: lead.id, mail_pauze_tot: tot });
     }
 
     const { data: bestaand } = await admin

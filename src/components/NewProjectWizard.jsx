@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { createClient } from '@supabase/supabase-js'
-import { X, Layers, UserCheck, Phone, Check, ChevronRight, ChevronLeft } from 'lucide-react'
+import { X, Layers, UserCheck, Phone, Check, ChevronRight, ChevronLeft, ShieldCheck } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './Toast'
+import ComplianceChecklist, { checklistCompleet } from './ComplianceChecklist'
 
 // Wizard voor de admin: in één flow een project (campagne) aanmaken,
 // een manager eraan koppelen en een team of beller toewijzen.
@@ -36,6 +37,8 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
   const [bellerId, setBellerId] = useState('')
   const [teamIds, setTeamIds] = useState([]) // v23: meerdere teams per project
   const [newBeller, setNewBeller] = useState({ name: '', email: '', password: '' })
+  // v98: stap 4 - compliance-checklist (AVG / art. 11.7 Tw)
+  const [compliance, setCompliance] = useState({ doelgroep: null, rechtsvorm_modus: 'waarschuwen', checklist: {} })
 
   useEffect(() => {
     if (!isOpen) return
@@ -91,7 +94,13 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
           name: name.trim(),
           description: description.trim() || null,
           created_by: profile?.id,
-          organization_id: profile?.organization_id ?? null
+          organization_id: profile?.organization_id ?? null,
+          // v98: compliance-checklist uit stap 4
+          doelgroep: compliance.doelgroep,
+          rechtsvorm_modus: compliance.rechtsvorm_modus || 'waarschuwen',
+          compliance_checklist: compliance.checklist || {},
+          compliance_ok_at: checklistCompleet(compliance, false) ? new Date().toISOString() : null,
+          compliance_ok_by: checklistCompleet(compliance, false) ? (profile?.id || null) : null
         })
         .select()
         .single()
@@ -177,7 +186,8 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
   const STEPS = [
     { n: 1, label: 'Project', Icon: Layers },
     { n: 2, label: 'Manager', Icon: UserCheck },
-    { n: 3, label: 'Team / Beller', Icon: Phone }
+    { n: 3, label: 'Team / Beller', Icon: Phone },
+    { n: 4, label: 'Compliance', Icon: ShieldCheck }
   ]
 
   function ModeButtons({ mode, setMode, labels }) {
@@ -368,6 +378,20 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
           </div>
         )}
 
+        {/* STAP 4: COMPLIANCE (v98) */}
+        {step === 4 && (
+          <div>
+            <p className="text-muted mb-4" style={{ fontSize: '0.85rem' }}>
+              Loop dit door voordat er gebeld wordt. Sinds 1 juli 2026 mag je zonder toestemming alleen nog bv's, nv's, stichtingen en verenigingen bellen.
+              Je kunt dit later altijd aanpassen in de projectinstellingen.
+            </p>
+            <ComplianceChecklist value={compliance} onChange={setCompliance} mailEnabled={false} />
+            {!compliance.doelgroep && (
+              <p style={{ fontSize: '0.78rem', color: 'var(--warning)', margin: '8px 0 0' }}>Kies in elk geval wie je belt. De rest mag je later afmaken.</p>
+            )}
+          </div>
+        )}
+
         {/* NAVIGATIE */}
         <div className="flex gap-2 mt-6">
           {step > 1 ? (
@@ -377,12 +401,12 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
           ) : (
             <button type="button" className="btn btn-outline" onClick={onClose} style={{ flex: 1 }}>Annuleren</button>
           )}
-          {step < 3 ? (
+          {step < 4 ? (
             <button
               type="button"
               className="btn btn-primary"
               onClick={() => setStep(step + 1)}
-              disabled={(step === 1 && !canNext1) || (step === 2 && !canNext2)}
+              disabled={(step === 1 && !canNext1) || (step === 2 && !canNext2) || (step === 3 && !canFinish)}
               style={{ flex: 1 }}
             >
               Volgende <ChevronRight size={16} />
@@ -392,7 +416,7 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
               type="button"
               className="btn btn-primary"
               onClick={handleFinish}
-              disabled={busy || !canFinish}
+              disabled={busy || !canFinish || !compliance.doelgroep}
               style={{ flex: 1 }}
             >
               {busy ? 'Aanmaken...' : 'Project aanmaken'}

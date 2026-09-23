@@ -12,6 +12,8 @@ import { useToast } from './Toast'
 import CopyButton from './CopyButton'
 import { OffertesBlok } from './OfferteStatus'
 import { MailStatusBlok } from './MailStatus'
+import { ComplianceLeadBlok, ComplianceMeldingenLijst } from './Compliance'
+import { useProjectCompliance } from '../lib/compliance'
 import { useProjectTools } from '../hooks/useProjectTools'
 import LoadingSpinner from './LoadingSpinner'
 
@@ -49,6 +51,9 @@ export default function LeadDetailModal({ isOpen, onClose, lead, assignedName, o
   const { hasTool } = useProjectTools(lead?.lead_list_id)
   const canMakeOfferte = hasTool('offerte_bestelplatform')
   const canMakeVerduurzaming = hasTool('offerte_verduurzaming')
+  // v98: belbaarheid (rechtsvorm/toestemming/afgemeld) + klachtenlog
+  const complianceProject = useProjectCompliance(lead?.lead_list_id)
+  const [meldingTick, setMeldingTick] = useState(0)
   const [callLogs, setCallLogs] = useState([])
   const [loading, setLoading] = useState(false)
 
@@ -368,6 +373,18 @@ export default function LeadDetailModal({ isOpen, onClose, lead, assignedName, o
             {savingNotes ? 'Opslaan...' : notesDirty ? 'Niet-opgeslagen wijziging - wordt automatisch opgeslagen zodra je hier wegklikt' : ''}
           </div>
         </div>
+
+        {/* v98: mag deze lead gebeld worden + compliance-meldingen */}
+        {lead && (
+          <div style={{ marginBottom: '20px' }}>
+            <ComplianceLeadBlok
+              lead={lead}
+              project={complianceProject || null}
+              onChanged={(nieuw) => { onUpdated?.(lead.id, nieuw); setMeldingTick(t => t + 1) }}
+            />
+            <ComplianceMeldingenLijst key={meldingTick} leadId={lead.id} />
+          </div>
+        )}
 
         {/* v65: offertes van deze lead (status, verstuurd/geopend/getekend, acties) */}
         <div style={{ marginBottom: '20px' }}>

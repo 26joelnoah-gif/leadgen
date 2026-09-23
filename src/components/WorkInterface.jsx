@@ -19,6 +19,8 @@ import { useProjectMailService } from '../hooks/useProjectMailService'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
 import MailingserviceModal from './MailingserviceModal'
 import AgendaPickerModal from './AgendaPickerModal'
+import { ComplianceLeadBlok } from './Compliance'
+import { leadBelstatus, useProjectCompliance } from '../lib/compliance'
 import { SENTIMENTS } from '../lib/appointments'
 import { useToast } from './Toast'
 import { foutTekst } from '../lib/retry'
@@ -97,7 +99,7 @@ const CopyButton = ({ text, label }) => {
 
 export default function WorkInterface() {
   const { isWorking, toggleWorkingMode, workingLead, workingListId, sessionCallCount, profile, user } = useAuth()
-  const { leads, updateLeadStatus, logActivity, handleLeadDisposition, claimNextLead, claimNextBackofficeLead, releaseMyLeads } = useLeads()
+  const { leads, updateLeadStatus, logActivity, handleLeadDisposition, claimNextLead, claimNextBackofficeLead, releaseMyLeads, releaseLead } = useLeads()
   const toast = useToast()
 
   // v71: een mislukte afboeking blijft hier staan tot hij gelukt is. Vroeger
@@ -193,6 +195,14 @@ export default function WorkInterface() {
   const baseLead = workingLead || claimedLead || null
   const currentLead = (liveLead && baseLead && liveLead.id === baseLead.id) ? liveLead : baseLead
   const [listDisplayName, setListDisplayName] = useState('')
+
+  // v98: mag deze lead gebeld worden? (art. 11.7 Tw, zie src/lib/compliance.js)
+  // Zelfde regel als claim_next_lead in de database. Bij 'kvk_check' moet de
+  // beller eerst de rechtsvorm kiezen; tot die tijd blijft het nummer verborgen.
+  const complianceProject = useProjectCompliance(workingListId || currentLead?.lead_list_id)
+  const belStatus = isBackofficeMode ? 'ok' : complianceProject === undefined ? 'laden' : leadBelstatus(currentLead, complianceProject)
+  const magBellen = belStatus === 'ok'
+  const [overslaanBezig, setOverslaanBezig] = useState(false)
 
   // Claim de eerste lead zodra de belmodus in lijstmodus opent
   useEffect(() => {
@@ -670,6 +680,29 @@ export default function WorkInterface() {
     }
   }
 
+  // v98: lead mag niet gebeld worden (toestemming nodig / afgemeld). Niet
+  // afboeken, alleen loslaten en door naar de volgende. De wachtrij
+  // (claim_next_lead) slaat hem vanaf nu vanzelf over.
+  async function slaNietBelbaarOver() {
+    if (!currentLead || overslaanBezig) return
+    setOverslaanBezig(true)
+    try {
+      await releaseLead(currentLead.id)
+      if (workingLead) { toggleWorkingMode(); return }
+      setClaimedLead(null)
+      setClaiming(true)
+      const claimFn = isBackofficeMode ? claimNextBackofficeLead : claimNextLead
+      const nextLead = await claimFn(workingListId)
+      setClaimedLead(nextLead)
+    } catch (err) {
+      logAppError('belscherm.overslaan', err, { leadId: currentLead?.id })
+      toast('De volgende lead kon niet geladen worden. Probeer het zo nog eens.', 'error', 7000)
+    } finally {
+      setClaiming(false)
+      setOverslaanBezig(false)
+    }
+  }
+
   // v71: herhaalt exact de laatste mislukte afboeking
   const probeerAfboekenOpnieuw = () => {
     const p = laatstePogingRef.current
@@ -913,8 +946,14 @@ export default function WorkInterface() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', minWidth: 0 }}>
                <h1 style={{ margin: 0, fontSize: isMobile ? '1.05rem' : '1.2rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentLead.name}</h1>
                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                 <p style={{ margin: 0, fontSize: isMobile ? '0.95rem' : '1rem', fontWeight: 700, color: 'var(--primary)' }}>{currentLead.phone}</p>
-                 {currentLead.phone && <CopyButton text={currentLead.phone} label="Telefoonnummer Kopiëren" />}
+                 {magBellen ? (
+                   <>
+                     <p style={{ margin: 0, fontSize: isMobile ? '0.95rem' : '1rem', fontWeight: 700, color: 'var(--primary)' }}>{currentLead.phone}</p>
+                     {currentLead.phone && <CopyButton text={currentLead.phone} label="Telefoonnummer Kopiëren" />}
+                   </>
+                 ) : (
+                   <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 700, color: 'var(--danger)' }} title="Zie het blok hieronder">Nummer verborgen</p>
+                 )}
                </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -942,6 +981,21 @@ export default function WorkInterface() {
               v70: en hoe ver de bron komt met een verstuurde mail (lead_mail_status) */}
           {!isRecruitmentCampaign && (
             <div style={{ padding: isMobile ? '8px 12px 0' : '8px 24px 0' }}>
+              {!isBackofficeMode && (
+                <div style={{ marginBottom: 8 }}>
+                  <ComplianceLeadBlok
+                    lead={currentLead}
+                    project={complianceProject}
+                    compact={isMobile}
+                    onChanged={(nieuw) => setLiveLead(nieuw)}
+                  />
+                  {(belStatus === 'toestemming_nodig' || belStatus === 'afgemeld') && (
+                    <button type="button" className="btn btn-sm btn-secondary" disabled={overslaanBezig} onClick={slaNietBelbaarOver} style={{ marginTop: 8 }}>
+                      {overslaanBezig ? 'Bezig...' : workingLead ? 'Niet bellen, sluiten' : 'Niet bellen, volgende lead'}
+                    </button>
+                  )}
+                </div>
+              )}
               <OfferteBriefing leadId={currentLead.id} />
               <MailStatusBriefing leadId={currentLead.id} />
             </div>
@@ -1012,7 +1066,7 @@ export default function WorkInterface() {
             {isMobile ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {/* Mobiel: grote belknop bovenaan - opent direct de telefoon-app */}
-                {currentLead.phone && (
+                {currentLead.phone && magBellen && (
                   <a
                     href={`tel:${currentLead.phone}`}
                     style={{
@@ -1124,7 +1178,11 @@ export default function WorkInterface() {
                     </div>
                     <div>
                       <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Telefoonnummer</label>
-                      <input type="text" value={editableLead.phone || ''} onChange={e => setEditableLead({...editableLead, phone: e.target.value})} style={{ ...{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem' }, fontWeight: 700, fontSize: '1rem' }}/>
+                      {magBellen ? (
+                        <input type="text" value={editableLead.phone || ''} onChange={e => setEditableLead({...editableLead, phone: e.target.value})} style={{ ...{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem' }, fontWeight: 700, fontSize: '1rem' }}/>
+                      ) : (
+                        <div style={{ padding: '7px 10px', border: '1px dashed var(--danger)', borderRadius: '8px', color: 'var(--danger)', fontSize: '0.85rem', fontWeight: 700 }}>Verborgen (zie compliance-blok)</div>
+                      )}
                     </div>
                     <div>
                       <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'block', marginBottom: '3px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Website</label>

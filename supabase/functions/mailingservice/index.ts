@@ -111,6 +111,9 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
     if (!lead || lead.deleted_at) return json({ error: "Lead niet gevonden" }, 404);
     if (lead.status === "blacklist") return json({ error: "Deze lead staat op de blacklist" }, 409);
+    // v98: afgemeld, e-mailadres op de afmeldlijst of "mail me later"
+    const { data: blokReden } = await admin.rpc("mail_geblokkeerd", { p_lead_id: lead.id, p_email: email });
+    if (blokReden) return json({ error: blokReden }, 409);
     if (!lead.lead_list_id) return json({ error: "Lead hoort niet bij een project" }, 400);
 
     const { data: list } = await admin.from("lead_lists").select("campaign_id").eq("id", lead.lead_list_id).maybeSingle();
