@@ -23,7 +23,10 @@
       try {
         var t = localStorage.getItem('leadgen-theme');
         document.documentElement.setAttribute('data-theme', (t === 'light' || t === 'dark') ? t : 'dark');
-      } catch (e) { document.documentElement.setAttribute('data-theme', 'dark'); }
+        // v105: oud/nieuw design (zie src/lib/design.js)
+        var d = localStorage.getItem('leadgen-design');
+        document.documentElement.setAttribute('data-design', d === 'v2' ? 'v2' : 'v1');
+      } catch (e) { document.documentElement.setAttribute('data-theme', 'dark'); document.documentElement.setAttribute('data-design', 'v1'); }
     })();
   </script>
 </head>

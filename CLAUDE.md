@@ -462,3 +462,13 @@ Twee-zijdig platform:
   WorkInterface filtert visibleDispositions erop, bovenop de globale
   flow_settings.is_active; veiligheidsklep: alles uit = toch alles tonen.
   Backoffice-knoppenset doet niet mee. Migratie: migration_v104_hidden_dispositions.sql.
+
+- **NIEUW DESIGN ACHTER SCHAKELAAR (v105, 2026-09-24, migratie toegepast):**
+  Plan: docs/DESIGN_UITROL_PLAN.md (LEES DIT voor elke design-klus).
+  profiles.ui_design ('v1' standaard | 'v2'); src/lib/design.js applyDesign()
+  zet <html data-design>, AuthContext volgt het profiel, index.html zet hem
+  vooraf uit localStorage 'leadgen-design'. Admin wisselt voor zichzelf met
+  het palet-icoon in de kopbalk. ALLE nieuwe opmaak staat in
+  src/styles/design-v2.css onder [data-design="v2"]; v1 blijft ongewijzigd.
+  Design-stappen raken nooit Supabase-calls, hooks of statussen.
+  Test-hulpje: scripts/overflow-check.browser.js (plakken in console).

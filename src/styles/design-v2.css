@@ -1,0 +1,216 @@
+/* =====================================================================
+   LEADGEN design v2 "Rustig werkblad" (docs/DESIGN_UITROL_PLAN.md)
+   ALLES in dit bestand staat onder [data-design="v2"]. Staat een gebruiker
+   op v1 (standaard), dan doet dit bestand niets.
+   Regels:
+   - Alleen tokens en eigen classes. Geen kale element-selectors zonder
+     [data-design="v2"] ervoor (zie leadgen_css_layers).
+   - Geen logica: dit bestand mag nooit nodig zijn om iets te laten werken.
+   ===================================================================== */
+
+/* ---------- Fase 1: kleuren (bestaande token-namen, nieuwe waarden) ---------- */
+[data-design="v2"],
+[data-design="v2"][data-theme="dark"] {
+  --bg-page: #0E1015;
+  --bg-surface: #14171F;
+  --bg-card: #1A1E28;
+  --bg-elevated: #222734;
+
+  --text-primary: #ECEFF5;
+  --text-secondary: #A0A8B8;
+  --text-tertiary: #6E7689;
+  --text-on-accent: #FFFFFF;
+
+  --border-subtle: #262B37;
+  --border-strong: #353B4A;
+
+  --accent: #4F8CFF;
+  --accent-hover: #3B7BF5;
+  --accent-soft: rgba(79, 140, 255, 0.14);
+
+  --success: #3DD68C;  --success-bg: rgba(61, 214, 140, 0.14);
+  --warning: #F5A524;  --warning-bg: rgba(245, 165, 36, 0.15);
+  --danger:  #FF7070;  --danger-bg:  rgba(255, 112, 112, 0.13);
+  --info:    #3CC8D8;  --info-bg:    rgba(60, 200, 216, 0.14);
+  --purple:  #B197FC;  --purple-bg:  rgba(177, 151, 252, 0.15);
+
+  --secondary: #F5A524;
+  --secondary-light: #FFC15C;
+  --secondary-dark: #D98C0B;
+  --primary-dark: #2F6BFF;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.28);
+  --shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.38);
+  --shadow-xl: 0 18px 44px rgba(0, 0, 0, 0.48);
+  --page-glow: none;
+  --glass: #1A1E28;
+  --glass-bg: #1A1E28;
+  --glass-border: #262B37;
+}
+
+[data-design="v2"][data-theme="light"] {
+  --bg-page: #F3F4F7;
+  --bg-surface: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #F2F4F8;
+
+  --text-primary: #101521;
+  --text-secondary: #566074;
+  --text-tertiary: #858EA1;
+
+  --border-subtle: #E4E7EE;
+  --border-strong: #CFD5E0;
+
+  --accent: #2F6BFF;
+  --accent-hover: #1F57E0;
+  --accent-soft: rgba(47, 107, 255, 0.10);
+
+  --success: #0B8F52;  --success-bg: rgba(11, 143, 82, 0.11);
+  --warning: #B86E00;  --warning-bg: rgba(184, 110, 0, 0.12);
+  --danger:  #CF3A3A;  --danger-bg:  rgba(207, 58, 58, 0.10);
+  --info:    #08869A;  --info-bg:    rgba(8, 134, 154, 0.10);
+  --purple:  #6D4AE0;  --purple-bg:  rgba(109, 74, 224, 0.10);
+
+  --secondary: #B86E00;
+  --secondary-light: #D98C0B;
+  --secondary-dark: #8F5500;
+  --primary-dark: #1F57E0;
+
+  --shadow-sm: 0 1px 2px rgba(16, 21, 33, 0.06);
+  --shadow-md: 0 4px 12px rgba(16, 21, 33, 0.07);
+  --shadow-lg: 0 10px 28px rgba(16, 21, 33, 0.10);
+  --shadow-xl: 0 18px 44px rgba(16, 21, 33, 0.16);
+  --glass: #FFFFFF;
+  --glass-bg: #FFFFFF;
+  --glass-border: #E4E7EE;
+}
+
+/* ---------- Fase 1: letters ---------- */
+[data-design="v2"] {
+  --font-body: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Manrope', 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --radius-sm: 9px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
+}
+[data-design="v2"] body { letter-spacing: 0; }
+[data-design="v2"] :is(h1, h2, h3, h4, .page-title, .card-title) { letter-spacing: -0.01em; font-weight: 800; }
+[data-design="v2"] :is(.stat-card .number, .kpi-value, .num, .mono-num, .kb-count) {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+/* ---------- Fase 2: basisonderdelen ---------- */
+/* Knoppen */
+[data-design="v2"] .btn {
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 8px 14px;
+  border-radius: 9px;
+  min-height: 36px;
+}
+[data-design="v2"] .btn-sm { padding: 5px 11px; font-size: 0.8rem; min-height: 30px; }
+[data-design="v2"] .btn-lg { padding: 12px 22px; font-size: 1rem; min-height: 46px; }
+[data-design="v2"] .btn-outline { color: var(--text-primary); border-color: var(--border-strong); }
+[data-design="v2"] .btn-outline:hover { background: var(--bg-elevated); border-color: var(--text-secondary); color: var(--text-primary); }
+[data-design="v2"] .btn-secondary { background: var(--bg-elevated); border-color: var(--border-subtle); color: var(--text-primary); }
+[data-design="v2"] .btn-success { background: var(--success-bg); color: var(--success); border-color: transparent; }
+[data-design="v2"] .btn-success:hover { background: var(--success); color: #07130D; }
+
+/* Kaarten en panelen: geen glas-effect meer, vlak en rustig */
+[data-design="v2"] .glass-panel {
+  background: var(--bg-card);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+}
+[data-design="v2"] .card {
+  border-radius: var(--radius-lg);
+  box-shadow: none;
+  border-color: var(--border-subtle);
+}
+[data-design="v2"] .glow-hover:hover { transform: none; box-shadow: none; }
+[data-design="v2"] .stat-card {
+  box-shadow: none;
+  border-radius: var(--radius-lg);
+  border-color: var(--border-subtle);
+}
+[data-design="v2"] .stat-card .label { color: var(--text-secondary); font-weight: 600; }
+
+/* Invulvelden */
+[data-design="v2"] :is(.form-control, .form-dark) {
+  border-width: 1px;
+  border-color: var(--border-subtle);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-radius: 9px;
+  font-size: 0.875rem;
+  padding: 9px 12px;
+}
+[data-design="v2"] :is(.form-control, .form-dark):focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* Tabellen */
+[data-design="v2"] .table th {
+  background: var(--bg-card);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  color: var(--text-tertiary);
+}
+[data-design="v2"] .table td { font-size: 0.85rem; }
+[data-design="v2"] .table-container { border-color: var(--border-subtle); border-radius: var(--radius-lg); }
+
+/* Modals */
+[data-design="v2"] .modal-overlay { background: rgba(6, 8, 12, 0.66); backdrop-filter: blur(2px); }
+[data-design="v2"][data-theme="light"] .modal-overlay { background: rgba(16, 21, 33, 0.35); }
+[data-design="v2"] .modal { border-radius: 16px; padding: 26px; border-color: var(--border-subtle); }
+[data-design="v2"] .modal-close { border-radius: 9px; }
+
+/* Tabbladen: onderstreept i.p.v. blokjes */
+[data-design="v2"] .tab-bar {
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  border-radius: 0;
+  padding: 0;
+  gap: 2px;
+}
+[data-design="v2"] .tab-btn {
+  border-radius: 0;
+  padding: 10px 14px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  color: var(--text-secondary);
+}
+[data-design="v2"] .tab-btn.active {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid var(--accent);
+  box-shadow: none;
+  color: var(--text-primary);
+  padding: 10px 14px;
+}
+
+/* Kopbalk en admin-zijbalk */
+[data-design="v2"] .header { background: var(--bg-page); border-bottom-color: var(--border-subtle); }
+[data-design="v2"] .admin-sidebar { background: var(--bg-surface); border-right-color: var(--border-subtle); }
+[data-design="v2"] .admin-sidebar-nav a { font-weight: 500; color: var(--text-secondary); height: 34px; display: flex; align-items: center; }
+[data-design="v2"] .admin-sidebar-nav a.active { background: var(--accent-soft); color: var(--text-primary); }
+[data-design="v2"] .admin-sidebar-label { color: var(--text-tertiary); opacity: 1; font-weight: 600; letter-spacing: 0.06em; }
+
+/* Leadbord (polish.css-classes) in de nieuwe stijl */
+[data-design="v2"] .kb-col { background: var(--bg-surface); border-top-width: 1px; border-color: var(--border-subtle); }
+[data-design="v2"] .kb-col-title { color: var(--text-primary); display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-display); }
+[data-design="v2"] .kb-col-title::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--col); flex-shrink: 0; }
+[data-design="v2"] .kb-col.is-empty .kb-col-title::before { display: none; }
+[data-design="v2"] .kb-card { background: var(--bg-card); }
+[data-design="v2"] .kb-col.is-empty { border-style: dashed; }
+[data-design="v2"] .lb-toolbar { background: transparent; border: 0; padding: 0; }

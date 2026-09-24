@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
-import { Zap, Settings, LogOut, Phone, Menu, X, Sun, Moon, HelpCircle } from 'lucide-react'
+import { Zap, Settings, LogOut, Phone, Menu, X, Sun, Moon, HelpCircle, Palette } from 'lucide-react'
+import { supabase } from '../lib/supabase' // v105
 import Logo from './Logo'
 import NotificationBell from './NotificationBell'
 import AccountSettingsModal from './AccountSettingsModal'
@@ -13,7 +14,8 @@ import { useLeadLists } from '../hooks/useLeadLists'
 import { useToast } from './Toast'
 
 export default function Header({ onOpenSettings }) {
-  const { user, profile, signOut, sessionCallCount, toggleWorkingMode, startWorkingWithList, isWorking, effectiveRole, setEffectiveRole } = useAuth()
+  const { user, profile, signOut, sessionCallCount, toggleWorkingMode, startWorkingWithList, isWorking, effectiveRole, setEffectiveRole, updateProfileLocal } = useAuth()
+  const designToast = useToast() // v105
   const { theme, toggleTheme } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
@@ -316,6 +318,24 @@ export default function Header({ onOpenSettings }) {
                 {sessionCallCount} <span style={{ opacity: 0.6, fontWeight: 400 }}>calls</span>
               </span>
             </div>
+          )}
+
+          {/* v105: admin kan het nieuwe design voor zichzelf aan/uit zetten (DESIGN_UITROL_PLAN fase 0) */}
+          {isRealAdmin && (
+            <button
+              onClick={async () => {
+                const nieuw = profile?.ui_design === 'v2' ? 'v1' : 'v2'
+                const { error } = await supabase.from('profiles').update({ ui_design: nieuw }).eq('id', profile.id)
+                if (error) { designToast(error.message || 'Wisselen mislukt', 'error'); return }
+                updateProfileLocal({ ui_design: nieuw })
+                designToast(nieuw === 'v2' ? 'Nieuw design staat aan (alleen voor jou)' : 'Terug naar het huidige design', 'success')
+              }}
+              className="btn btn-sm btn-outline"
+              style={{ padding: '8px', minWidth: 'auto', ...(profile?.ui_design === 'v2' ? { color: 'var(--accent)', borderColor: 'var(--accent)' } : {}) }}
+              title={profile?.ui_design === 'v2' ? 'Nieuw design staat aan. Klik voor het huidige design.' : 'Nieuw design proberen (alleen voor jou)'}
+            >
+              <Palette size={16} />
+            </button>
           )}
 
           <button

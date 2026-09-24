@@ -1,3 +1,4 @@
+import { applyDesign } from '../lib/design' // v105
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 
@@ -229,6 +230,12 @@ export function AuthProvider({ children }) {
   function updateProfileLocal(patch) {
     setProfile(prev => (prev ? { ...prev, ...patch } : prev))
   }
+
+  // v105: design-schakelaar volgt het profiel (profiles.ui_design). Geen
+  // profiel (uitgelogd) = altijd het huidige design v1.
+  useEffect(() => {
+    applyDesign(profile?.ui_design || 'v1')
+  }, [profile?.ui_design])
 
   // v94: rol-switcher helpers
   const isOwner = user?.email === 'noah.ando1@icloud.com' || profile?.email === 'noah.ando1@icloud.com'
