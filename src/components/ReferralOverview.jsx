@@ -3,6 +3,7 @@ import { Gift, Award, UserCheck, Link2, CheckCircle2, Users } from 'lucide-react
 import { getStatusDetails } from '../utils/statusUtils'
 import { formatDate } from '../utils/dateUtils'
 import EmptyState from './EmptyState'
+import PersonSelect from './PersonSelect' // v102
 
 // v58: referral-overzicht voor de recruiter. Een referral is een sollicitant
 // met een verwijzer (leads.referred_by = medewerker die hem/haar aandroeg).
@@ -149,18 +150,17 @@ export default function ReferralOverview({
                   <td>
                     {hired ? (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <select
+                        <PersonSelect
+                          people={activeProfiles}
                           value={lead.hired_profile_id || ''}
                           disabled={busy || approved}
-                          onChange={e => run(lead.id, () => onLinkProfile(lead, e.target.value || null))}
+                          onChange={id => run(lead.id, () => onLinkProfile(lead, id || null))}
+                          emptyLabel="Nog niet gekoppeld..."
+                          showRole
+                          className="form-dark"
                           style={{ padding: '6px 8px', fontSize: '0.85rem', maxWidth: '220px' }}
                           title={approved ? 'Bonus is al goedgekeurd; koppeling staat vast' : 'Koppel het medewerkersaccount van deze aangenomen sollicitant'}
-                        >
-                          <option value="">Nog niet gekoppeld...</option>
-                          {activeProfiles.map(p => (
-                            <option key={p.id} value={p.id}>{p.full_name || p.email}{p.role ? ` (${p.role})` : ''}</option>
-                          ))}
-                        </select>
+                        />
                         {suggestion && (
                           <button
                             type="button"

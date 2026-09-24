@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from './Toast'
 import { APPOINTMENT_LABEL, APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
 import { OUTCOMES, sentimentInfo, outcomeInfo, leadAddressText, navigationUrl, findAppointmentConflict } from '../lib/appointments'
+import PersonSelect from './PersonSelect' // v102
 
 function pad(n) { return String(n).padStart(2, '0') }
 function toLocalInput(iso) {
@@ -193,9 +194,7 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <input type="datetime-local" step="900" value={moveAt} onChange={e => { setMoveAt(e.target.value); setMoveError(null) }} className="form-control" style={{ width: '100%', fontSize: 16 }} />
               {accountmanagers.length > 1 && (
-                <select value={moveAm} onChange={e => { setMoveAm(e.target.value); setMoveError(null) }} className="form-control" style={{ width: '100%' }}>
-                  {accountmanagers.map(am => <option key={am.id} value={am.id}>{am.full_name}</option>)}
-                </select>
+                <PersonSelect people={accountmanagers} value={moveAm || lead.assigned_to || ''} onChange={id => { setMoveAm(id); setMoveError(null) }} placeholder="Kies een accountmanager" className="form-control" style={{ width: '100%' }} />
               )}
               {moveError && <div style={{ color: 'var(--error, #EF4444)', fontSize: '0.82rem', fontWeight: 700 }}>{moveError}</div>}
               <button type="button" className="btn btn-primary" disabled={busy || !moveAt} onClick={verplaatsen}>

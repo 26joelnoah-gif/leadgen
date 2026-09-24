@@ -26,6 +26,7 @@ import { useToast } from './Toast'
 import { foutTekst } from '../lib/retry'
 import { logAppError } from '../lib/errorLog'
 import { APPOINTMENT_LABEL, APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
+import PersonSelect from './PersonSelect' // v102
 
 // v96: Date -> waarde voor een <input type="datetime-local">, in lokale tijd
 // (niet UTC, anders schuift het gekozen moment een paar uur op).
@@ -1430,15 +1431,15 @@ export default function WorkInterface() {
                             <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '4px', fontSize: '0.85rem' }}>
                               Met welke accountmanager is de afspraak?
                             </label>
-                            <select
+                            <PersonSelect
+                              people={accountmanagers}
                               value={selectedAmId || ''}
-                              onChange={e => setSelectedAmId(e.target.value)}
+                              onChange={id => setSelectedAmId(id)}
+                              placeholder="Kies een accountmanager"
+                              showRole
+                              className=""
                               style={{ width: '100%', padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
-                            >
-                              {accountmanagers.map(am => (
-                                <option key={am.id} value={am.id}>{am.full_name} ({am.role === 'admin' ? 'Admin' : 'Accountmanager'})</option>
-                              ))}
-                            </select>
+                            />
                           </div>
                         )}
 

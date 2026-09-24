@@ -5,6 +5,7 @@ import { Plus, List, Trash2, X, Check, UserPlus, Users, ChevronRight, ChevronDow
 import { useLeads } from '../hooks/useLeads'
 import { useLeadLists } from '../hooks/useLeadLists'
 import LoadingSpinner from './LoadingSpinner'
+import PersonSelect from './PersonSelect' // v102
 
 export function LeadListModal({ isOpen, onClose }) {
   const { leads } = useLeads()
@@ -174,14 +175,14 @@ export function LeadListModal({ isOpen, onClose }) {
                           </div>
                         </div>
                         <div className="flex gap-2">
-                          <select
+                          <PersonSelect
+                            people={users}
                             value={list.assigned_to || ''}
-                            onChange={(e) => handleAssignAgent(list.id, e.target.value)}
-                            style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.8rem' }}
-                          >
-                            <option value="">Geen agent</option>
-                            {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-                          </select>
+                            onChange={id => handleAssignAgent(list.id, id)}
+                            emptyLabel="Geen agent"
+                            className=""
+                            style={{ padding: '6px 8px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '0.8rem', minWidth: 160 }}
+                          />
                           <button
                             onClick={() => setSelectedListId(list.id)}
                             className={`btn btn-sm ${selectedListId === list.id ? 'btn-secondary' : 'btn-outline'}`}

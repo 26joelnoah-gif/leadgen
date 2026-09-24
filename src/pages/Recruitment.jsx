@@ -21,6 +21,7 @@ import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import { useToast } from '../components/Toast'
+import PersonSelect from '../components/PersonSelect' // v102
 
 // v36: recruiter-thuisbasis. Een sollicitant is gewoon een lead in het
 // (automatisch aangemaakte) recruitment-project van deze recruiter -
@@ -1016,12 +1017,7 @@ export default function Recruitment() {
                 </div>
                 <div className="form-group">
                   <label>Aangedragen door (referral)</label>
-                  <select value={form.referred_by} onChange={e => setForm({ ...form, referred_by: e.target.value })}>
-                    <option value="">Niet via een medewerker</option>
-                    {orgProfiles.filter(p => p.is_active !== false).map(p => (
-                      <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
-                    ))}
-                  </select>
+                  <PersonSelect people={orgProfiles.filter(p => p.is_active !== false)} value={form.referred_by} onChange={id => setForm({ ...form, referred_by: id })} emptyLabel="Niet via een medewerker" className="" style={{ width: '100%' }} />
                 </div>
                 <div className="form-group">
                   <label>Motivatie / notities</label>
@@ -1095,12 +1091,7 @@ export default function Recruitment() {
                 </div>
                 <div className="form-group">
                   <label>Aangedragen door (referral)</label>
-                  <select value={editForm.referred_by} onChange={e => setEditForm({ ...editForm, referred_by: e.target.value })}>
-                    <option value="">Niet via een medewerker</option>
-                    {orgProfiles.filter(p => p.is_active !== false || p.id === editForm.referred_by).map(p => (
-                      <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
-                    ))}
-                  </select>
+                  <PersonSelect people={orgProfiles.filter(p => p.is_active !== false || p.id === editForm.referred_by)} value={editForm.referred_by} onChange={id => setEditForm({ ...editForm, referred_by: id })} emptyLabel="Niet via een medewerker" className="" style={{ width: '100%' }} />
                 </div>
                 <div className="form-group">
                   <label>Motivatie / notities</label>

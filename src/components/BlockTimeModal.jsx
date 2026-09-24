@@ -4,6 +4,7 @@ import { X, Calendar, Clock, AlertCircle, Check, Lock } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './Toast'
+import PersonSelect from './PersonSelect' // v102
 
 function pad(n) { return String(n).padStart(2, '0') }
 
@@ -157,16 +158,13 @@ export default function BlockTimeModal({
           {isAdmin && accountmanagers.length > 1 && (
             <div className="form-group mb-3">
               <label className="text-xs text-muted font-bold block mb-1">Accountmanager</label>
-              <select
+              <PersonSelect
+                people={accountmanagers}
                 value={selectedUserId}
-                onChange={e => setSelectedUserId(e.target.value)}
+                onChange={id => setSelectedUserId(id)}
+                placeholder="Kies een accountmanager"
                 className="form-control w-full"
-                required
-              >
-                {accountmanagers.map(am => (
-                  <option key={am.id} value={am.id}>{am.full_name} ({am.email})</option>
-                ))}
-              </select>
+              />
             </div>
           )}
 

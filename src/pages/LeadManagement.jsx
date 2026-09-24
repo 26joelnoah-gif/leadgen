@@ -23,6 +23,7 @@ import CampaignBriefingModal from '../components/CampaignBriefingModal'
 import LeadDetailModal from '../components/LeadDetailModal'
 import MoveCopyLeadsModal from '../components/MoveCopyLeadsModal'
 import ProjectSettingsModal from '../components/ProjectSettingsModal'
+import PersonSelect from '../components/PersonSelect' // v102
 
 function StatusBadge({ status }) {
   const configs = {
@@ -605,16 +606,15 @@ export default function LeadManagement({ standalone = true }) {
                                       >{agents.find(a => a.id === mid)?.full_name || 'manager'} ×</button>
                                     ))}
                                     {availableManagers.length > 0 && (
-                                      <select
+                                      <PersonSelect
+                                        people={availableManagers}
                                         value=""
-                                        onChange={e => e.target.value && addProjectManager(c.id, e.target.value)}
+                                        onChange={id => id && addProjectManager(c.id, id)}
+                                        placeholder={linkedManagerIds.length ? '+ manager' : 'geen manager'}
                                         title="Manager toevoegen - meerdere managers per project kan. Nieuwe manager-accounts maak je aan via Admin of de project-wizard."
                                         className="text-[9px] font-black uppercase tracking-widest px-1 py-1 rounded-lg cursor-pointer bg-elevated text-muted"
                                         style={{ maxWidth: '120px', border: 'none' }}
-                                      >
-                                        <option value="">{linkedManagerIds.length ? '+ manager' : 'geen manager'}</option>
-                                        {availableManagers.map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)}
-                                      </select>
+                                      />
                                     )}
                                   </div>
                                 )}
@@ -998,14 +998,14 @@ export default function LeadManagement({ standalone = true }) {
                              <div className="bg-dark/50 p-6 rounded-2xl border border-border space-y-6">
                                 <div>
                                    <label className="text-[10px] text-muted font-black block mb-3 uppercase tracking-widest">Individuele Beller</label>
-                                   <select 
+                                   <PersonSelect
+                                     people={agents.filter(a => a.is_active !== false)}
                                      className="bg-dark p-3 rounded-lg border border-border w-full text-sm font-bold"
                                      value={bulkTargetAgentId}
-                                     onChange={e => { setBulkTargetAgentId(e.target.value); if(e.target.value) setBulkTargetTeamId(''); }}
-                                   >
-                                      <option value="">-- Geen beller --</option>
-                                      {agents.filter(a => a.is_active !== false).map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
-                                   </select>
+                                     onChange={id => { setBulkTargetAgentId(id); if (id) setBulkTargetTeamId(''); }}
+                                     emptyLabel="-- Geen beller --"
+                                     showRole
+                                   />
                                 </div>
 
                                 <div className="relative py-2">

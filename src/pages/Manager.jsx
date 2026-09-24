@@ -22,6 +22,7 @@ import MoveCopyLeadsModal from '../components/MoveCopyLeadsModal'
 import CampaignBriefingModal from '../components/CampaignBriefingModal'
 import FlowSettingsEditor from '../components/FlowSettingsEditor'
 import { useToast } from '../components/Toast'
+import PersonSelect from '../components/PersonSelect' // v102
 
 // Seconden -> "1u 11m 22s"
 function fmtDuration(totalSeconds) {
@@ -725,11 +726,8 @@ export default function Manager() {
               <span className="card-title"><Phone size={20} /> Alle gesprekken ({filteredLogs.length})</span>
               <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
                 <Filter size={16} className="text-muted" />
-                <select value={filterAgent} onChange={e => setFilterAgent(e.target.value)}
-                  style={{ padding: '6px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}>
-                  <option value="all">Alle bellers</option>
-                  {agentStats.map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
+                <PersonSelect people={agentStats} value={filterAgent} onChange={id => setFilterAgent(id)} extraOptions={[{ value: 'all', label: 'Alle bellers' }]} showEmail={false} className=""
+                  style={{ padding: '6px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', minWidth: 160 }} />
                 <select value={filterList} onChange={e => setFilterList(e.target.value)}
                   style={{ padding: '6px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)' }}>
                   <option value="all">Alle projecten</option>
@@ -1012,13 +1010,13 @@ export default function Manager() {
                           })()}
                           {canManageTeam && (
                             <td>
-                              <select
+                              <PersonSelect
+                                people={employees}
                                 value={list.assigned_to || ''}
-                                onChange={e => assignAgentToList(list.id, e.target.value || null)}
-                                style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', width: '100%' }}>
-                                <option value="">- Geen beller -</option>
-                                {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.full_name} ({emp.email})</option>)}
-                              </select>
+                                onChange={id => assignAgentToList(list.id, id || null)}
+                                emptyLabel="- Geen beller -"
+                                className=""
+                                style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', width: '100%' }} />
                             </td>
                           )}
                           {canManageLeads && (

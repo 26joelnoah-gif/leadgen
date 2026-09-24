@@ -393,3 +393,37 @@ Twee-zijdig platform:
      (in-memory). Nieuwe publieke of betaalde functies: altijd teVeel() erin.
   Migratie: migration_v100_rate_limit.sql.
 
+
+- **RLS SNELLER + BLOKKEER_LEAD DICHT (v101, 2026-09-24, migratie toegepast):**
+  Aanleiding: 98x "statement timeout" (8 s) op /rest/v1/leads in 24 uur bij
+  bellers. Oorzaak: RLS-policies riepen is_admin()/my_org_id()/my_list_ids()/
+  my_managed_list_ids()/am_list_ids() enz. PER RIJ aan, ook in de geneste
+  lead_lists- en campaigns-policies. Lily: 4,8 s voor 1.326 leads, na de fix 27 ms.
+  Fix: alle policies in public herschreven naar (SELECT f()) - array-functies als
+  ((SELECT f())::uuid[]), anders leest Postgres "= ANY ((SELECT ..))" als subquery.
+  REGEL: nieuwe policies ALTIJD zo schrijven: (SELECT is_admin()),
+  lead_list_id = ANY ((SELECT my_list_ids())::uuid[]), (SELECT auth.uid()).
+  Het script in migration_v101 is idempotent en mag opnieuw gedraaid worden na
+  een migratie die policies toevoegt.
+  Verder: blokkeer_lead checkt nu of de aanroeper de lead mag zien (was: iedereen
+  kon elke lead afmelden -> 48 u later gewist). auth.uid() leeg = service_role.
+  14 SECURITY DEFINER-functies niet meer uitvoerbaar door anon/public
+  (unlatched_intake blijft open voor de externe intake).
+  Migratie: migration_v101_rls_snelheid_rechten.sql.
+
+- **SCHAALBARE MEDEWERKER-KIEZERS + TEAM-OVERZICHT (v102, 2026-09-24):**
+  src/components/PersonSelect.jsx = zoekbare kiezer (naam/e-mail/rol, pijltjes +
+  Enter, dropdown via portal zodat hij niet in modals wordt afgeknipt). Props:
+  people, value, onChange(id), emptyLabel (waarde ''), extraOptions
+  ([{value:'all',label:'Alle bellers'}]), showRole, showEmail, className, style.
+  REGEL: nooit meer een <select> met alle medewerkers - altijd PersonSelect.
+  Vervangen in o.a. WorkInterface (AM-keuze), AgendaPicker, BlockTime,
+  AppointmentModal, Agenda, LeadBoard ("van wie"), Reports/Manager (beller-filter),
+  Manager/LeadListModal (beller op lijst), LeadManagement, Admin/Dashboard (lead
+  toewijzen), Recruitment (referral), ReferralOverview, Chat, IntensityModal,
+  NewProjectWizard. useChecklistSearch() geeft vinkjeslijsten (managers/teams/
+  tools in ProjectSettingsModal en NewProjectWizard) een zoekveld vanaf 7 items.
+  Admin > Team: zoekveld, filters rol/team (ook "Zonder team")/project/actief,
+  teller "x van y", en een compacte lijstweergave (standaard, onthouden in
+  localStorage 'leadgen-team-view') waarin je per medewerker de volledige kaart
+  openklapt. Kaartweergave bestaat nog via de knop "Kaarten".

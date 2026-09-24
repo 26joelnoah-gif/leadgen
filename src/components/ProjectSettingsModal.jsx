@@ -6,15 +6,20 @@ import { useToast } from './Toast'
 import { TOOLS } from '../lib/tools'
 import { MAIL_SOURCES } from '../lib/mailSources'
 import ComplianceChecklist, { checklistCompleet } from './ComplianceChecklist'
+import { useChecklistSearch } from './PersonSelect' // v102
 
 // Uitgebreid instellingenpaneel per project (campagne) - vervangt de krappe
 // inline chip-rijtjes op de projectkaart in Projecten & Leads. Hier kan een
 // admin alles in één overzicht regelen: naam, actief/pauze, wachtrij-modus,
 // managers en teams (vrij toevoegen én weer verwijderen), en verwijderen.
 // Alleen bereikbaar voor admins (LeadManagement.jsx is requireAdmin).
-function CheckList({ items, selected, onToggle, emptyText }) {
-  if (items.length === 0) return <p className="text-muted" style={{ fontSize: '0.85rem', padding: '8px 0' }}>{emptyText}</p>
+function CheckList({ items: allItems, selected, onToggle, emptyText }) {
+  const { items, input, empty } = useChecklistSearch(allItems, selected) // v102
+  if (allItems.length === 0) return <p className="text-muted" style={{ fontSize: '0.85rem', padding: '8px 0' }}>{emptyText}</p>
   return (
+    <>
+    {input}
+    {empty && <p className="text-muted" style={{ fontSize: '0.8rem', padding: '4px 0' }}>Niets gevonden</p>}
     <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '180px', overflowY: 'auto' }}>
       {items.map(it => {
         const checked = selected.includes(it.id)
@@ -44,6 +49,7 @@ function CheckList({ items, selected, onToggle, emptyText }) {
         )
       })}
     </div>
+    </>
   )
 }
 

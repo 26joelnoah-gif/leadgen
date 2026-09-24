@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { X, Zap } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import PersonSelect from './PersonSelect' // v102
 
 // Seconden -> "1u 11m" / "11m" / "42s"
 function fmtDuration(totalSeconds) {
@@ -138,9 +139,7 @@ export default function IntensityModal({ isOpen, onClose, targetUser, users = []
           {users.length > 0 && (
             <div className="form-group" style={{ flex: '1 1 200px', marginBottom: 0 }}>
               <label>Medewerker</label>
-              <select className="form-dark" value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)}>
-                {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-              </select>
+              <PersonSelect people={users} value={selectedUserId} onChange={id => setSelectedUserId(id)} style={{ width: '100%' }} />
             </div>
           )}
           <div className="form-group" style={{ flex: '1 1 140px', marginBottom: 0 }}>

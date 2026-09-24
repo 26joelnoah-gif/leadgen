@@ -6,6 +6,35 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './Toast'
 import ComplianceChecklist, { checklistCompleet } from './ComplianceChecklist'
+import PersonSelect, { useChecklistSearch } from './PersonSelect' // v102
+
+// v102: los van de wizard gedefinieerd (anders verliest het zoekveld focus bij elke toets)
+function CheckList({ items: allItems, selected, onToggle }) {
+  const { items, input, empty } = useChecklistSearch(allItems, selected)
+  return (
+    <>
+      {input}
+      {empty && <p className="text-muted" style={{ fontSize: '0.8rem', padding: '4px 0' }}>Niets gevonden</p>}
+      <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+        {items.map(it => {
+          const checked = selected.includes(it.id)
+          return (
+            <button
+              key={it.id}
+              type="button"
+              onClick={() => onToggle(it.id)}
+              className={`btn btn-sm ${checked ? 'btn-primary' : 'btn-outline'}`}
+              style={{ justifyContent: 'flex-start' }}
+            >
+              {checked && <Check size={14} />} {it.label}
+            </button>
+          )
+        })}
+      </div>
+    </>
+  )
+}
+
 
 // Wizard voor de admin: in één flow een project (campagne) aanmaken,
 // een manager eraan koppelen en een team of beller toewijzen.
@@ -207,26 +236,6 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
     )
   }
 
-  function CheckList({ items, selected, onToggle }) {
-    return (
-      <div style={{ maxHeight: '220px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-        {items.map(it => {
-          const checked = selected.includes(it.id)
-          return (
-            <button
-              key={it.id}
-              type="button"
-              onClick={() => onToggle(it.id)}
-              className={`btn btn-sm ${checked ? 'btn-primary' : 'btn-outline'}`}
-              style={{ justifyContent: 'flex-start' }}
-            >
-              {checked && <Check size={14} />} {it.label}
-            </button>
-          )
-        })}
-      </div>
-    )
-  }
 
   // v30: autoComplete uit - deze velden maken een account aan voor iemand
   // anders; de browser mag hier nooit de eigen (opgeslagen) inloggegevens
@@ -368,10 +377,7 @@ export default function NewProjectWizard({ isOpen, onClose, onCreated }) {
               bellers.length === 0 ? (
                 <p className="text-muted" style={{ fontSize: '0.85rem' }}>Er zijn nog geen bellers - kies "Nieuwe beller aanmaken".</p>
               ) : (
-                <select className={inputStyle} value={bellerId} onChange={e => setBellerId(e.target.value)}>
-                  <option value="">- Kies een beller -</option>
-                  {bellers.map(b => <option key={b.id} value={b.id}>{b.full_name} ({b.email})</option>)}
-                </select>
+                <PersonSelect people={bellers} value={bellerId} onChange={id => setBellerId(id)} placeholder="- Kies een beller -" className={inputStyle} style={{ width: '100%' }} />
               )
             )}
             {bellerMode === 'new' && <AccountFields value={newBeller} onChange={setNewBeller} />}

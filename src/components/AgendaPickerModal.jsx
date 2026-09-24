@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { X, ChevronLeft, ChevronRight, Lock, CalendarClock, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { APPOINTMENT_LABEL, APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
+import PersonSelect from './PersonSelect' // v102
 
 // v96: visuele agendakeuze bij "Afspraak gemaakt" in het belscherm. Vroeger
 // typte de beller een datum/tijd blind in en zag pas daarna (via een losse
@@ -175,15 +176,15 @@ export default function AgendaPickerModal({ accountmanagers, defaultAmId, exclud
             <h3 style={{ margin: 0, color: 'var(--text-primary)', fontSize: '1.05rem' }}>Zet in agenda</h3>
           </div>
 
-          <select
+          <PersonSelect
+            people={accountmanagers || []}
             value={selectedAmId || ''}
-            onChange={e => setSelectedAmId(e.target.value)}
-            style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontSize: '0.85rem' }}
-          >
-            {(accountmanagers || []).map(am => (
-              <option key={am.id} value={am.id}>{am.full_name} ({am.role === 'admin' ? 'Admin' : 'Accountmanager'})</option>
-            ))}
-          </select>
+            onChange={id => setSelectedAmId(id)}
+            placeholder="Kies een accountmanager"
+            showRole
+            className=""
+            style={{ padding: '8px 10px', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--bg-dark)', color: 'var(--text-primary)', fontSize: '0.85rem', minWidth: 200 }}
+          />
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <button onClick={() => setCurrentWeekStart(p => addDays(p, -7))} style={navBtnStyle}><ChevronLeft size={16} /></button>

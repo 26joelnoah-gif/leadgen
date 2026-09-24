@@ -38,6 +38,7 @@ import ImportLeadsModal from '../components/ImportLeadsModal'
 import LeadManagement from './LeadManagement' // IMPORT THE MANAGEMENT COMPONENT
 
 // Seconden -> "1u 11m" / "11m"
+import PersonSelect, { ROLE_LABELS } from '../components/PersonSelect' // v102
 function fmtBeltijd(totalSeconds) {
   const s = Math.max(0, Math.round(totalSeconds || 0))
   const h = Math.floor(s / 3600)
@@ -107,6 +108,15 @@ export default function Admin() {
   const [newsForm, setNewsForm] = useState({ title: '', body: '', is_published: true })
   const [editingNewsId, setEditingNewsId] = useState(null)
   const [savingNews, setSavingNews] = useState(false)
+  // v102: Team-tab zoeken/filteren + lijst- of kaartweergave (onthouden per browser)
+  const [teamSearch, setTeamSearch] = useState('')
+  const [teamRole, setTeamRole] = useState('all')
+  const [teamStatus, setTeamStatus] = useState('all')
+  const [teamTeam, setTeamTeam] = useState('all')
+  const [teamProject, setTeamProject] = useState('all')
+  const [expandedTeamUser, setExpandedTeamUser] = useState(null)
+  const [teamView, setTeamView] = useState(() => { try { return localStorage.getItem('leadgen-team-view') || 'lijst' } catch { return 'lijst' } })
+  const setTeamViewPersist = v => { setTeamView(v); try { localStorage.setItem('leadgen-team-view', v) } catch { /* geen opslag */ } }
 
   useEffect(() => {
     fetchData()
@@ -794,23 +804,9 @@ export default function Admin() {
                </div>
              )}
              {(() => {
-                const sortedUsers = [...users].sort((a, b) => (a.is_active === false ? 1 : 0) - (b.is_active === false ? 1 : 0))
-                const groups = orgs.length > 0
-                  ? [
-                      { key: 'none', label: 'Mijn eigen omgeving', users: sortedUsers.filter(u => !u.organization_id) },
-                      ...orgs.map(o => ({ key: o.id, label: o.name, users: sortedUsers.filter(u => u.organization_id === o.id) }))
-                    ].filter(g => g.users.length > 0)
-                  : [{ key: 'all', label: null, users: sortedUsers }]
-                return groups.map(group => (
-                  <div key={group.key} className="mb-10">
-                     {group.label && (
-                       <h3 className="text-xs font-black uppercase tracking-widest text-secondary mb-4 flex items-center gap-2">
-                          <Shield size={14} /> {group.label}
-                          <span className="text-muted font-bold normal-case tracking-normal">({group.users.length} medewerker{group.users.length === 1 ? '' : 's'})</span>
-                       </h3>
-                     )}
-                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {group.users.map(u => (
+                // v102: Team-overzicht schaalbaar - zoeken, filteren en een compacte lijst.
+                // De volledige kaart (rol, tools, rechten...) klapt open per medewerker.
+                const renderUserCard = (u) => (
                   <div key={u.id} className="glass-panel p-6 group hover:border-primary/50 transition-all border border-border" style={u.is_active === false ? { opacity: 0.55 } : undefined}>
                      <div className="flex justify-between items-start gap-3">
                         <div className="flex items-center gap-4 min-w-0">
@@ -1015,10 +1011,144 @@ export default function Admin() {
                        </div>
                      )}
                   </div>
-                ))}
-                     </div>
+                )
+                const q = teamSearch.trim().toLowerCase()
+                const teamOf = {}
+                assignTeams.forEach(t => (t.team_members || []).forEach(m => { (teamOf[m.profile_id] = teamOf[m.profile_id] || []).push(t) }))
+                const leadCount = {}
+                leads.forEach(l => { if (l.assigned_to) leadCount[l.assigned_to] = (leadCount[l.assigned_to] || 0) + 1 })
+                const roleCounts = {}
+                users.forEach(u => { roleCounts[u.role] = (roleCounts[u.role] || 0) + 1 })
+                const filtered = users.filter(u => {
+                  if (q && ![u.full_name, u.email].some(t => (t || '').toLowerCase().includes(q))) return false
+                  if (teamRole !== 'all' && u.role !== teamRole) return false
+                  if (teamStatus === 'actief' && u.is_active === false) return false
+                  if (teamStatus === 'inactief' && u.is_active !== false) return false
+                  if (teamTeam !== 'all') {
+                    if (teamTeam === 'none' ? (teamOf[u.id] || []).length > 0 : !(teamOf[u.id] || []).some(t => t.id === teamTeam)) return false
+                  }
+                  if (teamProject !== 'all' && !getUserAssignments(u).projects.some(p => p.id === teamProject)) return false
+                  return true
+                })
+                const sortedUsers = [...filtered].sort((a, b) =>
+                  ((a.is_active === false ? 1 : 0) - (b.is_active === false ? 1 : 0)) ||
+                  String(a.full_name || a.email || '').localeCompare(String(b.full_name || b.email || ''), 'nl'))
+                const groups = orgs.length > 0
+                  ? [
+                      { key: 'none', label: 'Mijn eigen omgeving', users: sortedUsers.filter(u => !u.organization_id) },
+                      ...orgs.map(o => ({ key: o.id, label: o.name, users: sortedUsers.filter(u => u.organization_id === o.id) }))
+                    ].filter(g => g.users.length > 0)
+                  : [{ key: 'all', label: null, users: sortedUsers }]
+                const hasFilter = q || teamRole !== 'all' || teamStatus !== 'all' || teamTeam !== 'all' || teamProject !== 'all'
+                const selStyle = { padding: '8px 10px', fontSize: '0.8rem', flex: '0 1 170px', minWidth: 130 }
+                return (
+                  <>
+                    <div className="glass-panel p-4 mb-6 border border-border flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
+                       <div className="flex items-center gap-2 form-dark" style={{ flex: '1 1 220px', padding: '8px 12px' }}>
+                          <Search size={16} className="text-muted" style={{ flexShrink: 0 }} />
+                          <input
+                            value={teamSearch}
+                            onChange={e => setTeamSearch(e.target.value)}
+                            placeholder="Zoek op naam of e-mail"
+                            style={{ flex: 1, minWidth: 0, background: 'transparent', border: 'none', outline: 'none', color: 'inherit', fontSize: '0.9rem' }}
+                          />
+                          {teamSearch && <button type="button" onClick={() => setTeamSearch('')} className="text-muted" title="Wissen"><X size={14} /></button>}
+                       </div>
+                       <select value={teamRole} onChange={e => setTeamRole(e.target.value)} className="form-dark" style={selStyle} title="Filter op rol">
+                          <option value="all">Alle rollen ({users.length})</option>
+                          {Object.keys(ROLE_LABELS).filter(r => roleCounts[r]).map(r => <option key={r} value={r}>{ROLE_LABELS[r]} ({roleCounts[r]})</option>)}
+                       </select>
+                       <select value={teamTeam} onChange={e => setTeamTeam(e.target.value)} className="form-dark" style={selStyle} title="Filter op team">
+                          <option value="all">Alle teams</option>
+                          <option value="none">Zonder team</option>
+                          {assignTeams.map(t => <option key={t.id} value={t.id}>{t.name} ({(t.team_members || []).length})</option>)}
+                       </select>
+                       <select value={teamProject} onChange={e => setTeamProject(e.target.value)} className="form-dark" style={selStyle} title="Filter op project">
+                          <option value="all">Alle projecten</option>
+                          {assignProjects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                       </select>
+                       <select value={teamStatus} onChange={e => setTeamStatus(e.target.value)} className="form-dark" style={{ ...selStyle, flex: '0 1 130px' }} title="Actief of inactief">
+                          <option value="all">Actief + inactief</option>
+                          <option value="actief">Alleen actief</option>
+                          <option value="inactief">Alleen inactief</option>
+                       </select>
+                       <div className="flex" style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                          {[{ id: 'lijst', icon: <List size={14} />, label: 'Lijst' }, { id: 'kaarten', icon: <Layers size={14} />, label: 'Kaarten' }].map(v => (
+                            <button key={v.id} type="button" onClick={() => setTeamViewPersist(v.id)}
+                              className={`flex items-center gap-1 px-3 py-2 text-xs font-bold ${teamView === v.id ? 'bg-primary text-white' : 'text-muted'}`}>
+                              {v.icon} {v.label}
+                            </button>
+                          ))}
+                       </div>
+                       <div className="text-xs text-muted font-bold" style={{ width: '100%' }}>
+                          {filtered.length} van {users.length} medewerkers
+                          {hasFilter && (
+                            <button type="button" className="text-primary ml-2 hover:underline"
+                              onClick={() => { setTeamSearch(''); setTeamRole('all'); setTeamStatus('all'); setTeamTeam('all'); setTeamProject('all') }}>
+                              Filters wissen
+                            </button>
+                          )}
+                       </div>
+                    </div>
+                    {filtered.length === 0 && (
+                      <div className="glass-panel p-8 text-center text-muted border border-border">Niemand gevonden met deze filters.</div>
+                    )}
+                    {groups.map(group => (
+                  <div key={group.key} className="mb-10">
+                     {group.label && (
+                       <h3 className="text-xs font-black uppercase tracking-widest text-secondary mb-4 flex items-center gap-2">
+                          <Shield size={14} /> {group.label}
+                          <span className="text-muted font-bold normal-case tracking-normal">({group.users.length} medewerker{group.users.length === 1 ? '' : 's'})</span>
+                       </h3>
+                     )}
+                     {teamView === 'kaarten' ? (
+                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {group.users.map(u => renderUserCard(u))}
+                       </div>
+                     ) : (
+                       <div className="glass-panel border border-border" style={{ overflow: 'hidden' }}>
+                          {group.users.map((u, i) => {
+                            const open = expandedTeamUser === u.id
+                            const uTeams = teamOf[u.id] || []
+                            const nProj = u.role === 'admin' ? null : getUserAssignments(u).projects.length
+                            const today = todayStats.perAgent[u.id]
+                            return (
+                              <div key={u.id} style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border)' }}>
+                                 <button
+                                   type="button"
+                                   onClick={() => setExpandedTeamUser(open ? null : u.id)}
+                                   className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-elevated transition-all"
+                                   style={{ flexWrap: 'wrap', opacity: u.is_active === false ? 0.55 : 1 }}
+                                 >
+                                    <div className="w-8 h-8 bg-elevated rounded-lg flex items-center justify-center font-black text-primary border border-border shrink-0 text-sm">{(u.full_name || u.email || '?').charAt(0)}</div>
+                                    <div className="min-w-0" style={{ flex: '1 1 200px' }}>
+                                       <div className="font-bold text-body text-sm truncate">{u.full_name || 'Naamloos'}</div>
+                                       <div className="text-[11px] text-muted truncate">{u.email}</div>
+                                    </div>
+                                    <span className="px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-elevated text-muted whitespace-nowrap">{ROLE_LABELS[u.role] || u.role}</span>
+                                    {u.is_active === false && (
+                                      <span className="px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-error/20 text-error whitespace-nowrap">
+                                        {u.signup_source === 'self_service' && u.payment_status === 'pending' ? 'Wacht op betaling' : 'Inactief'}
+                                      </span>
+                                    )}
+                                    <div className="text-[11px] text-muted truncate" style={{ flex: '0 1 180px', minWidth: 0 }} title={uTeams.map(t => t.name).join(', ')}>
+                                       {uTeams.length ? uTeams.map(t => t.name).join(', ') : 'Geen team'}
+                                    </div>
+                                    <div className="text-[11px] text-muted whitespace-nowrap" style={{ width: 80 }}>{nProj == null ? 'Alles' : `${nProj} project${nProj === 1 ? '' : 'en'}`}</div>
+                                    <div className="text-[11px] text-muted whitespace-nowrap" style={{ width: 70 }} title="Leads op naam">{leadCount[u.id] || 0} leads</div>
+                                    <div className="text-[11px] whitespace-nowrap font-bold" style={{ width: 110 }} title="Vandaag">{today?.calls || 0} gespr. · {fmtBeltijd(today?.seconds || 0)}</div>
+                                    <ChevronRight size={16} className="text-muted shrink-0" style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
+                                 </button>
+                                 {open && <div className="px-4 pb-4">{renderUserCard(u)}</div>}
+                              </div>
+                            )
+                          })}
+                       </div>
+                     )}
                   </div>
-                ))
+                    ))}
+                  </>
+                )
              })()}
           </motion.div>
         )}
@@ -1172,10 +1302,7 @@ export default function Admin() {
                     </div>
                     <div className="form-group">
                        <label className="text-[10px] font-black uppercase text-muted tracking-widest mb-2 block">Beller (Optioneel)</label>
-                       <select className="form-dark w-full" value={newLead.assigned_to} onChange={e => setNewLead({...newLead, assigned_to: e.target.value})}>
-                          <option value="">Niet toewijzen (Pool)</option>
-                          {users.filter(u => u.is_active !== false).map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-                       </select>
+                       <PersonSelect people={users.filter(u => u.is_active !== false)} value={newLead.assigned_to} onChange={id => setNewLead({...newLead, assigned_to: id})} emptyLabel="Niet toewijzen (Pool)" showRole className="form-dark w-full" />
                     </div>
                   </div>
 

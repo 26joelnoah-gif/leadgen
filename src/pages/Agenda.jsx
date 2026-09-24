@@ -14,6 +14,7 @@ import LeadDetailModal from '../components/LeadDetailModal'
 import { APPOINTMENT_LABEL, APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
 import AppointmentModal from '../components/AppointmentModal'
 import { findAppointmentConflict, outcomeInfo, sentimentInfo, leadAddressText, navigationUrl } from '../lib/appointments'
+import PersonSelect from '../components/PersonSelect' // v102
 
 function startOfWeek(date) {
   const d = new Date(date)
@@ -485,17 +486,14 @@ export default function Agenda() {
               <div className="flex items-center gap-2 bg-elevated px-3 py-1.5 rounded-lg border border-border">
                 <Filter size={14} className="text-muted" />
                 <span className="text-xs text-muted font-bold uppercase">AM:</span>
-                <select
+                <PersonSelect
+                  people={accountmanagers}
                   value={selectedAmId}
-                  onChange={e => setSelectedAmId(e.target.value)}
+                  onChange={id => setSelectedAmId(id)}
+                  extraOptions={[{ value: 'all', label: `Alle accountmanagers (${accountmanagers.length})` }]}
                   className="form-dark text-xs"
-                  style={{ padding: '2px 6px', border: 'none', background: 'transparent' }}
-                >
-                  <option value="all">Alle accountmanagers ({accountmanagers.length})</option>
-                  {accountmanagers.map(am => (
-                    <option key={am.id} value={am.id}>{am.full_name}</option>
-                  ))}
-                </select>
+                  style={{ padding: '2px 6px', border: 'none', background: 'transparent', minWidth: 160 }}
+                />
               </div>
             )}
 

@@ -4,6 +4,7 @@ import { MessageCircle, X, Send, Plus, Hash, Users, Lock, UserPlus, Trash2 } fro
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { useToast } from './Toast'
+import PersonSelect from './PersonSelect' // v102
 
 const GENERAL_CHANNEL = { id: 'general', name: 'Team', is_default: true }
 const PAGE_SIZE = 50
@@ -553,17 +554,14 @@ export default function Chat() {
                   </div>
 
                   <div className="flex gap-2" style={{ marginBottom: '12px' }}>
-                    <select
+                    <PersonSelect
+                      people={availableProfiles}
                       value={addMemberId}
-                      onChange={e => setAddMemberId(e.target.value)}
+                      onChange={id => setAddMemberId(id)}
+                      placeholder="Kies persoon..."
                       className="form-dark"
                       style={{ flex: 1, padding: '8px', borderRadius: '8px', border: '1px solid var(--border)' }}
-                    >
-                      <option value="">Kies persoon...</option>
-                      {availableProfiles.map(p => (
-                        <option key={p.id} value={p.id}>{p.full_name || p.email}</option>
-                      ))}
-                    </select>
+                    />
                     <button onClick={addMember} className="btn btn-primary btn-sm" disabled={!addMemberId} title="Toevoegen">
                       <UserPlus size={16} />
                     </button>

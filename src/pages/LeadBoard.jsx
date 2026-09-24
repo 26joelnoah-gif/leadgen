@@ -24,6 +24,7 @@ import MailingserviceModal from '../components/MailingserviceModal'
 import MailQueueView from '../components/MailQueueView'
 import LeadDetailModal from '../components/LeadDetailModal'
 import { leadBelstatus, BELSTATUS, useProjectCompliance, urenTotWissen, rechtsvormLabel } from '../lib/compliance'
+import PersonSelect from '../components/PersonSelect' // v102
 
 // v62: gedeelde Leadlijst. Iedereen die in een project zit (team, manager,
 // planning-account met projectvlag) ziet ALLE leads van de gekozen lijst en
@@ -892,17 +893,19 @@ export default function LeadBoard() {
                 />
               </div>
               {/* v75: bord per persoon bekijken (admin/manager) */}
-              <select
+              <PersonSelect
+                people={isStaff ? mensen : []}
                 className="form-control"
                 value={wie}
-                onChange={e => setWie(e.target.value)}
+                onChange={id => setWie(id)}
+                extraOptions={[
+                  { value: 'all', label: isStaff || !boardEnabled ? 'Iedereen' : 'Nieuw + mijn leads' },
+                  { value: 'me', label: isStaff || !boardEnabled ? 'Mijn leads' : 'Alleen mijn leads' },
+                ]}
+                showEmail={false}
                 title="Van wie wil je de leads zien?"
                 style={{ minWidth: 170, flex: '0 1 auto' }}
-              >
-                <option value="all">{isStaff || !boardEnabled ? 'Iedereen' : 'Nieuw + mijn leads'}</option>
-                <option value="me">{isStaff || !boardEnabled ? 'Mijn leads' : 'Alleen mijn leads'}</option>
-                {isStaff && mensen.map(p => <option key={p.id} value={p.id}>{p.full_name || 'Naamloos'}</option>)}
-              </select>
+              />
               <div className="flex gap-2">
                 {[
                   ...(mailService ? [['warm', `Warm (${warmCount})`]] : []),
