@@ -214,3 +214,60 @@
 [data-design="v2"] .kb-card { background: var(--bg-card); }
 [data-design="v2"] .kb-col.is-empty { border-style: dashed; }
 [data-design="v2"] .lb-toolbar { background: transparent; border: 0; padding: 0; }
+
+/* ---------- Fase 3a: belscherm ---------- */
+/* Kopbalk: rustig i.p.v. een volle blauwe balk (inline styles van v1 overschrijven) */
+[data-design="v2"] .wi-topbar {
+  background: var(--bg-surface) !important;
+  color: var(--text-primary) !important;
+  border-bottom: 1px solid var(--border-subtle);
+}
+[data-design="v2"] .wi-top-title { font-family: var(--font-display); font-weight: 800 !important; font-size: 1rem !important; }
+[data-design="v2"] .wi-top-title svg { color: var(--success); }
+[data-design="v2"] .wi-top-chip {
+  background: var(--bg-elevated) !important;
+  color: var(--text-secondary) !important;
+  border-radius: 999px !important;
+  font-weight: 600 !important;
+  font-family: var(--font-body);
+}
+[data-design="v2"] .wi-top-close { border-radius: 9px !important; font-weight: 600; }
+/* Grote belknop naast het nummer (alleen in v2 gerenderd) */
+.wi-bel-groot {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border-radius: 11px;
+  background: var(--success);
+  color: #07130D;
+  font-weight: 800;
+  font-size: 0.9rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.wi-bel-groot:hover { filter: brightness(1.08); }
+/* Afboekbalk */
+[data-design="v2"] .wi-footer { background: var(--bg-surface) !important; border-top-color: var(--border-subtle) !important; }
+[data-design="v2"] .wi-dispo { height: 40px; border-radius: 10px; letter-spacing: 0; }
+[data-design="v2"] .wi-dispo svg { width: 16px; height: 16px; }
+.wi-meer-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  z-index: 41;
+  min-width: 230px;
+  max-height: 50vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-strong);
+  box-shadow: var(--shadow-lg);
+}
+/* Kaarten in het belscherm */
+[data-design="v2"] .wi-card-head { background: var(--bg-card); }
