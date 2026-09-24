@@ -525,3 +525,7 @@
 .stat-card { padding: 16px 18px; }
 .stat-card .number { font-size: 1.75rem; }
 .stat-card .label { font-size: 0.82rem; margin-top: 6px; }
+
+/* Belscherm: lege compliance/offerte-strook niet als lege ruimte tonen */
+.wi-briefings > .wi-briefing-item:empty { display: none; }
+.wi-briefings:not(:has(> :not(:empty))) { display: none; }

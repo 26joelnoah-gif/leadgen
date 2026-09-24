@@ -1035,9 +1035,9 @@ export default function WorkInterface() {
           {/* v65: open of getekende offerte van deze lead, live uit public.offertes
               v70: en hoe ver de bron komt met een verstuurde mail (lead_mail_status) */}
           {!isRecruitmentCampaign && (
-            <div style={{ padding: isMobile ? '8px 12px 0' : '8px 24px 0' }}>
+            <div className="wi-briefings" style={{ padding: isMobile ? '8px 12px 0' : '8px 24px 0' }}>
               {!isBackofficeMode && (
-                <div style={{ marginBottom: 8 }}>
+                <div className="wi-briefing-item" style={{ marginBottom: 8 }}>
                   <ComplianceLeadBlok
                     lead={currentLead}
                     project={complianceProject}
