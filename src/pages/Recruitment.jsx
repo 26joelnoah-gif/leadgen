@@ -602,10 +602,9 @@ export default function Recruitment() {
                 { label: 'Aangenomen', val: stats.aangenomen, icon: '✅', color: 'var(--success)' },
                 { label: 'Afgewezen', val: stats.afgewezen, icon: '✖️', color: 'var(--danger)' }
               ].map(s => (
-                <div key={s.label} className="stat-card glass-panel" style={{ padding: '18px', borderLeft: `4px solid ${s.color}` }}>
-                  <div style={{ fontSize: '1.6rem', marginBottom: '4px' }}>{s.icon}</div>
-                  <div style={{ fontSize: '1.6rem', fontWeight: 800, color: s.color }}>{s.val}</div>
-                  <div className="label">{s.label}</div>
+                <div key={s.label} className="stat-card" style={{ padding: '14px 16px', borderLeft: `3px solid ${s.color}` }}>
+                  <div className="label" style={{ marginTop: 0, fontSize: '0.78rem', fontWeight: 700 }}>{s.label}</div>
+                  <div className="number" style={{ fontSize: '1.6rem', color: s.color, marginTop: 4 }}>{s.val}</div>
                 </div>
               ))}
             </div>
@@ -627,7 +626,7 @@ export default function Recruitment() {
                 <Search size={18} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input
                   type="text"
-                  placeholder="Zoek op naam, telefoon, functie of email..."
+                  placeholder="Zoek sollicitant..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   className="form-control"
@@ -815,7 +814,7 @@ export default function Recruitment() {
                       style={{
                         minWidth: 0, background: isOver ? 'var(--accent-soft)' : 'var(--bg-card)',
                         border: `1px solid ${isOver ? col.color : 'var(--border)'}`, borderRadius: '10px', padding: '7px',
-                        transition: 'background 0.15s, border-color 0.15s', maxHeight: 'calc(100vh - 380px)', minHeight: '160px',
+                        transition: 'background 0.15s, border-color 0.15s', maxHeight: 'max(420px, calc(100vh - 240px))', minHeight: '160px',
                         display: 'flex', flexDirection: 'column'
                       }}
                     >

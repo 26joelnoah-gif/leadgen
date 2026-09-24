@@ -81,9 +81,9 @@ function toLocalInput(iso) {
   return d.toISOString().slice(0, 16)
 }
 
-function Chip({ label, color, bg, title }) {
+function Chip({ label, color, bg, title, quiet = false }) {
   return (
-    <span title={title || label} className="lc-chip" style={{ color, background: bg }}>{label}</span>
+    <span title={title || label} className={`lc-chip${quiet ? ' is-quiet' : ''}`} style={{ color, background: bg }}>{label}</span>
   )
 }
 
@@ -792,7 +792,7 @@ export default function LeadBoard() {
             {toonStatus && <Chip label={st.label} color={st.color} bg={st.bg} />}
             {mailInfo && <Chip label={mailInfo.label} color={mailInfo.color} bg={mailInfo.bg} title={`${mailTypeLabel(mail.mail_soort)} - ${dateShort(mail.status_op)}`} />}
             {sigs.map(s => <Chip key={s.label} label={s.label} color={s.color} bg={s.bg} />)}
-            {listIds.length > 1 && listNames[lead.lead_list_id] && <Chip label={listNames[lead.lead_list_id]} color="var(--text-muted)" bg="var(--bg-card)" title={`Lijst: ${listNames[lead.lead_list_id]}`} />}
+            {listIds.length > 1 && listNames[lead.lead_list_id] && <Chip quiet label={listNames[lead.lead_list_id]} title={`Lijst: ${listNames[lead.lead_list_id]}`} />}
           </div>
         )}
         {lead.appointment_at && lead.status === 'afspraak_gemaakt' ? (

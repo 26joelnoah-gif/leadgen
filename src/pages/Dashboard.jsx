@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
-import { RefreshCw, Phone, Zap, Plus, X, Layers, Upload, Sparkles } from 'lucide-react'
+import { RefreshCw, Phone, Zap, Plus, X, Layers, Upload, Sparkles, Inbox, PhoneCall, CalendarCheck, Trophy } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
 import { levelInfo } from '../utils/xpUtils'
 import { effectiveSeconds } from '../utils/callTimeUtils'
@@ -365,31 +365,30 @@ export default function Dashboard() {
         {/* Quick Stats */}
         <div className="stats-grid mb-4" style={{ marginTop: '24px' }}>
           {[
-            ...(isAdmin ? [{ label: 'Nieuwe Leads', val: stats.nieuweLeads, icon: '📬', color: 'var(--primary)' }] : []),
-            { label: 'Terugbelacties', val: stats.terugbelacties, icon: '📞', color: 'var(--danger)', pulse: true },
-            { label: 'Afspraken', val: stats.afspraken, icon: '📅', color: 'var(--success)' },
-            { label: 'Deals', val: stats.deals, icon: '🏆', color: 'var(--secondary)' }
+            ...(isAdmin ? [{ label: 'Nieuwe leads', val: stats.nieuweLeads, Icon: Inbox, color: 'var(--primary)' }] : []),
+            { label: 'Terugbelacties', val: stats.terugbelacties, Icon: PhoneCall, color: 'var(--danger)', pulse: stats.terugbelacties > 0 },
+            { label: 'Afspraken', val: stats.afspraken, Icon: CalendarCheck, color: 'var(--success)' },
+            { label: 'Deals', val: stats.deals, Icon: Trophy, color: 'var(--secondary)' }
           ].map((stat, i) => (
             <motion.div
               key={stat.label}
-              initial={{ y: 20, opacity: 0 }}
+              initial={{ y: 12, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: Math.min(i * 0.05, 0.2) }}
-              className="stat-card glass-panel glow-hover"
-              style={{ padding: '20px', borderLeft: `4px solid ${stat.color}` }}
+              className="stat-card"
+              style={{ padding: '16px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
             >
-              <div className="flex justify-between items-center">
-                <div>
-                  <motion.div
-                    animate={stat.pulse ? { scale: [1, 1.1, 1] } : {}}
-                    transition={{ duration: 1.5, repeat: Infinity }}
-                    style={{ fontSize: '2rem', marginBottom: '4px' }}
-                  >
-                    {stat.icon}
-                  </motion.div>
-                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: stat.color }}>{stat.val}</div>
-                  <div className="label">{stat.label}</div>
-                </div>
+              {/* v103: rustiger kaart - cijfer groot, icoon klein in een zacht rondje */}
+              <div style={{ minWidth: 0 }}>
+                <div className="label" style={{ marginTop: 0, fontWeight: 600 }}>{stat.label}</div>
+                <div className="number" style={{ color: 'var(--text-primary)', marginTop: 4 }}>{stat.val}</div>
+              </div>
+              <div style={{
+                width: 42, height: 42, borderRadius: 12, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: stat.color, background: `color-mix(in srgb, ${stat.color} 14%, transparent)`,
+                boxShadow: stat.pulse ? `0 0 0 3px color-mix(in srgb, ${stat.color} 25%, transparent)` : 'none'
+              }}>
+                <stat.Icon size={20} />
               </div>
             </motion.div>
           ))}

@@ -452,49 +452,42 @@ export default function LeadManagement({ standalone = true }) {
       {standalone && <Header />}
 
       <main className="container-wide py-8">
-        <div className="flex justify-between items-center mb-10 px-6" style={{ flexWrap: 'wrap', gap: '16px' }}>
+        {/* v103: rustiger kop - een hoofdknop, de rest als outline */}
+        <div className="flex justify-between items-end mb-6 px-6" style={{ flexWrap: 'wrap', gap: '16px' }}>
           <div>
-            <div className="flex items-center gap-2 text-secondary mb-1">
-               <Shield size={14} /> <span className="text-xs font-bold uppercase tracking-widest">Administrator</span>
-            </div>
-            <h1 className="page-title">Projecten & Leads</h1>
-            <p className="text-muted text-sm mt-1">Beheer je projecten (leadlijsten), teams en wat er na een afboeking gebeurt.</p>
+            <h1 className="page-title" style={{ marginBottom: 4 }}>Projecten & Leads</h1>
+            <p className="text-muted text-sm">
+              {campaigns.length} project{campaigns.length === 1 ? '' : 'en'}. Beheer leadlijsten, teams en wat er na een afboeking gebeurt.
+            </p>
           </div>
-          <div className="flex gap-3 items-center" style={{ flexWrap: 'wrap' }}>
+          <div className="flex gap-2 items-center" style={{ flexWrap: 'wrap' }}>
              <button
-               onClick={() => setShowNewProject(true)}
-               className="btn btn-secondary"
-               style={{ padding: '14px 24px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}
+               onClick={() => { setImportMode('enrich'); setShowImport(true) }}
+               className="btn btn-outline"
+               title="Plak nieuwe info (beslissers, contactpersonen, e-mails...) en die wordt bij de juiste bestaande leads gezet"
+               style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
              >
-                <Plus size={18} /> Nieuw project
+                <Sparkles size={16} /> Leads verrijken
              </button>
              <button
                onClick={() => { setImportMode('import'); setShowImport(true) }}
-               className="btn btn-primary"
-               style={{ padding: '14px 24px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}
+               className="btn btn-outline"
+               style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
              >
-                <Upload size={18} /> Leads importeren
+                <Upload size={16} /> Leads importeren
              </button>
              <button
-               onClick={() => { setImportMode('enrich'); setShowImport(true) }}
+               onClick={() => setShowNewProject(true)}
                className="btn btn-primary"
-               title="Plak nieuwe info (beslissers, contactpersonen, e-mails...) en die wordt bij de juiste bestaande leads gezet"
-               style={{ padding: '14px 24px', fontWeight: 900, display: 'flex', alignItems: 'center', gap: '8px' }}
+               style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
              >
-                <Sparkles size={18} /> Leads verrijken
+                <Plus size={16} /> Nieuw project
              </button>
-             <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '10px 20px', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Grid size={18} className="text-primary" />
-                <div>
-                   <div className="text-xs text-muted uppercase font-bold">Projecten</div>
-                   <div className="text-xl font-bold">{campaigns.length}</div>
-                </div>
-             </div>
           </div>
         </div>
 
         {/* Tab Navigation */}
-        <div className="px-6 mb-8">
+        <div className="px-6 mb-5">
           <div className="tab-bar">
             {TABS.map(tab => (
               <button
