@@ -130,7 +130,7 @@ export default function Header({ onOpenSettings }) {
     { path: '/admin/fouten', label: 'Foutlogboek' },
     { path: '/kanban', label: 'Kanban' },
     ...(hasTools ? [] : [{ path: '/tools', label: 'Tools' }]),
-  ]
+  ].filter(l => !navLinks.some(n => n.path === l.path)) // v103: niets dubbel in het menu (Sollicitanten stond er 2x)
 
   // Links met een query (bv. ?view=agenda) zijn alleen actief als die query
   // ook echt in de URL staat; de kale variant is dan juist niet actief.
