@@ -51,6 +51,10 @@ export default function LeadMap({ leads, position, lockNames = {}, isLockedByOth
       const map = L.map(containerRef.current, { zoomControl: true, attributionControl: true })
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
+        // v103: OSM weigert tegels zonder Referer ("osm.wiki/Blocked"). De app
+        // staat op no-referrer (privacy bij prospect-links); voor de tegels
+        // sturen we alleen ons eigen domein mee, geen pad.
+        referrerPolicy: 'strict-origin-when-cross-origin',
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" rel="noopener noreferrer nofollow" target="_blank">OpenStreetMap</a>'
       }).addTo(map)
       map.setView([52.1, 5.3], 8)

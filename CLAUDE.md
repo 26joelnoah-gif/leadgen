@@ -427,3 +427,29 @@ Twee-zijdig platform:
   teller "x van y", en een compacte lijstweergave (standaard, onthouden in
   localStorage 'leadgen-team-view') waarin je per medewerker de volledige kaart
   openklapt. Kaartweergave bestaat nog via de knop "Kaarten".
+
+- **BORD TELT ALS WERK + STRAKKER BORD/PROJECTEN/BELSCHERM (v103, 2026-09-24,
+  geen migratie):**
+  1. Slepen op een bord (LeadBoard /leads en het sollicitantenbord in
+     Recruitment) schrijft nu ook een call_logs-rij via src/lib/boardLog.js:
+     source='bord', duration_seconds=0, max 1x per medewerker+lead+status.
+     Telt dus mee in Rapportage/Dashboard/Manager/agent_daily_stats als actie,
+     NIET als beltijd. Reports.jsx toont bord-acties apart ("+n bord") en telt
+     ze niet als gesprek (pogingen per uur blijft eerlijk), wel in afspraken/
+     deals en slagingspercentage. Uitbetaling loopt zoals altijd via de tarieven
+     per lijst (project zonder tarief, zoals recruitment = 0).
+  2. Robuust: LeadBoard laadt leads in blokken van 1000 (was max 1000, PROSELL
+     viel af), laat bij een laadfout de oude leads staan, poll 30s i.p.v. 8s
+     (realtime + 1,2s debounce doet het werk), lead_mail_status in stukjes van
+     150 ids. Reports haalt call_logs gepagineerd op (was limit 1000).
+     LeadMap: OSM-tegels kregen "Blocked" door no-referrer; tileLayer heeft nu
+     referrerPolicy 'strict-origin-when-cross-origin'. LeadManagement-zoeken
+     crasht niet meer op een lead zonder naam/telefoon.
+  3. Opmaak in src/styles/polish.css (geimporteerd in main.jsx, alleen eigen
+     classes): .kb-* kanban (lege kolommen klappen in tot strook en gaan open
+     tijdens slepen, 40 kaarten per kolom + "Toon meer"), .lc-* leadkaart,
+     .lb-* werkbalk /leads (2 rijen, pills, segmented weergave), .pm-*
+     Projecten & Leads (projectkaart, lijstknop, tabel), .wi-* belscherm
+     (rustige kaartkoppen, snelle acties Bellen/Mail/Route/Website,
+     afboekknoppen). Compliance-melding staat in de kopregel van het belscherm
+     (ComplianceLeadBlok losseKnop={false}); chatknop verborgen in belmodus.

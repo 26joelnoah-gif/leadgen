@@ -14,6 +14,7 @@ import { APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
 import { SENTIMENTS } from '../lib/appointments'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
 import { stopMailsVoorLead } from '../lib/mailStop'
+import { logBoardAction } from '../lib/boardLog' // v103
 import { MAIL_STATUS } from '../components/MailStatus'
 import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -54,7 +55,9 @@ import PersonSelect from '../components/PersonSelect' // v102
 // staat hij BOVENAAN (lijst, bord-kolom en kaart), krijgt een vlammetje en er
 // is een filter "Warm". De eigenaar krijgt op dat moment ook een melding
 // (Edge Function mailstatus schrijft in notifications).
-const POLL_MS = 8000
+// v103: realtime doet het echte werk; de poll is alleen nog een vangnet.
+// Elke 8s het hele project opnieuw laden werd zwaar bij grote projecten.
+const POLL_MS = 30000
 const DONE_STATUSES = ['deal', 'bruto_deal', 'afspraak_gemaakt', 'geen_interesse', 'verkeerd_nummer', 'cold', 'blacklist', 'monteur_ingepland', 'wil_annuleren']
 
 // v98: bureau vroeg via de mail "mail me later" (mailstatus later_mailen)
@@ -80,10 +83,7 @@ function toLocalInput(iso) {
 
 function Chip({ label, color, bg, title }) {
   return (
-    <span title={title} style={{
-      display: 'inline-block', padding: '0px 6px', borderRadius: 6, fontSize: '0.58rem', fontWeight: 800,
-      color, background: bg, whiteSpace: 'nowrap', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis'
-    }}>{label}</span>
+    <span title={title || label} className="lc-chip" style={{ color, background: bg }}>{label}</span>
   )
 }
 
@@ -209,16 +209,34 @@ export default function LeadBoard() {
   const load = useCallback(async (silent = false) => {
     if (listIds.length === 0) return
     if (!silent) setLoading(true)
+    // v103: in blokken van 1000 ophalen. Supabase geeft er max 1000 per
+    // keer, dus bij een groot project (PROSELL) vielen leads stil weg.
+    const haalAlleLeads = async () => {
+      const PAGE = 1000
+      const alle = []
+      for (let from = 0; from < 50000; from += PAGE) {
+        const { data, error } = await supabase.from('leads')
+          .select('id, lead_list_id, name, phone, email, website, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, updated_at, lat, lng, rechtsvorm, rechtsvorm_bron, opt_in_at, opt_in_bewijs, afgemeld_at, afgemeld_bron, mail_pauze_tot')
+          .in('lead_list_id', listIds)
+          .is('deleted_at', null)
+          .order('created_at', { ascending: true })
+          .order('id', { ascending: true })
+          .range(from, from + PAGE - 1)
+        if (error) return { data: from === 0 ? null : alle, error }
+        alle.push(...(data || []))
+        if (!data || data.length < PAGE) break
+      }
+      return { data: alle, error: null }
+    }
     const [{ data: rows, error }, ...lockResults] = await Promise.all([
-      supabase.from('leads')
-        .select('id, lead_list_id, name, phone, email, website, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, updated_at, lat, lng, rechtsvorm, rechtsvorm_bron, opt_in_at, opt_in_bewijs, afgemeld_at, afgemeld_bron, mail_pauze_tot')
-        .in('lead_list_id', listIds)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: true }),
+      haalAlleLeads(),
       ...listIds.map(id => supabase.rpc('lead_lock_names', { p_list_id: id }))
     ])
     const locks = lockResults.flatMap(r => r.data || [])
     if (error) console.error('LeadBoard load:', error)
+    // v103: bij een fout (netwerk/timeout) de vorige leads laten staan,
+    // anders was het bord ineens leeg tot de volgende poll.
+    if (error && !rows) { setLoading(false); return }
     setLeads(rows || [])
     const map = {}
     ;(locks || []).forEach(r => { map[r.lead_id] = r.full_name })
@@ -251,12 +269,18 @@ export default function LeadBoard() {
   // supabase_realtime (v63/v70); de poll hierboven blijft als vangnet staan.
   useEffect(() => {
     if (!listId) return
+    let reloadTimer = null
     const ch = supabase
       .channel(`leadboard-${listIdsKey}`.slice(0, 120))
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads', filter: `lead_list_id=in.(${listIdsKey})` }, () => load(true))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads', filter: `lead_list_id=in.(${listIdsKey})` }, () => {
+        // v103: veel wijzigingen vlak na elkaar (collega's aan het bellen)
+        // = een keer herladen, niet tien keer.
+        clearTimeout(reloadTimer)
+        reloadTimer = setTimeout(() => load(true), 1200)
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_mail_status' }, () => setMailTick(t => t + 1))
       .subscribe()
-    return () => { supabase.removeChannel(ch) }
+    return () => { clearTimeout(reloadTimer); supabase.removeChannel(ch) }
   }, [listId, listIdsKey, load])
 
   // v72: hoe ver komt een gemailde lead bij de bron (v70)? Per lead de hoogste stap.
@@ -265,11 +289,16 @@ export default function LeadBoard() {
     let alive = true
     const ids = leadIdsKey ? leadIdsKey.split(',') : []
     if (!mailService || ids.length === 0) { setMailRows({}); return }
-    supabase.from('lead_mail_status')
+    // v103: in stukjes van 150 ids, anders wordt de URL te lang bij grote
+    // projecten en komt er stil niets terug.
+    const stukken = []
+    for (let i = 0; i < ids.length; i += 150) stukken.push(ids.slice(i, i + 150))
+    Promise.all(stukken.map(deel => supabase.from('lead_mail_status')
       .select('lead_id, source, mail_soort, status, status_rank, status_op, gemaild_op, offerte_url')
-      .in('lead_id', ids)
-      .then(({ data }) => {
+      .in('lead_id', deel)))
+      .then(results => {
         if (!alive) return
+        const data = results.flatMap(r => r.data || [])
         const map = {}
         ;(data || []).forEach(r => {
           const cur = map[r.lead_id]
@@ -444,6 +473,8 @@ export default function LeadBoard() {
       return
     }
     logBoardActivity(lead.id, `Verplaatst naar "${getStatusDetails(status).label}" (bord)`)
+    // v103: telt mee als werkzaamheid (Rapportage/Dashboard), 0 sec beltijd
+    logBoardAction({ lead, status, userId: user?.id, organizationId: profile?.organization_id, notes: 'Via bord' })
     // v73: nee gezegd of juist klant geworden? Dan bij de bron de herinnering afzetten.
     stopMailsVoorLead(lead.id, status)
   }
@@ -742,93 +773,94 @@ export default function LeadBoard() {
     const st = getStatusDetails(lead.status)
     const mailInfo = mail ? (MAIL_STATUS[mail.status] || { label: mail.status, color: 'var(--text-muted)', bg: 'var(--bg-card)' }) : null
     const sigs = signalsFor(lead)
+    const warm = isWarm(lead)
+    // v103: status-chip alleen als de kolom meerdere statussen bundelt;
+    // anders zegt de kolomtitel het al.
+    const kolom = boardColumns.find(c => c.id === boardColumnFor(lead, boardColumns))
+    const toonStatus = !kolom || (kolom.statuses || []).length > 1
+    const sub = [lead.contact_person, lead.city].filter(Boolean).join(' · ')
+    const armed = confirmDeleteId === lead.id
     return (
       <>
-        <div style={{ fontWeight: 700, fontSize: '0.74rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: isWarm(lead) ? 'var(--secondary)' : undefined }}>
-          {isWarm(lead) && <Flame size={11} style={{ verticalAlign: -1, marginRight: 3 }} />}{lead.name || 'Naam onbekend'}
+        <div className="lc-name" style={warm ? { color: 'var(--secondary)' } : undefined} title={lead.name || ''}>
+          {warm && <Flame size={12} style={{ verticalAlign: -1, marginRight: 3 }} />}{lead.name || 'Naam onbekend'}
         </div>
-        {lead.contact_person && (
-          <div className="text-muted" style={{ fontSize: '0.62rem', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lead.contact_person}</div>
-        )}
-        <div className="text-muted" style={{ fontSize: '0.62rem', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-          {lead.phone}{lead.city ? ` - ${lead.city}` : ''}
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
-          <Chip label={st.label} color={st.color} bg={st.bg} />
-          {listIds.length > 1 && listNames[lead.lead_list_id] && <Chip label={listNames[lead.lead_list_id]} color="var(--text-muted)" bg="var(--bg-card)" title="Lijst" />}
-          {mailInfo && <Chip label={mailInfo.label} color={mailInfo.color} bg={mailInfo.bg} title={`${mailTypeLabel(mail.mail_soort)} - ${dateShort(mail.status_op)}`} />}
-          {sigs.map(s => <Chip key={s.label} label={s.label} color={s.color} bg={s.bg} />)}
-        </div>
-        {mail?.gemaild_op && (
-          <div style={{ fontSize: '0.6rem', marginTop: 3, color: 'var(--text-muted)' }}>
-            Gemaild {dateShort(mail.gemaild_op)}
+        {sub && <div className="lc-sub" title={sub}>{sub}</div>}
+        {lead.phone && <div className="lc-sub" style={{ fontVariantNumeric: 'tabular-nums' }}>{lead.phone}</div>}
+        {(toonStatus || mailInfo || sigs.length > 0 || (listIds.length > 1 && listNames[lead.lead_list_id])) && (
+          <div className="lc-chips">
+            {toonStatus && <Chip label={st.label} color={st.color} bg={st.bg} />}
+            {mailInfo && <Chip label={mailInfo.label} color={mailInfo.color} bg={mailInfo.bg} title={`${mailTypeLabel(mail.mail_soort)} - ${dateShort(mail.status_op)}`} />}
+            {sigs.map(s => <Chip key={s.label} label={s.label} color={s.color} bg={s.bg} />)}
+            {listIds.length > 1 && listNames[lead.lead_list_id] && <Chip label={listNames[lead.lead_list_id]} color="var(--text-muted)" bg="var(--bg-card)" title={`Lijst: ${listNames[lead.lead_list_id]}`} />}
           </div>
         )}
-        {lead.next_contact_date && !DONE_STATUSES.includes(lead.status) && (
-          <div style={{ fontSize: '0.6rem', marginTop: 3, color: 'var(--text-muted)', fontWeight: 700 }} title="Opvolgdatum: dan komt de lead terug in de wachtrij">
-            <Clock size={9} style={{ verticalAlign: -1, marginRight: 2 }} />Opvolgen {dateShort(lead.next_contact_date)}
+        {lead.appointment_at && lead.status === 'afspraak_gemaakt' ? (
+          <div className="lc-meta" style={{ color: 'var(--secondary)' }} title="Afspraakmoment">
+            <CalendarDays size={11} />Afspraak {dateShort(lead.appointment_at)}
           </div>
-        )}
-        {lead.appointment_at && lead.status === 'afspraak_gemaakt' && (
-          <div style={{ fontSize: '0.6rem', marginTop: 3, color: 'var(--secondary)', fontWeight: 700 }} title="Afspraakmoment">
-            <CalendarDays size={9} style={{ verticalAlign: -1, marginRight: 2 }} />Afspraak {dateShort(lead.appointment_at)}
+        ) : lead.next_contact_date && !DONE_STATUSES.includes(lead.status) ? (
+          <div className="lc-meta" title="Opvolgdatum: dan komt de lead terug in de wachtrij">
+            <Clock size={11} />Opvolgen {dateShort(lead.next_contact_date)}
           </div>
-        )}
-        {!busy && ownerLabel(lead) && (
-          <div style={{ fontSize: '0.6rem', marginTop: 3, color: 'var(--primary)', fontWeight: 700 }}>
-            <User size={9} style={{ verticalAlign: -1, marginRight: 2 }} />{ownerLabel(lead)}
-          </div>
-        )}
+        ) : mail?.gemaild_op ? (
+          <div className="lc-meta"><Mail size={11} />Gemaild {dateShort(mail.gemaild_op)}</div>
+        ) : null}
         {busy ? (
-          <div style={{ fontSize: '0.6rem', marginTop: 5, color: 'var(--warning)', fontWeight: 700 }}>
-            <Lock size={9} style={{ verticalAlign: -1, marginRight: 2 }} />{lockNames[lead.id] ? `Bij ${lockNames[lead.id]}` : 'In behandeling'}
+          <div className="lc-meta" style={{ color: 'var(--warning)' }}>
+            <Lock size={11} />{lockNames[lead.id] ? `Bij ${lockNames[lead.id]}` : 'In behandeling'}
           </div>
         ) : (
-          <div style={{ display: 'flex', gap: 4, marginTop: 5 }}>
-            <button
-              onClick={e => { e.stopPropagation(); openLead(lead) }}
-              className="btn btn-success btn-sm"
-              style={{ flex: 1, padding: 3, fontSize: '0.62rem' }}
-              disabled={claimingId === lead.id || isWorking}
-            >
-              <Phone size={10} /> Bel
-            </button>
-            <button
-              onClick={e => { e.stopPropagation(); setDetailLead(lead) }}
-              className="btn btn-outline btn-sm"
-              style={{ padding: '3px 6px', fontSize: '0.62rem' }}
-              title="Contactkaart bekijken (zonder te bellen)"
-            >
-              <Info size={10} />
-            </button>
-            {isStaff && (
-              <button
-                onClick={e => { e.stopPropagation(); askDeleteLead(lead) }}
-                className="btn btn-outline btn-sm"
-                style={{
-                  padding: '3px 6px',
-                  fontSize: '0.62rem',
-                  color: confirmDeleteId === lead.id ? '#fff' : 'var(--danger)',
-                  background: confirmDeleteId === lead.id ? 'var(--danger)' : undefined,
-                  borderColor: 'var(--danger)'
-                }}
-                disabled={deletingId === lead.id}
-                title={confirmDeleteId === lead.id ? 'Klik nogmaals om definitief te verwijderen' : 'Lead verwijderen'}
-              >
-                <Trash2 size={10} />
-              </button>
+          <>
+            {ownerLabel(lead) && (
+              <div className="lc-meta" style={{ color: 'var(--accent)' }}>
+                <User size={11} />{ownerLabel(lead)}
+              </div>
             )}
-            {mailService && (
+            <div className="lc-actions">
               <button
-                onClick={e => { e.stopPropagation(); setMailLead(lead) }}
-                className="btn btn-outline btn-sm"
-                style={{ padding: '3px 6px', fontSize: '0.62rem' }}
-                title="Mail sturen via de Mailingservice"
+                type="button"
+                onClick={e => { e.stopPropagation(); openLead(lead) }}
+                className="lc-btn lc-btn-call"
+                disabled={claimingId === lead.id || isWorking}
+                title="Bellen: opent het belscherm met deze lead"
               >
-                <Mail size={10} />
+                <Phone size={12} /> Bel
               </button>
-            )}
-          </div>
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); setDetailLead(lead) }}
+                className="lc-btn"
+                title="Contactkaart bekijken (zonder te bellen)"
+                aria-label="Contactkaart"
+              >
+                <Info size={13} />
+              </button>
+              {mailService && (
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); setMailLead(lead) }}
+                  className="lc-btn"
+                  title="Mail sturen via de Mailingservice"
+                  aria-label="Mail sturen"
+                >
+                  <Mail size={13} />
+                </button>
+              )}
+              {isStaff && (
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); askDeleteLead(lead) }}
+                  className={`lc-btn lc-btn-danger lc-hover-only${armed ? ' is-armed' : ''}`}
+                  disabled={deletingId === lead.id}
+                  title={armed ? 'Klik nogmaals om definitief te verwijderen' : 'Lead verwijderen'}
+                  aria-label="Lead verwijderen"
+                >
+                  <Trash2 size={13} />
+                </button>
+              )}
+            </div>
+          </>
         )}
       </>
     )
@@ -870,85 +902,95 @@ export default function LeadBoard() {
           <EmptyState icon={Inbox} title="Geen leadlijsten" message="Je bent nog aan geen enkel project met leads gekoppeld." />
         ) : (
           <>
-            <div className="filter-bar glass-panel mb-3" style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-              {projects.length > 1 && (
-                <select className="form-control" value={projectId || ''} onChange={e => { setProjectId(e.target.value); setListChoice('all') }} title="Project" style={{ minWidth: 180, flex: '0 1 auto' }}>
-                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-                </select>
-              )}
-              {projectLists.length > 1 && (
-                <select className="form-control" value={allLists ? 'all' : listChoice} onChange={e => setListChoice(e.target.value)} title="Lijst" style={{ minWidth: 180, flex: '0 1 auto' }}>
-                  <option value="all">Alle lijsten ({projectLists.length})</option>
-                  {projectLists.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
-                </select>
-              )}
-              <div style={{ flex: 1, minWidth: 180, position: 'relative' }}>
-                <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input
-                  className="form-control"
-                  style={{ paddingLeft: 36, width: '100%' }}
-                  placeholder="Zoek op naam, plaats of telefoon..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                />
-              </div>
-              {/* v75: bord per persoon bekijken (admin/manager) */}
-              <PersonSelect
-                people={isStaff ? mensen : []}
-                className="form-control"
-                value={wie}
-                onChange={id => setWie(id)}
-                extraOptions={[
-                  { value: 'all', label: isStaff || !boardEnabled ? 'Iedereen' : 'Nieuw + mijn leads' },
-                  { value: 'me', label: isStaff || !boardEnabled ? 'Mijn leads' : 'Alleen mijn leads' },
-                ]}
-                showEmail={false}
-                title="Van wie wil je de leads zien?"
-                style={{ minWidth: 170, flex: '0 1 auto' }}
-              />
-              <div className="flex gap-2">
-                {[
-                  ...(mailService ? [['warm', `Warm (${warmCount})`]] : []),
-                  // v87/v93: Open/Afgerond/Alles hebben op het bord geen effect
-                  // (elke status staat daar al in zijn eigen kolom, zie de
-                  // v87-uitzondering in de `visible`-filter hierboven), maar
-                  // blijven wel zichtbaar zodat het bord er hetzelfde uitziet
-                  // als lijst-/kaartweergave.
-                  ['open', `Open (${openCount})`], ['done', `Afgerond (${pool.length - openCount})`], ['all', `Alles (${pool.length})`],
-                  // v98: compliance-filters
-                  ...(kvkCount > 0 ? [['kvk', `KvK-check (${kvkCount})`]] : []),
-                  ...(toestemmingCount > 0 ? [['toestemming', `Toestemming nodig (${toestemmingCount})`]] : []),
-                  ...(afgemeldeLeads.length > 0 || filter === 'afgemeld' ? [['afgemeld', `Afgemeld (${afgemeldeLeads.length})`]] : []),
-                  ...(laterMailenCount > 0 || filter === 'later_mailen' ? [['later_mailen', `Later mailen (${laterMailenCount})`]] : [])
-                ].map(([k, label]) => (
-                  <button key={k} type="button" onClick={() => setFilter(k)} className={`btn btn-sm ${filter === k ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 20, ...(k === 'warm' && warmCount > 0 && filter !== 'warm' ? { color: 'var(--secondary)', borderColor: 'var(--secondary)', fontWeight: 800 } : {}) }} title={k === 'warm' ? 'Leads die de offerte openden. Die bel je eerst.' : undefined}>
-                    {k === 'warm' && <Flame size={12} style={{ verticalAlign: -2 }} />} {label}
-                  </button>
-                ))}
-              </div>
-              <div className="flex gap-2" style={{ marginLeft: 'auto' }}>
-                {pos && view !== 'board' && (
-                  <button type="button" onClick={() => setSortBy(s => s === 'distance' ? 'order' : 'distance')} className="btn btn-sm btn-outline" style={{ borderRadius: 20 }} title="Sortering wisselen">
-                    <Compass size={14} /> {sortBy === 'distance' ? 'Dichtbij eerst' : 'Lijstvolgorde'}
-                  </button>
+            {/* v103: werkbalk in twee rijen - keuzes/zoeken boven, filters + weergave onder */}
+            <div className="lb-toolbar">
+              <div className="lb-toolbar-row">
+                {projects.length > 1 && (
+                  <select className="form-control lb-select" value={projectId || ''} onChange={e => { setProjectId(e.target.value); setListChoice('all') }} title="Project">
+                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
                 )}
-                <div style={{ display: 'inline-flex', border: '1px solid var(--border-subtle)', borderRadius: 20, overflow: 'hidden' }}>
-                  <button type="button" onClick={() => setView('list')} className={`btn btn-sm ${view === 'list' ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 0, border: 0 }} title="Lijst">
-                    <List size={14} /> Lijst
-                  </button>
-                  {boardEnabled && (
-                    <button type="button" onClick={() => setView('board')} className={`btn btn-sm ${view === 'board' ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 0, border: 0 }} title="Bord">
-                      <LayoutGrid size={14} /> Bord
+                {projectLists.length > 1 && (
+                  <select className="form-control lb-select" value={allLists ? 'all' : listChoice} onChange={e => setListChoice(e.target.value)} title="Lijst">
+                    <option value="all">Alle lijsten ({projectLists.length})</option>
+                    {projectLists.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+                  </select>
+                )}
+                <div className="lb-search">
+                  <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                  <input
+                    className="form-control"
+                    placeholder="Zoek op naam, plaats of telefoon..."
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                  />
+                </div>
+                {/* v75: bord per persoon bekijken (admin/manager) */}
+                <div className="lb-select">
+                  <PersonSelect
+                    people={isStaff ? mensen : []}
+                    className="form-control"
+                    value={wie}
+                    onChange={id => setWie(id)}
+                    extraOptions={[
+                      { value: 'all', label: isStaff || !boardEnabled ? 'Iedereen' : 'Nieuw + mijn leads' },
+                      { value: 'me', label: isStaff || !boardEnabled ? 'Mijn leads' : 'Alleen mijn leads' },
+                    ]}
+                    showEmail={false}
+                    title="Van wie wil je de leads zien?"
+                    style={{ width: '100%' }}
+                  />
+                </div>
+              </div>
+              <div className="lb-toolbar-row" style={{ justifyContent: 'space-between' }}>
+                <div className="lb-pills">
+                  {[
+                    ...(mailService ? [['warm', `Warm (${warmCount})`]] : []),
+                    // v87/v93: Open/Afgerond/Alles hebben op het bord geen effect
+                    // (elke status staat daar al in zijn eigen kolom), maar blijven
+                    // zichtbaar zodat het bord er hetzelfde uitziet als lijst/kaart.
+                    ['open', `Open (${openCount})`], ['done', `Afgerond (${pool.length - openCount})`], ['all', `Alles (${pool.length})`],
+                    // v98: compliance-filters
+                    ...(kvkCount > 0 ? [['kvk', `KvK-check (${kvkCount})`]] : []),
+                    ...(toestemmingCount > 0 ? [['toestemming', `Toestemming nodig (${toestemmingCount})`]] : []),
+                    ...(afgemeldeLeads.length > 0 || filter === 'afgemeld' ? [['afgemeld', `Afgemeld (${afgemeldeLeads.length})`]] : []),
+                    ...(laterMailenCount > 0 || filter === 'later_mailen' ? [['later_mailen', `Later mailen (${laterMailenCount})`]] : [])
+                  ].map(([k, label]) => (
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setFilter(k)}
+                      className={`lb-pill${filter === k ? ' is-active' : ''}${k === 'warm' && warmCount > 0 && filter !== 'warm' ? ' is-warm' : ''}`}
+                      title={k === 'warm' ? 'Leads die de offerte openden. Die bel je eerst.' : undefined}
+                    >
+                      {k === 'warm' && <Flame size={12} />} {label}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex gap-2 items-center" style={{ flexWrap: 'wrap' }}>
+                  {pos && view !== 'board' && (
+                    <button type="button" onClick={() => setSortBy(s => s === 'distance' ? 'order' : 'distance')} className="lb-pill" title="Sortering wisselen">
+                      <Compass size={13} /> {sortBy === 'distance' ? 'Dichtbij eerst' : 'Lijstvolgorde'}
                     </button>
                   )}
-                  <button type="button" onClick={() => setView('map')} className={`btn btn-sm ${view === 'map' ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 0, border: 0 }} title="Kaart">
-                    <MapIcon size={14} /> Kaart
-                  </button>
-                  {mailService && (
-                    <button type="button" onClick={() => setView('mail')} className={`btn btn-sm ${view === 'mail' ? 'btn-secondary' : 'btn-outline'}`} style={{ borderRadius: 0, border: 0 }} title="Bewaarde mails die nog verstuurd moeten worden">
-                      <ListChecks size={14} /> Mailinglijst
+                  <div className="lb-seg" role="tablist" aria-label="Weergave">
+                    <button type="button" onClick={() => setView('list')} className={view === 'list' ? 'is-active' : ''} title="Lijst">
+                      <List size={14} /> Lijst
                     </button>
-                  )}
+                    {boardEnabled && (
+                      <button type="button" onClick={() => setView('board')} className={view === 'board' ? 'is-active' : ''} title="Bord">
+                        <LayoutGrid size={14} /> Bord
+                      </button>
+                    )}
+                    <button type="button" onClick={() => setView('map')} className={view === 'map' ? 'is-active' : ''} title="Kaart">
+                      <MapIcon size={14} /> Kaart
+                    </button>
+                    {mailService && (
+                      <button type="button" onClick={() => setView('mail')} className={view === 'mail' ? 'is-active' : ''} title="Bewaarde mails die nog verstuurd moeten worden">
+                        <ListChecks size={14} /> Mailinglijst
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

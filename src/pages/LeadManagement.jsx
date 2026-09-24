@@ -516,8 +516,8 @@ export default function LeadManagement({ standalone = true }) {
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="grid grid-cols-12 gap-8">
                 
                 <div className="col-span-12 lg:col-span-4">
-                  <div className="glass-panel p-6 sticky top-[100px]">
-                    <div className="flex flex-column gap-4 mb-6">
+                  <div className="glass-panel p-5 sticky top-[88px]" style={{ display: 'flex', flexDirection: 'column', maxHeight: 'calc(100vh - 110px)' }}>
+                    <div className="flex flex-column gap-3 mb-4">
                        <h3 className="text-lg font-bold flex items-center gap-2"><Layers size={20} className="text-primary" /> Projecten</h3>
                        
                        <div className="flex bg-dark p-1 rounded-xl border border-border">
@@ -536,7 +536,7 @@ export default function LeadManagement({ standalone = true }) {
                        </div>
                     </div>
 
-                    <div className="flex flex-column gap-2" style={{ maxHeight: 'calc(100vh - 450px)', overflowY: 'auto' }}>
+                    <div className="flex flex-column" style={{ flex: 1, minHeight: 220, overflowY: 'auto', marginRight: -8, paddingRight: 8 }}>
                       {dataSubTab === 'active' && (
                         <>
                           {campaigns.map(c => {
@@ -547,62 +547,63 @@ export default function LeadManagement({ standalone = true }) {
                             const availableManagers = allManagers.filter(m => !linkedManagerIds.includes(m.id))
                             const lists = leadLists.filter(l => l.campaign_id === c.id)
                             return (
-                              <div key={c.id} className={`mb-2 ${c.is_active === false ? 'opacity-60' : ''}`}>
-                                <div className="flex items-center justify-between px-2 py-1 gap-2 flex-wrap">
-                                  <span className="text-[10px] font-black uppercase tracking-widest text-body/70 break-words w-full">{c.name}</span>
-                                  <div className="flex items-center gap-1 shrink-0" style={{ flexWrap: 'wrap', justifyContent: 'flex-end', maxWidth: '100%' }}>
-                                    {c.is_active === false ? (
-                                      <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-warning/15 text-warning">gepauzeerd</span>
-                                    ) : (
-                                      <div className="flex items-center gap-1" style={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                        {linkedTeamIds.map(tid => (
-                                          <button
-                                            key={tid}
-                                            onClick={() => removeProjectTeam(c.id, tid)}
-                                            title="Klik om dit team los te koppelen van het project"
-                                            className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-success/15 text-success hover:bg-error/15 hover:text-error transition-all"
-                                          >{teams.find(t => t.id === tid)?.name || 'team'} ×</button>
-                                        ))}
-                                        {availableTeams.length > 0 && (
-                                          <select
-                                            value=""
-                                            onChange={e => e.target.value && addProjectTeam(c.id, e.target.value)}
-                                            title="Team toevoegen - meerdere teams per project kan"
-                                            className="text-[9px] font-black uppercase tracking-widest px-1 py-1 rounded-lg cursor-pointer bg-elevated text-muted"
-                                            style={{ maxWidth: '110px', border: 'none' }}
-                                          >
-                                            <option value="">{linkedTeamIds.length ? '+ team' : 'geen team'}</option>
-                                            {availableTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                                          </select>
-                                        )}
-                                      </div>
-                                    )}
-                                    <button
-                                      onClick={() => setSettingsCampaign(c)}
-                                      title="Projectinstellingen: naam, managers, teams, wachtrij, verwijderen"
-                                      className="p-1 rounded text-muted hover:text-body hover:bg-elevated transition-all"
-                                    ><Settings size={12} /></button>
-                                    <button
-                                      onClick={() => toggleProjectActive(c)}
-                                      title={c.is_active === false ? 'Project weer activeren' : 'Project pauzeren (bellers zien de lijsten dan niet meer)'}
-                                      className="p-1 rounded text-muted hover:text-body hover:bg-elevated transition-all"
-                                    >{c.is_active === false ? <Play size={12} /> : <Pause size={12} />}</button>
-                                    <button
-                                      onClick={() => deleteProject(c.id)}
-                                      title={confirmDeleteProject === c.id ? 'Klik nogmaals om definitief te verwijderen' : 'Project verwijderen (kan alleen als het geen lijsten meer heeft)'}
-                                      className={`p-1 rounded transition-all ${confirmDeleteProject === c.id ? 'text-error bg-error/10' : 'text-muted hover:text-error hover:bg-elevated'}`}
-                                    ><Trash2 size={12} /></button>
-                                  </div>
+                              <div key={c.id} className="pm-project" style={c.is_active === false ? { opacity: 0.6 } : undefined}>
+                                {/* v103: naam + acties op een regel, daaronder teams/managers en wachtrij */}
+                                <div className="pm-project-head">
+                                  <span className="pm-project-name">{c.name}</span>
+                                  {c.is_active === false && (
+                                    <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-warning/15 text-warning" style={{ flexShrink: 0 }}>gepauzeerd</span>
+                                  )}
+                                  <button
+                                    onClick={() => setSettingsCampaign(c)}
+                                    title="Projectinstellingen: naam, managers, teams, wachtrij, verwijderen"
+                                    className="pm-icon-btn"
+                                  ><Settings size={14} /></button>
+                                  <button
+                                    onClick={() => toggleProjectActive(c)}
+                                    title={c.is_active === false ? 'Project weer activeren' : 'Project pauzeren (bellers zien de lijsten dan niet meer)'}
+                                    className="pm-icon-btn"
+                                  >{c.is_active === false ? <Play size={14} /> : <Pause size={14} />}</button>
+                                  <button
+                                    onClick={() => deleteProject(c.id)}
+                                    title={confirmDeleteProject === c.id ? 'Klik nogmaals om definitief te verwijderen' : 'Project verwijderen (kan alleen als het geen lijsten meer heeft)'}
+                                    className={`pm-icon-btn is-danger${confirmDeleteProject === c.id ? ' is-armed' : ''}`}
+                                  ><Trash2 size={14} /></button>
                                 </div>
+                                {c.is_active !== false && (
+                                  <div className="pm-row">
+                                    <span className="pm-label">Teams</span>
+                                    {linkedTeamIds.map(tid => (
+                                      <button
+                                        key={tid}
+                                        onClick={() => removeProjectTeam(c.id, tid)}
+                                        title="Klik om dit team los te koppelen van het project"
+                                        className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-success/15 text-success hover:bg-error/15 hover:text-error transition-all"
+                                      >{teams.find(t => t.id === tid)?.name || 'team'} ×</button>
+                                    ))}
+                                    {availableTeams.length > 0 && (
+                                      <select
+                                        value=""
+                                        onChange={e => e.target.value && addProjectTeam(c.id, e.target.value)}
+                                        title="Team toevoegen - meerdere teams per project kan"
+                                        className="text-[10px] font-bold px-1 py-0.5 rounded-md cursor-pointer bg-elevated text-muted"
+                                        style={{ maxWidth: '120px', border: 'none' }}
+                                      >
+                                        <option value="">{linkedTeamIds.length ? '+ team' : 'geen team'}</option>
+                                        {availableTeams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                                      </select>
+                                    )}
+                                  </div>
+                                )}
                                 {allManagers.length > 0 && (
-                                  <div className="flex items-center gap-1 px-2 pb-1" style={{ flexWrap: 'wrap' }}>
-                                    <span className="text-[9px] font-black uppercase tracking-widest text-muted">managers:</span>
+                                  <div className="pm-row">
+                                    <span className="pm-label">Managers</span>
                                     {linkedManagerIds.map(mid => (
                                       <button
                                         key={mid}
                                         onClick={() => removeProjectManager(c.id, mid)}
                                         title="Klik om deze manager los te koppelen van het project"
-                                        className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-primary/15 text-primary hover:bg-error/15 hover:text-error transition-all"
+                                        className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-primary/15 text-primary hover:bg-error/15 hover:text-error transition-all"
                                       >{agents.find(a => a.id === mid)?.full_name || 'manager'} ×</button>
                                     ))}
                                     {availableManagers.length > 0 && (
@@ -612,63 +613,55 @@ export default function LeadManagement({ standalone = true }) {
                                         onChange={id => id && addProjectManager(c.id, id)}
                                         placeholder={linkedManagerIds.length ? '+ manager' : 'geen manager'}
                                         title="Manager toevoegen - meerdere managers per project kan. Nieuwe manager-accounts maak je aan via Admin of de project-wizard."
-                                        className="text-[9px] font-black uppercase tracking-widest px-1 py-1 rounded-lg cursor-pointer bg-elevated text-muted"
-                                        style={{ maxWidth: '120px', border: 'none' }}
+                                        className="text-[10px] font-bold px-1 py-0.5 rounded-md cursor-pointer bg-elevated text-muted"
+                                        style={{ maxWidth: '130px', border: 'none' }}
                                       />
                                     )}
                                   </div>
                                 )}
-                                <div className="flex items-center gap-1 px-2 pb-1" style={{ flexWrap: 'wrap' }}>
+                                <div className="pm-row">
                                   <button
                                     onClick={() => setBriefingCampaign(c)}
                                     title="Belscript en projectinfo die de beller in het belscherm ziet"
-                                    className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-lg bg-secondary/15 text-secondary hover:bg-secondary/30 transition-all"
-                                  >briefing</button>
+                                    className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-secondary/15 text-secondary hover:bg-secondary/30 transition-all"
+                                  >Briefing</button>
                                   <select
                                     value={c.queue_mode || 'fifo'}
                                     onChange={e => setQueueMode(c, e.target.value)}
                                     title="Volgorde waarin de wachtrij leads aanbiedt aan bellers"
-                                    className="text-[9px] font-black uppercase tracking-widest px-1 py-1 rounded-lg cursor-pointer bg-elevated text-muted"
-                                    style={{ maxWidth: '170px', border: 'none' }}
+                                    className="text-[10px] font-bold px-1 py-0.5 rounded-md cursor-pointer bg-elevated text-muted"
+                                    style={{ border: 'none', minWidth: 0, maxWidth: '100%' }}
                                   >
-                                    <option value="fifo">wachtrij: import-volgorde</option>
-                                    <option value="score">wachtrij: beste leads eerst</option>
+                                    <option value="fifo">Wachtrij: import-volgorde</option>
+                                    <option value="score">Wachtrij: beste leads eerst</option>
                                   </select>
                                 </div>
                                 {lists.length === 0 ? (
-                                  <p className="text-[10px] text-muted px-2 py-1">Nog geen lijsten - importeer leads in dit project.</p>
+                                  <p className="text-[11px] text-muted" style={{ marginTop: 8 }}>Nog geen lijsten. Importeer leads in dit project.</p>
                                 ) : lists.map(list => (
                                   <button
                                     key={list.id}
                                     onClick={() => setSelectedList(list)}
-                                    className={`w-full flex items-center justify-between p-3 mb-1 rounded-xl border transition-all ${
-                                      selectedList?.id === list.id
-                                        ? 'bg-primary border-primary shadow-lg shadow-primary/20'
-                                        : 'bg-dark-soft border-border hover:border-border'
-                                    }`}
+                                    className={`pm-list-btn${selectedList?.id === list.id ? ' is-active' : ''}`}
                                   >
-                                    <div className="text-left font-bold text-sm break-words">{list.name}</div>
-                                    <ChevronRight size={16} />
+                                    <span>{list.name}</span>
+                                    <ChevronRight size={15} style={{ flexShrink: 0 }} />
                                   </button>
                                 ))}
                               </div>
                             )
                           })}
                           {leadLists.filter(l => !l.campaign_id).length > 0 && (
-                            <div className="mb-2">
-                              <div className="px-2 py-1 text-[10px] font-black uppercase tracking-widest text-error">Zonder project - niet belbaar voor teams</div>
+                            <div className="pm-project" style={{ borderColor: 'var(--danger)', marginTop: 8 }}>
+                              <div className="text-[10px] font-black uppercase tracking-widest text-error">Zonder project - niet belbaar voor teams</div>
                               {leadLists.filter(l => !l.campaign_id).map(list => (
                                 <button
                                   key={list.id}
                                   onClick={() => setSelectedList(list)}
-                                  className={`w-full flex items-center justify-between p-3 mb-1 rounded-xl border transition-all ${
-                                    selectedList?.id === list.id
-                                      ? 'bg-primary border-primary shadow-lg shadow-primary/20'
-                                      : 'bg-dark-soft border-error/20 hover:border-error/40'
-                                  }`}
+                                  className={`pm-list-btn${selectedList?.id === list.id ? ' is-active' : ''}`}
                                 >
-                                  <div className="text-left font-bold text-sm break-words">{list.name}</div>
-                                  <ChevronRight size={16} />
+                                  <span>{list.name}</span>
+                                  <ChevronRight size={15} style={{ flexShrink: 0 }} />
                                 </button>
                               ))}
                             </div>
@@ -706,10 +699,10 @@ export default function LeadManagement({ standalone = true }) {
                     <FlowSettingsEditor />
                   ) : selectedList ? (
                     <div className="glass-panel p-0 overflow-hidden min-h-[600px] flex flex-col">
-                      <div className="p-6 border-b border-border flex justify-between items-center bg-elevated" style={{ flexWrap: 'wrap', gap: '12px' }}>
+                      <div className="px-5 py-4 border-b border-border flex justify-between items-center bg-elevated" style={{ flexWrap: 'wrap', gap: '12px' }}>
                         <div style={{ minWidth: 0 }}>
                            <h2 className="text-xl font-black text-body leading-none mb-1" style={{ overflowWrap: 'break-word' }}>{selectedList.name}</h2>
-                           <p className="text-[10px] text-muted font-bold uppercase tracking-widest">{leads.length} leads in dit project</p>
+                           <p className="text-[10px] text-muted font-bold uppercase tracking-widest">{leads.length} leads in deze lijst</p>
                         </div>
                         <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
                           <div style={{ position: 'relative', minWidth: 0 }}>
@@ -740,20 +733,20 @@ export default function LeadManagement({ standalone = true }) {
                       </div>
 
                       {/* Batch Intelligence Summary */}
-                      <div className="grid grid-cols-4 border-b border-border">
-                         <div className="p-4 border-r border-border text-center">
+                      <div className="pm-stats">
+                         <div>
                             <div className="text-[10px] font-black text-muted uppercase mb-1">Totaal leads</div>
                             <div className="text-xl font-black">{leads.length}</div>
                          </div>
-                         <div className="p-4 border-r border-border text-center bg-primary/5">
+                         <div className="bg-primary/5">
                             <div className="text-[10px] font-black text-primary uppercase mb-1">Nieuwe Leads</div>
                             <div className="text-xl font-black text-primary">{leads.filter(l => l.status === 'new').length}</div>
                          </div>
-                         <div className="p-4 border-r border-border text-center bg-info/5">
+                         <div className="bg-info/5">
                             <div className="text-[10px] font-black text-info uppercase mb-1">Afspraken</div>
                             <div className="text-xl font-black text-info">{leads.filter(l => l.status === 'afspraak_gemaakt').length}</div>
                          </div>
-                         <div className="p-4 text-center bg-success/5">
+                         <div className="bg-success/5">
                             <div className="text-[10px] font-black text-success uppercase mb-1">Deals Verzorgd</div>
                             <div className="text-xl font-black text-success">{leads.filter(l => l.status === 'deal' || l.status === 'bruto_deal').length}</div>
                          </div>
@@ -763,7 +756,7 @@ export default function LeadManagement({ standalone = true }) {
                       {selectedLeadIds.length > 0 && (
                         <div className="p-3 px-6 border-b border-border bg-primary/10 flex items-center justify-between" style={{ flexWrap: 'wrap', gap: '8px' }}>
                           <span className="text-xs font-black text-body">{selectedLeadIds.length} lead(s) geselecteerd</span>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
                             <button className="btn btn-sm btn-primary" onClick={() => setShowMoveCopy(true)}>
                               Verplaatsen / kopieren naar andere lijst
                             </button>
@@ -780,12 +773,18 @@ export default function LeadManagement({ standalone = true }) {
                         </div>
                       )}
 
-                      <div className="p-0 flex-1 overflow-y-auto overflow-x-auto" style={{ maxHeight: 'calc(100vh - 400px)' }}>
-                        {loadingLeads ? <div className="p-20"><LoadingSpinner /></div> : (
-                          <table className="w-full text-left border-collapse">
-                            <thead className="sticky top-0 bg-dark z-10 text-[10px] font-black text-muted uppercase tracking-widest border-b border-border shadow-sm">
+                      <div className="p-0 flex-1 overflow-y-auto overflow-x-auto" style={{ maxHeight: 'max(360px, calc(100vh - 300px))' }}>
+                        {loadingLeads ? <div className="p-20"><LoadingSpinner /></div> : (() => {
+                          // v103: zoeken mag niet crashen op een lead zonder naam of telefoon
+                          const q = leadSearch.trim().toLowerCase()
+                          const zichtbaar = q
+                            ? leads.filter(l => (l.name || '').toLowerCase().includes(q) || (l.phone || '').includes(q) || (l.contact_person || '').toLowerCase().includes(q))
+                            : leads
+                          return (
+                          <table className="pm-table">
+                            <thead>
                               <tr>
-                                <th className="p-4 pl-8" style={{ width: '36px' }}>
+                                <th style={{ width: 40, paddingLeft: 20 }}>
                                   <input
                                     type="checkbox"
                                     checked={leads.length > 0 && selectedLeadIds.length === leads.length}
@@ -794,25 +793,28 @@ export default function LeadManagement({ standalone = true }) {
                                     title="Alles selecteren"
                                   />
                                 </th>
-                                <th className="p-4 pl-2">Lead Contact</th>
-                                <th className="p-4">Huidige Status</th>
-                                <th className="p-4">Toegewezen aan</th>
-                                <th className="p-4">Pogingen</th>
-                                <th className="p-4">Laatste notitie</th>
-                                <th className="p-4 pr-8 text-right">Laatste Actie</th>
+                                <th>Lead</th>
+                                <th>Status</th>
+                                <th>Toegewezen aan</th>
+                                <th className="pm-col-attempts" style={{ textAlign: 'center' }}>Pogingen</th>
+                                <th className="pm-col-note">Laatste notitie</th>
+                                <th className="pm-col-date" style={{ textAlign: 'right', paddingRight: 20 }}>Laatste actie</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {(leadSearch ? leads.filter(l => l.name.toLowerCase().includes(leadSearch.toLowerCase()) || l.phone.includes(leadSearch)) : leads).length === 0 ? (
-                                <tr><td colSpan={7} className="p-20 text-center text-muted font-bold italic">Geen leads gevonden die voldoen aan je zoekopdracht...</td></tr>
-                              ) : (leadSearch ? leads.filter(l => l.name.toLowerCase().includes(leadSearch.toLowerCase()) || l.phone.includes(leadSearch)) : leads).map(lead => (
+                              {zichtbaar.length === 0 ? (
+                                <tr><td colSpan={7} className="p-16 text-center text-muted font-bold">Geen leads gevonden{q ? ' voor deze zoekopdracht' : ''}.</td></tr>
+                              ) : zichtbaar.map(lead => {
+                                const agentNaam = agents.find(a => a.id === lead.assigned_to)?.full_name
+                                const bijgewerkt = lead.updated_at ? new Date(lead.updated_at) : null
+                                return (
                                 <tr
                                   key={lead.id}
-                                  className="border-b border-border hover:bg-elevated transition-all group cursor-pointer"
+                                  className="group"
                                   onClick={() => setDetailLead(lead)}
                                   title="Klik voor de contactkaart, afboek-geschiedenis en notities"
                                 >
-                                  <td className="p-4 pl-8" onClick={e => e.stopPropagation()}>
+                                  <td style={{ paddingLeft: 20 }} onClick={e => e.stopPropagation()}>
                                     <input
                                       type="checkbox"
                                       checked={selectedLeadIds.includes(lead.id)}
@@ -820,34 +822,36 @@ export default function LeadManagement({ standalone = true }) {
                                       style={{ width: '15px', height: '15px' }}
                                     />
                                   </td>
-                                  <td className="p-4 pl-2">
-                                     <div className="font-bold text-body group-hover:text-primary transition-colors">{lead.name}</div>
-                                     <div className="text-[10px] text-muted font-mono">{lead.phone}</div>
+                                  <td style={{ minWidth: 160 }}>
+                                     <div className="font-bold text-body group-hover:text-primary transition-colors" style={{ overflowWrap: 'anywhere' }}>{lead.name || 'Naam onbekend'}</div>
+                                     <div className="text-[11px] text-muted" style={{ fontVariantNumeric: 'tabular-nums' }}>{lead.phone || '-'}</div>
                                   </td>
-                                  <td className="p-4"><StatusBadge status={lead.status} /></td>
-                                  <td className="p-4">
-                                     <div className="flex items-center gap-2">
-                                        <div className="w-6 h-6 rounded-full bg-elevated flex items-center justify-center text-[10px] font-bold text-muted">
-                                           {(agents.find(a => a.id === lead.assigned_to)?.full_name || '-').charAt(0)}
+                                  <td><StatusBadge status={lead.status} /></td>
+                                  <td>
+                                     <div className="flex items-center gap-2" style={{ minWidth: 0 }}>
+                                        <div className="w-6 h-6 rounded-full bg-elevated flex items-center justify-center text-[10px] font-bold text-muted" style={{ flexShrink: 0 }}>
+                                           {(agentNaam || '-').charAt(0)}
                                         </div>
-                                        <span className="text-xs text-muted">{agents.find(a => a.id === lead.assigned_to)?.full_name || 'Geen toewijzing'}</span>
+                                        <span className="text-xs text-muted" style={{ whiteSpace: 'nowrap' }}>{agentNaam || 'Niemand'}</span>
                                      </div>
                                   </td>
-                                  <td className="p-4 text-center font-bold text-muted">{lead.contact_attempts || 0}x</td>
-                                  <td className="p-4 text-xs text-muted" style={{ maxWidth: '260px' }}>
-                                     <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  <td className="pm-col-attempts text-center font-bold text-muted">{lead.contact_attempts || 0}x</td>
+                                  <td className="pm-col-note text-xs text-muted">
+                                     <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 240 }}>
                                         {(lead.notes || '').split('\n').filter(Boolean).pop() || '-'}
                                      </div>
                                   </td>
-                                  <td className="p-4 pr-8 text-right">
-                                     <div className="text-[10px] font-black text-body/40 uppercase">{new Date(lead.updated_at).toLocaleDateString()}</div>
-                                     <div className="text-[9px] text-muted uppercase tracking-tighter">{new Date(lead.updated_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                                  <td className="pm-col-date" style={{ textAlign: 'right', paddingRight: 20, whiteSpace: 'nowrap' }}>
+                                     <div className="text-[11px] font-bold text-muted">{bijgewerkt ? bijgewerkt.toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) : '-'}</div>
+                                     <div className="text-[10px] text-muted">{bijgewerkt ? bijgewerkt.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' }) : ''}</div>
                                   </td>
                                 </tr>
-                              ))}
+                                )
+                              })}
                             </tbody>
                           </table>
-                        )}
+                          )
+                        })()}
                       </div>
                     </div>
                   ) : (

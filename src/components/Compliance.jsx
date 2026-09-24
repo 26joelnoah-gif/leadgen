@@ -22,7 +22,9 @@ const OPT_IN_BRONNEN = [
   { key: 'schriftelijk', label: 'Schriftelijk / contract' },
 ]
 
-export function ComplianceLeadBlok({ lead, project, onChanged, compact = false }) {
+// v103: losseKnop=false -> geen aparte regel met alleen de knop Compliance-melding
+// (het belscherm heeft die knop nu in de kopregel).
+export function ComplianceLeadBlok({ lead, project, onChanged, compact = false, losseKnop = true }) {
   const { user, profile } = useAuth()
   const toast = useToast()
   const isStaff = profile?.role === 'admin' || profile?.role === 'manager'
@@ -104,7 +106,7 @@ export function ComplianceLeadBlok({ lead, project, onChanged, compact = false }
     let reden = null
     if (lead.opt_in_at) reden = `Toestemming ${dag(lead.opt_in_at)}${lead.opt_in_bewijs ? ': ' + lead.opt_in_bewijs : ''}`
     else if (zakelijk && lead.rechtsvorm) reden = `${rechtsvormLabel(lead.rechtsvorm)} (${BRON_LABEL[lead.rechtsvorm_bron] || 'bekend'})`
-    if (!reden && !compact) return <>{pauze}<div style={{ display: 'flex', justifyContent: 'flex-end' }}>{meldingKnop}{modal}</div></>
+    if (!reden && !compact && losseKnop) return <>{pauze}<div style={{ display: 'flex', justifyContent: 'flex-end' }}>{meldingKnop}{modal}</div></>
     if (!reden) return <>{pauze}{modal}</>
     return (
       <>{pauze}
@@ -114,7 +116,7 @@ export function ComplianceLeadBlok({ lead, project, onChanged, compact = false }
         {zakelijk && magRvKiezen && !lead.opt_in_at && (
           <button type="button" className="btn btn-sm btn-outline" onClick={() => setWijzigRv(v => !v)}>Rechtsvorm wijzigen</button>
         )}
-        {meldingKnop}
+        {losseKnop && meldingKnop}
         {wijzigRv && <div style={{ width: '100%' }}>{rvKnoppen}</div>}
         {modal}
       </div>
@@ -195,7 +197,7 @@ export function ComplianceLeadBlok({ lead, project, onChanged, compact = false }
         </p>
       )}
 
-      <div style={{ marginTop: 8 }}>{meldingKnop}</div>
+      {losseKnop && <div style={{ marginTop: 8 }}>{meldingKnop}</div>}
       {modal}
     </div>
     </>

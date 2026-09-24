@@ -5,7 +5,7 @@ import {
   Calendar, Clock, AlertCircle, CheckCircle2,
   ChevronRight, ChevronDown, Copy, Save, Users, Target, Ban,
   BookOpen, Info, History, Tag, Maximize2, Minimize2, FileSignature,
-  RefreshCw, AlertTriangle, ExternalLink, CalendarClock
+  RefreshCw, AlertTriangle, ExternalLink, CalendarClock, Globe, Navigation, FileWarning, StickyNote
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
@@ -19,7 +19,7 @@ import { useProjectMailService } from '../hooks/useProjectMailService'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
 import MailingserviceModal from './MailingserviceModal'
 import AgendaPickerModal from './AgendaPickerModal'
-import { ComplianceLeadBlok } from './Compliance'
+import { ComplianceLeadBlok, ComplianceMeldingModal } from './Compliance'
 import { leadBelstatus, useProjectCompliance } from '../lib/compliance'
 import { SENTIMENTS } from '../lib/appointments'
 import { useToast } from './Toast'
@@ -240,6 +240,8 @@ export default function WorkInterface() {
   const [showMobileDetails, setShowMobileDetails] = useState(false)
   const [dispositionNotes, setDispositionNotes] = useState('')
   const [notesExpanded, setNotesExpanded] = useState(false)
+  // v103: Compliance-melding als knop in de kopregel i.p.v. een eigen regel
+  const [meldingOpen, setMeldingOpen] = useState(false)
   const [showDispositionModal, setShowDispositionModal] = useState(false)
   const [selectedDisposition, setSelectedDisposition] = useState(null)
   // Zichtbare terugkoppeling op de knop Opslaan: null | 'bezig' | 'ok' | 'niets'
@@ -1013,9 +1015,20 @@ export default function WorkInterface() {
                   <FileSignature size={14} /> {canMakeOfferte ? 'Offerte verduurzaming' : 'Offerte maken'}
                 </a>
               )}
-              <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-                 &gt; {listName}
+              {!isRecruitmentCampaign && !isBackofficeMode && (
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => setMeldingOpen(true)}
+                  title="Klacht, bezwaar, AVG-verzoek of ACM-melding bij deze lead vastleggen"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                  <FileWarning size={14} /> Compliance-melding
+                </button>
+              )}
+              <div title="Lijst" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                 {listName}
               </div>
+              {meldingOpen && (
+                <ComplianceMeldingModal lead={currentLead} onClose={() => setMeldingOpen(false)}
+                  onSaved={(nieuw) => { setMeldingOpen(false); if (nieuw) setLiveLead(nieuw) }} />
+              )}
             </div>
           </div>
 
@@ -1029,6 +1042,7 @@ export default function WorkInterface() {
                     lead={currentLead}
                     project={complianceProject}
                     compact={isMobile}
+                    losseKnop={false}
                     onChanged={(nieuw) => setLiveLead(nieuw)}
                   />
                   {(belStatus === 'toestemming_nodig' || belStatus === 'afgemeld') && (
@@ -1181,8 +1195,31 @@ export default function WorkInterface() {
 
                 {/* Contactkaart */}
                 <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ background: 'linear-gradient(90deg, var(--success) 0%, #059669 100%)', color: 'var(--text-on-accent)', padding: '8px 14px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
-                    <Users size={15} /> Adres- & Contactinformatie
+                  {/* v103: rustige kop + snelle acties (bellen, mailen, route, website) */}
+                  <div className="wi-card-head">
+                    <span className="wi-card-title"><Users size={15} style={{ color: 'var(--success)' }} /> Contactkaart</span>
+                    <div className="wi-quick">
+                      {magBellen && editableLead.phone && (
+                        <a href={`tel:${editableLead.phone}`} className="wi-quick-btn is-call" title={`Bel ${editableLead.phone}`}><Phone size={13} /> Bellen</a>
+                      )}
+                      {editableLead.email && (
+                        <a href={`mailto:${editableLead.email}`} className="wi-quick-btn" title={editableLead.email}><Mail size={13} /> Mail</a>
+                      )}
+                      {(editableLead.address || editableLead.city) && (
+                        <a
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent([editableLead.address, editableLead.house_number, editableLead.postal_code, editableLead.city].filter(Boolean).join(' '))}`}
+                          target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer"
+                          className="wi-quick-btn" title="Route in Google Maps"
+                        ><Navigation size={13} /> Route</a>
+                      )}
+                      {editableLead.website && (
+                        <a
+                          href={normalizeWebsite(editableLead.website) || editableLead.website}
+                          target="_blank" rel="nofollow noopener noreferrer" referrerPolicy="no-referrer"
+                          className="wi-quick-btn" title={editableLead.website}
+                        ><Globe size={13} /> Website</a>
+                      )}
+                    </div>
                   </div>
                   <div style={{ padding: '14px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px 14px', alignContent: 'start' }}>
                     <div>
@@ -1218,9 +1255,10 @@ export default function WorkInterface() {
                             href={normalizeWebsite(editableLead.website) || editableLead.website}
                             target="_blank" rel="nofollow noopener noreferrer" referrerPolicy="no-referrer"
                             title={editableLead.website}
-                            style={{ flexShrink: 0, padding: '7px 12px', borderRadius: '8px', background: 'var(--primary)', color: 'var(--text-on-accent)', fontWeight: 700, fontSize: '0.75rem', textDecoration: 'none', whiteSpace: 'nowrap', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis' }}
+                            aria-label="Website openen"
+                            style={{ flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: '8px', background: 'var(--accent-soft)', color: 'var(--accent)', textDecoration: 'none' }}
                           >
-                            {displayWebsite(editableLead.website)} ↗
+                            <ExternalLink size={15} />
                           </a>
                         )}
                       </div>
@@ -1246,16 +1284,32 @@ export default function WorkInterface() {
                       </div>
                     </div>
                   </div>
+                  {/* v103: extra info in dezelfde kaart (was een los blok rechts) */}
+                  <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <label style={{ fontSize: '0.65rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', borderTop: '1px solid var(--border)', paddingTop: 12 }}><StickyNote size={12} /> Extra informatie</label>
+                    {['extra_info1', 'extra_info2', 'extra_info3'].map((field, idx) => (
+                      <input
+                        key={field}
+                        type="text"
+                        value={editableLead[field] || ''}
+                        onChange={e => setEditableLead({ ...editableLead, [field]: e.target.value })}
+                        placeholder={isRecruitmentCampaign
+                          ? (RECRUITMENT_FIELD_LABELS[`Extra info ${idx + 1}`] || `Extra info ${idx + 1}`)
+                          : `Extra info ${idx + 1}`}
+                        style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
+                      />
+                    ))}
+                  </div>
                 </div>
 
-                {/* Rechts: notities (rekt mee) + extra info */}
+                {/* Rechts: notities (rekt mee) */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', minHeight: 0 }}>
                   <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden', display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-                    <div style={{ background: 'var(--secondary)', color: 'var(--bg-dark)', padding: '8px 14px', fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', fontSize: '0.85rem' }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><AlertCircle size={15} /> Notities & Geschiedenis</span>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <span style={{ fontSize: '0.7rem', fontWeight: 700 }}>Pogingen: {currentLead.contact_attempts || 0}</span>
-                        <button type="button" onClick={() => setNotesExpanded(v => !v)} title={notesExpanded ? 'Notitieveld inklappen' : 'Notitieveld uitklappen'} style={{ display: 'flex', alignItems: 'center', gap: '4px', background: 'rgba(0,0,0,0.15)', border: 'none', color: 'inherit', fontWeight: 700, fontSize: '0.7rem', cursor: 'pointer', padding: '4px 8px', borderRadius: '6px' }}>
+                    <div className="wi-card-head">
+                      <span className="wi-card-title"><StickyNote size={15} style={{ color: 'var(--secondary)' }} /> Notities & geschiedenis</span>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span className="wi-chip">Pogingen: {currentLead.contact_attempts || 0}</span>
+                        <button type="button" className="wi-quick-btn" onClick={() => setNotesExpanded(v => !v)} title={notesExpanded ? 'Notitieveld inklappen' : 'Notitieveld uitklappen'}>
                           {notesExpanded ? <Minimize2 size={13} /> : <Maximize2 size={13} />}
                         </button>
                       </span>
@@ -1274,25 +1328,6 @@ export default function WorkInterface() {
                     </div>
                   </div>
 
-                  <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
-                    <div style={{ background: 'linear-gradient(90deg, var(--info, #38BDF8) 0%, #0EA5E9 100%)', color: 'var(--text-on-accent)', padding: '8px 14px', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.85rem' }}>
-                      <AlertCircle size={15} /> Extra Informatie
-                    </div>
-                    <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {['extra_info1', 'extra_info2', 'extra_info3'].map((field, idx) => (
-                        <input
-                          key={field}
-                          type="text"
-                          value={editableLead[field] || ''}
-                          onChange={e => setEditableLead({ ...editableLead, [field]: e.target.value })}
-                          placeholder={isRecruitmentCampaign
-                            ? (RECRUITMENT_FIELD_LABELS[`Extra info ${idx + 1}`] || `Extra info ${idx + 1}`)
-                            : `Extra info ${idx + 1} (uit niet-herkende importkolommen)`}
-                          style={{ width: '100%', padding: '7px 10px', border: '1px solid var(--border)', borderRadius: '8px', background: 'var(--bg-elevated)', color: 'var(--text-primary)', fontSize: '0.9rem' }}
-                        />
-                      ))}
-                    </div>
-                  </div>
                 </div>
               </div>
             )}
@@ -1305,7 +1340,7 @@ export default function WorkInterface() {
             padding: isMobile ? '10px' : '10px 24px', 
             display: 'flex', 
             justifyContent: 'center', 
-            gap: isMobile ? '8px' : '12px', 
+            gap: '8px', 
             flexWrap: 'wrap',
             maxHeight: isMobile ? '30vh' : 'auto',
             overflowY: isMobile ? 'auto' : 'visible'
@@ -1328,32 +1363,11 @@ export default function WorkInterface() {
                     setShowDispositionModal(true)
                   }
                 }}
-                className="glow-hover"
+                className="wi-dispo"
                 style={{
-                  background: 'var(--bg-elevated)',
-                  border: `1px solid ${d.color}`,
-                  color: d.color,
-                  padding: isMobile ? '8px 10px' : '8px 14px',
-                  borderRadius: '8px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  minWidth: isMobile ? '110px' : '118px',
-                  fontSize: isMobile ? '0.75rem' : '0.78rem',
-                  flex: isMobile ? '1 1 120px' : '0 1 auto',
-                  justifyContent: 'center',
-                  transition: 'all 0.2s',
-                  boxShadow: `0 4px 12px ${d.color}20`
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = d.color
-                  e.currentTarget.style.color = 'white'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = 'var(--bg-elevated)'
-                  e.currentTarget.style.color = d.color
+                  '--c': d.color,
+                  minWidth: isMobile ? '110px' : undefined,
+                  flex: isMobile ? '1 1 120px' : '0 1 auto'
                 }}
               >
                 {d.icon} {d.label}

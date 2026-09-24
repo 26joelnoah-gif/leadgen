@@ -13,7 +13,7 @@ const CHAT_HOURS = 24
 function sinceIso() { return new Date(Date.now() - CHAT_HOURS * 3600 * 1000).toISOString() }
 
 export default function Chat() {
-  const { user, profile } = useAuth()
+  const { user, profile, isWorking } = useAuth()
   const toast = useToast()
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState([])
@@ -575,7 +575,8 @@ export default function Chat() {
         )}
       </AnimatePresence>
 
-      {!isOpen && (
+      {/* v103: in de belmodus viel de knop over de afboekknoppen; daar even weg */}
+      {!isOpen && !isWorking && (
         <motion.button
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}

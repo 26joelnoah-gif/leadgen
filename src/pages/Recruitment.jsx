@@ -22,6 +22,7 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
 import { useToast } from '../components/Toast'
 import PersonSelect from '../components/PersonSelect' // v102
+import { logBoardAction } from '../lib/boardLog' // v103
 
 // v36: recruiter-thuisbasis. Een sollicitant is gewoon een lead in het
 // (automatisch aangemaakte) recruitment-project van deze recruiter -
@@ -423,6 +424,9 @@ export default function Recruitment() {
     if (error) { toast(error.message || 'Verplaatsen mislukt', 'error'); return }
     const label = getStatusDetails(status, true).label
     logActivity(leadId, 'status_change', `Verplaatst naar "${label}" (bord)`)
+    // v103: slepen telt mee als werkzaamheid van de recruiter (Rapportage), 0 sec beltijd
+    const lead = baseApplicants.find(l => l.id === leadId)
+    logBoardAction({ lead: lead || { id: leadId }, status, userId: user?.id, organizationId: profile?.organization_id, notes: 'Via bord' })
   }
 
   function handleDrop(column, leadId) {

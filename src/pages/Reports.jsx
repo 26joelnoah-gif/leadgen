@@ -163,16 +163,24 @@ export default function Reports() {
       const start = new Date(`${startDate}T00:00:00`)
       const end = new Date(`${endDate}T23:59:59.999`)
 
-      const { data, error } = await supabase
-        .from('call_logs')
-        .select('*, lead:leads(name, phone, status, notes), agent:profiles!agent_id(full_name), list:lead_lists(name)')
-        .gte('disposed_at', start.toISOString())
-        .lte('disposed_at', end.toISOString())
-        .order('disposed_at', { ascending: false })
-        .limit(1000)
-
-      if (error) throw error
-      setCallLogs(data || [])
+      // v103: in blokken van 1000 ophalen (Supabase geeft er max 1000 per keer),
+      // anders viel bij een drukke periode een deel van de gesprekken weg.
+      const PAGE = 1000
+      const alle = []
+      for (let from = 0; from < 50000; from += PAGE) {
+        const { data, error } = await supabase
+          .from('call_logs')
+          .select('*, lead:leads(name, phone, status, notes), agent:profiles!agent_id(full_name), list:lead_lists(name)')
+          .gte('disposed_at', start.toISOString())
+          .lte('disposed_at', end.toISOString())
+          .order('disposed_at', { ascending: false })
+          .order('id', { ascending: true })
+          .range(from, from + PAGE - 1)
+        if (error) throw error
+        alle.push(...(data || []))
+        if (!data || data.length < PAGE) break
+      }
+      setCallLogs(alle)
     } catch (err) {
       console.error('Rapportage laden mislukt:', err)
       setCallLogs([])
@@ -201,13 +209,15 @@ export default function Reports() {
         byAgent[id] = {
           id,
           name: log.agent?.full_name || 'Onbekend',
-          calls: 0, seconds: 0, deals: 0, afspraken: 0, tba: 0,
+          calls: 0, bord: 0, seconds: 0, deals: 0, afspraken: 0, tba: 0,
           geenInteresse: 0, geenGehoor: 0,
           firstCall: log.disposed_at, lastCall: log.disposed_at
         }
       }
       const a = byAgent[id]
-      a.calls++
+      // v103: een sleep op het bord is werk, maar geen gesprek
+      if (log.source === 'bord') a.bord++
+      else a.calls++
       // v24: effectieve beltijd (gemaximeerd per afboeking) is leidend
       a.seconds += effectiveSeconds(log.disposition, log.duration_seconds)
       a.rawSeconds = (a.rawSeconds || 0) + (log.duration_seconds || 0)
@@ -223,9 +233,9 @@ export default function Reports() {
       ...a,
       avgSeconds: a.calls ? a.seconds / a.calls : 0,
       callsPerHour: a.seconds > 0 ? a.calls / (a.seconds / 3600) : 0,
-      successRate: a.calls ? ((a.deals + a.afspraken) / a.calls) * 100 : 0,
+      successRate: (a.calls + a.bord) ? ((a.deals + a.afspraken) / (a.calls + a.bord)) * 100 : 0,
       dealsPerHour: a.seconds > 0 ? a.deals / (a.seconds / 3600) : 0
-    })).sort((x, y) => y.calls - x.calls)
+    })).sort((x, y) => (y.calls + y.bord) - (x.calls + x.bord))
   }, [projectLogs])
 
   // ===== Statistieken per project (campagne) =====
@@ -238,11 +248,12 @@ export default function Reports() {
           id,
           name: projects.find(p => p.id === id)?.name || 'Zonder project',
           agents: new Set(),
-          calls: 0, seconds: 0, deals: 0, afspraken: 0, tba: 0, geenInteresse: 0
+          calls: 0, bord: 0, seconds: 0, deals: 0, afspraken: 0, tba: 0, geenInteresse: 0
         }
       }
       const p = byList[id]
-      p.calls++
+      if (log.source === 'bord') p.bord++
+      else p.calls++
       p.seconds += effectiveSeconds(log.disposition, log.duration_seconds)
       p.agents.add(log.agent_id)
       if (log.disposition === 'deal' || log.disposition === 'bruto_deal') p.deals++
@@ -255,13 +266,13 @@ export default function Reports() {
       agentCount: p.agents.size,
       avgSeconds: p.calls ? p.seconds / p.calls : 0,
       callsPerHour: p.seconds > 0 ? p.calls / (p.seconds / 3600) : 0,
-      successRate: p.calls ? ((p.deals + p.afspraken) / p.calls) * 100 : 0
-    })).sort((x, y) => y.calls - x.calls)
+      successRate: (p.calls + p.bord) ? ((p.deals + p.afspraken) / (p.calls + p.bord)) * 100 : 0
+    })).sort((x, y) => (y.calls + y.bord) - (x.calls + x.bord))
   }, [projectLogs, listToCampaign, projects])
 
   const totals = useMemo(() => {
-    const t = { calls: 0, seconds: 0, deals: 0, afspraken: 0 }
-    agentStats.forEach(a => { t.calls += a.calls; t.seconds += a.seconds; t.deals += a.deals; t.afspraken += a.afspraken })
+    const t = { calls: 0, bord: 0, seconds: 0, deals: 0, afspraken: 0 }
+    agentStats.forEach(a => { t.calls += a.calls; t.bord += a.bord; t.seconds += a.seconds; t.deals += a.deals; t.afspraken += a.afspraken })
     return t
   }, [agentStats])
 
@@ -369,7 +380,7 @@ export default function Reports() {
   const handleExport = () => {
     if (activeTab === 'bellers') {
       exportToCSV(agentStats.map(a => ({
-        Beller: a.name, Gesprekken: a.calls, Beltijd: fmtDuration(a.seconds),
+        Beller: a.name, Gesprekken: a.calls, 'Via bord': a.bord, Beltijd: fmtDuration(a.seconds),
         'Gem. per gesprek': fmtDuration(a.avgSeconds), 'Pogingen per uur': a.callsPerHour.toFixed(1),
         Deals: a.deals, Afspraken: a.afspraken,
         "TBA's": a.tba, 'Geen interesse': a.geenInteresse, 'Slagingspercentage': `${a.successRate.toFixed(1)}%`
@@ -568,7 +579,7 @@ export default function Reports() {
                     {agentStats.map(a => (
                       <tr key={a.id}>
                         <td><strong>{a.name}</strong></td>
-                        <td>{a.calls}</td>
+                        <td>{a.calls}{a.bord > 0 && <span className="text-muted" style={{ fontSize: '0.72rem', fontWeight: 600, marginLeft: 6 }} title="Statuswissels via het bord (tellen als werk, niet als beltijd)">+{a.bord} bord</span>}</td>
                         <td style={{ fontWeight: 700, color: 'var(--secondary)' }}>{fmtDuration(a.seconds)}</td>
                         <td>{fmtDuration(a.avgSeconds)}</td>
                         <td style={{ fontWeight: 800, color: 'var(--info)' }}>{a.callsPerHour.toFixed(1)}</td>
@@ -589,14 +600,14 @@ export default function Reports() {
                     ))}
                     <tr style={{ background: 'rgba(59,130,246,0.12)', fontWeight: 800 }}>
                       <td>TOTAAL</td>
-                      <td>{totals.calls}</td>
+                      <td>{totals.calls}{totals.bord > 0 && <span className="text-muted" style={{ fontSize: '0.72rem', fontWeight: 600, marginLeft: 6 }}>+{totals.bord} bord</span>}</td>
                       <td style={{ color: 'var(--secondary)' }}>{fmtDuration(totals.seconds)}</td>
                       <td>{fmtDuration(totals.calls ? totals.seconds / totals.calls : 0)}</td>
                       <td style={{ color: 'var(--info)' }}>{totals.seconds > 0 ? (totals.calls / (totals.seconds / 3600)).toFixed(1) : '0.0'}</td>
                       <td style={{ color: 'var(--success)' }}>{totals.deals}</td>
                       <td>{totals.afspraken}</td>
                       <td colSpan={2}></td>
-                      <td>{totals.calls ? (((totals.deals + totals.afspraken) / totals.calls) * 100).toFixed(1) : '0.0'} %</td>
+                      <td>{(totals.calls + totals.bord) ? (((totals.deals + totals.afspraken) / (totals.calls + totals.bord)) * 100).toFixed(1) : '0.0'} %</td>
                     </tr>
                   </tbody>
                 </table>
@@ -634,7 +645,7 @@ export default function Reports() {
                       <tr key={p.id}>
                         <td><strong className="break-words">{p.name}</strong></td>
                         <td>{p.agentCount}</td>
-                        <td>{p.calls}</td>
+                        <td>{p.calls}{p.bord > 0 && <span className="text-muted" style={{ fontSize: '0.72rem', fontWeight: 600, marginLeft: 6 }}>+{p.bord} bord</span>}</td>
                         <td style={{ fontWeight: 700, color: 'var(--secondary)' }}>{fmtDuration(p.seconds)}</td>
                         <td>{fmtDuration(p.avgSeconds)}</td>
                         <td style={{ fontWeight: 800, color: 'var(--info)' }}>{p.callsPerHour.toFixed(1)}</td>
@@ -871,7 +882,7 @@ export default function Reports() {
                         <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{log.lead?.phone || ''}</td>
                         <td className="text-muted" style={{ fontSize: '0.85rem' }}>{log.list?.name || '-'}</td>
                         <td style={{ fontWeight: 700 }}>
-                          {fmtDuration(effectiveSeconds(log.disposition, log.duration_seconds))}
+                          {log.source === 'bord' ? <span className="text-muted" style={{ fontWeight: 600 }}>via bord</span> : fmtDuration(effectiveSeconds(log.disposition, log.duration_seconds))}
                           {isCapped(log.disposition, log.duration_seconds) && (
                             <span className="text-muted" style={{ fontWeight: 400, fontSize: '0.75rem' }} title="Kloktijd lag boven het maximum voor deze afboeking; alleen de effectieve tijd telt mee voor uren en uitbetaling">
                               {' '}(klok {fmtDuration(log.duration_seconds)})

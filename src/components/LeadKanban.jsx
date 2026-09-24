@@ -1,8 +1,18 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 
 // v72: kaal kanban-bord. Weet niets van leads of statussen: het krijgt de
 // kolommen, de items en een render-functie voor de kaart. Zo kan hetzelfde bord
 // later ook onder de sollicitantenpagina (v36b) geschoven worden.
+//
+// v103 (strakker + robuuster):
+// - Lege kolommen klappen in tot een smalle strook met verticale titel, zodat
+//   de gevulde kolommen ruimte krijgen. Zodra je iets sleept klappen ze weer
+//   open, zodat je er makkelijk op kunt loslaten.
+// - Per kolom eerst PAGE kaarten, daarna "Toon meer". 800+ kaarten tegelijk
+//   in beeld maakte het bord traag.
+// - Opmaak in index.css (.kb-*), in beide thema's via tokens.
+const PAGE = 40
+
 export default function LeadKanban({
   columns,
   items,
@@ -12,78 +22,96 @@ export default function LeadKanban({
   onCardClick,
   canDrag = () => true,
   emptyHint = 'Sleep hier naartoe',
-  maxHeight = 'calc(100vh - 330px)'
+  maxHeight = 'max(440px, calc(100vh - 300px))'
 }) {
   const [draggingId, setDraggingId] = useState(null)
   const [overColumn, setOverColumn] = useState(null)
+  const [shown, setShown] = useState({}) // kolom-id -> aantal zichtbare kaarten
 
-  const perColumn = {}
-  columns.forEach(c => { perColumn[c.id] = [] })
-  items.forEach(item => {
-    const id = columnFor(item)
-    if (perColumn[id]) perColumn[id].push(item)
-    else perColumn[columns[0].id].push(item)
-  })
+  const perColumn = useMemo(() => {
+    const map = {}
+    columns.forEach(c => { map[c.id] = [] })
+    items.forEach(item => {
+      const id = columnFor(item)
+      if (map[id]) map[id].push(item)
+      else if (columns[0]) map[columns[0].id].push(item)
+    })
+    return map
+  }, [columns, items, columnFor])
+
+  const itemById = useMemo(() => {
+    const m = {}
+    items.forEach(i => { m[i.id] = i })
+    return m
+  }, [items])
+
+  function endDrag() {
+    setDraggingId(null)
+    setOverColumn(null)
+  }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns.length}, minmax(140px, 1fr))`, gap: 8, overflowX: 'auto', paddingBottom: 8 }}>
+    <div className={`kb-board${draggingId ? ' is-dragging' : ''}`} style={{ height: maxHeight }}>
       {columns.map(col => {
         const list = perColumn[col.id] || []
         const isOver = overColumn === col.id
+        const limit = shown[col.id] || PAGE
+        const zichtbaar = list.slice(0, limit)
+        const empty = list.length === 0
         return (
           <div
             key={col.id}
-            onDragOver={e => { e.preventDefault(); setOverColumn(col.id) }}
-            onDragLeave={() => setOverColumn(prev => (prev === col.id ? null : prev))}
+            className={`kb-col${empty ? ' is-empty' : ''}${isOver ? ' is-over' : ''}`}
+            style={{ '--col': col.color }}
+            onDragOver={e => { e.preventDefault(); if (overColumn !== col.id) setOverColumn(col.id) }}
+            onDragLeave={e => {
+              // alleen resetten als je echt de kolom uit gaat, niet bij een kind-element
+              if (!e.currentTarget.contains(e.relatedTarget)) setOverColumn(prev => (prev === col.id ? null : prev))
+            }}
             onDrop={e => {
               e.preventDefault()
-              setOverColumn(null)
               const id = e.dataTransfer.getData('text/plain')
-              setDraggingId(null)
-              const item = items.find(i => i.id === id)
+              endDrag()
+              const item = itemById[id]
               if (item && columnFor(item) !== col.id) onDropItem(col, item)
             }}
-            style={{
-              minWidth: 0, background: isOver ? 'var(--accent-soft)' : 'var(--bg-card)',
-              border: `1px solid ${isOver ? col.color : 'var(--border)'}`, borderRadius: 10, padding: 7,
-              transition: 'background 0.15s, border-color 0.15s', maxHeight, minHeight: 160,
-              display: 'flex', flexDirection: 'column'
-            }}
+            title={empty ? `${col.label} (leeg)` : undefined}
           >
-            <div className="flex items-center justify-between" style={{ padding: '3px 4px 8px', borderBottom: `2px solid ${col.color}`, marginBottom: 6, gap: 4 }}>
-              <span style={{ fontWeight: 800, fontSize: '0.72rem', color: col.color, lineHeight: 1.2 }}>{col.label}</span>
-              <span style={{ background: 'var(--bg-elevated)', padding: '1px 6px', borderRadius: 10, fontSize: '0.68rem', fontWeight: 700, flexShrink: 0 }}>{list.length}</span>
+            <div className="kb-col-head">
+              <span className="kb-col-title">{col.label}</span>
+              <span className="kb-count">{list.length}</span>
             </div>
-            <div style={{ overflowY: 'auto', overflowX: 'hidden', display: 'flex', flexDirection: 'column', gap: 5, flex: 1, minWidth: 0 }}>
-              {list.map(item => {
+            <div className="kb-col-body">
+              {zichtbaar.map(item => {
                 const draggable = canDrag(item)
                 return (
                   <div
                     key={item.id}
+                    className={`kb-card${draggable ? '' : ' is-disabled'}${draggingId === item.id ? ' is-dragging' : ''}`}
                     draggable={draggable}
                     onDragStart={e => {
                       if (!draggable) { e.preventDefault(); return }
                       e.dataTransfer.setData('text/plain', item.id)
+                      e.dataTransfer.effectAllowed = 'move'
                       setDraggingId(item.id)
                     }}
-                    onDragEnd={() => setDraggingId(null)}
+                    onDragEnd={endDrag}
                     onClick={() => onCardClick && onCardClick(item)}
-                    style={{
-                      background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 7,
-                      padding: '6px 7px', cursor: draggable ? 'grab' : 'not-allowed',
-                      opacity: draggingId === item.id ? 0.4 : (draggable ? 1 : 0.55),
-                      overflow: 'hidden', minWidth: 0, maxWidth: '100%', flexShrink: 0
-                    }}
                   >
                     {renderCard(item)}
                   </div>
                 )
               })}
-              {list.length === 0 && (
-                <div style={{ fontSize: '0.62rem', color: 'var(--text-muted)', textAlign: 'center', padding: '14px 4px', opacity: 0.6 }}>
-                  {emptyHint}
-                </div>
+              {list.length > limit && (
+                <button
+                  type="button"
+                  className="kb-more"
+                  onClick={() => setShown(s => ({ ...s, [col.id]: limit + PAGE }))}
+                >
+                  Toon meer ({list.length - limit})
+                </button>
               )}
+              {empty && <div className="kb-empty">{emptyHint}</div>}
             </div>
           </div>
         )
