@@ -7,6 +7,7 @@ import { TOOLS } from '../lib/tools'
 import { MAIL_SOURCES } from '../lib/mailSources'
 import ComplianceChecklist, { checklistCompleet } from './ComplianceChecklist'
 import { useChecklistSearch } from './PersonSelect' // v102
+import { SALES_DISPOSITION_KEYS } from '../lib/dispositions' // v104
 
 // Uitgebreid instellingenpaneel per project (campagne) - vervangt de krappe
 // inline chip-rijtjes op de projectkaart in Projecten & Leads. Hier kan een
@@ -85,6 +86,9 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   // moment in (leads.appointment_at), zichtbaar op het bord/de agenda.
   const [appointmentScheduling, setAppointmentScheduling] = useState(false)
   const [kwartaalBellen, setKwartaalBellen] = useState(false) // v99
+  // v104: afboekknoppen die in dit project NIET in het belscherm staan
+  const [hiddenDisp, setHiddenDisp] = useState([])
+  const [customReasons, setCustomReasons] = useState([])
   // v98: compliance-checklist (doelgroep, rechtsvorm-modus, afspraken met het team)
   const [compliance, setCompliance] = useState({ doelgroep: null, rechtsvorm_modus: 'waarschuwen', checklist: {} })
   const [complianceOrig, setComplianceOrig] = useState(null)
@@ -101,6 +105,9 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
     setAutoEnrich(campaign.auto_enrich === true)
     setAppointmentScheduling(campaign.appointment_scheduling_enabled === true)
     setKwartaalBellen(campaign.kwartaal_bellen_enabled === true)
+    setHiddenDisp(Array.isArray(campaign.hidden_dispositions) ? campaign.hidden_dispositions : [])
+    supabase.from('custom_dispositions').select('id, label, base_status').eq('is_active', true).order('sort_order').order('created_at')
+      .then(({ data }) => setCustomReasons(data || []))
     setConfirmDelete(false)
     setLoading(true)
     Promise.all([
@@ -177,6 +184,12 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       }
       if (kwartaalBellen !== (campaign.kwartaal_bellen_enabled === true)) {
         const { error } = await supabase.from('campaigns').update({ kwartaal_bellen_enabled: kwartaalBellen }).eq('id', campaign.id)
+        if (error) throw error
+      }
+      // v104: afboekknoppen per project
+      const oudHidden = Array.isArray(campaign.hidden_dispositions) ? campaign.hidden_dispositions : []
+      if ([...hiddenDisp].sort().join('|') !== [...oudHidden].sort().join('|')) {
+        const { error } = await supabase.from('campaigns').update({ hidden_dispositions: hiddenDisp }).eq('id', campaign.id)
         if (error) throw error
       }
 
@@ -390,6 +403,31 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
               </label>
               <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>De beller kiest een kwartaal. De lead gaat dan naar de lijst "Q1 2027" (of Q2, Q3, Q4) in dit project. Bestaat die lijst nog niet, dan wordt hij gemaakt. Op de eerste werkdag van dat kwartaal komt de lead vanzelf terug om te bellen.</p>
             </div>
+
+            {/* v104: per project kiezen welke afboekknoppen de beller ziet */}
+            {projectType !== 'backoffice' && projectType !== 'recruitment' && (
+              <div>
+                <label className={labelStyle}>Afboekknoppen in het belscherm</label>
+                <p className="text-muted" style={{ fontSize: '0.72rem', margin: '0 0 8px' }}>Vinkje uit = de beller ziet die knop niet in dit project. Zo blijft het belscherm rustig. Staat alles uit, dan toont het belscherm toch alle knoppen.</p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '6px 12px' }}>
+                  {[...SALES_DISPOSITION_KEYS, ...customReasons.map(c => ({ key: `custom:${c.id}`, label: c.label, note: 'eigen reden' }))]
+                    .filter(d => d.key !== 'nieuw_kwartaal' || kwartaalBellen)
+                    .map(d => {
+                      const aan = !hiddenDisp.includes(d.key)
+                      return (
+                        <label key={d.key} className="flex items-center gap-2" style={{ cursor: 'pointer', fontSize: '0.85rem', opacity: aan ? 1 : 0.6 }} title={d.note || undefined}>
+                          <input
+                            type="checkbox"
+                            checked={aan}
+                            onChange={e => setHiddenDisp(prev => e.target.checked ? prev.filter(k => k !== d.key) : [...new Set([...prev, d.key])])}
+                          />
+                          {d.label}{d.note === 'eigen reden' && <span className="text-muted" style={{ fontSize: '0.7rem' }}>(eigen)</span>}
+                        </label>
+                      )
+                    })}
+                </div>
+              </div>
+            )}
 
             <div>
               <label className={labelStyle}>Website-scan na import</label>

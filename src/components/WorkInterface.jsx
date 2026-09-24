@@ -27,6 +27,7 @@ import { foutTekst } from '../lib/retry'
 import { logAppError } from '../lib/errorLog'
 import { APPOINTMENT_LABEL, APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
 import PersonSelect from './PersonSelect' // v102
+import { dispositionKey } from '../lib/dispositions' // v104
 
 // v96: Date -> waarde voor een <input type="datetime-local">, in lokale tijd
 // (niet UTC, anders schuift het gekozen moment een paar uur op).
@@ -132,17 +133,20 @@ export default function WorkInterface() {
   // werkdag van dat kwartaal (RPC lead_naar_kwartaal).
   const [kwartaalBellenEnabled, setKwartaalBellenEnabled] = useState(false)
   const [gekozenKwartaal, setGekozenKwartaal] = useState(null)
+  // v104: per project uitgezette afboekknoppen (campaigns.hidden_dispositions)
+  const [hiddenDispositions, setHiddenDispositions] = useState([])
   useEffect(() => {
     const listId = workingListId || workingLead?.lead_list_id
-    if (!isWorking || !listId) { setBriefing(null); setBriefingCampaignId(null); setIsRecruitmentCampaign(false); setIsBackofficeCampaign(false); setAppointmentSchedulingEnabled(false); setKwartaalBellenEnabled(false); return }
+    if (!isWorking || !listId) { setBriefing(null); setBriefingCampaignId(null); setIsRecruitmentCampaign(false); setIsBackofficeCampaign(false); setAppointmentSchedulingEnabled(false); setKwartaalBellenEnabled(false); setHiddenDispositions([]); return }
     let cancelled = false
-    supabase.from('lead_lists').select('campaign_id, campaigns(type, appointment_scheduling_enabled, kwartaal_bellen_enabled)').eq('id', listId).maybeSingle()
+    supabase.from('lead_lists').select('campaign_id, campaigns(type, appointment_scheduling_enabled, kwartaal_bellen_enabled, hidden_dispositions)').eq('id', listId).maybeSingle()
       .then(({ data }) => {
         if (cancelled) return
         setIsRecruitmentCampaign(data?.campaigns?.type === 'recruitment')
         setIsBackofficeCampaign(data?.campaigns?.type === 'backoffice')
         setAppointmentSchedulingEnabled(data?.campaigns?.appointment_scheduling_enabled === true)
         setKwartaalBellenEnabled(data?.campaigns?.kwartaal_bellen_enabled === true)
+        setHiddenDispositions(Array.isArray(data?.campaigns?.hidden_dispositions) ? data.campaigns.hidden_dispositions : [])
         setBriefingCampaignId(data?.campaign_id || null)
         if (!data?.campaign_id) { setBriefing(null); return }
         supabase.from('campaign_briefings')
@@ -634,8 +638,12 @@ export default function WorkInterface() {
   const allButtons = [...dispositions, ...customButtons]
 
   // Veiligheidsklep: als alles uitgezet zou zijn, toon dan toch alle knoppen
+  // v104: plus de knoppen die in DIT project uit staan (projectinstellingen).
+  // Backoffice-modus heeft een eigen vaste set en doet hier niet aan mee.
   const visibleDispositions = (() => {
-    const v = allButtons.filter(d => d.custom ? true : !disabledDispositions.includes(d.id))
+    const v = allButtons
+      .filter(d => d.custom ? true : !disabledDispositions.includes(d.id))
+      .filter(d => isBackofficeMode || !hiddenDispositions.includes(d.custom ? d.id : dispositionKey(d.id)))
     return v.length > 0 ? v : allButtons
   })()
 

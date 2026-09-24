@@ -453,3 +453,12 @@ Twee-zijdig platform:
      (rustige kaartkoppen, snelle acties Bellen/Mail/Route/Website,
      afboekknoppen). Compliance-melding staat in de kopregel van het belscherm
      (ComplianceLeadBlok losseKnop={false}); chatknop verborgen in belmodus.
+
+- **AFBOEKKNOPPEN PER PROJECT (v104, 2026-09-24, migratie toegepast):**
+  campaigns.hidden_dispositions text[] (leeg = alles zichtbaar). Sleutels uit
+  src/lib/dispositions.js (SALES_DISPOSITION_KEYS; 'deal' dekt ook bruto_deal)
+  en eigen redenen als 'custom:<uuid>'. ProjectSettingsModal: blok
+  "Afboekknoppen in het belscherm" (niet bij backoffice/recruitment).
+  WorkInterface filtert visibleDispositions erop, bovenop de globale
+  flow_settings.is_active; veiligheidsklep: alles uit = toch alles tonen.
+  Backoffice-knoppenset doet niet mee. Migratie: migration_v104_hidden_dispositions.sql.
