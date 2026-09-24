@@ -176,6 +176,8 @@ export default function WorkInterface() {
   // af op 'mail_verstuurd' met opvolgdatum (standaard +5 dagen).
   const { mailService } = useProjectMailService(workingListId || workingLead?.lead_list_id)
   const [showMailModal, setShowMailModal] = useState(false)
+  // v105: nieuw design - afboekknoppen boven het maximum onder "Meer ..."
+  const [meerOpen, setMeerOpen] = useState(false)
 
   // Belwachtrij: leads uit de projectlijst die nu belbaar zijn.
   // Afgeronde statussen vallen eruit, en leads met een terugbelmoment
@@ -647,6 +649,30 @@ export default function WorkInterface() {
     return v.length > 0 ? v : allButtons
   })()
 
+  // v105: nieuw design toont max 8 knoppen (telefoon 5), de rest onder "Meer ...".
+  // Oud design (v1): alles zoals het was, geen "Meer".
+  const isV2 = profile?.ui_design === 'v2'
+  const maxDirect = isMobile ? 5 : 8
+  const directDispositions = isV2 && visibleDispositions.length > maxDirect + 1 ? visibleDispositions.slice(0, maxDirect) : visibleDispositions
+  const meerDispositions = isV2 && visibleDispositions.length > maxDirect + 1 ? visibleDispositions.slice(maxDirect) : []
+
+  // Zelfde afhandeling als voorheen in de onClick van elke knop (alleen verplaatst,
+  // zodat de knoppen onder "Meer ..." precies hetzelfde doen).
+  const kiesAfboeking = (d) => {
+    if (d.custom) {
+      // v41: eigen reden - 1 klik, telt als de gekoppelde basisreden,
+      // de eigen tekst gaat mee als notitie zodat hij herleidbaar blijft
+      submitDisposition(d.baseStatus, `Reden: ${d.rawLabel}`, null, d.customId)
+    } else if (d.quick) {
+      // 1 klik = direct afgeboekt, geen notitie nodig
+      submitDisposition(d.id)
+    } else {
+      if (d.id === 'nieuw_kwartaal') setGekozenKwartaal(komendeKwartalen()[0].start)
+      setSelectedDisposition(d.id)
+      setShowDispositionModal(true)
+    }
+  }
+
   const submitDisposition = async (dispositionType, notes = '', nextDate = null, customDispositionId = null) => {
     if (isSubmitting) return
     setIsSubmitting(true)
@@ -968,13 +994,13 @@ export default function WorkInterface() {
           )}
 
           {/* Top Header */}
-          <header style={{ background: 'var(--primary-dark)', color: 'var(--text-on-accent)', padding: isMobile ? '8px 12px' : '8px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <header className="wi-topbar" style={{ background: 'var(--primary-dark)', color: 'var(--text-on-accent)', padding: isMobile ? '8px 12px' : '8px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
             <div className="flex items-center gap-4">
-               <h2 style={{ margin: 0, fontSize: '1.2rem', display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 700 }}>
+               <h2 className="wi-top-title" style={{ margin: 0, fontSize: '1.2rem', display: 'flex', gap: '8px', alignItems: 'center', fontWeight: 700 }}>
                  <Phone size={18} />
                  {isBackofficeMode ? 'Backoffice - Monteur inplannen' : 'Belmodus'}
                </h2>
-               <span style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>Vandaag: {todayCalls}</span>
+               <span className="wi-top-chip" style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>Vandaag: {todayCalls}</span>
                {dailyTarget > 0 && (
                  <span style={{
                    background: todayCalls >= dailyTarget ? 'var(--success)' : 'rgba(255,255,255,0.15)',
@@ -985,12 +1011,12 @@ export default function WorkInterface() {
                  </span>
                )}
                {progress && (
-                 <span style={{ background: 'var(--bg-elevated)', color: 'var(--text-primary)', padding: '2px 10px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>
+                 <span className="wi-top-chip" style={{ background: 'var(--bg-elevated)', color: 'var(--text-primary)', padding: '2px 10px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>
                    Nog {progress.remaining} in wachtrij
                  </span>
                )}
             </div>
-            <button onClick={toggleWorkingMode} style={{ background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--text-primary)', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><X size={16} /> Sluiten</button>
+            <button className="wi-top-close" onClick={toggleWorkingMode} style={{ background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--text-primary)', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><X size={16} /> Sluiten</button>
           </header>
 
           {/* Sub Header */}
@@ -1009,6 +1035,11 @@ export default function WorkInterface() {
                </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              {isV2 && !isMobile && magBellen && currentLead.phone && (
+                <a href={`tel:${currentLead.phone}`} className="wi-bel-groot" title={`Bel ${currentLead.phone}`} style={{ order: 99 }}>
+                  <Phone size={16} /> Bellen
+                </a>
+              )}
               {canMakeOfferte && !isRecruitmentCampaign && (
                 <a href={offerteHrefForLead(currentLead.id)} target="_blank" rel="noopener" className="btn btn-outline btn-sm"
                    title="Opent de offerte-tool, voorgevuld met de gegevens van deze lead"
@@ -1342,7 +1373,8 @@ export default function WorkInterface() {
           </main>
 
           {/* Action Bar (Footer) */}
-          <footer style={{ 
+          <footer className="wi-footer" style={{ 
+            position: 'relative',
             background: 'var(--bg-card)', 
             borderTop: '1px solid var(--border)', 
             padding: isMobile ? '10px' : '10px 24px', 
@@ -1353,24 +1385,11 @@ export default function WorkInterface() {
             maxHeight: isMobile ? '30vh' : 'auto',
             overflowY: isMobile ? 'auto' : 'visible'
           }}>
-            {visibleDispositions.map(d => (
+            {directDispositions.map(d => (
               <button
                 key={d.id}
                 disabled={isSubmitting}
-                onClick={() => {
-                  if (d.custom) {
-                    // v41: eigen reden - 1 klik, telt als de gekoppelde basisreden,
-                    // de eigen tekst gaat mee als notitie zodat hij herleidbaar blijft
-                    submitDisposition(d.baseStatus, `Reden: ${d.rawLabel}`, null, d.customId)
-                  } else if (d.quick) {
-                    // 1 klik = direct afgeboekt, geen notitie nodig
-                    submitDisposition(d.id)
-                  } else {
-                    if (d.id === 'nieuw_kwartaal') setGekozenKwartaal(komendeKwartalen()[0].start)
-                    setSelectedDisposition(d.id)
-                    setShowDispositionModal(true)
-                  }
-                }}
+                onClick={() => kiesAfboeking(d)}
                 className="wi-dispo"
                 style={{
                   '--c': d.color,
@@ -1381,6 +1400,41 @@ export default function WorkInterface() {
                 {d.icon} {d.label}
               </button>
             ))}
+            {/* v105: nieuw design - de rest onder "Meer ..." */}
+            {meerDispositions.length > 0 && (
+              <div style={{ position: 'relative', flex: isMobile ? '1 1 120px' : '0 1 auto', display: 'flex' }}>
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => setMeerOpen(v => !v)}
+                  className="wi-dispo"
+                  aria-expanded={meerOpen}
+                  style={{ '--c': 'var(--text-secondary)', width: '100%' }}
+                >
+                  Meer ... ({meerDispositions.length})
+                </button>
+                {meerOpen && (
+                  <>
+                    <div onClick={() => setMeerOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                    <div className="wi-meer-menu" role="menu">
+                      {meerDispositions.map(d => (
+                        <button
+                          key={d.id}
+                          type="button"
+                          role="menuitem"
+                          disabled={isSubmitting}
+                          onClick={() => { setMeerOpen(false); kiesAfboeking(d) }}
+                          className="wi-dispo"
+                          style={{ '--c': d.color, width: '100%', justifyContent: 'flex-start' }}
+                        >
+                          {d.icon} {d.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
             {mailService && !isBackofficeMode && !isRecruitmentCampaign && (
               <button
                 disabled={isSubmitting}
