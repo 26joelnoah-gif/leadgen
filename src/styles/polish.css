@@ -415,11 +415,16 @@
 .pm-table tbody tr { cursor: pointer; transition: background 0.12s; }
 .pm-table tbody tr:hover { background: var(--bg-elevated); }
 .pm-table .pm-col-note { max-width: 240px; }
-@media (max-width: 1280px) {
+/* De tabel staat in een kolom van 2/3 breed naast de projectenlijst:
+   pas op heel brede schermen is er plek voor de notitiekolom. */
+@media (max-width: 1700px) {
   .pm-table .pm-col-note { display: none; }
 }
+@media (max-width: 1180px) {
+  .pm-table .pm-col-attempts { display: none; }
+}
 @media (max-width: 760px) {
-  .pm-table .pm-col-attempts, .pm-table .pm-col-date { display: none; }
+  .pm-table .pm-col-date { display: none; }
 }
 .pm-stats {
   display: grid;

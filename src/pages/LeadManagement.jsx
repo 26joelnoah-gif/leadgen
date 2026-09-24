@@ -451,7 +451,7 @@ export default function LeadManagement({ standalone = true }) {
     <div className={standalone ? 'min-h-screen bg-dark text-body' : 'text-body'}>
       {standalone && <Header />}
 
-      <main className="container-wide py-8">
+      <main className={`container-wide ${standalone ? 'py-8' : 'py-4'}`}>
         {/* v103: rustiger kop - een hoofdknop, de rest als outline */}
         <div className="flex justify-between items-end mb-6 px-6" style={{ flexWrap: 'wrap', gap: '16px' }}>
           <div>
