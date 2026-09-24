@@ -271,3 +271,6 @@
 }
 /* Kaarten in het belscherm */
 [data-design="v2"] .wi-card-head { background: var(--bg-card); }
+/* v1-kleuren van Geen interesse / Blacklist waren te donker op donker */
+[data-design="v2"] .wi-dispo[style*="#334155"] { --c: var(--danger) !important; }
+[data-design="v2"] .wi-dispo[style*="#991B1B"] { --c: var(--danger) !important; opacity: 0.85; }
