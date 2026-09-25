@@ -472,3 +472,13 @@ Twee-zijdig platform:
   src/styles/design-v2.css onder [data-design="v2"]; v1 blijft ongewijzigd.
   Design-stappen raken nooit Supabase-calls, hooks of statussen.
   Test-hulpje: scripts/overflow-check.browser.js (plakken in console).
+
+- **TERUGBELMOMENT UIT BELSCHERM 2 UUR TE LAAT (v106, 2026-09-25, geen
+  migratie):** het datetime-local-veld in WorkInterface gaf "2026-09-28T16:28"
+  zonder tijdzone door aan handleLeadDisposition, en die schreef dat kaal naar
+  leads.next_contact_date / appointment_at. Postgres las het als UTC, dus elke
+  terugbelafspraak en afspraak uit het belscherm stond 2 uur (zomertijd) te laat.
+  Het bord (LeadBoard confirmDatePrompt) deed het al goed met toISOString().
+  Fix: handleLeadDisposition zet een nextDate zonder tijdzone altijd eerst om
+  via new Date(...).toISOString(). REGEL: een waarde uit een datetime-local
+  nooit rechtstreeks naar Supabase sturen, altijd eerst new Date(v).toISOString().

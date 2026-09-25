@@ -346,6 +346,15 @@ export function useLeads() {
     if (!currentLead) return { ok: false, fout: { message: 'Lead niet gevonden' }, stap: 'ophalen' }
     const agentName = profile?.full_name || user?.email || 'Onbekend'
 
+    // v106: het datumveld in het belscherm (datetime-local) geeft "2026-09-28T16:28"
+    // zonder tijdzone. Postgres las dat als UTC, waardoor elke terugbelafspraak
+    // en afspraak uit het belscherm 2 uur (zomertijd) te laat kwam te staan.
+    // Hier altijd omzetten naar een echte ISO-tijd in de tijdzone van de beller.
+    if (nextDate && typeof nextDate === 'string' && !/(Z|[+-]\d{2}:?\d{2})$/.test(nextDate)) {
+      const d = new Date(nextDate)
+      nextDate = isNaN(d.getTime()) ? null : d.toISOString()
+    }
+
     let newNotes = currentLead.notes || ''
     if (notes) newNotes = `${newNotes}\n[${new Date().toLocaleDateString('nl-NL')}] ${notes}`
 
