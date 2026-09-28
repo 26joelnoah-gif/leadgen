@@ -1,4 +1,4 @@
-// LEADGEN v89 — zelfregistratie bellers (publieke aanmeldpagina /aanmelden).
+// ReachConnect v89 — zelfregistratie bellers (publieke aanmeldpagina /aanmelden).
 // Geen login nodig. Maakt zelf het auth-account aan (admin.auth.admin.
 // createUser, service-role) - NOOIT via de publieke supabase.auth.signUp,
 // want dan zou de anon key een account kunnen forceren dat meteen
@@ -112,7 +112,7 @@ Deno.serve(async (req: Request) => {
       headers: mollieHeaders,
       body: JSON.stringify({
         amount: { currency: "EUR", value: "50.00" },
-        description: `LeadGen aanmelding (eerste maand) — ${fullName}`,
+        description: `ReachConnect aanmelding (eerste maand) — ${fullName}`,
         redirectUrl: `${appUrl}/aanmelden/bedankt?p=${newUserId}`,
         webhookUrl: `${Deno.env.get("SUPABASE_URL")}/functions/v1/mollie-webhook`,
         sequenceType: "first",

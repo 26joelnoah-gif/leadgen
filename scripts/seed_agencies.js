@@ -1,5 +1,5 @@
 // =====================================================
-// LEADGEN — Agency Directory Seeder
+// ReachConnect — Agency Directory Seeder
 // Minimax: run dit script om echte NL marketingbureaus
 // in de database te laden
 // Usage: node scripts/seed_agencies.js

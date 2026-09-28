@@ -68,7 +68,7 @@ function UpdateChecker() {
       maxWidth: 'calc(100vw - 32px)'
     }}>
       <span style={{ fontWeight: 700, fontSize: '0.9rem', color: 'var(--text-primary, #fff)' }}>
-        Er staat een nieuwe versie van LeadGen klaar
+        Er staat een nieuwe versie van ReachConnect klaar
       </span>
       <button
         onClick={() => window.location.reload()}

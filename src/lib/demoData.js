@@ -127,8 +127,8 @@ export const DEMO_LEADS = [
 ]
 
 export const DEMO_USERS = [
-  { id: '1', email: 'jan@leadgen.nl', full_name: 'Jan de Vries', role: 'employee' },
-  { id: '2', email: 'maria@leadgen.nl', full_name: 'Maria Admin', role: 'admin' }
+  { id: '1', email: 'jan@reachconnect.nl', full_name: 'Jan de Vries', role: 'employee' },
+  { id: '2', email: 'maria@reachconnect.nl', full_name: 'Maria Admin', role: 'admin' }
 ]
 
 export const DEMO_ACTIVITIES = [

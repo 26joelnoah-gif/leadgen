@@ -1,4 +1,4 @@
-// LEADGEN v89 — Mollie webhook voor zelfregistratie-betalingen (EUR 50/maand,
+// ReachConnect v89 — Mollie webhook voor zelfregistratie-betalingen (EUR 50/maand,
 // opzegbaar). Mollie POST't hierheen (form-urlencoded: id=tr_xxx) bij elke
 // statuswijziging van een betaling - zowel de eerste betaling (sequenceType
 // 'first', komt uit signup-freelancer) als elke latere maandelijkse
@@ -84,7 +84,7 @@ Deno.serve(async (req: Request) => {
           body: JSON.stringify({
             amount: { currency: "EUR", value: "50.00" },
             interval: "1 month",
-            description: `LeadGen maandelijkse bijdrage — ${prof.full_name || ""}`.trim(),
+            description: `ReachConnect maandelijkse bijdrage — ${prof.full_name || ""}`.trim(),
             webhookUrl: `${Deno.env.get("SUPABASE_URL")}/functions/v1/mollie-webhook`,
           }),
         });

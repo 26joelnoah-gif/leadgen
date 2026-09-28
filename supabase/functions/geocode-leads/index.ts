@@ -1,4 +1,4 @@
-// LEADGEN v64 - geocoderen van leads (adres -> lat/lng) via PDOK Locatieserver (gratis, geen key).
+// ReachConnect v64 - geocoderen van leads (adres -> lat/lng) via PDOK Locatieserver (gratis, geen key).
 // Aanroep: POST { lead_ids?: uuid[], list_id?: uuid, force?: boolean, limit?: number }
 //   - lead_ids: alleen deze leads
 //   - list_id: alle leads in die lijst zonder coordinaten (of allemaal met force)
@@ -47,7 +47,7 @@ async function pdok(q: string, type: string): Promise<{ lat: number; lng: number
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 6000);
   try {
-    const res = await fetch(url, { signal: ctrl.signal, headers: { "User-Agent": "LeadGen/1.0" } });
+    const res = await fetch(url, { signal: ctrl.signal, headers: { "User-Agent": "ReachConnect/1.0" } });
     if (!res.ok) return null;
     const j = await res.json();
     const d = j?.response?.docs?.[0];

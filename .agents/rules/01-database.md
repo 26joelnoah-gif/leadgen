@@ -1,4 +1,4 @@
-# Database migraties — LEADGEN
+# Database migraties — ReachConnect
 
 Alle migraties staan als losse .sql bestanden in de root van het project: `migration_vNN_naam.sql`. Er is geen migrations/-map, dat is bewust zo gelaten om niets te breken. Laat de bestanden waar ze staan.
 

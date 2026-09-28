@@ -348,7 +348,7 @@ export default function Header({ onOpenSettings }) {
           </button>
 
           <button
-            onClick={() => window.dispatchEvent(new Event('leadgen:open-tutorial'))}
+            onClick={() => window.dispatchEvent(new Event('reachconnect:open-tutorial'))}
             className="btn btn-sm btn-outline"
             style={{ padding: '8px', minWidth: 'auto' }}
             title="Uitleg / tutorial"

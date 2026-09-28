@@ -505,7 +505,7 @@ export default function Manager() {
       Deals: a.deals, Afspraken: a.afspraken, "TBA's": a.tba,
       'Slagingspercentage': `${a.successRate.toFixed(1)}%`,
       ...(canViewRates ? { 'Kosten (EUR)': a.cost.toFixed(2) } : {})
-    })), `LeadGen_Manager_${startDate}_${endDate}`)
+    })), `ReachConnect_Manager_${startDate}_${endDate}`)
   }
 
   const setRange = (days) => {

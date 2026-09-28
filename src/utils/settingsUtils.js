@@ -1,5 +1,5 @@
 // Settings utility for admin-configurable values
-const STORAGE_KEY = 'leadgen_settings'
+const STORAGE_KEY = 'reachconnect_settings'
 
 const DEFAULT_SETTINGS = {
   monthlyTarget: 10, // default monthly deal target

@@ -1,4 +1,4 @@
-// LEADGEN v88 — /aanmelden/bedankt?p=<profileId>. Mollie stuurt de aanmelder
+// ReachConnect v88 — /aanmelden/bedankt?p=<profileId>. Mollie stuurt de aanmelder
 // hierheen terug na de betaling. De webhook (mollie-webhook) is de echte
 // bron van waarheid en kan een paar seconden achterlopen, dus deze pagina
 // pollt check-signup-status een tijdje voordat hij "nog niet bevestigd"

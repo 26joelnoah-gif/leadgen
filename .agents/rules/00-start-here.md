@@ -1,4 +1,4 @@
-# LEADGEN — lees dit eerst
+# ReachConnect — lees dit eerst
 
 Dit is een CRM/belsysteem voor sales teams, gebouwd door Noah (geen programmeerachtergrond). Er werken meerdere AI's tegelijk aan dit project: Claude (Cowork), en in Antigravity Minimax en Gemini Flash. Een fout hier kost Noah tijd om op te sporen, dus volg deze regels precies.
 

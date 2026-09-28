@@ -1,4 +1,4 @@
-// LEADGEN v33 — "Herken met AI": ruwe geplakte tekst (Perplexity-proza,
+// ReachConnect v33 — "Herken met AI": ruwe geplakte tekst (Perplexity-proza,
 // e-mails, losse notities) structureren tot nette lead-rijen voor de
 // import-/verrijk-wizard. Verzint niets: alleen wat er letterlijk staat.
 // GEDEPLOYED als Edge Function "parse-paste" op zboyxwwrbtpjnlgquhzs.

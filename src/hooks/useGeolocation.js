@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 // v64: "Locatie aan" voor accountmanagers. Volgt de positie van de browser
 // (watchPosition) zolang de gebruiker het aan heeft; de keuze wordt per
 // apparaat onthouden zodat de knop op de telefoon aan blijft staan.
-const STORAGE_KEY = 'leadgen-location-on'
+const STORAGE_KEY = 'reachconnect-location-on'
 
 export function useGeolocation() {
   const supported = typeof navigator !== 'undefined' && !!navigator.geolocation

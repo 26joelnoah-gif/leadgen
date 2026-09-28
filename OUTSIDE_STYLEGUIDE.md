@@ -1,6 +1,6 @@
-# LEADGEN Outside — Styleguide (v0, 06-09-2026)
+# ReachConnect Outside — Styleguide (v0, 06-09-2026)
 
-Outside is de buitendienst-/deur-aan-deur-tool binnen LEADGEN (kaart + lijst,
+Outside is de buitendienst-/deur-aan-deur-tool binnen ReachConnect (kaart + lijst,
 klik op lead -> offerte). Hij wordt op straat op een telefoon gebruikt, in
 daglicht, vaak met een hand. Daarom krijgt hij een EIGEN, licht, rustig thema
 dat lijkt op Salesdock Outside, los van het donkere dashboard-thema.

@@ -1,4 +1,4 @@
-# LEADGEN — Project Visie & Context
+# ReachConnect — Project Visie & Context
 
 > Werk je hier vanuit Antigravity (Minimax of Gemini)? Lees eerst `.agents/rules/00-start-here.md`, dat wordt automatisch geladen en verwijst hierheen terug. Dit bestand blijft de volledige bron van waarheid voor alle AI's op dit project.
 
@@ -22,7 +22,7 @@ Stabiel en betrouwbaar systeem voor eigen sales team.
 Prioriteit: bugs fixen, core flows werkend, data betrouwbaar.
 
 ### Fase 2: SaaS — Bedrijven als klanten
-LeadGen wordt een platform waar **bedrijven zich aanmelden**.
+ReachConnect wordt een platform waar **bedrijven zich aanmelden**.
 - Elk bedrijf krijgt eigen omgeving (multi-tenant)
 - Eigen leads, eigen team, eigen flows
 - Maandelijks abonnement
@@ -118,7 +118,7 @@ Twee-zijdig platform:
   lib/leadgenMail.ts in de MK-repo). Na succes boekt WorkInterface af op
   nieuwe status 'mail_verstuurd' via handleLeadDisposition: geen eindstatus,
   geen deal, terug in de wachtrij na follow_up_days (standaard 5).
-  Migratie: migration_v69_mailingservice.sql. LEADGEN doet niets met betalingen.
+  Migratie: migration_v69_mailingservice.sql. ReachConnect doet niets met betalingen.
 
 - **MAILSTATUS + TWEE MAILSOORTEN (v70, 2026-09-14):** de bron meldt terug hoe
   ver een gemailde lead komt. Edge Function `mailstatus` (verify_jwt = false,
@@ -132,8 +132,8 @@ Twee-zijdig platform:
   melding zet de lead nooit terug. Alleen de functie (service role) schrijft;
   lezen mag iedereen binnen de organisatie. Tabel zit in supabase_realtime.
   Tonen: MailStatusBriefing in het belscherm (onder OfferteBriefing) en
-  MailStatusBlok op de contactkaart. LEADGEN verandert leads.status NIET op
-  een mailstatus - 'getekend'/'betaald' bij MK is geen LEADGEN-deal.
+  MailStatusBlok op de contactkaart. ReachConnect verandert leads.status NIET op
+  een mailstatus - 'getekend'/'betaald' bij MK is geen ReachConnect-deal.
   Daarnaast: campaign_mail_services.mail_types (standaard
   {introductie,aanmelden}) bepaalt welke mailsoorten een beller mag kiezen;
   MailingserviceModal toont daar knoppen voor (Infomail / Aanmeldmail) en stuurt
@@ -147,7 +147,7 @@ Twee-zijdig platform:
   Mailingservice-popup kiest de beller "Later versturen" (morgen 09:00, over
   3 dagen, volgende week, zelf kiezen) of "Handmatig". Dat komt in
   mail_queue.send_at (null = handmatig, v78). pg_cron-job
-  leadgen-mailqueue-runner roept elke 5 min public.mail_queue_kick() aan, die
+  reachconnect-mailqueue-runner roept elke 5 min public.mail_queue_kick() aan, die
   via pg_net de Edge Function mailqueue-runner (verify_jwt uit, eigen sleutel
   uit Vault 'mailqueue_cron_key' via public.mailqueue_cron_key(), alleen
   service_role) aanroept. De runner verstuurt ALLEEN op werkdagen 08:00-18:00
@@ -156,7 +156,7 @@ Twee-zijdig platform:
   'verzonden', lead mail_verstuurd + opvolgdatum, activiteit op naam van de
   beller. Mislukt: rij status 'fout' + last_error, lead blijft mail_gepland;
   Mailinglijst toont de fout met "Opnieuw" en een klok-knop om het moment te
-  wijzigen. LEADGEN mailt zelf nooit; niets gaat via ReachConnect.
+  wijzigen. ReachConnect mailt zelf nooit; niets gaat via ReachConnect.
   Migratie: migration_v83_mail_queue_send_at.sql (toegepast).
 
 - **MAILRAPPORTAGE, WARME LEADS, AUTO-VERRIJKING, MAILTELLER (v82,
@@ -203,7 +203,7 @@ Twee-zijdig platform:
   NIEUWSTE 50 (was de oudste 50), vervangt het tijdelijke bericht door de
   echte rij (insert().select() + dedupe op id in realtime), en escapet geen
   < > meer (React doet dat al). Berichten ouder dan 24 uur worden elk uur
-  verwijderd door public.chat_cleanup(24) via pg_cron-job leadgen-chat-cleanup;
+  verwijderd door public.chat_cleanup(24) via pg_cron-job reachconnect-chat-cleanup;
   de app haalt alleen de laatste 24 uur op en toont dat onder het invoerveld.
   Migratie: migration_v85_chat_realtime_cleanup.sql (toegepast).
 
@@ -215,7 +215,7 @@ Twee-zijdig platform:
   trashedUsers), maar rechten, teams, roosterdagen en gekoppelde leads blijven
   staan. Paneel "Prullenbak" naast Organisaties: Terugzetten (deleted_at null +
   is_active true) of Definitief verwijderen (2x klikken = de oude v31-delete).
-  pg_cron-job leadgen-profiles-trash-purge draait dagelijks 03:30 UTC
+  pg_cron-job reachconnect-profiles-trash-purge draait dagelijks 03:30 UTC
   public.profiles_trash_purge(30). Nieuwe lijsten met medewerkers: altijd ook
   op deleted_at is null filteren. Migratie: migration_v86_prullenbak_medewerkers.sql
   (toegepast). Terugzetten maakt altijd actief, ook als iemand vóór het
@@ -276,7 +276,7 @@ Twee-zijdig platform:
   Klein: Agenda.jsx gebruikte window.confirm() bij het verwijderen van een
   blokkade - dat mag niet (zie CLAUDE.md-regels), vervangen door hetzelfde
   "klik nogmaals" patroon als Admin > Prullenbak. En AuthContext.signOut()
-  wist nu ook leadgen-effective-role/leadgen-project-roles uit localStorage,
+  wist nu ook reachconnect-effective-role/reachconnect-project-roles uit localStorage,
   zodat een nieuwe sessie altijd met de echte rol start.
 
 - **"ZET IN AGENDA" - VISUELE AGENDAKEUZE BIJ AFSPRAAK GEMAAKT (v96,
@@ -347,8 +347,8 @@ Twee-zijdig platform:
      de lijst, mailpauze).
   5. Wissen: leads_wissen_intern() verwijdert echt (call_logs.notes leeg,
      mailservice_logs.email leeg, rest via FK), logt aantal in lead_wis_log.
-     pg_cron leadgen-afgemeld-wissen (elk uur, 48 uur na afmelden) en
-     leadgen-bewaartermijn (02:45 UTC, 12 maanden niets mee gebeurd +
+     pg_cron reachconnect-afgemeld-wissen (elk uur, 48 uur na afmelden) en
+     reachconnect-bewaartermijn (02:45 UTC, 12 maanden niets mee gebeurd +
      prullenbak ouder dan 12 maanden). Nu wissen: RPC
      afgemelde_leads_wissen_nu (admin/manager) via filter "Afgemeld" op /leads.
   6. Klachtenlog: public.compliance_meldingen (klacht|bezwaar|avg_verzoek|acm|
@@ -383,7 +383,7 @@ Twee-zijdig platform:
      410). SUPABASE_SERVICE_ROLE_KEY hoort NIET in de Netlify-omgeving.
   2. Tabel public.rate_limit_hits + public.rate_limit_hit(key, max,
      window_seconds) -> true = te veel (vast venster, alleen service_role).
-     pg_cron leadgen-rate-limit-cleanup ruimt rijen ouder dan 2 dagen op.
+     pg_cron reachconnect-rate-limit-cleanup ruimt rijen ouder dan 2 dagen op.
      In Edge Functions: helper teVeel() (faalt open) + clientIp().
   3. Limieten: signup-freelancer 5/uur per IP, 3/uur per e-mail, 50/uur
      totaal; check-signup-status 120 per 10 min per IP; enrich-lead 30
@@ -425,7 +425,7 @@ Twee-zijdig platform:
   tools in ProjectSettingsModal en NewProjectWizard) een zoekveld vanaf 7 items.
   Admin > Team: zoekveld, filters rol/team (ook "Zonder team")/project/actief,
   teller "x van y", en een compacte lijstweergave (standaard, onthouden in
-  localStorage 'leadgen-team-view') waarin je per medewerker de volledige kaart
+  localStorage 'reachconnect-team-view') waarin je per medewerker de volledige kaart
   openklapt. Kaartweergave bestaat nog via de knop "Kaarten".
 
 - **BORD TELT ALS WERK + STRAKKER BORD/PROJECTEN/BELSCHERM (v103, 2026-09-24,
@@ -467,7 +467,7 @@ Twee-zijdig platform:
   Plan: docs/DESIGN_UITROL_PLAN.md (LEES DIT voor elke design-klus).
   profiles.ui_design ('v1' standaard | 'v2'); src/lib/design.js applyDesign()
   zet <html data-design>, AuthContext volgt het profiel, index.html zet hem
-  vooraf uit localStorage 'leadgen-design'. Admin wisselt voor zichzelf met
+  vooraf uit localStorage 'reachconnect-design'. Admin wisselt voor zichzelf met
   het palet-icoon in de kopbalk. ALLE nieuwe opmaak staat in
   src/styles/design-v2.css onder [data-design="v2"]; v1 blijft ongewijzigd.
   Design-stappen raken nooit Supabase-calls, hooks of statussen.
@@ -510,3 +510,38 @@ Twee-zijdig platform:
      met dropStatus 'remote_thuis' plus een teller in de statistiekenrij.
      Migratie: migration_v107_accounts_aanmaken_remote.sql (leads_status_check
      uitgebreid + claim_next_lead opnieuw, identiek aan v98 met deze status erbij).
+
+- **NAAM WORDT REACHCONNECT (v109, 2026-09-28, migratie toegepast):** het product
+  heette LEADGEN en heet nu **ReachConnect**. Schrijfwijze overal: `ReachConnect`
+  (hoofdletter R en C, geen spatie). Logo = blokje met monogram `RC` +
+  woordmerk ReachConnect (src/components/Logo.jsx).
+  1. Zichtbaar: browsertitel, logo, Setup, Home, versiemelding in App.jsx,
+     ErrorBoundary, tutorial, /aanmelden, Tools, tekenpagina, compliance-
+     checklist, de CSV-exports (`ReachConnect_Bellers_…`) en de twee
+     offertetools in public/tools. Ook de mailteksten en afzendernamen in de
+     Edge Functions (Mollie-omschrijving, RESEND_FROM-fallback, User-Agent).
+  2. Opslag in de browser: alle keys heten nu `reachconnect-*` in plaats van
+     `leadgen-*` (theme, design, effective-role, project-roles, location-on,
+     team-view, leads-project, leads-list, leads-view, en `reachconnect_settings`).
+     In index.html staat bovenaan een klein blokje dat de oude waarde eenmalig
+     overzet en de oude key weghaalt, zodat niemand zijn thema, gekozen project
+     of weergave kwijtraakt. Dat blokje mag weg ruim na 01-01-2027.
+     Ook omgezet: DOM-event `reachconnect:open-tutorial`,
+     `window.__reachconnectErrorHandlers`, Maps-callback
+     `__reachconnectGmapsReady`, font-element `reachconnect-v2-fonts`,
+     vite-plugin `reachconnect-version-file`, package.json name.
+     REGEL: nieuwe localStorage-keys en events altijd `reachconnect-…`.
+  3. Database: alleen de pg_cron-jobs zijn hernoemd naar `reachconnect-*`
+     (zelfde schema en commando). Migratie: migration_v109_naam_reachconnect.sql.
+  4. BEWUST NIET omgezet, en waarom:
+     - `set_config('leadgen.systeem')` + `public.leadgen_systeem()`: zit in 11
+       DB-functies waaronder leads_compliance_guard, leads_lock_guard en
+       leads_owner_on_status. Niemand ziet die naam en één gemiste plek
+       blokkeert systeemupdates (stille fouten bij afmelden en lead-eigenaar).
+     - `x-leadgen-key` en `LEADGEN_STATUS_KEY` (Edge Function mailstatus):
+       MarketingKiezer stuurt daarmee mee. Pas samen met de MK-repo te
+       veranderen, anders valt de mailstatus-terugkoppeling stil.
+     - `MAILSERVICE_<BRON>_URL` = `https://marketingkiezer.nl/api/leadgen/mail`:
+       dat is een route in de MK-repo, niet van ons.
+     - `leadgendash.netlify.app`: echte URL, verandert pas bij een nieuw domein.
+     - `BRIEF-leadgen` en `lib/leadgenMail.ts`: bestandsnamen elders.

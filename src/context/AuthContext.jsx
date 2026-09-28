@@ -28,10 +28,10 @@ export function AuthProvider({ children }) {
 
   // v94: rol-switcher voor admin (kan werken als admin, beller of accountmanager)
   const [effectiveRoleState, setEffectiveRoleState] = useState(() => {
-    try { return localStorage.getItem('leadgen-effective-role') || null } catch { return null }
+    try { return localStorage.getItem('reachconnect-effective-role') || null } catch { return null }
   })
   const [projectRoles, setProjectRoles] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('leadgen-project-roles') || '{}') } catch { return {} }
+    try { return JSON.parse(localStorage.getItem('reachconnect-project-roles') || '{}') } catch { return {} }
   })
 
   // Check if Supabase is configured, otherwise use demo mode
@@ -132,8 +132,8 @@ export function AuthProvider({ children }) {
   // Wissen bij signOut zodat een nieuwe sessie altijd met de echte rol start.
   function clearEffectiveRoleStorage() {
     try {
-      localStorage.removeItem('leadgen-effective-role')
-      localStorage.removeItem('leadgen-project-roles')
+      localStorage.removeItem('reachconnect-effective-role')
+      localStorage.removeItem('reachconnect-project-roles')
     } catch { /* private browsing */ }
     setEffectiveRoleState(null)
     setProjectRoles({})
@@ -245,15 +245,15 @@ export function AuthProvider({ children }) {
   function setEffectiveRole(role) {
     setEffectiveRoleState(role)
     try {
-      if (role) localStorage.setItem('leadgen-effective-role', role)
-      else localStorage.removeItem('leadgen-effective-role')
+      if (role) localStorage.setItem('reachconnect-effective-role', role)
+      else localStorage.removeItem('reachconnect-effective-role')
     } catch { /* private browsing */ }
   }
 
   function setProjectRole(projectId, role) {
     setProjectRoles(prev => {
       const next = { ...prev, [projectId]: role }
-      try { localStorage.setItem('leadgen-project-roles', JSON.stringify(next)) } catch { /* ignore */ }
+      try { localStorage.setItem('reachconnect-project-roles', JSON.stringify(next)) } catch { /* ignore */ }
       return next
     })
   }

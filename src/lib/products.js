@@ -1,5 +1,5 @@
 // v68: productmerken waaronder accountmanagers verkopen (BRIEF-leadgen).
-// Klanten zien alleen het productmerk, nooit "LEADGEN" of "Reachconnect".
+// Klanten zien alleen het productmerk, nooit "ReachConnect".
 // Wordt later de tabel `products` (met eigen Mollie-key, branding, webhook);
 // tot die tijd staan de plannen hier zodat de "Offerte sturen"-popup werkt.
 // Prijzen ex btw (DECISIONS.md 2026-09-07). Bedragen als getallen in euro's,

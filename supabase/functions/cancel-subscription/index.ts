@@ -1,4 +1,4 @@
-// LEADGEN v89 — Mollie-subscription opzeggen. Wordt aangeroepen vanuit
+// ReachConnect v89 — Mollie-subscription opzeggen. Wordt aangeroepen vanuit
 // Admin.jsx handleToggleActive zodra een admin een zelfregistratie-account
 // (signup_source='self_service') inactief zet, zodat er nooit doorbetaald
 // wordt aan iemand die geen toegang meer heeft. Vereist inloggen als admin

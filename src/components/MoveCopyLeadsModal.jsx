@@ -84,21 +84,21 @@ export default function MoveCopyLeadsModal({ isOpen, onClose, leadIds = [], targ
           <motion.div
             initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.96 }}
             className="glass-panel"
-            style={{ width: '100%', maxWidth: '480px', padding: '28px' }}
+            style={{ width: '100%', maxWidth: '480px', padding: '22px' }}
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-center mb-3">
               <h3 className="text-lg font-black flex items-center gap-2">
                 <ArrowRightLeft size={18} /> Leads verplaatsen / kopieren
               </h3>
               <button onClick={onClose} className="text-muted hover:text-body"><X size={20} /></button>
             </div>
 
-            <p className="text-sm text-muted mb-5">
+            <p className="text-sm text-muted mb-3">
               {leadIds.length} lead{leadIds.length === 1 ? '' : 's'} geselecteerd. Dit gebeurt alleen als jij nu op de knop klikt - er verandert niets automatisch.
             </p>
 
-            <div className="flex gap-2 mb-5">
+            <div className="flex gap-2 mb-3">
               <button
                 onClick={() => setMode('move')}
                 className={`btn btn-sm flex-1 ${mode === 'move' ? 'btn-primary' : 'btn-outline'}`}
@@ -108,7 +108,7 @@ export default function MoveCopyLeadsModal({ isOpen, onClose, leadIds = [], targ
                 className={`btn btn-sm flex-1 ${mode === 'copy' ? 'btn-primary' : 'btn-outline'}`}
               ><Copy size={14} /> Kopieren</button>
             </div>
-            <p className="text-[11px] text-muted mb-5">
+            <p className="text-[11px] text-muted mb-4">
               {mode === 'move'
                 ? 'De leads verdwijnen uit de huidige lijst en komen alleen nog in de doellijst te staan.'
                 : 'De leads blijven ook in de huidige lijst staan - er komt een kopie bij in de doellijst.'}
@@ -119,7 +119,7 @@ export default function MoveCopyLeadsModal({ isOpen, onClose, leadIds = [], targ
               value={targetListId}
               onChange={e => setTargetListId(e.target.value)}
               className="form-dark w-full mb-3"
-              style={{ padding: '12px' }}
+              style={{ padding: '10px' }}
             >
               <option value="">-- Kies een lijst --</option>
               <option value={NEW_LIST}>+ Nieuwe lijst aanmaken...</option>
@@ -129,7 +129,7 @@ export default function MoveCopyLeadsModal({ isOpen, onClose, leadIds = [], targ
             </select>
 
             {isNewList && (
-              <div style={{ padding: '14px', marginBottom: '20px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)' }}>
+              <div style={{ padding: '12px', marginBottom: '14px', borderRadius: '10px', border: '1px solid var(--border)', background: 'var(--bg-dark)' }}>
                 <label className="text-xs font-black uppercase tracking-widest text-muted flex items-center gap-1 mb-2">
                   <Plus size={12} /> Naam nieuwe lijst
                 </label>
@@ -174,7 +174,7 @@ export default function MoveCopyLeadsModal({ isOpen, onClose, leadIds = [], targ
               </div>
             )}
 
-            <label className="flex items-center gap-2 text-sm mb-6 cursor-pointer">
+            <label className="flex items-center gap-2 text-sm mb-4 cursor-pointer">
               <input
                 type="checkbox"
                 checked={resetStatus}
@@ -187,7 +187,7 @@ export default function MoveCopyLeadsModal({ isOpen, onClose, leadIds = [], targ
             <button
               onClick={run}
               disabled={submitting || !targetListId || (isNewList && !newListName.trim())}
-              className="btn btn-primary w-full py-3"
+              className="btn btn-primary w-full py-2.5"
             >
               {submitting ? 'Bezig...' : mode === 'move' ? `${leadIds.length} lead(s) verplaatsen` : `${leadIds.length} lead(s) kopieren`}
             </button>

@@ -1,4 +1,4 @@
-# AGENTS.md — LEADGEN
+# AGENTS.md — ReachConnect
 
 Lees eerst `.agents/rules/00-start-here.md` en daarna `CLAUDE.md` in de root. Die twee bestanden bevatten de volledige regels en projectgeschiedenis voor dit project.
 

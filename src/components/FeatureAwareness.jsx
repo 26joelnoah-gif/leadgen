@@ -14,7 +14,7 @@ import NewFeatureNotice from './NewFeatureNotice'
 // melding i.p.v. de hele tutorial opnieuw.
 //
 // Losstaand gehouden van Header.jsx: het "?"-icoon daar stuurt alleen een
-// DOM-event ('leadgen:open-tutorial') zodat dit component ook handmatig te
+// DOM-event ('reachconnect:open-tutorial') zodat dit component ook handmatig te
 // heropenen is zonder een aparte context/prop-keten door de hele app heen.
 export default function FeatureAwareness() {
   const { profile, isDemoMode, user, updateProfileLocal } = useAuth()
@@ -39,8 +39,8 @@ export default function FeatureAwareness() {
 
   useEffect(() => {
     const handler = () => setManualOpen(true)
-    window.addEventListener('leadgen:open-tutorial', handler)
-    return () => window.removeEventListener('leadgen:open-tutorial', handler)
+    window.addEventListener('reachconnect:open-tutorial', handler)
+    return () => window.removeEventListener('reachconnect:open-tutorial', handler)
   }, [])
 
   const persistSeen = useCallback(async (keys, tutorialSeenAt) => {

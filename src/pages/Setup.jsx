@@ -57,7 +57,7 @@ export default function Setup() {
             color: 'var(--primary)',
             marginBottom: '8px',
           }}>
-            LEADGEN
+            ReachConnect
           </div>
           <div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
             Welkom{profile?.full_name ? `, ${profile.full_name}` : ''}! Stel je bedrijf in.
@@ -132,7 +132,7 @@ export default function Setup() {
               transition: 'background 0.2s',
             }}
           >
-            {loading ? 'AANMAKEN...' : 'START MET LEADGEN →'}
+            {loading ? 'AANMAKEN...' : 'START MET REACHCONNECT →'}
           </button>
         </form>
 

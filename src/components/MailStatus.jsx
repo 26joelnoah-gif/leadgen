@@ -1,9 +1,9 @@
-// LEADGEN v70 - hoe ver komt een gemailde lead bij de bron?
+// ReachConnect v70 - hoe ver komt een gemailde lead bij de bron?
 // Eén bron: public.lead_mail_status, gevuld door de Edge Function 'mailstatus'
 // (de bron post elke stap). Twee plekken:
 //   - belscherm (WorkInterface): <MailStatusBriefing leadId={lead.id} />
 //   - contactkaart (LeadDetailModal): <MailStatusBlok leadId={lead.id} />
-// Alleen lezen; LEADGEN verandert deze rijen zelf nooit.
+// Alleen lezen; ReachConnect verandert deze rijen zelf nooit.
 import { useEffect, useState } from 'react'
 import { MailCheck, ExternalLink } from 'lucide-react'
 import { supabase } from '../lib/supabase'

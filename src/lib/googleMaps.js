@@ -10,7 +10,7 @@ export function loadGoogleMaps() {
   if (window.google?.maps?.Map) return Promise.resolve(window.google.maps)
   if (loader) return loader
   loader = new Promise((resolve, reject) => {
-    const cb = '__leadgenGmapsReady'
+    const cb = '__reachconnectGmapsReady'
     window[cb] = () => { delete window[cb]; resolve(window.google.maps) }
     const s = document.createElement('script')
     s.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_KEY)}&callback=${cb}&loading=async&language=nl&region=NL`

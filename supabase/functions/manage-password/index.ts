@@ -1,4 +1,4 @@
-// LEADGEN v35 — wachtwoorden aanpassen/resetten voor gebruikers.
+// ReachConnect v35 — wachtwoorden aanpassen/resetten voor gebruikers.
 // Admin mag iedereen in zijn organisatie(s) resetten; een manager met
 // can_manage_team mag alleen bellers resetten die (nu of eerder) op een
 // van zijn eigen projecten hebben gestaan. Iedereen mag zichzelf resetten

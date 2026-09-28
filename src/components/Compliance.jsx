@@ -1,4 +1,4 @@
-// LEADGEN v98 - compliance per lead: mag deze lead gebeld worden, KvK-check,
+// ReachConnect v98 - compliance per lead: mag deze lead gebeld worden, KvK-check,
 // toestemming vastleggen, afmelden en het klachtenlog.
 //   <ComplianceLeadBlok lead project onChanged />  belscherm + contactkaart
 //   <ComplianceMeldingModal lead onClose onSaved />  klacht / bezwaar / AVG / ACM

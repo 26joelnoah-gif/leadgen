@@ -1,4 +1,4 @@
-// LEADGEN v73 — Mailstop: "stuur deze lead geen herinnering meer".
+// ReachConnect v73 — Mailstop: "stuur deze lead geen herinnering meer".
 //
 // Boekt een beller een gemailde lead af als geen interesse, verkeerd nummer,
 // blacklist of juist als klant, dan meldt het belscherm (of het bord) dat hier.
@@ -91,7 +91,7 @@ Deno.serve(async (req: Request) => {
     const payload = {
       lead_id: leadId,
       ...(mailRij.email || lead.email ? { email: String(mailRij.email || lead.email).toLowerCase() } : {}),
-      reden: kort(body?.reden, 200) || "afgeboekt in LEADGEN",
+      reden: kort(body?.reden, 200) || "afgeboekt in ReachConnect",
     };
 
     try {

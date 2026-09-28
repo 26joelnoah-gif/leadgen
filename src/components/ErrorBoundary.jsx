@@ -66,7 +66,7 @@ export default class ErrorBoundary extends Component {
             Er ging hier iets mis
           </h2>
           <p style={{ margin: 0, color: 'var(--text-secondary, #94A3B8)', fontSize: '0.92rem', maxWidth: '420px' }}>
-            De rest van LeadGen werkt gewoon door. Probeer het opnieuw, dat lost
+            De rest van ReachConnect werkt gewoon door. Probeer het opnieuw, dat lost
             het meestal op. Wij zien deze melding automatisch.
           </p>
         </div>

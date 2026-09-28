@@ -1,4 +1,4 @@
-// Strak, zakelijk logo: LG-monogram met het woordmerk LEADGEN.
+// Strak, zakelijk logo: RC-monogram met het woordmerk ReachConnect.
 // Geen slogan, geen gradients - rustig en professioneel.
 export default function Logo({ size = 'medium', showWordmark = true }) {
   const iconSize = size === 'large' ? 32 : size === 'small' ? 18 : 24
@@ -17,7 +17,7 @@ export default function Logo({ size = 'medium', showWordmark = true }) {
         justifyContent: 'center',
         flexShrink: 0
       }}>
-        <span style={{ fontWeight: 800, fontSize: iconSize * 0.62, letterSpacing: '0.5px' }}>LG</span>
+        <span style={{ fontWeight: 800, fontSize: iconSize * 0.62, letterSpacing: '0.5px' }}>RC</span>
       </div>
       {showWordmark && (
         <span style={{
@@ -26,7 +26,7 @@ export default function Logo({ size = 'medium', showWordmark = true }) {
           fontSize,
           letterSpacing: '0.02em'
         }}>
-          LEADGEN
+          ReachConnect
         </span>
       )}
     </div>

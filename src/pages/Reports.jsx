@@ -384,7 +384,7 @@ export default function Reports() {
         'Gem. per gesprek': fmtDuration(a.avgSeconds), 'Pogingen per uur': a.callsPerHour.toFixed(1),
         Deals: a.deals, Afspraken: a.afspraken,
         "TBA's": a.tba, 'Geen interesse': a.geenInteresse, 'Slagingspercentage': `${a.successRate.toFixed(1)}%`
-      })), `LeadGen_Bellers_${startDate}_${endDate}${projectSuffix}`)
+      })), `ReachConnect_Bellers_${startDate}_${endDate}${projectSuffix}`)
     } else if (activeTab === 'mails') {
       exportToCSV(mailStats.map(a => ({
         Beller: a.name, 'Mails verstuurd': a.mails,
@@ -392,14 +392,14 @@ export default function Reports() {
         'Leads gemaild': a.leadCount, 'Link geklikt': a.geklikt, 'Offerte geopend': a.offerte,
         Getekend: a.getekend, Betaald: a.betaald, 'Nog gepland': a.gepland,
         'Klikpercentage': `${a.klikRate.toFixed(1)}%`
-      })), `LeadGen_Mails_${startDate}_${endDate}${projectSuffix}`)
+      })), `ReachConnect_Mails_${startDate}_${endDate}${projectSuffix}`)
     } else if (activeTab === 'projecten') {
       exportToCSV(projectStats.map(p => ({
         Project: p.name, Bellers: p.agentCount, Gesprekken: p.calls, Beltijd: fmtDuration(p.seconds),
         'Gem. per gesprek': fmtDuration(p.avgSeconds), 'Pogingen per uur': p.callsPerHour.toFixed(1),
         Deals: p.deals, Afspraken: p.afspraken,
         "TBA's": p.tba, 'Geen interesse': p.geenInteresse, 'Slagingspercentage': `${p.successRate.toFixed(1)}%`
-      })), `LeadGen_Projecten_${startDate}_${endDate}${projectSuffix}`)
+      })), `ReachConnect_Projecten_${startDate}_${endDate}${projectSuffix}`)
     } else {
       exportToCSV(filteredLogs.map(l => ({
         'Datum en tijd': new Date(l.disposed_at).toLocaleString('nl-NL'),
@@ -407,7 +407,7 @@ export default function Reports() {
         Lijst: l.list?.name || '', Duur: fmtDuration(l.duration_seconds),
         'Effectief (telt mee)': fmtDuration(effectiveSeconds(l.disposition, l.duration_seconds)),
         Resultaat: getStatusDetails(l.disposition).label
-      })), `LeadGen_Gesprekken_${startDate}_${endDate}${projectSuffix}`)
+      })), `ReachConnect_Gesprekken_${startDate}_${endDate}${projectSuffix}`)
     }
   }
 

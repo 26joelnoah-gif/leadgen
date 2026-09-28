@@ -71,8 +71,8 @@ export async function logAppError(context, error, extra = {}) {
  * fouten in event-handlers. Zonder dit verdwijnen die geruisloos.
  */
 export function installGlobalErrorHandlers() {
-  if (typeof window === 'undefined' || window.__leadgenErrorHandlers) return
-  window.__leadgenErrorHandlers = true
+  if (typeof window === 'undefined' || window.__reachconnectErrorHandlers) return
+  window.__reachconnectErrorHandlers = true
 
   window.addEventListener('error', (e) => {
     logAppError('window.error', e?.error || e?.message, { bron: e?.filename, regel: e?.lineno })

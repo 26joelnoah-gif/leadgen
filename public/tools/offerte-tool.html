@@ -164,9 +164,9 @@
 <header>
   <div class="logo">Reach<b>Connect</b></div>
   <div class="hdr-right">
-    <a class="chip" href="/tools" id="backLink" style="text-decoration:none">← LeadGen</a>
+    <a class="chip" href="/tools" id="backLink" style="text-decoration:none">← ReachConnect</a>
     <span id="h_nr" class="chip">RC-…</span>
-    <span id="dbState" class="chip" title="Opslag in LeadGen">…</span>
+    <span id="dbState" class="chip" title="Opslag in ReachConnect">…</span>
     <button class="chip" id="modeBtn" onclick="toggleMode()">Klantweergave</button>
   </div>
 </header>
@@ -238,7 +238,7 @@
         <div><label class="f">Korting eenmalig (€, max 10%)</label><input type="number" id="v_korting" value="0" inputmode="numeric" oninput="calc()"></div>
         <div><label class="f">Interne notitie</label><input type="text" id="v_notitie" oninput="save()"></div>
       </div>
-      <div class="note vk-only">Je commissie reken je uit in de teamtool <b>Commissie</b> (LeadGen → Tools).</div>
+      <div class="note vk-only">Je commissie reken je uit in de teamtool <b>Commissie</b> (ReachConnect → Tools).</div>
     </div>
   </section>
 
@@ -268,7 +268,7 @@
       <button class="btn vk-only" onclick="exportJson()">Exporteer deal (JSON)</button>
       <button class="btn vk-only" onclick="nieuw()">Nieuwe offerte</button>
     </div>
-    <div class="note vk-only">Tekent de klant nu niet? Vul het e-mailadres in en kies "Verstuur ter ondertekening": de klant krijgt een link om thuis te tekenen en LeadGen volgt de status (verzonden, geopend, getekend).</div>
+    <div class="note vk-only">Tekent de klant nu niet? Vul het e-mailadres in en kies "Verstuur ter ondertekening": de klant krijgt een link om thuis te tekenen en ReachConnect volgt de status (verzonden, geopend, getekend).</div>
   </section>
 </main>
 
@@ -623,7 +623,7 @@ function exportJson(){
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${S.nummer}_${(val('k_zaak')||'offerte').replace(/[^\w]+/g,'_')}.json`; a.click();
 }
 function nieuw(){
-  if(!confirm('Nieuwe offerte starten voor deze klant? De huidige staat in LeadGen onder Tools > Offertes.')) return;
+  if(!confirm('Nieuwe offerte starten voor deze klant? De huidige staat in ReachConnect onder Tools > Offertes.')) return;
   localStorage.removeItem('rc_offerte'); localStorage.removeItem('rc_dbid'); location.reload();
 }
 function barAction(){ if(S.signed) showDoc(); else document.getElementById('akkoord').scrollIntoView({behavior:'smooth'}); }
@@ -636,7 +636,7 @@ function applyMode(){ document.body.classList.toggle('klant',S.klantmodus); el('
   const leadParam = new URLSearchParams(location.search).get('lead');
   let had=load();
   // Is de offerte die hier nog lokaal staat al getekend of verstuurd, en staat
-  // hij veilig in LeadGen (dbid)? Dan begin je vanuit een lead altijd opnieuw:
+  // hij veilig in ReachConnect (dbid)? Dan begin je vanuit een lead altijd opnieuw:
   // een afgeronde offerte blokkeert nooit een nieuwe voor dezelfde klant.
   const klaarEnBewaard = (S.signed || S.verzonden) && (()=>{ try{ return !!localStorage.getItem('rc_dbid'); }catch(e){ return false; } })();
   if(leadParam && (S.lead_id!==leadParam || klaarEnBewaard)){
@@ -655,7 +655,7 @@ function applyMode(){ document.body.classList.toggle('klant',S.klantmodus); el('
 
 
 
-/* ===== LeadGen-koppeling: opslag met de ingelogde sessie (zelfde origin, zelfde localStorage) ===== */
+/* ===== ReachConnect-koppeling: opslag met de ingelogde sessie (zelfde origin, zelfde localStorage) ===== */
 const LG = { url:"https://zboyxwwrbtpjnlgquhzs.supabase.co", anon:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpib3l4d3dyYnRwam5sZ3F1aHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwMjUxMzMsImV4cCI6MjA5MTYwMTEzM30.1YWu29OCZlHQrijnVFFAU1T2W_lqDw0A9ImoaLbyM9U" };
 var sb=null, lgUser=null, dbId=null, dbTimer=null, dbBusy=false, dbDirty=false;
 function dbState(txt, ok){ const e=el('dbState'); if(!e) return; e.textContent=txt; e.style.borderColor = ok===false? 'var(--err)' : ok? 'var(--acc)':'var(--line2)'; e.style.color = ok===false? 'var(--err)' : ok? 'var(--acc)':'var(--muted)'; }
@@ -710,7 +710,7 @@ async function dbSave(force){
   }catch(e){
     console.error('offerte opslaan mislukt', e);
     dbState('opslaan mislukt', false);
-    if(force) alert('De offerte kon niet in LeadGen worden opgeslagen ('+(e.message||e)+'). Exporteer de deal als JSON en stuur hem naar Noah.');
+    if(force) alert('De offerte kon niet in ReachConnect worden opgeslagen ('+(e.message||e)+'). Exporteer de deal als JSON en stuur hem naar Noah.');
   }finally{ dbBusy=false; if(dbDirty) dbQueue(); }
 }
 /* ===== v65: op afstand laten tekenen ===== */
@@ -721,7 +721,7 @@ async function sendForSign(){
   el('sendBtn').disabled=true; el('sendBtn').textContent='Versturen…';
   try{
     await dbSave(true);
-    if(!dbId) throw new Error('De offerte is nog niet opgeslagen in LeadGen');
+    if(!dbId) throw new Error('De offerte is nog niet opgeslagen in ReachConnect');
     const { data:{ session } } = await sb.auth.getSession();
     const res = await fetch(LG.url+'/functions/v1/offerte-send', { method:'POST', headers:{ 'Content-Type':'application/json', apikey:LG.anon, Authorization:'Bearer '+session.access_token }, body: JSON.stringify({ offerteId: dbId, email, akkoordTekst: akkoordTekst() }) });
     const body = await res.json().catch(()=>({}));
@@ -739,7 +739,7 @@ function renderSent(){
   el('barNieuw').classList.remove('hidden');
   el('sentbox').innerHTML = `<b>Verstuurd ter ondertekening</b> naar ${v.naar} op ${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})} · geldig tot ${v.geldigTot||'-'}.`
     + (v.mailError? `<br><span style="color:var(--err)">De mail kon niet verstuurd worden (${v.mailError}). Stuur de link zelf door.</span>`:'')
-    + `<br><span class="note">De status (geopend, getekend) zie je in LeadGen bij de lead en onder Tools › Offertes.</span>`
+    + `<br><span class="note">De status (geopend, getekend) zie je in ReachConnect bij de lead en onder Tools › Offertes.</span>`
     + `<div class="btns" style="margin-top:8px"><button class="btn sm" onclick="navigator.clipboard.writeText('${v.url}').then(()=>alert('Link gekopieerd'))">Link kopiëren</button><a class="btn sm" href="${v.url}" target="_blank" rel="noopener">Open tekenpagina</a></div>`;
   el('sendBtn').textContent='Verstuurd'; el('sendBtn').disabled=true; el('signBtn').disabled=true;
 }

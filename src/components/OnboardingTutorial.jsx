@@ -38,7 +38,7 @@ export default function OnboardingTutorial({ profile, features, onClose }) {
         </div>
 
         <p className="text-muted text-sm" style={{ marginBottom: '18px' }}>
-          Dit is een kort overzicht van wat je als <strong className="text-body">{roleLabel}</strong> kan doen in LeadGen -
+          Dit is een kort overzicht van wat je als <strong className="text-body">{roleLabel}</strong> kan doen in ReachConnect -
           alleen de functies die voor jouw account aan staan. Rechten of afboekredenen die (nog) niet voor jou
           zijn aangezet, staan hier dus ook niet tussen.
         </p>

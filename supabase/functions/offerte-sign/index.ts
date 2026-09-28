@@ -1,4 +1,4 @@
-// LEADGEN v65 — publieke tekenpagina-API (geen login, verify_jwt = false).
+// ReachConnect v65 — publieke tekenpagina-API (geen login, verify_jwt = false).
 // GET  ?t=<token>            -> bevroren offerte (of state getekend/verlopen/afgewezen)
 // POST { t, actie, ... }     -> 'tekenen' (naam, functie?, png) of 'afwijzen' (reden?)
 // Werkt uitsluitend met de kolommen van public.offertes; geeft NOOIT interne
@@ -80,7 +80,7 @@ Deno.serve(async (req: Request) => {
       const { data } = await admin.from("organizations").select("name, afzender_naam, afzender_email, logo_url").eq("id", off.organization_id).single();
       org = data;
     }
-    const fallbackFrom = Deno.env.get("RESEND_FROM") || "LeadGen <onboarding@resend.dev>";
+    const fallbackFrom = Deno.env.get("RESEND_FROM") || "ReachConnect <onboarding@resend.dev>";
     const fromMatch = fallbackFrom.match(/^(.*?)\s*<(.+)>$/);
     const orgNaam = String(org?.afzender_naam || org?.name || (fromMatch ? fromMatch[1] : "") || "Uw leverancier");
     const afzenderEmail = String(org?.afzender_email || (fromMatch ? fromMatch[2] : fallbackFrom));

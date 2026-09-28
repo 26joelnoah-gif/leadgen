@@ -10,7 +10,7 @@ const buildId = Date.now().toString()
 
 function versionFile() {
   return {
-    name: 'leadgen-version-file',
+    name: 'reachconnect-version-file',
     generateBundle() {
       this.emitFile({
         type: 'asset',

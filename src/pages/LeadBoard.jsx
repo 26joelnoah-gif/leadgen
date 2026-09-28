@@ -118,10 +118,10 @@ export default function LeadBoard() {
     return [...map.values()].sort((a, b) => a.name.localeCompare(b.name))
   }, [lists])
   const [projectId, setProjectId] = useState(() => {
-    try { return localStorage.getItem('leadgen-leads-project') || null } catch { return null }
+    try { return localStorage.getItem('reachconnect-leads-project') || null } catch { return null }
   })
   const [listChoice, setListChoice] = useState(() => {
-    try { return localStorage.getItem('leadgen-leads-list') || 'all' } catch { return 'all' }
+    try { return localStorage.getItem('reachconnect-leads-list') || 'all' } catch { return 'all' }
   })
   const currentProject = useMemo(() => projects.find(p => p.id === projectId) || null, [projects, projectId])
   useEffect(() => {
@@ -132,8 +132,8 @@ export default function LeadBoard() {
   }, [currentProject, listChoice])
   useEffect(() => {
     try {
-      if (projectId) localStorage.setItem('leadgen-leads-project', projectId)
-      localStorage.setItem('leadgen-leads-list', listChoice)
+      if (projectId) localStorage.setItem('reachconnect-leads-project', projectId)
+      localStorage.setItem('reachconnect-leads-list', listChoice)
     } catch { /* privemodus */ }
   }, [projectId, listChoice])
 
@@ -181,7 +181,7 @@ export default function LeadBoard() {
   const [claimingId, setClaimingId] = useState(null)
   const [view, setView] = useState(() => {
     try {
-      const saved = localStorage.getItem('leadgen-leads-view')
+      const saved = localStorage.getItem('reachconnect-leads-view')
       return ['map', 'board', 'list', 'mail'].includes(saved) ? saved : 'list'
     } catch { return 'list' }
   })
@@ -202,7 +202,7 @@ export default function LeadBoard() {
   // v75: admin/manager kan het bord per persoon bekijken ('all' | 'me' | profiel-id)
   const [wie, setWie] = useState('all')
   const [mensen, setMensen] = useState([])
-  useEffect(() => { try { localStorage.setItem('leadgen-leads-view', view) } catch { /* privemodus */ } }, [view])
+  useEffect(() => { try { localStorage.setItem('reachconnect-leads-view', view) } catch { /* privemodus */ } }, [view])
   // Bordweergave uit voor dit project? Dan terug naar de lijst.
   useEffect(() => { if (view === 'board' && listId && !boardEnabled) setView('list') }, [view, listId, boardEnabled])
 

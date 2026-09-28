@@ -1,4 +1,4 @@
-# LEADGEN - Lead Management System
+# ReachConnect - Lead Management System
 
 Een lead management systeem voor verkoopteams.
 

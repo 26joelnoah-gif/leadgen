@@ -1,10 +1,10 @@
-// LEADGEN v88 — publieke aanmeldpagina /aanmelden. Geen login. Voor mensen
+// ReachConnect v88 — publieke aanmeldpagina /aanmelden. Geen login. Voor mensen
 // die als beller (medewerker) willen werken: kaal account + eenmalige
 // bijdrage van €50 via Mollie. Praat alleen met de Edge Function
 // signup-freelancer (die het account + de Mollie-betaling aanmaakt) en
 // stuurt daarna door naar Mollie's hosted checkout.
 // Eigen licht thema, los van data-theme — de aanmelder is nog geen
-// LeadGen-gebruiker. Zie AanmeldenBedankt.jsx voor de pagina na terugkomst
+// ReachConnect-gebruiker. Zie AanmeldenBedankt.jsx voor de pagina na terugkomst
 // van Mollie.
 import { useState } from 'react'
 
@@ -102,7 +102,7 @@ export default function Aanmelden() {
             </button>
           </form>
           <p className="note">
-            Wil je zelf klanten of projecten op LeadGen aannemen (in plaats van bellen)? Dat regel je niet hier.
+            Wil je zelf klanten of projecten op ReachConnect aannemen (in plaats van bellen)? Dat regel je niet hier.
             Neem contact op met de beheerder via <a href={`mailto:${BEHEERDER_EMAIL}`}>{BEHEERDER_EMAIL}</a>.
           </p>
         </div>

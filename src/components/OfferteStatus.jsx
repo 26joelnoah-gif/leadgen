@@ -1,4 +1,4 @@
-// LEADGEN v65 — status van offertes zichtbaar voor beller, AM en admin.
+// ReachConnect v65 — status van offertes zichtbaar voor beller, AM en admin.
 // Eén bron (public.offertes, gekoppeld via lead_id), drie plekken:
 //   - contactkaart (LeadDetailModal): <OffertesBlok lead={lead} />
 //   - belscherm (WorkInterface): <OfferteBriefing leadId={lead.id} />

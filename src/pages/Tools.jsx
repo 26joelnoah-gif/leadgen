@@ -16,7 +16,7 @@ const ICONS = { FileSignature, Presentation, Calculator, MapPin, Sun, Graduation
 
 // v59: Tools voor accountmanagers. De offerte-tool van het bestelplatform
 // (ReachConnect) is een statische pagina in public/tools/; hij leest de
-// LeadGen-sessie uit localStorage (zelfde origin) en slaat elke offerte op in
+// ReachConnect-sessie uit localStorage (zelfde origin) en slaat elke offerte op in
 // public.offertes. Deze pagina is alleen de ingang + het overzicht.
 const eur = (n) => '€' + Math.round(Number(n) || 0).toLocaleString('nl-NL')
 // v65: statussen en chips komen uit OfferteStatus.jsx (één bron voor
@@ -78,7 +78,7 @@ export default function Tools() {
         <div className="page-header flex justify-between items-end">
           <div>
             <h1>Tools</h1>
-            <p>Hulpmiddelen voor accountmanagers. Offertes worden automatisch in LeadGen bewaard.</p>
+            <p>Hulpmiddelen voor accountmanagers. Offertes worden automatisch in ReachConnect bewaard.</p>
           </div>
         </div>
 

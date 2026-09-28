@@ -4,8 +4,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LEADGEN - All in One CRM</title>
-  <meta name="description" content="LEADGEN - Premium Lead Management Systeem" />
+  <title>ReachConnect - All in One CRM</title>
+  <meta name="description" content="ReachConnect - Premium Lead Management Systeem" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
   <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png" />
@@ -18,13 +18,39 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap"
     rel="stylesheet">
   <script>
+    // v109 (naam ReachConnect): alle opgeslagen voorkeuren stonden onder 'leadgen-*'.
+    // Dit blokje draait vóór al het andere en zet ze eenmalig over naar
+    // 'reachconnect-*', zodat niemand zijn thema, project of weergave kwijtraakt.
+    // De oude key blijft staan, zodat een terugdraaide deploy niets stukmaakt.
+    // Mag weg ruim na 01-01-2027.
+    (function () {
+      var namen = [
+        'theme', 'design', 'effective-role', 'project-roles',
+        'location-on', 'team-view', 'leads-project', 'leads-list', 'leads-view'
+      ];
+      try {
+        for (var i = 0; i < namen.length; i++) {
+          var oud = 'leadgen-' + namen[i], nieuw = 'reachconnect-' + namen[i];
+          if (localStorage.getItem(nieuw) === null) {
+            var v = localStorage.getItem(oud);
+            if (v !== null) localStorage.setItem(nieuw, v);
+          }
+        }
+        if (localStorage.getItem('reachconnect_settings') === null) {
+          var st = localStorage.getItem('leadgen_settings');
+          if (st !== null) localStorage.setItem('reachconnect_settings', st);
+        }
+      } catch (e) { /* privémodus of opslag vol: dan gewoon de standaardwaarden */ }
+    })();
+  </script>
+  <script>
     // Thema direct zetten vóór React laadt, zodat er geen flits van het verkeerde thema is
     (function () {
       try {
-        var t = localStorage.getItem('leadgen-theme');
+        var t = localStorage.getItem('reachconnect-theme');
         document.documentElement.setAttribute('data-theme', (t === 'light' || t === 'dark') ? t : 'dark');
         // v105: oud/nieuw design (zie src/lib/design.js)
-        var d = localStorage.getItem('leadgen-design');
+        var d = localStorage.getItem('reachconnect-design');
         document.documentElement.setAttribute('data-design', d === 'v2' ? 'v2' : 'v1');
       } catch (e) { document.documentElement.setAttribute('data-theme', 'dark'); document.documentElement.setAttribute('data-design', 'v1'); }
     })();

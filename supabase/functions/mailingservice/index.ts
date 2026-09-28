@@ -1,4 +1,4 @@
-// LEADGEN v69 — Mailingservice: laat de BRON van een project een mail sturen
+// ReachConnect v69 — Mailingservice: laat de BRON van een project een mail sturen
 // naar een lead. De beller klikt bij de afboekingen op "Mailingservice"; na
 // succes boekt het belscherm de lead af op 'mail_verstuurd' (via
 // useLeads.handleLeadDisposition, dispositie-logica blijft daar).
@@ -7,7 +7,7 @@
 // URL en sleutel van een bron staan ALLEEN in Supabase secrets:
 //   MAILSERVICE_<SOURCE>_URL   bijv. https://marketingkiezer.nl/api/leadgen/mail
 //   MAILSERVICE_<SOURCE>_KEY   zelfde waarde als LEADGEN_API_KEY bij de bron
-// De inhoud van de mail bepaalt de bron zelf; LEADGEN kent de tekst niet.
+// De inhoud van de mail bepaalt de bron zelf; ReachConnect kent de tekst niet.
 //
 // Contract naar de bron (POST, Authorization: Bearer <KEY>):
 //   { mail, email, bedrijfsnaam, contactpersoon?, stad?, website?,

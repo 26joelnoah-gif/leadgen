@@ -148,9 +148,9 @@
 <header>
   <div class="logo" id="hdrLogo">Offerte verduurzaming</div>
   <div class="hdr-right">
-    <a class="chip" href="/tools" id="backLink">← LeadGen</a>
+    <a class="chip" href="/tools" id="backLink">← ReachConnect</a>
     <span id="h_nr" class="chip">VD-…</span>
-    <span id="dbState" class="chip" title="Opslag in LeadGen">…</span>
+    <span id="dbState" class="chip" title="Opslag in ReachConnect">…</span>
     <button class="chip vk-only" id="nieuwBtn" onclick="nieuw()">+ Nieuwe offerte</button>
     <button class="chip" id="modeBtn" onclick="toggleMode()">Klantweergave</button>
   </div>
@@ -948,7 +948,7 @@ function toonConcept(){
   bar.classList.remove('hidden');
 }
 function nieuw(){
-  if(!confirm('Nieuwe offerte beginnen? Deze offerte blijft bewaard in LeadGen onder Tools > Offertes.')) return;
+  if(!confirm('Nieuwe offerte beginnen? Deze offerte blijft bewaard in ReachConnect onder Tools > Offertes.')) return;
   try{ localStorage.removeItem(LS_OFF); localStorage.removeItem(LS_DBID); }catch(e){}
   // lead-koppeling behouden, een eventuele ?id= van de oude offerte niet
   const lead = new URLSearchParams(location.search).get('lead');
@@ -1039,7 +1039,7 @@ function payload(){
     bedrijf:SET.bedrijf, data:S, akkoord:S.signed, getekend_op:S.signed? S.signed.op : null };
 }
 
-/* ===== LeadGen-koppeling ===== */
+/* ===== ReachConnect-koppeling ===== */
 const LG = { url:"https://zboyxwwrbtpjnlgquhzs.supabase.co", anon:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpib3l4d3dyYnRwam5sZ3F1aHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwMjUxMzMsImV4cCI6MjA5MTYwMTEzM30.1YWu29OCZlHQrijnVFFAU1T2W_lqDw0A9ImoaLbyM9U" };
 var sb=null, lgUser=null, dbId=null, dbTimer=null, dbBusy=false, dbDirty=false, dbSignedSaved=false; // dbSignedSaved: getekende rij staat in de DB, daarna nooit meer schrijven (RLS blokkeert update op 'getekend' en dat zou anders een dubbele rij geven)
 function dbState(txt, ok){ const e=el('dbState'); if(!e) return; e.textContent=txt; e.style.borderColor = ok===false? 'var(--err)' : ok? 'var(--acc)':'var(--line2)'; e.style.color = ok===false? 'var(--err)' : ok? 'var(--acc)':'var(--muted)'; }
@@ -1066,7 +1066,7 @@ async function dbSave(force){
   }catch(e){
     console.error('offerte opslaan mislukt', e);
     dbState('opslaan mislukt', false);
-    if(force) alert('De offerte kon niet in LeadGen worden opgeslagen ('+(e.message||e)+'). Download de PDF zodat je hem niet kwijt bent.');
+    if(force) alert('De offerte kon niet in ReachConnect worden opgeslagen ('+(e.message||e)+'). Download de PDF zodat je hem niet kwijt bent.');
   }finally{ dbBusy=false; if(dbDirty) dbQueue(); }
 }
 async function lgInit(){
@@ -1112,7 +1112,7 @@ function restoreSigned(){ if(!S.signed) return; renderSigned(); lockAll(); const
   loadSettingsLocal();
   const q=new URLSearchParams(location.search); const leadParam=q.get('lead'); const openId=q.get('id');
   let had=loadLocal();
-  // Getekende offerte die al in LeadGen staat? Dan begin je vanuit een lead
+  // Getekende offerte die al in ReachConnect staat? Dan begin je vanuit een lead
   // altijd met een nieuwe: een getekende offerte blokkeert nooit een volgende.
   const klaarEnBewaard = had && S && S.signed && (()=>{ try{ return !!localStorage.getItem(LS_DBID); }catch(e){ return false; } })();
   if(leadParam && (!had || S.lead_id!==leadParam || klaarEnBewaard)){ try{ localStorage.removeItem(LS_OFF); localStorage.removeItem(LS_DBID); }catch(e){} S=newState(leadParam); had=false; }

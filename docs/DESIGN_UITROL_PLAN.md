@@ -1,6 +1,6 @@
 # Plan: nieuw design doorvoeren zonder iets kapot te maken
 
-Stand 24-09-2026. Voorbeeld: design-artifact "LEADGEN nieuw design" (stijl "Rustig werkblad").
+Stand 24-09-2026. Voorbeeld: design-artifact "ReachConnect nieuw design" (stijl "Rustig werkblad").
 Dit plan is leidend voor elke AI die aan het design werkt (Claude, Antigravity).
 
 ## De drie regels

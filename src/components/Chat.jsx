@@ -8,7 +8,7 @@ import PersonSelect from './PersonSelect' // v102
 
 const GENERAL_CHANNEL = { id: 'general', name: 'Team', is_default: true }
 const PAGE_SIZE = 50
-// Berichten ouder dan 24 uur worden door de DB (pg_cron: leadgen-chat-cleanup) verwijderd.
+// Berichten ouder dan 24 uur worden door de DB (pg_cron: reachconnect-chat-cleanup) verwijderd.
 const CHAT_HOURS = 24
 function sinceIso() { return new Date(Date.now() - CHAT_HOURS * 3600 * 1000).toISOString() }
 

@@ -1,9 +1,9 @@
-// LEADGEN v65 — publieke tekenpagina /tekenen/:token.
+// ReachConnect v65 — publieke tekenpagina /tekenen/:token.
 // Geen login. Praat alleen met de Edge Function offerte-sign en rendert de
 // offerte generiek vanuit de kolommen van public.offertes (regels, upsell,
 // bedragen, akkoord_tekst). Kent geen pakketten of prijsmodel: dat hoort bij
 // de offerte-tool van de tenant, niet bij het tekenen. Eigen licht thema,
-// onafhankelijk van data-theme, want de klant is geen LeadGen-gebruiker.
+// onafhankelijk van data-theme, want de klant is geen ReachConnect-gebruiker.
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 

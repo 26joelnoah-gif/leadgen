@@ -14,7 +14,7 @@ import {
 import LeadDetailModal from '../components/LeadDetailModal'
 
 // v64: Outside - buitendienst/deur-aan-deur. Zelfde leads als de rest van
-// LeadGen (routing v17: lead blijft in zijn lijst, afboeking = status +
+// ReachConnect (routing v17: lead blijft in zijn lijst, afboeking = status +
 // call_log via handleLeadDisposition). Dit scherm is alleen een andere
 // ingang: kaart + lijst per straat met afstand vanaf de telefoon.
 // Styling: OUTSIDE_STYLEGUIDE.md, tokens in src/styles/outside.css.

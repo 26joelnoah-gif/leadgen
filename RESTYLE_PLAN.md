@@ -1,4 +1,4 @@
-# LEADGEN — Restyle-plan & styleguide-fundament
+# ReachConnect — Restyle-plan & styleguide-fundament
 
 *Opgesteld 21 augustus 2026 · status: ter goedkeuring, nog niets gebouwd*
 

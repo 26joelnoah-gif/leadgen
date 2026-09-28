@@ -1,4 +1,4 @@
-// LEADGEN v98 - AVG/ACM-compliance voor bellen en mailen.
+// ReachConnect v98 - AVG/ACM-compliance voor bellen en mailen.
 //
 // Sinds 1 juli 2026 (art. 11.7 Telecommunicatiewet) mag je zonder toestemming
 // alleen nog rechtspersonen bellen: bv, nv, stichting, vereniging, cooperatie.

@@ -5,7 +5,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 // Voorkeur wordt onthouden in localStorage; standaard = donker,
 // zodat bestaande gebruikers niets merken.
 
-const STORAGE_KEY = 'leadgen-theme'
+const STORAGE_KEY = 'reachconnect-theme'
 const ThemeContext = createContext({ theme: 'dark', toggleTheme: () => {} })
 
 export function getStoredTheme() {

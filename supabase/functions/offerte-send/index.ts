@@ -1,4 +1,4 @@
-// LEADGEN v65 — offerte ter ondertekening versturen (of herinneren / intrekken).
+// ReachConnect v65 — offerte ter ondertekening versturen (of herinneren / intrekken).
 // Ingelogd (AM/admin/manager). Maakt een tekentoken, bevriest de inhoud en
 // mailt de klant een link naar /tekenen/<token>. Alleen de sha256-hash van het
 // token staat in de DB. Werkt uitsluitend met de kolommen van public.offertes;
@@ -117,7 +117,7 @@ Deno.serve(async (req: Request) => {
       const { data } = await admin.from("organizations").select("name, afzender_naam, afzender_email, logo_url, offerte_geldigheid_dagen, offerte_opvolg_dagen").eq("id", off.organization_id).single();
       org = data;
     }
-    const fallbackFrom = Deno.env.get("RESEND_FROM") || "LeadGen <onboarding@resend.dev>";
+    const fallbackFrom = Deno.env.get("RESEND_FROM") || "ReachConnect <onboarding@resend.dev>";
     const fromMatch = fallbackFrom.match(/^(.*?)\s*<(.+)>$/);
     const orgNaam = String(org?.afzender_naam || org?.name || (fromMatch ? fromMatch[1] : "") || "Uw leverancier");
     const afzenderEmail = String(org?.afzender_email || (fromMatch ? fromMatch[2] : fallbackFrom));

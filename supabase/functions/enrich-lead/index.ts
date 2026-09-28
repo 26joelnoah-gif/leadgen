@@ -1,4 +1,4 @@
-// LEADGEN v33 — verrijking, goedkoopste-eerst:
+// ReachConnect v33 — verrijking, goedkoopste-eerst:
 //   Stap 1 (GRATIS): website-scan - de eigen site van de lead (home + /contact)
 //     wordt gelezen en e-mailadressen/LinkedIn worden eruit gehaald.
 //   Stap 2 (centen, alleen indien nodig én PERPLEXITY_API_KEY gezet): Perplexity
@@ -50,7 +50,7 @@ async function fetchPage(url: string): Promise<string> {
     const res = await fetch(url, {
       signal: ctrl.signal,
       redirect: "follow",
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; LeadGenBot/1.0)" },
+      headers: { "User-Agent": "Mozilla/5.0 (compatible; ReachConnectBot/1.0)" },
     });
     if (!res.ok) return "";
     const type = res.headers.get("content-type") || "";

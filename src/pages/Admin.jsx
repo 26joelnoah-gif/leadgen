@@ -115,8 +115,8 @@ export default function Admin() {
   const [teamTeam, setTeamTeam] = useState('all')
   const [teamProject, setTeamProject] = useState('all')
   const [expandedTeamUser, setExpandedTeamUser] = useState(null)
-  const [teamView, setTeamView] = useState(() => { try { return localStorage.getItem('leadgen-team-view') || 'lijst' } catch { return 'lijst' } })
-  const setTeamViewPersist = v => { setTeamView(v); try { localStorage.setItem('leadgen-team-view', v) } catch { /* geen opslag */ } }
+  const [teamView, setTeamView] = useState(() => { try { return localStorage.getItem('reachconnect-team-view') || 'lijst' } catch { return 'lijst' } })
+  const setTeamViewPersist = v => { setTeamView(v); try { localStorage.setItem('reachconnect-team-view', v) } catch { /* geen opslag */ } }
 
   useEffect(() => {
     fetchData()
@@ -683,7 +683,7 @@ export default function Admin() {
                 </div>
                 <div className="glass-panel p-8 bg-gradient-to-br from-primary/20 to-transparent border border-border">
                    <h2 className="text-primary font-black text-sm uppercase tracking-widest mb-4 flex items-center gap-2"><Download size={14}/> Export & Tools</h2>
-                   <button onClick={() => exportToCSV(leads, 'LeadGen_Backup')} className="btn btn-primary btn-block py-4 font-black">Download alle data (.csv)</button>
+                   <button onClick={() => exportToCSV(leads, 'ReachConnect_Backup')} className="btn btn-primary btn-block py-4 font-black">Download alle data (.csv)</button>
                    <Link to="/admin/telemetry" className="btn btn-outline btn-block mt-4 border-border text-muted hover:text-body">Telemetrie openen</Link>
                 </div>
              </div>

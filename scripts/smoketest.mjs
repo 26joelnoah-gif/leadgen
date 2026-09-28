@@ -1,5 +1,5 @@
 /**
- * Gezondheidscheck LEADGEN (betrouwbaarheid v71)
+ * Gezondheidscheck ReachConnect (betrouwbaarheid v71)
  *
  * Draai dit na elke deploy. In een paar seconden weet je of de kernpaden
  * het nog doen, in plaats van dat je het hoort van een beller die niet kan
@@ -168,7 +168,7 @@ async function main() {
 
 function rapport() {
   const mislukt = resultaten.filter(r => !r.ok)
-  console.log('\nGezondheidscheck LEADGEN')
+  console.log('\nGezondheidscheck ReachConnect')
   console.log('='.repeat(50))
   for (const r of resultaten) {
     console.log(`${r.ok ? 'OK  ' : 'FOUT'}  ${r.naam.padEnd(38)} ${String(r.ms).padStart(5)}ms  ${r.bericht}`)

@@ -1,4 +1,4 @@
-// LEADGEN v108 - "/" is voor bezoekers zonder account een kale pagina met
+// ReachConnect v108 - "/" is voor bezoekers zonder account een kale pagina met
 // twee tabbladen: Inloggen en Aanmelden. Verder niets: geen uitleg-blokken
 // en geen nieuws meer (het nieuws staat nu op het dashboard van ingelogde
 // medewerkers, zie components/NieuwsBlok.jsx).
@@ -164,7 +164,7 @@ export default function Home() {
     <div className="hp">
       <style>{CSS}</style>
       <div className="wrap">
-        <p className="brand">LeadGen</p>
+        <p className="brand">ReachConnect</p>
         <p className="brand-sub">Log in of meld je aan.</p>
 
         <div className="tabs" role="tablist">

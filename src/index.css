@@ -1,4 +1,4 @@
-/* ===== LEADGEN - Design System (RESTYLE_PLAN.md fase 1) ===== */
+/* ===== ReachConnect - Design System (RESTYLE_PLAN.md fase 1) ===== */
 
 /* Tailwind v4: alleen theme + utilities (GEEN preflight/reset,
    zodat de bestaande custom styling hieronder intact blijft).
@@ -426,6 +426,15 @@ body::before {
   justify-content: center;
   z-index: 1000;
   padding: 20px;
+}
+
+/* Elk venster in een overlay past altijd op het scherm: nooit hoger dan de
+   overlay zelf, de rest scrollt binnen het venster. Inline maxHeight/overflow
+   van een modal gaat hier gewoon boven. */
+.modal-overlay > * {
+  max-height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .modal {

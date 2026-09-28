@@ -1,4 +1,4 @@
-// LEADGEN v83 — mailqueue-runner: verstuurt mails uit de Mailinglijst die de
+// ReachConnect v83 — mailqueue-runner: verstuurt mails uit de Mailinglijst die de
 // beller heeft ingepland (public.mail_queue, status 'open', send_at voorbij).
 //
 // Wie roept dit aan? pg_cron (elke 5 minuten, via public.mail_queue_kick) met
@@ -13,7 +13,7 @@
 //   mailingservice), en niet twee keer dezelfde mailsoort binnen 24 uur.
 //   Bij de uur-rem blijft de rij gewoon 'open' voor de volgende ronde.
 // * Versturen gaat naar dezelfde bron als bij handmatig versturen
-//   (MAILSERVICE_<SOURCE>_URL / _KEY). LEADGEN mailt zelf nooit.
+//   (MAILSERVICE_<SOURCE>_URL / _KEY). ReachConnect mailt zelf nooit.
 // * Gelukt: rij op 'verzonden', lead op 'mail_verstuurd' met opvolgdatum
 //   (follow_up_days van het project), activiteit op naam van de beller.
 // * Mislukt: rij op 'fout' met last_error, lead blijft 'mail_gepland'. De

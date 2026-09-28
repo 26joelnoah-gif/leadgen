@@ -1,4 +1,4 @@
-// LEADGEN v88 — status opvragen voor de bedankt-pagina na een Mollie-
+// ReachConnect v88 — status opvragen voor de bedankt-pagina na een Mollie-
 // betaling (/aanmelden/bedankt?p=<profileId>). Publiek (geen login: de
 // aanmelder heeft nog geen sessie), maar geeft alleen twee booleans/status
 // terug, geen naam/e-mail/telefoon - profileId (een UUID) is niet te raden
