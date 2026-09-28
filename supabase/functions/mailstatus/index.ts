@@ -1,13 +1,13 @@
-// LEADGEN v70 — Mailstatus: de BRON meldt terug hoe ver een gemailde lead komt.
+// ReachConnect v70 — Mailstatus: de BRON meldt terug hoe ver een gemailde lead komt.
 //
 // MarketingKiezer (of een andere bron) post hier elke stap naartoe zodra die
-// gebeurt. LEADGEN slaat het op bij de lead (public.lead_mail_status) en het
+// gebeurt. ReachConnect slaat het op bij de lead (public.lead_mail_status) en het
 // belscherm laat het live zien.
 //
 //   POST https://<project>.supabase.co/functions/v1/mailstatus
 //   Authorization: Bearer <MAILSTATUS_KEY>      (ook goed: x-leadgen-key of x-api-key)
 //   {
-//     "lead_id": "uuid van de LEADGEN-lead",
+//     "lead_id": "uuid van de ReachConnect-lead",
 //     "email": "info@bureau.nl",
 //     "bureau": "Bureau BV",
 //     "mail_soort": "introductie",

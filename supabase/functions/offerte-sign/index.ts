@@ -190,7 +190,7 @@ Deno.serve(async (req: Request) => {
     }
     if (amInfo.email) {
       await sendMail(amInfo.email, from, null, `${off.zaak_naam} heeft offerte ${off.nummer} getekend`,
-        `<p><b>${esc(off.zaak_naam)}</b> heeft offerte ${esc(off.nummer)} op ${esc(wanneer)} getekend (${esc(naam)}${functie ? `, ${esc(functie)}` : ""}).</p><p>Eenmalig ${euro(off.eenmalig_ex)} · per maand ${euro(off.maandbedrag_ex)}.</p><p><a href="${esc(appUrl)}/tools">Bekijk in LeadGen</a></p>`);
+        `<p><b>${esc(off.zaak_naam)}</b> heeft offerte ${esc(off.nummer)} op ${esc(wanneer)} getekend (${esc(naam)}${functie ? `, ${esc(functie)}` : ""}).</p><p>Eenmalig ${euro(off.eenmalig_ex)} · per maand ${euro(off.maandbedrag_ex)}.</p><p><a href="${esc(appUrl)}/tools">Bekijk in ReachConnect</a></p>`);
     }
 
     return json({ ok: true, state: "getekend", getekend_op: now.toISOString() });
