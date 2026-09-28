@@ -15,7 +15,7 @@ const datum = (iso) => iso ? new Date(iso).toLocaleDateString('nl-NL', { day: 'n
 const tijd = (iso) => iso ? new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
 
 const CSS = `
-.tk{--bg:#F4F6F9;--surface:#FFFFFF;--line:#E1E5EC;--text:#14171F;--muted:#5B6270;--faint:#8A90A0;--accent:#2F6FE0;--accent-soft:#E7EEFC;--good:#1E8A5B;--good-soft:#DDF3E8;--bad:#C6373C;--bad-soft:#FBE3E4;
+.tk{--bg:#F4F6F9;--surface:#FFFFFF;--line:#E1E5EC;--text:#14171F;--muted:#5B6270;--faint:#8A90A0;--accent:#15803D;--accent-soft:#E3F6E9;--good:#1E8A5B;--good-soft:#DDF3E8;--bad:#C6373C;--bad-soft:#FBE3E4;
   min-height:100vh;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
 .tk *{box-sizing:border-box}
 .tk .wrap{max-width:680px;margin:0 auto;padding:20px 16px 140px}

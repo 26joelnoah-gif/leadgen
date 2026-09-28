@@ -12,7 +12,7 @@ const MAX_POLLS = 15
 const POLL_MS = 3000
 
 const CSS = `
-.ab{--bg:#F4F6F9;--surface:#FFFFFF;--line:#E1E5EC;--text:#14171F;--muted:#5B6270;--accent:#2F6FE0;--good:#1E8A5B;--good-soft:#DDF3E8;--bad:#C6373C;--bad-soft:#FBE3E4;
+.ab{--bg:#F4F6F9;--surface:#FFFFFF;--line:#E1E5EC;--text:#14171F;--muted:#5B6270;--accent:#15803D;--good:#1E8A5B;--good-soft:#DDF3E8;--bad:#C6373C;--bad-soft:#FBE3E4;
   min-height:100vh;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.5}
 .ab *{box-sizing:border-box}
 .ab .wrap{max-width:480px;margin:0 auto;padding:60px 16px 80px;text-align:center}
