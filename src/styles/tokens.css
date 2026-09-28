@@ -26,9 +26,9 @@
   --border-strong: #3D424D;
 
   /* Accent (enige merk-kleur) */
-  --accent: #3B82F6;
-  --accent-hover: #2F6FDE;
-  --accent-soft: rgba(59, 130, 246, 0.14);
+  --accent: #22C55E;
+  --accent-hover: #1BA84E;
+  --accent-soft: rgba(34, 197, 94, 0.14);
 
   /* Status */
   --success: #34D399;  --success-bg: rgba(16, 185, 129, 0.14);
@@ -69,9 +69,9 @@
   --border-subtle: #E2E8F0;
   --border-strong: #CBD5E1;
 
-  --accent: #2563EB;
-  --accent-hover: #1D4ED8;
-  --accent-soft: rgba(37, 99, 235, 0.10);
+  --accent: #15803D;
+  --accent-hover: #166534;
+  --accent-soft: rgba(21, 128, 61, 0.10);
 
   /* Iets donkerdere tinten voor AA-contrast op wit */
   --success: #047857;  --success-bg: rgba(16, 185, 129, 0.12);
@@ -136,13 +136,13 @@
 /* Per thema verschillende alias-waarden */
 :root,
 [data-theme="dark"] {
-  --primary-dark: #1D4ED8;
+  --primary-dark: #1BA84E;
   --secondary: #F59E0B;
   --secondary-light: #FBBF24;
   --secondary-dark: #D97706;
 }
 [data-theme="light"] {
-  --primary-dark: #1E40AF;
+  --primary-dark: #14532D;
   --secondary: #D97706;
   --secondary-light: #F59E0B;
   --secondary-dark: #B45309;

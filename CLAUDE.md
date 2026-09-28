@@ -3,9 +3,12 @@
 > Werk je hier vanuit Antigravity (Minimax of Gemini)? Lees eerst `.agents/rules/00-start-here.md`, dat wordt automatisch geladen en verwijst hierheen terug. Dit bestand blijft de volledige bron van waarheid voor alle AI's op dit project.
 
 ## Eigenaar
-Noah Ando — noah.ando1@icloud.com
-Bouwt zonder programmeerervaring, dag 3-4 op moment van documenteren.
-Gebruikt Minimax (Claude terminal in Antigravity), Gemini 2.0 Flash (apart venster in Antigravity), en Claude (Cowork) parallel.
+Noah Ando — info@reachconnect.nl
+
+## Hoe er gewerkt wordt
+- Claude Code is de standaard voor bouwen aan dit project.
+- Antigravity wordt erbij gepakt als de Claude-usage vol zit, en om door de code te bladeren of even een .env-bestand erbij te halen.
+- Noah bouwt zelf, zonder programmeerachtergrond. Leg keuzes kort uit in gewone taal, niet in jargon.
 
 ## Huidige Status
 Werkend CRM/belsysteem voor eigen gebruik:
@@ -48,7 +51,7 @@ Twee-zijdig platform:
 - Frontend: React + Vite + Framer Motion
 - Backend: Supabase (PostgreSQL + Auth + Realtime)
 - Deploy: Netlify
-- Styling: Custom CSS dark theme (--bg-dark: #0F1117, --primary: #3B82F6, --secondary: #F59E0B)
+- Styling: Custom CSS dark theme (--bg-dark: #0F1117, --primary: #22C55E, --secondary: #F59E0B)
 
 ## Agent Taakverdeling
 - **Minimax** (Claude terminal Antigravity): complexe refactors, hooks, logica
@@ -579,3 +582,16 @@ Twee-zijdig platform:
   6. leads_select heeft er "or appointment_by = auth.uid()" bij, zodat een beller
      zijn eigen afspraken blijft zien ook als de lead van iemand anders wordt.
   Migratie: migration_v110_mijn_afspraken_commissie.sql.
+
+- **MERKKLEUR GROEN + NIEUWE FAVICON (v109c, 2026-09-28):** de accentkleur is
+  van blauw naar groen gegaan. Donker thema `--accent: #22C55E` (hover #1BA84E),
+  licht thema `--accent: #15803D` (hover #166534) omdat wit op het felle groen
+  niet leesbaar is. Aangepast in src/styles/tokens.css EN src/styles/design-v2.css,
+  allebei in het donkere en het lichte blok, plus `--primary-dark`. Verder niets:
+  Logo.jsx en de rest gebruiken al `var(--primary)` / `var(--accent)`.
+  `--info` blijft blauw, dat is een betekeniskleur en geen merkkleur.
+  REGEL: nooit een kleur hardcoden in een component, altijd het token gebruiken.
+  Favicons in public/ opnieuw gemaakt: groen afgerond vierkant met RC
+  (favicon.svg, favicon-16.png, favicon-32.png, favicon.ico, apple-touch-icon.png).
+  De browser bewaart favicons lang, dus een harde ververs (cmd+shift+R) kan nodig
+  zijn voordat je het nieuwe icoon ziet.
