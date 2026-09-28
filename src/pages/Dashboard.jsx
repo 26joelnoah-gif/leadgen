@@ -18,6 +18,7 @@ import ImportLeadsModal from '../components/ImportLeadsModal'
 import EmployeeModal from '../components/EmployeeModal' // v107
 import { maakAccount, magAccountsAanmaken, ROLLEN_ZONDER_ADMIN } from '../lib/accounts' // v107
 import MyMailStats from '../components/MyMailStats' // v82
+import NieuwsBlok from '../components/NieuwsBlok' // v108
 import { useToast } from '../components/Toast'
 import PersonSelect from '../components/PersonSelect' // v102
 
@@ -420,6 +421,10 @@ export default function Dashboard() {
         {/* v82: mailteller voor bellers die via de Mailingservice mailen
             (MarketingKiezer); toont zichzelf pas na de eerste mail */}
         {isBeller && <MyMailStats />}
+
+        {/* v108: nieuws stond op de publieke homepage, die is nu een kale
+            inlog/aanmeld-pagina. Nieuws lees je dus hier, na het inloggen. */}
+        <NieuwsBlok />
 
         {/* v27: geen leadoverzicht meer op het dashboard - ook niet voor
             admin/manager. Leads bekijk en beheer je in Lead Beheer.

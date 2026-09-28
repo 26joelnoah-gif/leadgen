@@ -205,9 +205,10 @@ function AppRoutes() {
       <Route path="/aanmelden/bedankt" element={<AanmeldenBedankt />} />
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/setup" element={user ? <Setup /> : <Navigate to="/login" replace />} />
-      {/* v90: "/" is nu de publieke homepage voor wie nog niet is ingelogd
-          (nieuws + uitleg over LeadGen). Wie al is ingelogd ziet hier gewoon
-          zijn eigen startscherm, precies als voorheen - dat verandert niet. */}
+      {/* v90/v108: "/" is voor wie nog niet is ingelogd een kale pagina met
+          twee tabbladen: Inloggen en Aanmelden (dezelfde formulieren als
+          /login en /aanmelden). Het nieuws staat sinds v108 op het dashboard.
+          Wie al is ingelogd ziet hier gewoon zijn eigen startscherm. */}
       <Route
         path="/"
         element={
