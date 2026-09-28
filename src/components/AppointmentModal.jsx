@@ -3,8 +3,11 @@
 // - Accountmanager van de afspraak (en admin/manager): afboeken als
 //   Wil nadenken / Deal / Betaald.
 // - Admin/manager: verplaatsen (datum/tijd en accountmanager) en verwijderen.
+// v110: blok "Uitbetaling beller" - wie de afspraak inplande en wat hij ervoor
+//   krijgt. Alleen admin/manager kan het bedrag zetten (DB-trigger bewaakt dat);
+//   de beller ziet het terug op zijn pagina "Mijn afspraken" en krijgt een melding.
 import { useState, useEffect } from 'react'
-import { X, MapPin, Phone, Mail, User, Navigation, Trash2, CalendarClock, FileText } from 'lucide-react'
+import { X, MapPin, Phone, Mail, User, Navigation, Trash2, CalendarClock, FileText, Euro } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './Toast'
@@ -31,6 +34,11 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
   const [moveAm, setMoveAm] = useState('')
   const [moveError, setMoveError] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  // v110: uitbetaling voor de beller die deze afspraak inplande
+  const [bellerNaam, setBellerNaam] = useState('')
+  const [commissie, setCommissie] = useState('')
+  const [tariefTip, setTariefTip] = useState(null)
+  const [commissieOpgeslagen, setCommissieOpgeslagen] = useState(false)
 
   useEffect(() => {
     if (!lead) return
@@ -38,7 +46,28 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
     setMoveAm(lead.assigned_to || '')
     setMoveError(null)
     setConfirmDelete(false)
+    setCommissie(lead.appointment_commission != null ? String(lead.appointment_commission) : '')
+    setCommissieOpgeslagen(false)
   }, [lead])
+
+  // v110: naam van de beller die de afspraak inplande + het afspraaktarief van
+  // de lijst als voorstel voor het bedrag.
+  useEffect(() => {
+    if (!lead) return
+    let weg = false
+    async function laden() {
+      if (lead.appointment_by) {
+        const { data } = await supabase.from('profiles').select('full_name').eq('id', lead.appointment_by).maybeSingle()
+        if (!weg) setBellerNaam(data?.full_name || 'Onbekend')
+      } else if (!weg) setBellerNaam('')
+      if (lead.lead_list_id) {
+        const { data } = await supabase.from('lead_lists').select('rate_per_appointment').eq('id', lead.lead_list_id).maybeSingle()
+        if (!weg) setTariefTip(data?.rate_per_appointment ?? null)
+      }
+    }
+    laden()
+    return () => { weg = true }
+  }, [lead?.id, lead?.appointment_by, lead?.lead_list_id])
 
   if (!lead) return null
 
@@ -70,6 +99,24 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
     if (error) { toast(error.message || 'Afboeken mislukt', 'error'); return }
     logAct('afspraak_uitkomst', `Afspraak afgeboekt: ${o.label}`)
     toast(`Afspraak afgeboekt als "${o.label}"`, 'success')
+    onChanged?.(lead.id, updates)
+  }
+
+  // v110: bedrag dat de beller voor deze afspraak krijgt. Leeg maken mag ook
+  // (dan staat de uitbetaling weer op "nog niet vastgesteld").
+  async function commissieOpslaan() {
+    if (busy) return
+    const tekst = String(commissie).replace(',', '.').trim()
+    const bedrag = tekst === '' ? null : Number(tekst)
+    if (bedrag !== null && (isNaN(bedrag) || bedrag < 0)) { toast('Vul een geldig bedrag in', 'error'); return }
+    setBusy(true)
+    const updates = { appointment_commission: bedrag, updated_at: new Date().toISOString() }
+    const { error } = await supabase.from('leads').update(updates).eq('id', lead.id)
+    setBusy(false)
+    if (error) { toast(error.message || 'Opslaan mislukt', 'error'); return }
+    setCommissieOpgeslagen(true)
+    logAct('afspraak_commissie', bedrag === null ? 'Uitbetaling beller leeggemaakt' : `Uitbetaling beller gezet op EUR ${bedrag}`)
+    toast(bedrag === null ? 'Uitbetaling leeggemaakt' : `Uitbetaling van EUR ${bedrag} opgeslagen`, 'success')
     onChanged?.(lead.id, updates)
   }
 
@@ -184,6 +231,47 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
                   </button>
                 )
               })}
+            </div>
+          </>
+        )}
+
+        {lead.appointment_by && (
+          <>
+            <div style={sectionTitle}>Uitbetaling beller</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ ...row, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                <User size={15} style={{ flexShrink: 0, marginTop: 2 }} /> Ingepland door <strong style={{ color: 'var(--text-primary)' }}>{bellerNaam || '...'}</strong>
+              </div>
+              {canManage ? (
+                <>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <span style={{ fontWeight: 800, color: 'var(--text-muted)' }}>&euro;</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      inputMode="decimal"
+                      value={commissie}
+                      onChange={e => { setCommissie(e.target.value); setCommissieOpgeslagen(false) }}
+                      placeholder={tariefTip != null ? String(tariefTip) : 'Bedrag'}
+                      className="form-control"
+                      style={{ flex: 1, fontSize: 16 }}
+                    />
+                    <button type="button" className="btn btn-primary" disabled={busy} onClick={commissieOpslaan}>
+                      <Euro size={15} /> {commissieOpgeslagen ? 'Opgeslagen' : 'Opslaan'}
+                    </button>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Wat {bellerNaam || 'de beller'} voor deze afspraak krijgt. Hij ziet dit direct terug bij "Mijn afspraken" en krijgt er een melding van.
+                    {tariefTip != null ? ` Tarief van deze lijst: EUR ${tariefTip}.` : ''}
+                  </div>
+                </>
+              ) : (
+                <div style={{ ...row, fontSize: '0.85rem' }}>
+                  <Euro size={15} style={{ flexShrink: 0, marginTop: 2 }} />
+                  {lead.appointment_commission != null ? `EUR ${lead.appointment_commission}` : 'Nog niet vastgesteld'}
+                </div>
+              )}
             </div>
           </>
         )}

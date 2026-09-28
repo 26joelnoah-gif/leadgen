@@ -378,6 +378,10 @@ export function useLeads() {
     if (dispositionType === 'afspraak_gemaakt') {
       updates.appointment_at = nextDate || currentLead.appointment_at || null
       updates.next_contact_date = null
+      // v110: wie de afspraak inplant blijft de eigenaar van die afspraak, ook
+      // als de accountmanager de lead daarna overneemt. Dit voedt de pagina
+      // "Mijn afspraken" en bepaalt wie de uitbetaling krijgt.
+      if (user?.id) updates.appointment_by = user.id
     }
 
     // Herbel-logica (v27):

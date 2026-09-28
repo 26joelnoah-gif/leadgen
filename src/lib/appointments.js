@@ -24,6 +24,29 @@ export function outcomeInfo(id) {
   return OUTCOMES.find(o => o.id === id) || null
 }
 
+// v110: hoe staat mijn afspraak ervoor? Gebruikt op de pagina "Mijn afspraken"
+// en waar we in een lijst willen laten zien wat er met een afspraak gebeurd is.
+export function afspraakStand(lead) {
+  const o = outcomeInfo(lead?.appointment_outcome)
+  if (o) {
+    if (o.id === 'betaald') return { key: 'betaald', label: 'Betaald', color: '#047857', klaar: true, deal: true }
+    if (o.id === 'deal') return { key: 'deal', label: 'Deal', color: '#10B981', klaar: true, deal: true }
+    return { key: 'wil_nadenken', label: 'Wil nadenken', color: '#8B5CF6', klaar: true, deal: false }
+  }
+  const moment = lead?.appointment_at ? new Date(lead.appointment_at) : null
+  if (moment && moment.getTime() > Date.now()) {
+    return { key: 'gepland', label: 'Staat gepland', color: '#3B82F6', klaar: false, deal: false }
+  }
+  return { key: 'wacht', label: 'Wacht op uitkomst', color: '#F59E0B', klaar: false, deal: false }
+}
+
+export function euro(bedrag) {
+  if (bedrag == null || bedrag === '') return null
+  const n = Number(bedrag)
+  if (isNaN(n)) return null
+  return `\u20AC ${n.toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 export function leadAddressText(lead) {
   if (!lead) return ''
   const straat = [lead.address, lead.house_number].filter(Boolean).join(' ').trim()

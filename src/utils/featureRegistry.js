@@ -114,7 +114,9 @@ const CALLER_FEATURES_BASE = [
   { key: 'blr_leaddetail', group: 'Bellen', label: 'Contactkaart', description: 'Klik op een lead in een lijst voor de volledige afboek-geschiedenis.' },
   { key: 'blr_tba_own', group: 'Terugbellen', label: "Mijn TBA's", description: 'Je eigen terugbelafspraken, alleen door jou te claimen tot 24 uur na het moment.' },
   { key: 'blr_tba_public', group: 'Terugbellen', label: "Openbare TBA's", description: 'Terugbelafspraken van anderen die niet zijn nagekomen, na 24 uur voor iedereen claimbaar.' },
-  { key: 'blr_earnings', group: 'Verdiensten', label: 'Verdiensten', description: 'Je eigen afspraken, deals en verdiende bedrag.' }
+  { key: 'blr_earnings', group: 'Verdiensten', label: 'Verdiensten', description: 'Je eigen afspraken, deals en verdiende bedrag.' },
+  // v110
+  { key: 'blr_mijn_afspraken', group: 'Verdiensten', label: 'Mijn afspraken', description: 'Zie wat de accountmanager met jouw ingeplande afspraken heeft gedaan (wil nadenken, deal, betaald) en wat je ervoor krijgt.' }
 ]
 
 const BACKOFFICE_FEATURES_BASE = [

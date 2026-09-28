@@ -545,3 +545,37 @@ Twee-zijdig platform:
        dat is een route in de MK-repo, niet van ons.
      - `leadgendash.netlify.app`: echte URL, verandert pas bij een nieuw domein.
      - `BRIEF-leadgen` en `lib/leadgenMail.ts`: bestandsnamen elders.
+
+- **MIJN AFSPRAKEN + UITBETALING PER AFSPRAAK (v110, 2026-09-28, migratie
+  toegepast):** een beller die een afspraak inplande zag daarna niets meer van
+  die afspraak: de accountmanager boekte hem af (v97) maar de beller wist niet
+  wat eruit kwam en dus ook niet wat hij ervoor kreeg.
+  1. leads.appointment_by = de beller die de afspraak inplande. Gezet in
+     useLeads.handleLeadDisposition (belscherm) en in LeadBoard.confirmDatePrompt
+     (bord). Blijft van hem, ook als de accountmanager de lead overneemt.
+     Backfill uit call_logs (laatste 'afspraak_gemaakt' per lead).
+  2. leads.appointment_commission (+_at/_by) = wat die beller voor DEZE afspraak
+     krijgt; elke deal is anders, dus het is een bedrag per afspraak. Zetten kan
+     alleen een admin of een manager van dat project - trigger
+     tr_leads_commissie_guard bewaakt dat (geldt ook voor appointment_approved)
+     en vult _at/_by. Invoer staat in AppointmentModal (blok "Uitbetaling
+     beller", met het afspraaktarief van de lijst als voorstel).
+  3. Melding: tr_leads_afspraak_melding schrijft naar notifications zodra
+     appointment_outcome verandert (type afspraak_uitkomst) of het bedrag wordt
+     gezet (afspraak_commissie), voor appointment_by.
+  4. Pagina /mijn-afspraken (src/pages/MijnAfspraken.jsx, menu-item "Mijn
+     afspraken"): eigen afspraken met stand (Staat gepland / Wacht op uitkomst /
+     Wil nadenken / Deal / Betaald - helper afspraakStand in src/lib/appointments.js),
+     bedrag per afspraak, totalen, periodefilter en voor admin/manager een filter
+     per medewerker (zo zie je wat je moet uitbetalen). Blok op het dashboard:
+     src/components/MyAppointmentStats.jsx (verschijnt pas na de eerste afspraak).
+  5. FIX: in een bordproject met afspraken zette tr_leads_owner_on_status (v79)
+     de lead bij het afboeken op naam van de BELLER, waardoor de afspraak uit de
+     agenda van de accountmanager verdween (die draait op assigned_to). Bij
+     status 'afspraak_gemaakt' in een project met appointment_scheduling_enabled
+     blijft de lead nu van de accountmanager (nieuwe helper
+     public.lead_is_afspraak_project). LET OP: afspraken van vóór v110 kunnen nog
+     op de verkeerde naam staan - die verzet je in de agenda.
+  6. leads_select heeft er "or appointment_by = auth.uid()" bij, zodat een beller
+     zijn eigen afspraken blijft zien ook als de lead van iemand anders wordt.
+  Migratie: migration_v110_mijn_afspraken_commissie.sql.

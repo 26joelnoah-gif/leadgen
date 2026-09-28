@@ -576,6 +576,7 @@ export default function LeadBoard() {
         city: datePrompt.city.trim(),
         appointment_sentiment: datePrompt.sentiment,
         appointment_outcome: null, appointment_outcome_at: null, appointment_outcome_by: null,
+        appointment_by: user?.id || null, // v110: van wie is deze afspraak (uitbetaling)
       })
     }
     moveLead(lead, column.dropStatus, extra)

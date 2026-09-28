@@ -109,6 +109,8 @@ export default function Header({ onOpenSettings }) {
         { path: '/agenda', label: 'Agenda' },
         { path: '/tba', label: 'TBA\'s' },
         ...(isRealAdmin ? [{ path: '/recruitment', label: 'Sollicitanten' }] : []),
+        // v110: wat is er gebeurd met de afspraken die ik heb ingepland
+        { path: '/mijn-afspraken', label: 'Mijn afspraken' },
         ...(canViewEarnings ? [{ path: '/earnings', label: 'Verdiensten' }] : []),
         { path: '/roosters', label: 'Roosters' },
         // v59: offerte-tool bestelplatform + overzicht eigen offertes
