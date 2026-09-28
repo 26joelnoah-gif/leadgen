@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
-import { RefreshCw, Phone, Zap, Plus, X, Layers, Upload, Sparkles, Inbox, PhoneCall, CalendarCheck, Trophy } from 'lucide-react'
+import { RefreshCw, Phone, Zap, Plus, X, Layers, Upload, Sparkles, Inbox, PhoneCall, CalendarCheck, Trophy, UserPlus } from 'lucide-react'
 import { useLeads } from '../hooks/useLeads'
 import { levelInfo } from '../utils/xpUtils'
 import { effectiveSeconds } from '../utils/callTimeUtils'
@@ -15,6 +15,8 @@ import TeamLeaderboard from '../components/TeamLeaderboard'
 import ActivityFeed from '../components/ActivityFeed'
 import Header from '../components/Header'
 import ImportLeadsModal from '../components/ImportLeadsModal'
+import EmployeeModal from '../components/EmployeeModal' // v107
+import { maakAccount, magAccountsAanmaken, ROLLEN_ZONDER_ADMIN } from '../lib/accounts' // v107
 import MyMailStats from '../components/MyMailStats' // v82
 import { useToast } from '../components/Toast'
 import PersonSelect from '../components/PersonSelect' // v102
@@ -52,6 +54,22 @@ export default function Dashboard() {
   // projecten waar hij projectbeheerder van is (ImportLeadsModal filtert daarop).
   const [showImport, setShowImport] = useState(false)
   const [importMode, setImportMode] = useState('import')
+
+  // v107: medewerkers met het recht "Accounts aanmaken" (profiles.can_create_users)
+  // mogen hier zelf een beller/backoffice/accountmanager-account aanmaken.
+  // Admin doet dat via Admin > Team, een manager via Mijn Projecten.
+  const [showNewAccount, setShowNewAccount] = useState(false)
+  async function handleNieuwAccount(data) {
+    if (isDemoMode) { toast('Niet beschikbaar in demo-modus', 'error'); return }
+    try {
+      const { waarschuwing } = await maakAccount({
+        naam: data.name, email: data.email, wachtwoord: data.password, rol: data.role
+      })
+      toast(waarschuwing || 'Account aangemaakt! De beheerder koppelt het aan een project of team.', waarschuwing ? 'error' : 'success')
+    } catch (err) {
+      toast(err.message, 'error')
+    }
+  }
 
 
 
@@ -189,6 +207,11 @@ export default function Dashboard() {
                   <Sparkles size={16} /> Leads verrijken
                 </button>
               </>
+            )}
+            {!isAdmin && profile?.can_create_users === true && magAccountsAanmaken(profile) && (
+              <button className="btn btn-outline btn-sm" onClick={() => setShowNewAccount(true)} title="Maak een account aan voor een nieuwe medewerker">
+                <UserPlus size={16} /> Nieuw account
+              </button>
             )}
             {!isBeller && (
               <>
@@ -515,6 +538,14 @@ export default function Dashboard() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <EmployeeModal
+        isOpen={showNewAccount}
+        onClose={() => setShowNewAccount(false)}
+        onAdd={handleNieuwAccount}
+        title="Nieuw account"
+        allowedRoles={ROLLEN_ZONDER_ADMIN}
+      />
 
       <ImportLeadsModal
         isOpen={showImport}

@@ -103,7 +103,9 @@ const RECRUITER_FEATURES_BASE = [
   { key: 'rec_pipeline', group: 'Sollicitanten', label: 'Sollicitanten-bord', description: 'Kanban-overzicht van elke fase in de sollicitatieprocedure.' },
   { key: 'rec_call', group: 'Bellen', label: 'Belscherm', description: 'Sollicitanten bellen met eigen labels ("Gesprek gepland", "Aangenomen", enz.).' },
   { key: 'rec_import', group: 'Sollicitanten', label: 'Import en export', description: 'Sollicitanten toevoegen via CSV of plakken, en de lijst exporteren.' },
-  { key: 'rec_tba', group: 'Terugbellen', label: "TBA's", description: 'Terugbelafspraken met sollicitanten die je nog moet bellen.' }
+  { key: 'rec_tba', group: 'Terugbellen', label: "TBA's", description: 'Terugbelafspraken met sollicitanten die je nog moet bellen.' },
+  // v107: eigen afboekreden + bordkolom voor sollicitanten die thuis willen werken
+  { key: 'rec_remote', group: 'Sollicitanten', label: 'Remote / thuiswerk', description: 'Afboeken met "Wil remote werken" - de sollicitant gaat uit de belwachtrij en komt op het bord in de kolom Remote.' }
 ]
 
 const CALLER_FEATURES_BASE = [

@@ -5,7 +5,7 @@ import {
   Calendar, Clock, AlertCircle, CheckCircle2,
   ChevronRight, ChevronDown, Copy, Save, Users, Target, Ban,
   BookOpen, Info, History, Tag, Maximize2, Minimize2, FileSignature,
-  RefreshCw, AlertTriangle, ExternalLink, CalendarClock, Globe, Navigation, FileWarning, StickyNote
+  RefreshCw, AlertTriangle, ExternalLink, CalendarClock, Globe, Navigation, FileWarning, StickyNote, Home
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
@@ -42,7 +42,8 @@ const RECRUITMENT_BUTTON_LABELS = {
   deal: 'AANGENOMEN',
   afspraak_gemaakt: 'GESPREK GEPLAND',
   geen_interesse: 'AFGEWEZEN',
-  blacklist: 'NIET MEER BENADEREN'
+  blacklist: 'NIET MEER BENADEREN',
+  remote_thuis: 'WIL REMOTE WERKEN'
 }
 
 // v36: veldlabels in de contactkaart die voor sollicitanten anders heten
@@ -185,7 +186,9 @@ export default function WorkInterface() {
   // Leads die een collega in behandeling heeft tellen niet mee in de wachtrij.
   // v75: dat slot verloopt niet meer vanzelf; overnemen kan bewust via het bord
   // (pagina Leads), en dan krijgen allebei een melding.
-  const DONE_STATUSES = ['deal', 'bruto_deal', 'afspraak_gemaakt', 'geen_interesse', 'onjuiste_timing', 'verkeerd_nummer', 'cold', 'terugbelafspraak']
+  // v107: 'remote_thuis' (sollicitant wil thuiswerken) is hier ook een eindstatus -
+  // zelfde regel als claim_next_lead in de database.
+  const DONE_STATUSES = ['deal', 'bruto_deal', 'afspraak_gemaakt', 'geen_interesse', 'onjuiste_timing', 'verkeerd_nummer', 'cold', 'terugbelafspraak', 'remote_thuis']
   const listLeads = workingListId
     ? leads.filter(l =>
         l.lead_list_id === workingListId &&
@@ -619,6 +622,8 @@ export default function WorkInterface() {
     { id: 'geen_interesse', label: dLabel('geen_interesse', 'GEEN INTERESSE'), color: '#334155', icon: <X size={18} />, quick: true },
     { id: 'onjuiste_timing', label: 'ONJUISTE TIMING', color: '#0EA5E9', icon: <Clock size={18} />, quick: true },
     { id: 'blacklist', label: dLabel('blacklist', 'BLACKLIST'), color: '#991B1B', icon: <Ban size={18} />, quick: true },
+    // v107: alleen bij sollicitatieprojecten - sollicitant wil vanuit huis werken.
+    ...(isRecruitmentCampaign ? [{ id: 'remote_thuis', label: 'WIL REMOTE WERKEN', color: '#F59E0B', icon: <Home size={18} />, quick: true }] : []),
   ]
 
   // v41: eigen afboekredenen worden extra quick-knoppen naast de vaste set -

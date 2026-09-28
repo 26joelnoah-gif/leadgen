@@ -23,6 +23,8 @@ import EmptyState from '../components/EmptyState'
 import { useToast } from '../components/Toast'
 import PersonSelect from '../components/PersonSelect' // v102
 import { logBoardAction } from '../lib/boardLog' // v103
+import EmployeeModal from '../components/EmployeeModal' // v107
+import { maakAccount, magAccountsAanmaken, ROLLEN_ZONDER_ADMIN } from '../lib/accounts' // v107
 
 // v36: recruiter-thuisbasis. Een sollicitant is gewoon een lead in het
 // (automatisch aangemaakte) recruitment-project van deze recruiter -
@@ -41,6 +43,10 @@ const BOARD_COLUMNS = [
   { id: 'tba', label: 'TBA', statuses: ['terugbelafspraak'], dropStatus: 'terugbelafspraak', color: 'var(--secondary)', needsDate: true, dateField: 'next_contact_date', dateTitle: 'Terugbelmoment', dateLabel: 'Wanneer terugbellen?', dateButton: 'TBA instellen' },
   { id: 'interview', label: 'Gesprek gepland', statuses: ['afspraak_gemaakt'], dropStatus: 'afspraak_gemaakt', color: 'var(--primary)', needsDate: true, dateField: 'appointment_at', dateTitle: 'Gesprek inplannen', dateLabel: 'Wanneer is het gesprek?', dateButton: 'Gesprek inplannen' },
   { id: 'hired', label: 'Aangenomen', statuses: ['deal'], dropStatus: 'deal', color: 'var(--success)' },
+  // v107: sollicitanten die vanuit huis willen werken. Eigen kolom zodat ze
+  // niet tussen de kantoor-sollicitanten verdwijnen; sleep ze hierheen of
+  // boek af met de knop "Wil remote werken" in het belscherm.
+  { id: 'remote', label: 'Remote', statuses: ['remote_thuis'], dropStatus: 'remote_thuis', color: 'var(--secondary)' },
   { id: 'cold', label: 'Koud', statuses: ['cold'], dropStatus: 'cold', color: 'var(--text-muted)' },
   { id: 'rejected', label: 'Afgewezen', statuses: ['geen_interesse', 'verkeerd_nummer', 'blacklist'], dropStatus: 'geen_interesse', color: 'var(--danger)' }
 ]
@@ -119,6 +125,20 @@ export default function Recruitment() {
       .then(({ data }) => { if (alive) setOrgProfiles(data || []) })
     return () => { alive = false }
   }, [])
+
+  // v107: recruiter met het recht "Accounts aanmaken" (profiles.can_create_users)
+  // maakt hier meteen een medewerkersaccount voor een aangenomen sollicitant.
+  const [showNewAccount, setShowNewAccount] = useState(false)
+  async function handleNieuwAccount(data) {
+    try {
+      const { waarschuwing } = await maakAccount({
+        naam: data.name, email: data.email, wachtwoord: data.password, rol: data.role
+      })
+      toast(waarschuwing || 'Account aangemaakt! De beheerder koppelt het aan een project of team.', waarschuwing ? 'error' : 'success')
+    } catch (err) {
+      toast(err.message, 'error')
+    }
+  }
 
   const [showImport, setShowImport] = useState(false)
   const [importText, setImportText] = useState('')
@@ -302,7 +322,8 @@ export default function Recruitment() {
     nieuw: baseApplicants.filter(l => l.status === 'new').length,
     gesprek: baseApplicants.filter(l => l.status === 'terugbelafspraak' || l.status === 'afspraak_gemaakt').length,
     aangenomen: baseApplicants.filter(l => l.status === 'deal').length,
-    afgewezen: baseApplicants.filter(l => l.status === 'geen_interesse').length
+    afgewezen: baseApplicants.filter(l => l.status === 'geen_interesse').length,
+    remote: baseApplicants.filter(l => l.status === 'remote_thuis').length
   }), [baseApplicants])
 
   if (profile && profile.role !== 'recruiter' && profile.role !== 'admin') {
@@ -578,6 +599,13 @@ export default function Recruitment() {
             <button className="btn btn-outline btn-sm" onClick={() => setShowImport(true)} disabled={!homeList && !isAdmin}>
               <Upload size={16} /> Importeren
             </button>
+            {/* v107: recruiter met het recht "Accounts aanmaken" maakt hier
+                direct een medewerkersaccount voor iemand die is aangenomen. */}
+            {!isAdmin && profile?.can_create_users === true && magAccountsAanmaken(profile) && (
+              <button className="btn btn-outline btn-sm" onClick={() => setShowNewAccount(true)} title="Maak een medewerkersaccount aan voor een aangenomen sollicitant">
+                <UserPlus size={16} /> Nieuw account
+              </button>
+            )}
             <button className="btn btn-secondary btn-sm" onClick={() => setShowNew(true)} disabled={!homeList && !isAdmin}>
               <Plus size={16} /> Nieuwe sollicitant
             </button>
@@ -600,6 +628,7 @@ export default function Recruitment() {
                 { label: 'Nieuw', val: stats.nieuw, icon: '🆕', color: 'var(--info)' },
                 { label: 'Gesprek / TBA', val: stats.gesprek, icon: '📞', color: 'var(--secondary)' },
                 { label: 'Aangenomen', val: stats.aangenomen, icon: '✅', color: 'var(--success)' },
+                { label: 'Remote', val: stats.remote, icon: '🏠', color: 'var(--secondary)' },
                 { label: 'Afgewezen', val: stats.afgewezen, icon: '✖️', color: 'var(--danger)' }
               ].map(s => (
                 <div key={s.label} className="stat-card" style={{ padding: '14px 16px', borderLeft: `3px solid ${s.color}` }}>
@@ -1190,6 +1219,15 @@ export default function Recruitment() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* v107: medewerkersaccount aanmaken */}
+      <EmployeeModal
+        isOpen={showNewAccount}
+        onClose={() => setShowNewAccount(false)}
+        onAdd={handleNieuwAccount}
+        title="Nieuw account"
+        allowedRoles={ROLLEN_ZONDER_ADMIN}
+      />
 
       {/* v56: bronnen beheren */}
       <ManageSourcesModal

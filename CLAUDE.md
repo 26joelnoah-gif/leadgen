@@ -482,3 +482,31 @@ Twee-zijdig platform:
   Fix: handleLeadDisposition zet een nextDate zonder tijdzone altijd eerst om
   via new Date(...).toISOString(). REGEL: een waarde uit een datetime-local
   nooit rechtstreeks naar Supabase sturen, altijd eerst new Date(v).toISOString().
+
+- **ACCOUNTS AANMAKEN PER MEDEWERKER + AFBOEKREDEN REMOTE (v107, 2026-09-28,
+  migratie toegepast):**
+  1. profiles.can_create_users (vinkje "Accounts aanmaken" op de
+     medewerkerskaart in Admin > Team, niet bij admins). Iemand met dat recht
+     krijgt de knop "Nieuw account" op zijn Dashboard, en een recruiter ook op
+     de sollicitantenpagina. Aanmaken loopt overal via src/lib/accounts.js:
+     auth.signUp met een TIJDELIJKE client (anders raak je je eigen sessie
+     kwijt) en daarna RPC public.nieuw_account_afronden(p_user, p_role) voor
+     rol + organisatie. Die RPC is nodig omdat profiles_update alleen een admin
+     andermans profiel laat aanpassen; hij controleert zelf het recht (admin,
+     manager of can_create_users), staat een niet-admin alleen
+     employee/backoffice/accountmanager toe, en werkt alleen een account bij dat
+     jonger is dan 15 minuten en nog op rol 'employee' staat - zo kun je er geen
+     bestaand account mee kapen. EmployeeModal heeft daarvoor de prop
+     allowedRoles. Manager.jsx maakt bellers nu ook via deze helper, waardoor
+     het account eindelijk in de organisatie van de manager komt.
+     REGEL: nieuwe plek waar een account aangemaakt wordt = maakAccount() uit
+     src/lib/accounts.js gebruiken, nooit los auth.signUp + update op profiles.
+  2. Nieuwe status 'remote_thuis' (label "Remote / thuiswerk", recruitment-label
+     "Wil remote werken"). Knop "WIL REMOTE WERKEN" in het belscherm, alleen bij
+     projecten van het type recruitment (1 klik, quick). Is een eindstatus: hij
+     staat in DONE_STATUSES van WorkInterface en in de NOT IN-lijst van
+     claim_next_lead, dus de sollicitant komt niet meer in de belwachtrij.
+     Sollicitantenbord (Recruitment.jsx BOARD_COLUMNS) heeft een kolom "Remote"
+     met dropStatus 'remote_thuis' plus een teller in de statistiekenrij.
+     Migratie: migration_v107_accounts_aanmaken_remote.sql (leads_status_check
+     uitgebreid + claim_next_lead opnieuw, identiek aan v98 met deze status erbij).

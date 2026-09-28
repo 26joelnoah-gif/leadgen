@@ -4,7 +4,21 @@ import { X, UserPlus, Mail, Lock, Shield } from 'lucide-react'
 
 // fixedRole: verberg de rolkeuze en gebruik altijd deze rol (bijv. 'employee'
 // wanneer een manager een beller toevoegt). title: kop van de modal.
-export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null, title = 'Nieuwe Medewerker' }) {
+// v107: allowedRoles beperkt de rolkeuze - iemand met het recht "Accounts
+// aanmaken" (geen admin) mag alleen een beller, backoffice- of
+// accountmanager-account maken. De database bewaakt dat ook zelf.
+const ROLE_OPTIONS = [
+  { value: 'employee', label: 'Beller (medewerker)' },
+  { value: 'accountmanager', label: 'Accountmanager (leads & agenda)' },
+  { value: 'backoffice', label: 'Backoffice' },
+  { value: 'manager', label: 'Manager' },
+  { value: 'recruiter', label: 'Recruiter' },
+  { value: 'planning', label: 'Planning (alleen rooster)' },
+  { value: 'extern', label: 'Extern (alleen tools)' },
+  { value: 'admin', label: 'Admin' }
+]
+
+export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null, title = 'Nieuwe Medewerker', allowedRoles = null }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -106,14 +120,9 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
             <div className="form-group">
               <label><Shield size={14} /> Rol</label>
               <select value={role} onChange={e => setRole(e.target.value)}>
-                <option value="employee">Beller (medewerker)</option>
-                <option value="accountmanager">Accountmanager (leads &amp; agenda)</option>
-                <option value="backoffice">Backoffice</option>
-                <option value="manager">Manager</option>
-                <option value="recruiter">Recruiter</option>
-                <option value="planning">Planning (alleen rooster)</option>
-                <option value="extern">Extern (alleen tools)</option>
-                <option value="admin">Admin</option>
+                {ROLE_OPTIONS
+                  .filter(o => !allowedRoles || allowedRoles.includes(o.value))
+                  .map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
               {role === 'accountmanager' && (
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>

@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { createClient } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { motion } from 'framer-motion'
@@ -22,6 +21,7 @@ import MoveCopyLeadsModal from '../components/MoveCopyLeadsModal'
 import CampaignBriefingModal from '../components/CampaignBriefingModal'
 import FlowSettingsEditor from '../components/FlowSettingsEditor'
 import { useToast } from '../components/Toast'
+import { maakAccount } from '../lib/accounts' // v107
 import PersonSelect from '../components/PersonSelect' // v102
 
 // Seconden -> "1u 11m 22s"
@@ -305,22 +305,19 @@ export default function Manager() {
   }, [isDemoMode])
 
   // ===== Nieuwe beller aanmaken (zelfde flow als admin) =====
+  // v107: loopt via src/lib/accounts.js, zodat het account ook meteen in de
+  // organisatie van de manager komt (dat ging hier eerder mis: het nieuwe
+  // account bleef in "Mijn eigen omgeving" staan).
   async function handleAddEmployee(employeeData) {
     if (isDemoMode) { toast('Niet beschikbaar in demo-modus', 'error'); return }
     try {
-      // Aparte client zonder sessie-opslag, anders vervangt signUp de sessie van de manager
-      const tempClient = createClient(
-        import.meta.env.VITE_SUPABASE_URL,
-        import.meta.env.VITE_SUPABASE_ANON_KEY,
-        { auth: { persistSession: false, autoRefreshToken: false } }
-      )
-      const { error } = await tempClient.auth.signUp({
+      const { waarschuwing } = await maakAccount({
+        naam: employeeData.name,
         email: employeeData.email,
-        password: employeeData.password,
-        options: { data: { full_name: employeeData.name } }
+        wachtwoord: employeeData.password,
+        rol: 'employee'
       })
-      if (error) throw error
-      toast('Beller aangemaakt! Wijs hem hieronder toe aan een projectlijst.', 'success')
+      toast(waarschuwing || 'Beller aangemaakt! Wijs hem hieronder toe aan een projectlijst.', waarschuwing ? 'error' : 'success')
       fetchEmployees()
     } catch (err) {
       toast(err.message, 'error')

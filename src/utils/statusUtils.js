@@ -32,7 +32,11 @@ export const STATUS_MAP = {
   geaccepteerd: { label: 'Geaccepteerd', color: 'var(--success)', bg: 'var(--success-bg)', description: 'Klant heeft de offerte digitaal geaccepteerd' },
   actief: { label: 'Actief', color: 'var(--success)', bg: 'var(--success-bg)', description: 'Betaling gelukt, klant is live' },
   afgewezen: { label: 'Afgewezen', color: 'var(--danger)', bg: 'var(--danger-bg)', description: 'Geen interesse of afgehaakt' },
-  offerte_verzonden: { label: 'Offerte verzonden', color: 'var(--info)', bg: 'var(--info-bg)', description: 'Offerte ligt bij de klant - komt op de opvolgdatum terug in de wachtrij' }
+  offerte_verzonden: { label: 'Offerte verzonden', color: 'var(--info)', bg: 'var(--info-bg)', description: 'Offerte ligt bij de klant - komt op de opvolgdatum terug in de wachtrij' },
+  // v107: alleen voor recruitment - sollicitant wil vanuit huis werken.
+  // Eindstatus voor de belwachtrij: hij komt niet meer terug bij de beller,
+  // maar staat op het sollicitantenbord in de eigen kolom "Remote".
+  remote_thuis: { label: 'Remote / thuiswerk', color: 'var(--secondary)', bg: 'var(--warning-bg)', description: 'Wil vanuit huis werken - staat op het bord in de kolom Remote' }
 };
 
 // v36: recruitment-projecten gebruiken dezelfde statussen/dispositie-flow
@@ -44,7 +48,8 @@ export const RECRUITMENT_LABELS = {
   geen_interesse: 'Afgewezen',
   terugbelafspraak: 'Terugbelafspraak (TBA)',
   onjuiste_timing: 'Nu niet, later opnieuw',
-  blacklist: 'Niet meer benaderen'
+  blacklist: 'Niet meer benaderen',
+  remote_thuis: 'Wil remote werken'
 };
 
 export const getStatusDetails = (status, isRecruitment = false) => {

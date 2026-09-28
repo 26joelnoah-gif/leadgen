@@ -996,6 +996,20 @@ export default function Admin() {
                           <span className="text-muted font-bold uppercase tracking-widest text-[10px]">Teamroosters inzien</span>
                        </label>
                      )}
+                     {u.id !== user.id && u.role !== 'admin' && (
+                       // v107: deze medewerker mag zelf accounts aanmaken
+                       // (beller, backoffice of accountmanager). De knop
+                       // "Nieuw account" verschijnt dan op zijn dashboard,
+                       // en bij een recruiter ook op de sollicitantenpagina.
+                       <label className="mt-2 flex items-center gap-2 cursor-pointer select-none" style={{ fontSize: '0.72rem' }}>
+                          <input
+                             type="checkbox"
+                             checked={u.can_create_users === true}
+                             onChange={e => handleUpdateFlow(u.id, { can_create_users: e.target.checked })}
+                          />
+                          <span className="text-muted font-bold uppercase tracking-widest text-[10px]">Accounts aanmaken</span>
+                       </label>
+                     )}
                      {u.id !== user.id && orgs.length > 0 && (
                        <div className="mt-2 flex items-center gap-2">
                           <span className="text-[10px] text-muted font-black uppercase tracking-widest">Org</span>
