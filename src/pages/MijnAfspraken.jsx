@@ -89,8 +89,12 @@ export default function MijnAfspraken() {
           appointment_sentiment, appointment_outcome, appointment_outcome_at,
           appointment_commission, appointment_commission_at, appointment_by,
           assigned_to, lead_list_id,
-          lead_lists(name, campaigns(name))
+          lead_lists!inner(name, campaigns!inner(name, appointment_scheduling_enabled))
         `)
+        // Alleen echte afspraken-projecten: een sollicitatiegesprek van de
+        // recruiter heeft ook een appointment_at, maar daar hoort geen
+        // accountmanager en geen uitbetaling per afspraak bij.
+        .eq('lead_lists.campaigns.appointment_scheduling_enabled', true)
         .not('appointment_at', 'is', null)
         .is('deleted_at', null)
         .order('appointment_at', { ascending: false })

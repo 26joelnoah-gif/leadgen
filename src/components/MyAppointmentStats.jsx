@@ -19,8 +19,10 @@ export default function MyAppointmentStats() {
     async function load() {
       const { data } = await supabase
         .from('leads')
-        .select('id, appointment_at, appointment_outcome, appointment_commission')
+        .select('id, appointment_at, appointment_outcome, appointment_commission, lead_lists!inner(campaigns!inner(appointment_scheduling_enabled))')
         .eq('appointment_by', user.id)
+        // zelfde regel als op /mijn-afspraken: alleen afspraken-projecten
+        .eq('lead_lists.campaigns.appointment_scheduling_enabled', true)
         .not('appointment_at', 'is', null)
         .is('deleted_at', null)
         .order('appointment_at', { ascending: false })
