@@ -82,6 +82,7 @@ export default function MerkInstellingen({ orgId, orgNaam }) {
         sub: (x.sub || '').trim() || undefined,
         periode: x.periode === 'maand' ? 'maand' : 'eenmalig',
         looptijd: x.periode === 'maand' ? Number(x.looptijd || 0) : undefined,
+        prijs: x.prijs === '' || x.prijs == null ? undefined : Number(x.prijs),
       }))
       .filter(x => x.naam)
     const { error } = await supabase.from('organizations').update(patch).eq('id', orgId)
@@ -183,7 +184,7 @@ export default function MerkInstellingen({ orgId, orgNaam }) {
           <div>
             <label className="text-[10px] font-black uppercase text-muted tracking-widest mb-1 block">Vaste regels ({sjablonen.length})</label>
             <p className="text-muted" style={{ fontSize: '0.7rem', margin: '0 0 8px' }}>
-              Snelknoppen in de offerte-tool. De accountmanager klikt er een aan en vult alleen nog de prijs in.
+              Snelknoppen in de offerte-tool. De accountmanager klikt er een aan en de regel staat er meteen. Vul je een standaardprijs in, dan staat die er ook al; laat je hem leeg, dan typt de accountmanager de prijs zelf.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {sjablonen.map((x, i) => (
@@ -202,6 +203,12 @@ export default function MerkInstellingen({ orgId, orgNaam }) {
                       onChange={e => setSjablonen(prev => prev.map((y, j) => j === i ? { ...y, sub: e.target.value } : y))}
                     />
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <input
+                        type="number" min="0" step="1" className="form-dark" style={{ width: 130, padding: '8px 12px' }}
+                        placeholder="Prijs (leeg)"
+                        value={x.prijs ?? ''}
+                        onChange={e => setSjablonen(prev => prev.map((y, j) => j === i ? { ...y, prijs: e.target.value === '' ? '' : Number(e.target.value) } : y))}
+                      />
                       <select
                         value={x.periode === 'maand' ? 'maand' : 'eenmalig'}
                         onChange={e => setSjablonen(prev => prev.map((y, j) => j === i ? { ...y, periode: e.target.value } : y))}
@@ -227,7 +234,7 @@ export default function MerkInstellingen({ orgId, orgNaam }) {
                 </div>
               ))}
             </div>
-            <button className="btn btn-outline btn-sm" style={{ marginTop: 8, textTransform: 'none', letterSpacing: 0, fontWeight: 600 }} onClick={() => setSjablonen(prev => [...prev, { naam: '', sub: '', periode: 'eenmalig', looptijd: 0 }])}>
+            <button className="btn btn-outline btn-sm" style={{ marginTop: 8, textTransform: 'none', letterSpacing: 0, fontWeight: 600 }} onClick={() => setSjablonen(prev => [...prev, { naam: '', sub: '', periode: 'eenmalig', looptijd: 0, prijs: '' }])}>
               <Plus size={14} /> Vaste regel toevoegen
             </button>
           </div>

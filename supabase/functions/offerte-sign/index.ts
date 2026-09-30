@@ -10,6 +10,10 @@
 // v113: ondertekenen mag zonder handtekeningafbeelding wanneer
 //       offertes.handtekening_vereist false is (akkoordknop + bevestiging).
 //       De merkkleuren en bedrijfsgegevens gaan mee naar de pagina.
+// v114: bewijs van ondertekening. De klant geeft twee keer expliciet akkoord
+//       (met de offerte, en met elektronisch ondertekenen) en we leggen een
+//       kenmerk, tijdstip, ip, browser en de hash van de offerte vast. Dat is
+//       een gewone elektronische handtekening in de zin van eIDAS.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -43,6 +47,11 @@ function tijdNL(d: Date): string {
 }
 function esc(s: unknown): string {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
+}
+function kenmerk(): string {
+  const b = crypto.getRandomValues(new Uint8Array(5));
+  const hex = Array.from(b).map((x) => x.toString(16).padStart(2, "0")).join("").toUpperCase();
+  return `ONDT-${new Date().getFullYear()}-${hex}`;
 }
 async function sendMail(to: string, from: string, replyTo: string | null, subject: string, html: string) {
   const key = Deno.env.get("RESEND_API_KEY");
@@ -124,6 +133,15 @@ Deno.serve(async (req: Request) => {
           speclijst: off.speclijst, akkoord_tekst: off.akkoord_tekst, geldig_tot: off.sign_token_expires_at,
           notitie_klant: off.notitie || null, handtekening_vereist: off.handtekening_vereist !== false,
         },
+        bewijs: {
+          kenmerk: off.ondertekening_id || null,
+          op: off.getekend_op,
+          email: off.akkoord?.verzonden_naar || off.verzonden_naar || null,
+          ip: off.akkoord?.ip || null,
+          browser: off.akkoord?.ua || null,
+          document_hash: off.inhoud_hash || null,
+          methode: off.akkoord?.methode || null,
+        },
       });
     }
     if (off.status === "afgewezen" || off.status === "geannuleerd") {
@@ -180,17 +198,25 @@ Deno.serve(async (req: Request) => {
     } else if (png && (!png.startsWith("data:image/png;base64,") || png.length > 400_000)) {
       return json({ error: "handtekening_ongeldig" }, 400);
     }
-    // Zonder handtekening moet de klant expliciet het vinkje hebben gezet.
-    if (!pngNodig && body?.akkoord !== true) return json({ error: "akkoord_ontbreekt" }, 400);
+    // De twee vinkjes: akkoord met de offerte, en akkoord met elektronisch
+    // ondertekenen. Bij de akkoordknop zijn allebei verplicht; dat is precies
+    // wat een gewone elektronische handtekening onderbouwt.
+    if (body?.akkoord !== true) return json({ error: "akkoord_ontbreekt" }, 400);
+    if (!pngNodig && body?.elektronisch !== true) return json({ error: "elektronisch_ontbreekt" }, 400);
 
     const now = new Date();
+    const ondertekeningId = off.ondertekening_id || kenmerk();
     const akkoord = {
       door: naam, functie, op: now.toISOString(), png: png || null, ua, ip,
       tekst: off.akkoord_tekst, inhoud_hash: off.inhoud_hash, verzonden_naar: off.verzonden_naar,
       methode: pngNodig ? "op_afstand" : "op_afstand_knop",
+      ondertekening_id: ondertekeningId,
+      akkoord_offerte: true,
+      akkoord_elektronisch: pngNodig ? true : body?.elektronisch === true,
+      tijdstip_nl: tijdNL(now),
     };
     const { error: updErr } = await admin.from("offertes").update({
-      status: "getekend", akkoord, getekend_op: now.toISOString(),
+      status: "getekend", akkoord, getekend_op: now.toISOString(), ondertekening_id: ondertekeningId,
     }).eq("id", off.id);
     if (updErr) return json({ error: "opslaan_mislukt" }, 500);
 
@@ -213,7 +239,7 @@ Deno.serve(async (req: Request) => {
           disposed_at: now.toISOString(),
           duration_seconds: 0,
           source: "offerte_remote",
-          notes: `Offerte ${off.nummer} ondertekend op afstand door ${naam}`,
+          notes: `Offerte ${off.nummer} ondertekend op afstand door ${naam} (${ondertekeningId})`,
         });
       }
     }
@@ -225,9 +251,9 @@ Deno.serve(async (req: Request) => {
       await sendMail(off.verzonden_naar, from, amInfo.email, `Bevestiging: offerte ${off.nummer} is ondertekend`,
         `<div style="font-family:Inter,-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0B0B0C">
          <h1 style="font-size:20px">Bedankt, uw akkoord is ontvangen</h1>
-         <p>Offerte <b>${esc(off.nummer)}</b> voor ${esc(off.zaak_naam)} is op ${esc(wanneer)} ondertekend door ${esc(naam)}${functie ? ` (${esc(functie)})` : ""}.</p>
+         <p>Offerte <b>${esc(off.nummer)}</b> voor ${esc(off.zaak_naam)} is op ${esc(wanneer)} elektronisch ondertekend door ${esc(naam)}${functie ? ` (${esc(functie)})` : ""}.</p>
          <table style="border-collapse:collapse;font-size:14px"><tr><td style="padding:4px 12px 4px 0;color:#6B6B75">Eenmalig (excl. btw)</td><td><b>${euro(off.eenmalig_ex)}</b></td></tr><tr><td style="padding:4px 12px 4px 0;color:#6B6B75">Per maand (excl. btw)</td><td><b>${euro(off.maandbedrag_ex)}</b></td></tr></table>
-         <p style="font-size:13px;color:#6B6B75">Bewaar deze mail als bevestiging. Via de link uit de eerdere mail kunt u de ondertekende offerte altijd terugzien en downloaden. ${esc(amInfo.naam)} neemt contact met u op over de vervolgstappen.</p>
+         <p style="font-size:13px;color:#6B6B75">Bewaar deze mail als bewijs. Via de link uit de eerdere mail kunt u de ondertekende offerte en het ondertekenbewijs altijd terugzien en downloaden. ${esc(amInfo.naam)} neemt contact met u op over de vervolgstappen.</p>
          </div>`);
     }
     if (amInfo.email) {
@@ -235,7 +261,7 @@ Deno.serve(async (req: Request) => {
         `<p><b>${esc(off.zaak_naam)}</b> heeft offerte ${esc(off.nummer)} op ${esc(wanneer)} ondertekend (${esc(naam)}${functie ? `, ${esc(functie)}` : ""}).</p><p>Eenmalig ${euro(off.eenmalig_ex)} · per maand ${euro(off.maandbedrag_ex)}.</p><p><a href="${esc(appUrl)}/offertes" style="background:${esc(accent)};color:${esc(accentInkt)};padding:10px 16px;border-radius:999px;text-decoration:none;font-weight:600;display:inline-block">Bekijk in ReachConnect</a></p>`);
     }
 
-    return json({ ok: true, state: "getekend", getekend_op: now.toISOString() });
+    return json({ ok: true, state: "getekend", getekend_op: now.toISOString(), ondertekening_id: ondertekeningId });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     return json({ error: msg }, 500);

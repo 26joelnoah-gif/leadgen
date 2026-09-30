@@ -116,7 +116,8 @@
 <header>
   <div class="logo" id="merkLogo">Offerte</div>
   <div class="hdr-right">
-    <a class="chip" href="/tools" id="backLink" style="text-decoration:none">&larr; ReachConnect</a>
+    <select class="chip vk-only" id="merkKeuze" onchange="kiesProject(this.value)" style="display:none;max-width:210px" title="Namens welk merk maak je deze offerte?"></select>
+    <a class="chip vk-only" href="/tools" id="backLink" style="text-decoration:none">&larr; Terug</a>
     <span id="h_nr" class="chip">…</span>
     <span id="dbState" class="chip" title="Opslag in ReachConnect">…</span>
     <button class="chip" id="modeBtn" onclick="toggleMode()">Klantweergave</button>
@@ -184,6 +185,11 @@
       <span id="akkoordCheckTekst">Ik heb de offerte en de akkoordverklaring gelezen en ga hiermee akkoord.</span>
     </label>
 
+    <label class="check" id="elektronischWrap">
+      <input type="checkbox" id="s_elektronisch" onchange="chkKlaar()">
+      <span>Ik wil deze overeenkomst elektronisch ondertekenen en ga ermee akkoord dat mijn naam, het tijdstip en mijn browser worden vastgelegd als bewijs van ondertekening.</span>
+    </label>
+
     <div class="btns">
       <button class="btn acc" id="signBtn" onclick="vraagBevestiging()" disabled>Ondertekenen</button>
       <button class="btn vk-only" id="sendBtn" onclick="sendForSign()" disabled title="Mailt de klant een link om zelf te ondertekenen">Verstuur ter ondertekening</button>
@@ -243,6 +249,13 @@ const LOOPTIJDEN = [
 ];
 const looptijdLabel = (v) => (LOOPTIJDEN.find(l => l.v === Number(v)) || LOOPTIJDEN[0]).label;
 
+/* Kenmerk van de ondertekening: staat op de bevestiging en in de pdf, zodat een
+   akkoord later terug te vinden is. Zelfde vorm als in de Edge Function. */
+function nieuwKenmerk(){
+  const b = crypto.getRandomValues(new Uint8Array(5));
+  return 'ONDT-' + new Date().getFullYear() + '-' + Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('').toUpperCase();
+}
+
 /* Valt terug op deze lijst als het merk geen eigen sjablonen heeft. */
 const STANDAARD_SJABLONEN = [
   { naam:'Website', periode:'eenmalig' },
@@ -261,6 +274,7 @@ let S = { nummer:null, lead_id:null, campaign_id:null, signed:null, verzonden:nu
 let REGELS = [];
 let last = null;
 let OPEN_ID = null;   // ?id= : bestaande offerte heropenen
+let MERKEN = [];      // projecten met een merk, voor als de tool zonder lead opent
 
 const el = id => document.getElementById(id);
 const val = id => { const e = el(id); return e ? e.value : ''; };
@@ -278,9 +292,35 @@ function nieuwNummer(){
   return nummerPrefix() + '-' + new Date().getFullYear() + '-' + String(Math.floor(Math.random()*9000)+1000);
 }
 
+/* ===== merk kiezen als de tool zonder lead geopend wordt =====
+   Via een lead weet de tool welk project (en dus welk merk) erbij hoort. Wordt
+   de tool los geopend vanaf het tabblad Tools, dan kiest de medewerker hier
+   zelf namens welk merk hij offreert. */
+function vulMerkKeuze(){
+  const sel = el('merkKeuze'); if(!sel) return;
+  if(!MERKEN.length){ sel.style.display='none'; return; }
+  sel.style.display='';
+  sel.innerHTML = '<option value="">Kies namens wie\u2026</option>' +
+    MERKEN.map(m => `<option value="${esc(m.campaign_id)}" ${S.campaign_id===m.campaign_id?'selected':''}>${esc(m.afzender_naam || m.naam)} \u00b7 ${esc(m.campaign_naam)}</option>`).join('');
+}
+function kiesProject(campaignId){
+  const m = MERKEN.find(x => x.campaign_id === campaignId);
+  S.campaign_id = campaignId || null;
+  if(m){
+    MERK = Object.assign(MERK, m);
+    if(!S.signed && !S.verzonden && !dbId) S.nummer = nieuwNummer();
+    el('h_nr').textContent = S.nummer;
+    el('v_btw').value = MERK.btw_percentage ?? 21;
+  }
+  renderMerk(); calc(); save();
+}
+
 /* ===== regels ===== */
 function addRegel(v){
-  REGELS.push(Object.assign({ naam:'', sub:'', aantal:1, prijs:'', periode:'eenmalig', looptijd:0 }, v||{}));
+  const basis = { naam:'', sub:'', aantal:1, prijs:'', periode:'eenmalig', looptijd:0 };
+  const nieuw = Object.assign(basis, v||{});
+  if(nieuw.prijs === null || nieuw.prijs === undefined) nieuw.prijs = '';
+  REGELS.push(nieuw);
   renderRegels(); calc(); save();
   const inputs = document.querySelectorAll('#regels .reg input[data-f="naam"]');
   const laatste = inputs[inputs.length-1];
@@ -412,8 +452,9 @@ function chkKlaar(){
   if(b){
     const naamOk = val('s_naam').trim().length > 1;
     const gelezen = el('s_gelezen').checked;
+    const elektronisch = el('s_elektronisch').checked;
     const sigOk = metHandtekening() ? hasSig : true;
-    b.disabled = !(basisKlaar() && naamOk && gelezen && sigOk);
+    b.disabled = !(basisKlaar() && naamOk && gelezen && elektronisch && sigOk);
   }
   const s = el('sendBtn');
   if(s){
@@ -443,6 +484,9 @@ function sign(){
     png: metHandtekening() && ctx ? el('sig').toDataURL('image/png') : null,
     ua: navigator.userAgent, tekst: akkoordTekst(),
     methode: metHandtekening() ? 'op_locatie' : 'op_locatie_knop',
+    ondertekening_id: nieuwKenmerk(),
+    akkoord_offerte: true,
+    akkoord_elektronisch: true,
     snapshot: JSON.parse(JSON.stringify(last)),
   };
   renderSigned(); lockAll(); save(); dbSave(true);
@@ -450,14 +494,14 @@ function sign(){
 function renderSigned(){
   if(!S.signed) return; const d = new Date(S.signed.op);
   el('signedbox').classList.remove('hidden');
-  el('signedbox').innerHTML = `<b>Ondertekend</b> door ${esc(S.signed.door)}${S.signed.functie?' ('+esc(S.signed.functie)+')':''} op ${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})} · offerte ${S.nummer}.<br><span class="note">Deze offerte staat nu vast. Download de PDF hieronder en mail hem naar de klant, of stuur hem vanuit het offerte-overzicht.</span>`;
+  el('signedbox').innerHTML = `<b>Elektronisch ondertekend</b> door ${esc(S.signed.door)}${S.signed.functie?' ('+esc(S.signed.functie)+')':''} op ${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})} · offerte ${S.nummer}.<br>Kenmerk: <b>${esc(S.signed.ondertekening_id||'-')}</b><br><span class="note">Deze offerte staat nu vast. Download de PDF hieronder en mail hem naar de klant, of stuur hem vanuit het offerte-overzicht.</span>`;
   el('signBtn').textContent='Ondertekend'; el('signBtn').disabled=true; el('barBtn').textContent='Download PDF';
   el('barNieuw').classList.remove('hidden');
 }
 function lockAll(){
   document.querySelectorAll('main section.card').forEach(s => { if(s.id!=='akkoord') s.classList.add('lock'); });
   const w = el('sigwrap'); if(w) w.classList.add('lock');
-  el('s_naam').disabled=true; el('s_functie').disabled=true; el('s_gelezen').disabled=true;
+  el('s_naam').disabled=true; el('s_functie').disabled=true; el('s_gelezen').disabled=true; el('s_elektronisch').disabled=true;
 }
 function barAction(){ if(S.signed) showDoc(); else el('akkoord').scrollIntoView({behavior:'smooth'}); }
 function toggleMode(){ S.klantmodus = !S.klantmodus; applyMode(); save(); }
@@ -498,8 +542,15 @@ function buildDoc(){
   h += `<h2>Akkoord</h2><div class="box">${esc(akkoordTekst())}</div>`;
   if(S.signed){
     const d = new Date(S.signed.op);
-    h += `<div class="sigbox"><div>${S.signed.png?`<img src="${S.signed.png}" alt="">`:''}<div class="small"><b>Digitaal ondertekend door ${esc(S.signed.door)}</b>${S.signed.functie?' · '+esc(S.signed.functie):''}<br>${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}${S.signed.png?'':' · akkoord gegeven via de akkoordknop'}</div></div>
+    h += `<div class="sigbox"><div>${S.signed.png?`<img src="${S.signed.png}" alt="">`:''}<div class="small"><b>Elektronisch ondertekend door ${esc(S.signed.door)}</b>${S.signed.functie?' · '+esc(S.signed.functie):''}<br>${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}</div></div>
       <div class="small">Namens ${esc(merkNaam())}: ${esc(val('v_naam')||'')}</div></div>`;
+    h += `<h2>Bewijs van ondertekening</h2><table>
+      <tr><td>Kenmerk</td><td class="r">${esc(S.signed.ondertekening_id||'-')}</td></tr>
+      <tr><td>Ondertekend op</td><td class="r">${d.toLocaleDateString('nl-NL')} ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}</td></tr>
+      <tr><td>Ondertekenaar</td><td class="r">${esc(S.signed.door)}${S.signed.functie?' ('+esc(S.signed.functie)+')':''}</td></tr>
+      <tr><td>Wijze</td><td class="r">${S.signed.png ? 'Handtekening op het scherm' : 'Akkoord met bevestiging'}</td></tr>
+      <tr><td>Browser</td><td class="r" style="white-space:normal">${esc(S.signed.ua||'')}</td></tr>
+      </table><div class="small">De ondertekenaar heeft verklaard de offerte en de akkoordverklaring te hebben gelezen en akkoord te gaan met elektronisch ondertekenen.</div>`;
   } else {
     h += `<div class="sigbox"><div class="small" style="border-top:1px solid #999;padding-top:4px;width:220px">Handtekening klant</div><div class="small" style="border-top:1px solid #999;padding-top:4px;width:220px">Datum</div></div>`;
   }
@@ -679,6 +730,17 @@ async function lgInit(){
         if(S.signed){ renderSigned(); lockAll(); }
         else if(S.verzonden || row.status !== 'concept'){ renderSent(); lockAll(); }
       }
+    }
+
+    // Zonder lead: laat de medewerker het merk/project kiezen.
+    if(!S.lead_id){
+      const { data: merken } = await sb.rpc('offerte_merken');
+      MERKEN = Array.isArray(merken) ? merken : [];
+      if(!S.campaign_id && MERKEN.length === 1) S.campaign_id = MERKEN[0].campaign_id;
+      vulMerkKeuze();
+      const gekozen = MERKEN.find(x => x.campaign_id === S.campaign_id);
+      if(gekozen){ MERK = Object.assign(MERK, gekozen); el('v_btw').value = MERK.btw_percentage ?? 21; }
+      vulMerkKeuze();
     }
 
     if(S.lead_id){

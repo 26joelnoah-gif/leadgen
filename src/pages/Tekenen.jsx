@@ -11,6 +11,9 @@
 //       akkoordknop plus bevestigingsstap wanneer offertes.handtekening_vereist
 //       false is, looptijd per maandregel, en na ondertekenen een bevestiging
 //       met de volledige offerte en een downloadknop (print naar pdf).
+// v114: twee vinkjes (akkoord met de offerte + akkoord met elektronisch
+//       ondertekenen) en een ondertekenbewijs met kenmerk, tijdstip, e-mail,
+//       ip, browser en de hash van de offerte, ook zichtbaar in de pdf.
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
@@ -176,6 +179,7 @@ export default function Tekenen() {
   const [naam, setNaam] = useState('')
   const [functie, setFunctie] = useState('')
   const [gelezen, setGelezen] = useState(false)
+  const [elektronisch, setElektronisch] = useState(false)
   const [hasInk, setHasInk] = useState(false)
   const [busy, setBusy] = useState(false)
   const [afwijzen, setAfwijzen] = useState(false)
@@ -223,11 +227,15 @@ export default function Tekenen() {
         if (body?.state) { setData({ ...data, state: body.state }); return }
         setSubmitErr(
           body?.error === 'handtekening_ongeldig' ? 'De handtekening kon niet worden opgeslagen. Probeer het opnieuw.'
-            : body?.error === 'akkoord_ontbreekt' ? 'Zet eerst het vinkje dat u akkoord gaat.'
+            : body?.error === 'akkoord_ontbreekt' ? 'Zet eerst het vinkje dat u akkoord gaat met de offerte.'
+              : body?.error === 'elektronisch_ontbreekt' ? 'Zet ook het vinkje dat u elektronisch wilt ondertekenen.'
               : 'Er ging iets mis. Probeer het opnieuw of bel ons.')
         return
       }
-      setData({ ...data, state: body.state, getekend_op: body.getekend_op, door: naam, functie })
+      setData({
+        ...data, state: body.state, getekend_op: body.getekend_op, door: naam, functie,
+        bewijs: { ...(data?.bewijs || {}), kenmerk: body.ondertekening_id || null, op: body.getekend_op, methode: 'op_afstand_knop' },
+      })
       setBevestig(false)
       window.scrollTo({ top: 0 })
     } catch {
@@ -239,7 +247,7 @@ export default function Tekenen() {
 
   function tekenen() {
     const png = metHandtekening ? SignaturePad.getPng(padRoot.current) : undefined
-    post({ actie: 'tekenen', naam: naam.trim(), functie: functie.trim(), png, akkoord: true })
+    post({ actie: 'tekenen', naam: naam.trim(), functie: functie.trim(), png, akkoord: true, elektronisch: metHandtekening ? true : elektronisch })
   }
 
   const org = data?.org || {}
@@ -303,7 +311,8 @@ export default function Tekenen() {
   const spec = o.speclijst && typeof o.speclijst === 'object' ? Object.entries(o.speclijst).filter(([, v]) => v) : []
   const voorwaarden = Array.isArray(org.voorwaarden) ? org.voorwaarden : []
   const metHandtekening = o.handtekening_vereist !== false
-  const canSign = naam.trim().length >= 2 && gelezen && !busy && (metHandtekening ? hasInk : true)
+  const bewijs = data.bewijs || {}
+  const canSign = naam.trim().length >= 2 && gelezen && !busy && (metHandtekening ? hasInk : elektronisch)
 
   const eenmaligeRegels = regels.filter((r) => r.type !== 'maand')
   const maandRegels = regels.filter((r) => Number(r.mnd) > 0)
@@ -425,11 +434,24 @@ export default function Tekenen() {
 
         {getekend ? (
           <div className="card">
-            <h2>Ondertekening</h2>
-            <div className="muted">
-              Digitaal ondertekend door <b style={{ color: 'var(--text)' }}>{data.door || '—'}</b>{data.functie ? ` (${data.functie})` : ''} op {tijd(data.getekend_op)}.
-              <br />Akkoord gegeven op deze pagina, na het lezen van de offerte en de akkoordverklaring.
+            <h2>Bewijs van ondertekening</h2>
+            <div className="muted" style={{ marginBottom: 10 }}>
+              Elektronisch ondertekend door <b style={{ color: 'var(--text)' }}>{data.door || '—'}</b>{data.functie ? ` (${data.functie})` : ''} op {tijd(data.getekend_op)},
+              na het lezen van de offerte en de akkoordverklaring en na akkoord met elektronisch ondertekenen.
             </div>
+            <table>
+              <tbody>
+                {bewijs.kenmerk && <tr><td className="n">Kenmerk</td><td className="r">{bewijs.kenmerk}</td></tr>}
+                <tr><td className="n">Ondertekend op</td><td className="r">{tijd(data.getekend_op)}</td></tr>
+                {bewijs.email && <tr><td className="n">Verstuurd naar</td><td className="r">{bewijs.email}</td></tr>}
+                {bewijs.ip && <tr><td className="n">Ip-adres</td><td className="r">{bewijs.ip}</td></tr>}
+                {bewijs.browser && <tr><td className="n">Browser</td><td className="r" style={{ whiteSpace: 'normal', wordBreak: 'break-all', textAlign: 'left' }}>{bewijs.browser}</td></tr>}
+                {bewijs.document_hash && <tr><td className="n">Documentcode</td><td className="r" style={{ whiteSpace: 'normal', wordBreak: 'break-all', textAlign: 'left' }}>{bewijs.document_hash}</td></tr>}
+              </tbody>
+            </table>
+            <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
+              De documentcode hoort bij de inhoud van deze offerte op het moment van versturen. Wijzigt er iets aan de offerte, dan klopt die code niet meer.
+            </p>
           </div>
         ) : !afwijzen ? (
           <div className="card" ref={padRoot}>
@@ -449,9 +471,15 @@ export default function Tekenen() {
               <span>Ik heb de offerte en de akkoordverklaring gelezen en ga hiermee akkoord namens {o.zaak_naam}.</span>
             </label>
             {!metHandtekening && (
-              <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>
-                U ondertekent digitaal. Uw naam, het tijdstip en uw akkoord worden vastgelegd; dat geldt als rechtsgeldige ondertekening.
-              </p>
+              <>
+                <label className="check">
+                  <input type="checkbox" checked={elektronisch} onChange={(e) => setElektronisch(e.target.checked)} />
+                  <span>Ik wil deze overeenkomst elektronisch ondertekenen en ga ermee akkoord dat mijn naam, het tijdstip, mijn ip-adres en mijn browser worden vastgelegd als bewijs van ondertekening.</span>
+                </label>
+                <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>
+                  Na het zetten van beide vinkjes klikt u op Ondertekenen. U krijgt dan een bevestiging met een uniek kenmerk, die u kunt bewaren en downloaden.
+                </p>
+              </>
             )}
             {submitErr && <div className="err">{submitErr}</div>}
           </div>
