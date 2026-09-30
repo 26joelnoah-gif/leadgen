@@ -169,6 +169,8 @@
     <div class="grid" style="margin-top:12px">
       <div><label class="f">Naam ondertekenaar *</label><input type="text" id="s_naam" placeholder="Naam zoals op het contract" oninput="chkKlaar()"></div>
       <div><label class="f">Functie</label><input type="text" id="s_functie" placeholder="Eigenaar" oninput="save()"></div>
+      <div><label class="f">Namens welk bedrijf *</label><input type="text" id="s_bedrijf" placeholder="Naam van het bedrijf" oninput="chkKlaar();save()"></div>
+      <div><label class="f">Datum</label><input type="text" id="s_datum" readonly></div>
     </div>
 
     <div id="sigblok" class="hidden">
@@ -185,9 +187,19 @@
       <span id="akkoordCheckTekst">Ik heb de offerte en de akkoordverklaring gelezen en ga hiermee akkoord.</span>
     </label>
 
+    <label class="check" id="bevoegdWrap">
+      <input type="checkbox" id="s_bevoegd" onchange="chkKlaar()">
+      <span id="bevoegdTekst">Ik ben eigenaar van dit bedrijf of bevoegd om er namens te tekenen.</span>
+    </label>
+
     <label class="check" id="elektronischWrap">
       <input type="checkbox" id="s_elektronisch" onchange="chkKlaar()">
       <span>Ik wil deze overeenkomst elektronisch ondertekenen en ga ermee akkoord dat mijn naam, het tijdstip en mijn browser worden vastgelegd als bewijs van ondertekening.</span>
+    </label>
+
+    <label class="check" id="optinWrap" style="border-top:1px solid var(--line);padding-top:12px;margin-top:14px">
+      <input type="checkbox" id="s_optin" onchange="save()">
+      <span id="optinTekst">Wij mogen je bellen en mailen over andere diensten, aanbiedingen en nieuws. <span style="color:var(--muted)">Vrijwillig, tekenen kan ook zonder. Afmelden kan altijd.</span></span>
     </label>
 
     <div class="btns">
@@ -412,6 +424,8 @@ function voorwaarden(){ return Array.isArray(MERK.offerte_voorwaarden) ? MERK.of
 function renderAkkoord(){
   el('akktekst').textContent = akkoordTekst();
   el('akkoordCheckTekst').textContent = `Ik heb de offerte en de akkoordverklaring van ${merkNaam()} gelezen en ga hiermee akkoord namens het bedrijf.`;
+  const ot = el('optinTekst');
+  if(ot) ot.innerHTML = `${esc(merkNaam())} mag mij bellen en mailen over andere diensten, aanbiedingen en nieuws. <span style="color:var(--muted)">Vrijwillig, tekenen kan ook zonder. Afmelden kan altijd.</span>`;
   const vw = voorwaarden();
   if(!vw.length){ el('vwbox').classList.add('hidden'); return; }
   el('vwbox').classList.remove('hidden');
@@ -453,8 +467,12 @@ function chkKlaar(){
     const naamOk = val('s_naam').trim().length > 1;
     const gelezen = el('s_gelezen').checked;
     const elektronisch = el('s_elektronisch').checked;
+    const bevoegd = el('s_bevoegd').checked;
+    const bedrijfOk = val('s_bedrijf').trim().length > 1;
     const sigOk = metHandtekening() ? hasSig : true;
-    b.disabled = !(basisKlaar() && naamOk && gelezen && elektronisch && sigOk);
+    b.disabled = !(basisKlaar() && naamOk && bedrijfOk && gelezen && elektronisch && bevoegd && sigOk);
+    const bt = el('bevoegdTekst');
+    if(bt) bt.textContent = 'Ik ben eigenaar van ' + (val('s_bedrijf').trim() || 'dit bedrijf') + ' of bevoegd om namens dit bedrijf te tekenen.';
   }
   const s = el('sendBtn');
   if(s){
@@ -484,12 +502,23 @@ function sign(){
     png: metHandtekening() && ctx ? el('sig').toDataURL('image/png') : null,
     ua: navigator.userAgent, tekst: akkoordTekst(),
     methode: metHandtekening() ? 'op_locatie' : 'op_locatie_knop',
+    bedrijfsnaam: val('s_bedrijf').trim(),
     ondertekening_id: nieuwKenmerk(),
     akkoord_offerte: true,
     akkoord_elektronisch: true,
+    bevoegd: true,
+    contact_optin: el('s_optin').checked,
     snapshot: JSON.parse(JSON.stringify(last)),
   };
-  renderSigned(); lockAll(); save(); dbSave(true);
+  renderSigned(); lockAll(); save(); dbSave(true).then(legVastOptin);
+}
+// Toestemming voor bellen en mailen op de lead zetten. Een beller mag dat van
+// de compliance-regels (v98) niet zelf; de RPC doet het op basis van de
+// getekende offerte, waar het vinkje in staat.
+async function legVastOptin(){
+  if(!sb || !dbId || !S.signed || !S.signed.contact_optin || !S.lead_id) return;
+  try{ await sb.rpc('offerte_contact_optin', { p_offerte: dbId }); }
+  catch(e){ console.warn('toestemming vastleggen mislukt', e); }
 }
 function renderSigned(){
   if(!S.signed) return; const d = new Date(S.signed.op);
@@ -501,7 +530,7 @@ function renderSigned(){
 function lockAll(){
   document.querySelectorAll('main section.card').forEach(s => { if(s.id!=='akkoord') s.classList.add('lock'); });
   const w = el('sigwrap'); if(w) w.classList.add('lock');
-  el('s_naam').disabled=true; el('s_functie').disabled=true; el('s_gelezen').disabled=true; el('s_elektronisch').disabled=true;
+  ['s_naam','s_functie','s_bedrijf','s_gelezen','s_elektronisch','s_bevoegd','s_optin'].forEach(id => { const e = el(id); if(e) e.disabled = true; });
 }
 function barAction(){ if(S.signed) showDoc(); else el('akkoord').scrollIntoView({behavior:'smooth'}); }
 function toggleMode(){ S.klantmodus = !S.klantmodus; applyMode(); save(); }
@@ -548,6 +577,9 @@ function buildDoc(){
       <tr><td>Kenmerk</td><td class="r">${esc(S.signed.ondertekening_id||'-')}</td></tr>
       <tr><td>Ondertekend op</td><td class="r">${d.toLocaleDateString('nl-NL')} ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}</td></tr>
       <tr><td>Ondertekenaar</td><td class="r">${esc(S.signed.door)}${S.signed.functie?' ('+esc(S.signed.functie)+')':''}</td></tr>
+      <tr><td>Namens</td><td class="r">${esc(S.signed.bedrijfsnaam || val('k_zaak'))}</td></tr>
+      <tr><td>Verklaring</td><td class="r">Eigenaar of bevoegd om te tekenen</td></tr>
+      <tr><td>Bellen en mailen</td><td class="r">${S.signed.contact_optin ? 'Toestemming gegeven' : 'Geen toestemming gegeven'}</td></tr>
       <tr><td>Wijze</td><td class="r">${S.signed.png ? 'Handtekening op het scherm' : 'Akkoord met bevestiging'}</td></tr>
       <tr><td>Browser</td><td class="r" style="white-space:normal">${esc(S.signed.ua||'')}</td></tr>
       </table><div class="small">De ondertekenaar heeft verklaard de offerte en de akkoordverklaring te hebben gelezen en akkoord te gaan met elektronisch ondertekenen.</div>`;
@@ -559,7 +591,7 @@ function buildDoc(){
 }
 
 /* ===== lokale opslag ===== */
-const VELDEN = ['k_zaak','k_naam','k_mail','k_tel','k_adres','v_naam','v_korting','v_btw','v_notitie','s_naam','s_functie'];
+const VELDEN = ['k_zaak','k_naam','k_mail','k_tel','k_adres','v_naam','v_korting','v_btw','v_notitie','s_naam','s_functie','s_bedrijf'];
 function toolState(){ return { S, REGELS, f: VELDEN.reduce((a,id)=>(a[id]=val(id),a),{}) }; }
 function zetToolState(d){
   if(!d) return false;
@@ -694,6 +726,8 @@ function kopieerLink(){
   }
   if(!S.nummer) S.nummer = nieuwNummer();
   el('h_nr').textContent = S.nummer;
+  const dv = el('s_datum'); if(dv) dv.value = new Date().toLocaleDateString('nl-NL', { day:'numeric', month:'long', year:'numeric' });
+  if(!val('s_bedrijf') && val('k_zaak')) el('s_bedrijf').value = val('k_zaak');
   renderSjablonen(); renderRegels(); renderMerk(); calc(); applyMode();
   if(S.signed){
     renderSigned(); lockAll();
@@ -754,6 +788,7 @@ async function lgInit(){
           const set = (id,x) => { const e=el(id); if(e && x) e.value = x; };
           set('k_zaak', lead.name); set('k_naam', lead.contact_person); set('k_mail', lead.email); set('k_tel', lead.phone);
           set('k_adres', [ [lead.address, lead.house_number].filter(Boolean).join(' '), [lead.postal_code, lead.city].filter(Boolean).join(' ') ].filter(Boolean).join(', '));
+          if(!val('s_bedrijf')) set('s_bedrijf', lead.name);
         }
       }
     }

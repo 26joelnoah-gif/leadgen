@@ -14,6 +14,9 @@
 // v114: twee vinkjes (akkoord met de offerte + akkoord met elektronisch
 //       ondertekenen) en een ondertekenbewijs met kenmerk, tijdstip, e-mail,
 //       ip, browser en de hash van de offerte, ook zichtbaar in de pdf.
+// v115: wie tekent. De klant vult ook de bedrijfsnaam in en verklaart dat hij
+//       eigenaar of bevoegd is. Daarnaast een vrijwillig vinkje voor bellen en
+//       mailen over andere diensten; dat vinkje is niet nodig om te tekenen.
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
@@ -22,6 +25,7 @@ const ANON = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 const euro = (n) => '€ ' + Number(n || 0).toLocaleString('nl-NL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const datum = (iso) => iso ? new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }) : ''
+const vandaag = () => new Date().toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' })
 const tijd = (iso) => iso ? new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
 
 // De looptijd komt als getal mee uit de offerte-tool (0 = maandelijks opzegbaar).
@@ -180,6 +184,9 @@ export default function Tekenen() {
   const [functie, setFunctie] = useState('')
   const [gelezen, setGelezen] = useState(false)
   const [elektronisch, setElektronisch] = useState(false)
+  const [bedrijf, setBedrijf] = useState('')
+  const [bevoegd, setBevoegd] = useState(false)
+  const [contactOptin, setContactOptin] = useState(false)
   const [hasInk, setHasInk] = useState(false)
   const [busy, setBusy] = useState(false)
   const [afwijzen, setAfwijzen] = useState(false)
@@ -206,6 +213,7 @@ export default function Tekenen() {
         if (res.status === 404 || body?.error === 'onbekend') { setError('onbekend'); return }
         if (body?.error === 'te_veel_verzoeken') { setError('druk'); return }
         setData(body)
+        if (body?.offerte?.zaak_naam) setBedrijf(body.offerte.zaak_naam)
       } catch {
         if (!stop) setError('netwerk')
       }
@@ -229,12 +237,17 @@ export default function Tekenen() {
           body?.error === 'handtekening_ongeldig' ? 'De handtekening kon niet worden opgeslagen. Probeer het opnieuw.'
             : body?.error === 'akkoord_ontbreekt' ? 'Zet eerst het vinkje dat u akkoord gaat met de offerte.'
               : body?.error === 'elektronisch_ontbreekt' ? 'Zet ook het vinkje dat u elektronisch wilt ondertekenen.'
+                : body?.error === 'bevoegd_ontbreekt' ? 'Zet ook het vinkje dat u bevoegd bent om namens het bedrijf te tekenen.'
+                  : body?.error === 'bedrijfsnaam_ontbreekt' ? 'Vul de naam van het bedrijf in.'
               : 'Er ging iets mis. Probeer het opnieuw of bel ons.')
         return
       }
       setData({
-        ...data, state: body.state, getekend_op: body.getekend_op, door: naam, functie,
-        bewijs: { ...(data?.bewijs || {}), kenmerk: body.ondertekening_id || null, op: body.getekend_op, methode: 'op_afstand_knop' },
+        ...data, state: body.state, getekend_op: body.getekend_op, door: naam, functie, bedrijfsnaam: bedrijf,
+        bewijs: {
+          ...(data?.bewijs || {}), kenmerk: body.ondertekening_id || null, op: body.getekend_op,
+          methode: 'op_afstand_knop', bevoegd: true, contact_optin: contactOptin,
+        },
       })
       setBevestig(false)
       window.scrollTo({ top: 0 })
@@ -247,7 +260,11 @@ export default function Tekenen() {
 
   function tekenen() {
     const png = metHandtekening ? SignaturePad.getPng(padRoot.current) : undefined
-    post({ actie: 'tekenen', naam: naam.trim(), functie: functie.trim(), png, akkoord: true, elektronisch: metHandtekening ? true : elektronisch })
+    post({
+      actie: 'tekenen', naam: naam.trim(), functie: functie.trim(), png, akkoord: true,
+      elektronisch: metHandtekening ? true : elektronisch,
+      bedrijfsnaam: bedrijf.trim(), bevoegd, contact_optin: contactOptin,
+    })
   }
 
   const org = data?.org || {}
@@ -312,7 +329,8 @@ export default function Tekenen() {
   const voorwaarden = Array.isArray(org.voorwaarden) ? org.voorwaarden : []
   const metHandtekening = o.handtekening_vereist !== false
   const bewijs = data.bewijs || {}
-  const canSign = naam.trim().length >= 2 && gelezen && !busy && (metHandtekening ? hasInk : elektronisch)
+  const canSign = naam.trim().length >= 2 && bedrijf.trim().length >= 2 && gelezen && !busy
+    && (metHandtekening ? hasInk : (elektronisch && bevoegd))
 
   const eenmaligeRegels = regels.filter((r) => r.type !== 'maand')
   const maandRegels = regels.filter((r) => Number(r.mnd) > 0)
@@ -436,17 +454,20 @@ export default function Tekenen() {
           <div className="card">
             <h2>Bewijs van ondertekening</h2>
             <div className="muted" style={{ marginBottom: 10 }}>
-              Elektronisch ondertekend door <b style={{ color: 'var(--text)' }}>{data.door || '—'}</b>{data.functie ? ` (${data.functie})` : ''} op {tijd(data.getekend_op)},
-              na het lezen van de offerte en de akkoordverklaring en na akkoord met elektronisch ondertekenen.
+              Elektronisch ondertekend door <b style={{ color: 'var(--text)' }}>{data.door || '—'}</b>{data.functie ? ` (${data.functie})` : ''} namens {data.bedrijfsnaam || o.zaak_naam} op {tijd(data.getekend_op)},
+              na het lezen van de offerte en de akkoordverklaring, met de verklaring bevoegd te zijn en akkoord met elektronisch ondertekenen.
             </div>
             <table>
               <tbody>
                 {bewijs.kenmerk && <tr><td className="n">Kenmerk</td><td className="r">{bewijs.kenmerk}</td></tr>}
+                <tr><td className="n">Namens</td><td className="r">{data.bedrijfsnaam || o.zaak_naam}</td></tr>
                 <tr><td className="n">Ondertekend op</td><td className="r">{tijd(data.getekend_op)}</td></tr>
                 {bewijs.email && <tr><td className="n">Verstuurd naar</td><td className="r">{bewijs.email}</td></tr>}
                 {bewijs.ip && <tr><td className="n">Ip-adres</td><td className="r">{bewijs.ip}</td></tr>}
                 {bewijs.browser && <tr><td className="n">Browser</td><td className="r" style={{ whiteSpace: 'normal', wordBreak: 'break-all', textAlign: 'left' }}>{bewijs.browser}</td></tr>}
                 {bewijs.document_hash && <tr><td className="n">Documentcode</td><td className="r" style={{ whiteSpace: 'normal', wordBreak: 'break-all', textAlign: 'left' }}>{bewijs.document_hash}</td></tr>}
+                {bewijs.bevoegd && <tr><td className="n">Verklaring</td><td className="r">Eigenaar of bevoegd om te tekenen</td></tr>}
+                <tr><td className="n">Bellen en mailen</td><td className="r">{bewijs.contact_optin ? 'Toestemming gegeven' : 'Geen toestemming gegeven'}</td></tr>
               </tbody>
             </table>
             <p className="muted" style={{ fontSize: 12, marginBottom: 0 }}>
@@ -460,6 +481,9 @@ export default function Tekenen() {
             <input id="tk-naam" type="text" value={naam} onChange={(e) => setNaam(e.target.value)} placeholder="Voor- en achternaam" autoComplete="name" />
             <label htmlFor="tk-functie">Functie (optioneel)</label>
             <input id="tk-functie" type="text" value={functie} onChange={(e) => setFunctie(e.target.value)} placeholder="Bijv. eigenaar" />
+            <label htmlFor="tk-bedrijf">Namens welk bedrijf</label>
+            <input id="tk-bedrijf" type="text" value={bedrijf} onChange={(e) => setBedrijf(e.target.value)} placeholder="Naam van het bedrijf" autoComplete="organization" />
+            <p className="muted" style={{ fontSize: 13, margin: '8px 0 0' }}>Datum: {vandaag()}</p>
             {metHandtekening && (
               <>
                 <label>Handtekening</label>
@@ -468,8 +492,14 @@ export default function Tekenen() {
             )}
             <label className="check">
               <input type="checkbox" checked={gelezen} onChange={(e) => setGelezen(e.target.checked)} />
-              <span>Ik heb de offerte en de akkoordverklaring gelezen en ga hiermee akkoord namens {o.zaak_naam}.</span>
+              <span>Ik heb de offerte en de akkoordverklaring gelezen en ga hiermee akkoord namens {bedrijf.trim() || o.zaak_naam}.</span>
             </label>
+            {!metHandtekening && (
+              <label className="check">
+                <input type="checkbox" checked={bevoegd} onChange={(e) => setBevoegd(e.target.checked)} />
+                <span>Ik ben eigenaar van {bedrijf.trim() || o.zaak_naam} of bevoegd om namens dit bedrijf te tekenen.</span>
+              </label>
+            )}
             {!metHandtekening && (
               <>
                 <label className="check">
@@ -477,10 +507,17 @@ export default function Tekenen() {
                   <span>Ik wil deze overeenkomst elektronisch ondertekenen en ga ermee akkoord dat mijn naam, het tijdstip, mijn ip-adres en mijn browser worden vastgelegd als bewijs van ondertekening.</span>
                 </label>
                 <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>
-                  Na het zetten van beide vinkjes klikt u op Ondertekenen. U krijgt dan een bevestiging met een uniek kenmerk, die u kunt bewaren en downloaden.
+                  Na het zetten van de vinkjes klikt u op Ondertekenen. U krijgt dan een bevestiging met een uniek kenmerk, die u kunt bewaren en downloaden.
                 </p>
               </>
             )}
+            <label className="check" style={{ borderTop: '1px solid var(--line)', paddingTop: 12, marginTop: 14 }}>
+              <input type="checkbox" checked={contactOptin} onChange={(e) => setContactOptin(e.target.checked)} />
+              <span>
+                {org.naam || 'Wij'} mag mij bellen en mailen over andere diensten, aanbiedingen en nieuws.
+                <span className="muted"> Vrijwillig, u kunt ook zonder dit vinkje tekenen. Afmelden kan altijd.</span>
+              </span>
+            </label>
             {submitErr && <div className="err">{submitErr}</div>}
           </div>
         ) : (
@@ -515,7 +552,7 @@ export default function Tekenen() {
           <div className="box">
             <h3>Weet u het zeker?</h3>
             <p style={{ margin: 0, color: '#6B6B75', fontSize: 14 }}>
-              U ondertekent offerte {o.nummer} namens {o.zaak_naam} als {naam.trim()}{functie.trim() ? ` (${functie.trim()})` : ''}.
+              U ondertekent offerte {o.nummer} namens {bedrijf.trim() || o.zaak_naam} als {naam.trim()}{functie.trim() ? ` (${functie.trim()})` : ''}, op {vandaag()}.
             </p>
             <div className="sum">
               {Number(o.eenmalig_incl) > 0 && <div><span>Eenmalig incl. btw</span><b>{euro(o.eenmalig_incl)}</b></div>}

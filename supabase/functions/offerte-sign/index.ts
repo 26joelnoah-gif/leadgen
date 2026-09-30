@@ -14,6 +14,10 @@
 //       (met de offerte, en met elektronisch ondertekenen) en we leggen een
 //       kenmerk, tijdstip, ip, browser en de hash van de offerte vast. Dat is
 //       een gewone elektronische handtekening in de zin van eIDAS.
+// v115: wie tekent. De klant vult ook de bedrijfsnaam in en vinkt aan dat hij
+//       eigenaar of bevoegd is. Los daarvan een VRIJWILLIG vinkje voor bellen
+//       en mailen over andere diensten; staat dat aan en hangt er een lead aan,
+//       dan leggen we de toestemming vast op die lead (opt_in_*).
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -125,6 +129,7 @@ Deno.serve(async (req: Request) => {
       return json({
         state: "getekend", nummer: off.nummer, getekend_op: off.getekend_op,
         door: off.akkoord?.door || null, functie: off.akkoord?.functie || null,
+        bedrijfsnaam: off.akkoord?.bedrijfsnaam || off.zaak_naam || null,
         zaak_naam: off.zaak_naam, org: orgInfo, am: amInfo,
         offerte: {
           nummer: off.nummer, zaak_naam: off.zaak_naam, contact_naam: off.contact_naam, adres: off.adres,
@@ -141,6 +146,8 @@ Deno.serve(async (req: Request) => {
           browser: off.akkoord?.ua || null,
           document_hash: off.inhoud_hash || null,
           methode: off.akkoord?.methode || null,
+          bevoegd: off.akkoord?.bevoegd === true,
+          contact_optin: off.akkoord?.contact_optin === true,
         },
       });
     }
@@ -190,6 +197,7 @@ Deno.serve(async (req: Request) => {
 
     const naam = String(body?.naam || "").trim();
     const functie = String(body?.functie || "").trim().slice(0, 120) || null;
+    const bedrijfsnaam = String(body?.bedrijfsnaam || off.zaak_naam || "").trim().slice(0, 200);
     const png = String(body?.png || "");
     const pngNodig = off.handtekening_vereist !== false;
     if (naam.length < 2) return json({ error: "naam_ontbreekt" }, 400);
@@ -202,17 +210,24 @@ Deno.serve(async (req: Request) => {
     // ondertekenen. Bij de akkoordknop zijn allebei verplicht; dat is precies
     // wat een gewone elektronische handtekening onderbouwt.
     if (body?.akkoord !== true) return json({ error: "akkoord_ontbreekt" }, 400);
-    if (!pngNodig && body?.elektronisch !== true) return json({ error: "elektronisch_ontbreekt" }, 400);
+    if (!pngNodig) {
+      if (body?.elektronisch !== true) return json({ error: "elektronisch_ontbreekt" }, 400);
+      if (body?.bevoegd !== true) return json({ error: "bevoegd_ontbreekt" }, 400);
+      if (bedrijfsnaam.length < 2) return json({ error: "bedrijfsnaam_ontbreekt" }, 400);
+    }
+    const contactOptin = body?.contact_optin === true;
 
     const now = new Date();
     const ondertekeningId = off.ondertekening_id || kenmerk();
     const akkoord = {
-      door: naam, functie, op: now.toISOString(), png: png || null, ua, ip,
+      door: naam, functie, bedrijfsnaam, op: now.toISOString(), png: png || null, ua, ip,
       tekst: off.akkoord_tekst, inhoud_hash: off.inhoud_hash, verzonden_naar: off.verzonden_naar,
       methode: pngNodig ? "op_afstand" : "op_afstand_knop",
       ondertekening_id: ondertekeningId,
       akkoord_offerte: true,
       akkoord_elektronisch: pngNodig ? true : body?.elektronisch === true,
+      bevoegd: pngNodig ? body?.bevoegd === true : true,
+      contact_optin: contactOptin,
       tijdstip_nl: tijdNL(now),
     };
     const { error: updErr } = await admin.from("offertes").update({
@@ -222,13 +237,25 @@ Deno.serve(async (req: Request) => {
 
     // Lead: automatisch naar deal / bruto_deal (regel v47: backoffice-campagne -> bruto_deal).
     if (off.lead_id) {
-      const { data: lead } = await admin.from("leads").select("id, status, lead_list_id, lead_lists(campaign_id, campaigns(type))").eq("id", off.lead_id).maybeSingle();
-      if (lead && !DEAL_STATUSSEN.has(lead.status)) {
+      const { data: lead } = await admin.from("leads").select("id, status, lead_list_id, opt_in_at, lead_lists(campaign_id, campaigns(type))").eq("id", off.lead_id).maybeSingle();
+      if (lead) {
+        const patch: Record<string, unknown> = {};
+        // v115: vrijwillige toestemming voor bellen en mailen, gegeven bij het
+        // ondertekenen. De compliance-guard (v98) laat dit door omdat we hier
+        // als service role werken (auth.uid() is leeg).
+        if (contactOptin && !lead.opt_in_at) {
+          patch.opt_in_at = now.toISOString();
+          patch.opt_in_source = "offerte";
+          patch.opt_in_bewijs = `Offerte ${off.nummer}, ondertekend door ${naam} (${ondertekeningId})`;
+        }
+        if (!DEAL_STATUSSEN.has(lead.status)) {
         // deno-lint-ignore no-explicit-any
         const ctype = (lead as any)?.lead_lists?.campaigns?.type;
         // v68: accountmanagement-pipeline -> geaccepteerd (actief volgt pas na betaling).
         const nieuw = ctype === "backoffice" ? "bruto_deal" : ctype === "accountmanagement" ? "geaccepteerd" : "deal";
-        await admin.from("leads").update({ status: nieuw, next_contact_date: null, sale_date: now.toISOString() }).eq("id", lead.id);
+        patch.status = nieuw;
+        patch.next_contact_date = null;
+        patch.sale_date = now.toISOString();
         await admin.from("call_logs").insert({
           agent_id: off.user_id,
           organization_id: off.organization_id ?? null,
@@ -239,8 +266,10 @@ Deno.serve(async (req: Request) => {
           disposed_at: now.toISOString(),
           duration_seconds: 0,
           source: "offerte_remote",
-          notes: `Offerte ${off.nummer} ondertekend op afstand door ${naam} (${ondertekeningId})`,
+          notes: `Offerte ${off.nummer} ondertekend op afstand door ${naam} namens ${bedrijfsnaam} (${ondertekeningId})`,
         });
+        }
+        if (Object.keys(patch).length) await admin.from("leads").update(patch).eq("id", lead.id);
       }
     }
 
@@ -251,9 +280,10 @@ Deno.serve(async (req: Request) => {
       await sendMail(off.verzonden_naar, from, amInfo.email, `Bevestiging: offerte ${off.nummer} is ondertekend`,
         `<div style="font-family:Inter,-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0B0B0C">
          <h1 style="font-size:20px">Bedankt, uw akkoord is ontvangen</h1>
-         <p>Offerte <b>${esc(off.nummer)}</b> voor ${esc(off.zaak_naam)} is op ${esc(wanneer)} elektronisch ondertekend door ${esc(naam)}${functie ? ` (${esc(functie)})` : ""}.</p>
+         <p>Offerte <b>${esc(off.nummer)}</b> is op ${esc(wanneer)} elektronisch ondertekend door ${esc(naam)}${functie ? ` (${esc(functie)})` : ""} namens ${esc(bedrijfsnaam)}.</p>
          <table style="border-collapse:collapse;font-size:14px"><tr><td style="padding:4px 12px 4px 0;color:#6B6B75">Eenmalig (excl. btw)</td><td><b>${euro(off.eenmalig_ex)}</b></td></tr><tr><td style="padding:4px 12px 4px 0;color:#6B6B75">Per maand (excl. btw)</td><td><b>${euro(off.maandbedrag_ex)}</b></td></tr></table>
          <p style="font-size:13px;color:#6B6B75">Bewaar deze mail als bewijs. Via de link uit de eerdere mail kunt u de ondertekende offerte en het ondertekenbewijs altijd terugzien en downloaden. ${esc(amInfo.naam)} neemt contact met u op over de vervolgstappen.</p>
+         ${contactOptin ? `<p style="font-size:12px;color:#6B6B75">U heeft aangevinkt dat wij u mogen bellen en mailen over onze andere diensten. Afmelden kan altijd met een mailtje of via de afmeldlink onderaan onze mails.</p>` : ""}
          </div>`);
     }
     if (amInfo.email) {
