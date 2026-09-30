@@ -150,6 +150,9 @@
     <div class="grid" style="margin-top:12px">
       <div><label class="f">Korting op het eenmalige bedrag (&euro;)</label><input type="number" id="v_korting" min="0" step="1" placeholder="0" oninput="calc();save()"></div>
       <div><label class="f">Btw-percentage</label><input type="number" id="v_btw" min="0" max="30" step="1" value="21" oninput="calc();save()"></div>
+      <div><label class="f">Betaaltermijn eenmalig bedrag</label>
+        <select id="v_betaal" onchange="renderAkkoord();save()"></select>
+      </div>
       <div style="grid-column:1/-1"><label class="f">Notitie op de offerte (de klant ziet dit)</label><textarea id="v_notitie" placeholder="Bijvoorbeeld: startdatum, wat de klant aanlevert, afspraken over oplevering" oninput="save()"></textarea></div>
     </div>
     <div style="margin-top:16px">
@@ -158,6 +161,7 @@
       <div class="trow"><span class="l">Btw</span><span id="t_btw">&euro;0</span></div>
       <div class="trow big"><span class="l">Eenmalig (incl. btw)</span><span id="t_incl">&euro;0</span></div>
       <div class="trow big"><span class="l">Per maand (excl. btw)</span><span id="t_mnd">&euro;0</span></div>
+      <div class="trow"><span class="l">Betaling eenmalig bedrag</span><span id="t_betaal">-</span></div>
     </div>
     <div class="warn hidden" id="leegwarn">Er staat nog geen regel met een bedrag op deze offerte.</div>
   </section>
@@ -260,6 +264,18 @@ const LOOPTIJDEN = [
   { v:24, label:'24 maanden' },
 ];
 const looptijdLabel = (v) => (LOOPTIJDEN.find(l => l.v === Number(v)) || LOOPTIJDEN[0]).label;
+
+/* v116: betaaltermijn per offerte. 1 = binnen 24 uur. De voorwaarden verwijzen
+   naar wat hier staat, dus je kunt per klant kiezen zonder de voorwaarden aan
+   te passen. */
+const BETAALTERMIJNEN = [
+  { v:1,  label:'Binnen 24 uur na akkoord' },
+  { v:7,  label:'Binnen 7 dagen' },
+  { v:14, label:'Binnen 14 dagen' },
+  { v:30, label:'Binnen 30 dagen' },
+];
+const betaalDagen = () => { const v = Number(val('v_betaal')); return [1,7,14,30].includes(v) ? v : 14; };
+const betaalLabel = () => (BETAALTERMIJNEN.find(b => b.v === betaalDagen()) || BETAALTERMIJNEN[2]).label;
 
 /* Kenmerk van de ondertekening: staat op de bevestiging en in de pdf, zodat een
    akkoord later terug te vinden is. Zelfde vorm als in de Edge Function. */
@@ -410,15 +426,22 @@ function calc(){
   el('t_mnd').textContent = eur2(t.mnd);
   el('b_een').textContent = eur(t.incl);
   el('b_mnd').textContent = eur(t.mnd);
+  const tb = el('t_betaal'); if(tb) tb.textContent = betaalLabel();
   el('leegwarn').classList.toggle('hidden', !t.leeg);
   chkKlaar();
 }
 
 /* ===== akkoordtekst & voorwaarden ===== */
+function betaalZin(){
+  const d = betaalDagen();
+  return d === 1
+    ? 'Het eenmalige bedrag wordt bij akkoord gefactureerd en is betaalbaar binnen 24 uur na ondertekening.'
+    : `Het eenmalige bedrag wordt bij akkoord gefactureerd en is betaalbaar binnen ${d} dagen.`;
+}
 function akkoordTekst(){
-  if(MERK.offerte_akkoord_tekst && MERK.offerte_akkoord_tekst.trim()) return MERK.offerte_akkoord_tekst.trim();
+  if(MERK.offerte_akkoord_tekst && MERK.offerte_akkoord_tekst.trim()) return MERK.offerte_akkoord_tekst.trim() + ' ' + betaalZin();
   const dagen = MERK.offerte_geldigheid_dagen || 14;
-  return `Door te ondertekenen gaat de klant akkoord met deze offerte van ${merkNaam()}, zoals hierboven gespecificeerd. Alle prijzen zijn exclusief btw. Het eenmalige bedrag wordt bij akkoord gefactureerd. Maandelijkse diensten gaan in bij de start van de werkzaamheden en worden maandelijks vooraf gefactureerd; de looptijd staat per regel vermeld en na afloop van een looptijd is de dienst maandelijks opzegbaar met een opzegtermijn van een kalendermaand. Marketing- en vindbaarheidsdiensten zijn inspanningsverplichtingen: er wordt geen bepaald resultaat, bereik of omzet gegarandeerd. Advertentiebudget bij campagnes is niet inbegrepen, tenzij dat er als regel op staat. Werk buiten deze offerte wordt vooraf afgestemd en apart geoffreerd. Deze offerte is ${dagen} dagen geldig. De klant ontvangt een bevestiging per e-mail met deze offerte, de naam van de ondertekenaar en het tijdstip van ondertekening.`;
+  return `Door te ondertekenen gaat de klant akkoord met deze offerte van ${merkNaam()}, zoals hierboven gespecificeerd. Alle prijzen zijn exclusief btw. ${betaalZin()} Maandelijkse diensten gaan in bij de start van de werkzaamheden en worden maandelijks vooraf gefactureerd; de looptijd staat per regel vermeld en na afloop van een looptijd is de dienst maandelijks opzegbaar met een opzegtermijn van een kalendermaand. Marketing- en vindbaarheidsdiensten zijn inspanningsverplichtingen: er wordt geen bepaald resultaat, bereik of omzet gegarandeerd. Advertentiebudget bij campagnes is niet inbegrepen, tenzij dat er als regel op staat. Werk buiten deze offerte wordt vooraf afgestemd en apart geoffreerd. Deze offerte is ${dagen} dagen geldig. De klant ontvangt een bevestiging per e-mail met deze offerte, de naam van de ondertekenaar en het tijdstip van ondertekening.`;
 }
 function voorwaarden(){ return Array.isArray(MERK.offerte_voorwaarden) ? MERK.offerte_voorwaarden : []; }
 function renderAkkoord(){
@@ -437,6 +460,11 @@ function renderMerk(){
   el('merkLogo').innerHTML = (MERK.logo_url ? `<img src="${esc(MERK.logo_url)}" alt="">` : '') + `<span>${esc(merkNaam())}</span>`;
   document.title = 'Offerte · ' + merkNaam();
   if(!val('v_btw')) el('v_btw').value = MERK.btw_percentage ?? 21;
+  const bt = el('v_betaal');
+  if(bt){
+    const gekozen = bt.value ? Number(bt.value) : (Number(MERK.betaaltermijn_dagen) || 14);
+    bt.innerHTML = BETAALTERMIJNEN.map(b => `<option value="${b.v}" ${gekozen===b.v?'selected':''}>${esc(b.label)}</option>`).join('');
+  }
   SJABLONEN = (Array.isArray(MERK.offerte_sjablonen) && MERK.offerte_sjablonen.length) ? MERK.offerte_sjablonen : STANDAARD_SJABLONEN;
   renderSjablonen();
   el('sigblok').classList.toggle('hidden', !metHandtekening());
@@ -550,7 +578,7 @@ function buildDoc(){
   const fisc = [MERK.kvk?('KvK '+MERK.kvk):null, MERK.btw_nummer?('Btw '+MERK.btw_nummer):null, MERK.iban?('IBAN '+MERK.iban):null].filter(Boolean).join(' · ');
   let h = `<div class="dh">
       <div><div class="logo">${MERK.logo_url?`<img src="${esc(MERK.logo_url)}" alt="">`:esc(merkNaam())}</div><div class="small">${esc(afz)}</div></div>
-      <div class="meta"><b>Offerte ${esc(S.nummer)}</b><br>Datum ${new Date().toLocaleDateString('nl-NL')}<br>Geldig ${MERK.offerte_geldigheid_dagen||14} dagen<br>Contact: ${esc(val('v_naam')||'—')}</div></div>
+      <div class="meta"><b>Offerte ${esc(S.nummer)}</b><br>Datum ${new Date().toLocaleDateString('nl-NL')}<br>Geldig ${MERK.offerte_geldigheid_dagen||14} dagen<br>Betaling: ${esc(betaalLabel().toLowerCase())}<br>Contact: ${esc(val('v_naam')||'—')}</div></div>
     <h2>Klant</h2><div><b>${esc(val('k_zaak'))}</b><br>${[val('k_naam'),val('k_adres'),val('k_mail'),val('k_tel')].filter(Boolean).map(esc).join('<br>')}</div>`;
   if(een.length || t.korting>0){
     h += `<h2>Eenmalig</h2><table><tr><th>Omschrijving</th><th class="r">Aantal</th><th class="r">Prijs</th><th class="r">Totaal</th></tr>`;
@@ -591,7 +619,7 @@ function buildDoc(){
 }
 
 /* ===== lokale opslag ===== */
-const VELDEN = ['k_zaak','k_naam','k_mail','k_tel','k_adres','v_naam','v_korting','v_btw','v_notitie','s_naam','s_functie','s_bedrijf'];
+const VELDEN = ['k_zaak','k_naam','k_mail','k_tel','k_adres','v_naam','v_korting','v_btw','v_notitie','v_betaal','s_naam','s_functie','s_bedrijf'];
 function toolState(){ return { S, REGELS, f: VELDEN.reduce((a,id)=>(a[id]=val(id),a),{}) }; }
 function zetToolState(d){
   if(!d) return false;
@@ -636,7 +664,7 @@ function dealRow(){
     branding_org_id: MERK.org_id || null, akkoord_tekst: akkoordTekst(), soort: 'vrij', data: toolState(),
     handtekening_vereist: metHandtekening(),
     status: S.signed ? 'getekend' : (S.verzonden ? 'verzonden' : 'concept'),
-    prijsmodel_versie: 'vrij', accountmanager: val('v_naam'),
+    prijsmodel_versie: 'vrij', accountmanager: val('v_naam'), betaaltermijn_dagen: betaalDagen(),
     zaak_naam: val('k_zaak'), contact_naam: val('k_naam'), email: val('k_mail'), telefoon: val('k_tel'), adres: val('k_adres'),
     pakket: null, regels, upsell: [], korting: t.korting,
     eenmalig_ex: t.eenNet, btw: t.btw, eenmalig_incl: t.incl, maandbedrag_ex: t.mnd,

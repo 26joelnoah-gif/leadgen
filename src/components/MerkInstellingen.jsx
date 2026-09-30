@@ -31,6 +31,7 @@ const GETALLEN = [
   { key: 'offerte_geldigheid_dagen', label: 'Offerte geldig (dagen)', def: 14 },
   { key: 'offerte_opvolg_dagen', label: 'Lead terugbellen na (dagen)', def: 3 },
   { key: 'btw_percentage', label: 'Btw-percentage', def: 21 },
+  { key: 'betaaltermijn_dagen', label: 'Betaaltermijn (dagen)', def: 14 },
 ]
 
 const LOOPTIJDEN = [
@@ -176,6 +177,11 @@ export default function MerkInstellingen({ orgId, orgNaam }) {
                   value={v[f.key] ?? f.def}
                   onChange={e => zet(f.key, e.target.value)}
                 />
+                {f.key === 'betaaltermijn_dagen' && (
+                  <p className="text-muted" style={{ fontSize: '0.7rem', margin: '4px 0 0' }}>
+                    Standaard voor nieuwe offertes. Zet 1 voor betalen binnen 24 uur. De accountmanager kan het per offerte nog wijzigen.
+                  </p>
+                )}
               </div>
             ))}
           </div>
