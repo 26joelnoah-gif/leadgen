@@ -296,7 +296,7 @@ export default function Offertes() {
                       )}
                       {href && (
                         <a className="btn btn-outline btn-sm" href={href} target="_blank" rel="noopener" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>
-                          <ExternalLink size={12} /> Offerte openen
+                          <ExternalLink size={12} /> {o.status === 'getekend' ? 'Getekende offerte (pdf)' : 'Offerte openen'}
                         </a>
                       )}
                       {(openStatus || o.status === 'verlopen') && (

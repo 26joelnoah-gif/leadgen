@@ -1,9 +1,16 @@
-// ReachConnect v65 — publieke tekenpagina /tekenen/:token.
+// ReachConnect v65 — publieke ondertekenpagina /tekenen/:token.
 // Geen login. Praat alleen met de Edge Function offerte-sign en rendert de
 // offerte generiek vanuit de kolommen van public.offertes (regels, upsell,
 // bedragen, akkoord_tekst). Kent geen pakketten of prijsmodel: dat hoort bij
-// de offerte-tool van de tenant, niet bij het tekenen. Eigen licht thema,
+// de offerte-tool van de tenant, niet bij het ondertekenen. Eigen licht thema,
 // onafhankelijk van data-theme, want de klant is geen ReachConnect-gebruiker.
+//
+// v112: maandregels staan niet in de eenmalig-tabel, lege blokken vallen weg,
+//       de notitie van de accountmanager komt als "Afspraken" op de offerte.
+// v113: kleuren van het merk (organizations.accent_kleur), ondertekenen met een
+//       akkoordknop plus bevestigingsstap wanneer offertes.handtekening_vereist
+//       false is, looptijd per maandregel, en na ondertekenen een bevestiging
+//       met de volledige offerte en een downloadknop (print naar pdf).
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
@@ -14,27 +21,36 @@ const euro = (n) => '€ ' + Number(n || 0).toLocaleString('nl-NL', { minimumFra
 const datum = (iso) => iso ? new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric' }) : ''
 const tijd = (iso) => iso ? new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''
 
+// De looptijd komt als getal mee uit de offerte-tool (0 = maandelijks opzegbaar).
+const looptijd = (r) => {
+  if (r?.looptijd_label) return r.looptijd_label
+  const v = Number(r?.looptijd || 0)
+  if (!v) return 'Maandelijks opzegbaar'
+  return `${v} maanden`
+}
+
 const CSS = `
-.tk{--bg:#F4F6F9;--surface:#FFFFFF;--line:#E1E5EC;--text:#14171F;--muted:#5B6270;--faint:#8A90A0;--accent:#15803D;--accent-soft:#E3F6E9;--good:#1E8A5B;--good-soft:#DDF3E8;--bad:#C6373C;--bad-soft:#FBE3E4;
-  min-height:100vh;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
+.tk{--bg:#FAFAF7;--surface:#FFFFFF;--line:#E6E6E1;--text:#0B0B0C;--muted:#6B6B75;--faint:#9A9AA5;--accent:#15803D;--accent-ink:#FFFFFF;--accent-soft:#EFF6F1;--good:#1E8A5B;--good-soft:#E9F7EF;--bad:#C6373C;--bad-soft:#FBE3E4;
+  min-height:100vh;background:var(--bg);color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.5;-webkit-font-smoothing:antialiased}
 .tk *{box-sizing:border-box}
-.tk .wrap{max-width:680px;margin:0 auto;padding:20px 16px 140px}
+.tk .wrap{max-width:680px;margin:0 auto;padding:20px 16px 150px}
 .tk header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0 16px}
-.tk header .brand{font-weight:700;font-size:18px}
+.tk header .brand{font-weight:800;font-size:19px;letter-spacing:-0.02em}
 .tk header img{max-height:40px}
 .tk header .nr{font-size:13px;color:var(--muted);text-align:right;line-height:1.4}
 .tk .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:14px}
-.tk h1{font-size:22px;line-height:1.25;margin:0 0 6px}
-.tk h2{font-size:15px;margin:0 0 10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.tk h1{font-size:23px;line-height:1.25;margin:0 0 6px;letter-spacing:-0.02em}
+.tk h2{font-size:13px;margin:0 0 10px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .tk .muted{color:var(--muted);font-size:14px}
 .tk .am{display:flex;align-items:center;gap:12px;background:var(--accent-soft);border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:14px}
 .tk .am b{display:block}
-.tk .am a{color:var(--accent);text-decoration:none;font-weight:600;margin-right:12px}
+.tk .am a{color:var(--text);text-decoration:underline;font-weight:600;margin-right:12px}
 .tk table{width:100%;border-collapse:collapse;font-size:15px}
 .tk td{padding:9px 0;border-top:1px solid var(--line);vertical-align:top}
 .tk tr:first-child td{border-top:0}
 .tk td.r{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
 .tk td.n{color:var(--muted);font-size:13px}
+.tk .sub{display:block;color:var(--muted);font-size:13px;margin-top:2px}
 .tk .tot td{font-weight:600}
 .tk .tot.big td{font-size:18px;padding-top:12px}
 .tk .akkoord{font-size:14px;color:var(--text);white-space:pre-wrap}
@@ -46,25 +62,42 @@ const CSS = `
 .tk .sig .hint{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--faint);font-size:14px;pointer-events:none}
 .tk .sig .line{position:absolute;left:24px;right:24px;bottom:44px;border-top:1px solid var(--line);pointer-events:none}
 .tk .row{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:10px}
-.tk .check{display:flex;gap:10px;align-items:flex-start;font-size:14px;margin-top:14px}
-.tk .check input{width:20px;height:20px;margin-top:2px;flex:none}
-.tk .btn{font:inherit;font-size:15px;font-weight:600;padding:12px 16px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--text);cursor:pointer}
-.tk .btn.sm{font-size:13px;padding:8px 12px}
-.tk .btn.p{background:var(--accent);border-color:var(--accent);color:#fff;width:100%;padding:16px;font-size:17px}
+.tk .check{display:flex;gap:10px;align-items:flex-start;font-size:14px;margin-top:14px;cursor:pointer}
+.tk .check input{width:20px;height:20px;margin-top:2px;flex:none;accent-color:var(--accent)}
+.tk .btn{font:inherit;font-size:15px;font-weight:600;padding:12px 18px;border-radius:999px;border:1px solid var(--line);background:#fff;color:var(--text);cursor:pointer}
+.tk .btn.sm{font-size:13px;padding:9px 14px}
+.tk .btn.p{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);width:100%;padding:16px;font-size:17px}
 .tk .btn:disabled{opacity:.45;cursor:not-allowed}
-.tk .sticky{position:fixed;left:0;right:0;bottom:0;background:rgba(244,246,249,.92);backdrop-filter:blur(8px);border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
+.tk .sticky{position:fixed;left:0;right:0;bottom:0;background:rgba(250,250,247,.93);backdrop-filter:blur(8px);border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom))}
 .tk .sticky .in{max-width:680px;margin:0 auto}
 .tk .link{background:none;border:0;color:var(--muted);font:inherit;font-size:13px;text-decoration:underline;cursor:pointer;display:block;margin:10px auto 0}
-.tk .state{text-align:center;padding:40px 20px}
+.tk .state{text-align:center;padding:36px 20px}
 .tk .state .ico{width:64px;height:64px;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:30px}
 .tk .state.ok .ico{background:var(--good-soft);color:var(--good)}
 .tk .state.bad .ico{background:var(--bad-soft);color:var(--bad)}
 .tk .state.warn .ico{background:#FBEFD9;color:#C77A0A}
 .tk .err{background:var(--bad-soft);color:var(--bad);border-radius:10px;padding:10px 12px;font-size:14px;margin-top:10px}
 .tk details{margin-top:8px}
-.tk summary{cursor:pointer;color:var(--accent);font-size:14px;font-weight:600}
+.tk summary{cursor:pointer;color:var(--text);font-size:14px;font-weight:600}
 .tk ul{margin:8px 0 0;padding-left:18px;font-size:14px;color:var(--muted)}
 .tk textarea{width:100%;font:inherit;font-size:15px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;min-height:80px;margin-top:8px}
+.tk .bevestigd{background:var(--good-soft);border:1px solid var(--good);border-radius:14px;padding:18px;margin-bottom:14px}
+.tk .bevestigd .kop{display:flex;gap:12px;align-items:center}
+.tk .bevestigd .vink{width:40px;height:40px;border-radius:50%;background:var(--good);color:#fff;display:flex;align-items:center;justify-content:center;font-size:22px;flex:none}
+.tk .vw p{margin:0 0 8px;font-size:12px;color:var(--muted)}
+/* bevestig-venster */
+.tk-modal{position:fixed;inset:0;z-index:70;background:rgba(11,11,12,.5);display:flex;align-items:center;justify-content:center;padding:16px}
+.tk-modal .box{background:#fff;border-radius:16px;max-width:420px;width:100%;padding:22px;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#0B0B0C}
+.tk-modal h3{font-size:19px;margin:0 0 8px}
+.tk-modal .sum{background:#F4F4F0;border-radius:10px;padding:12px;margin:12px 0;font-size:14px}
+.tk-modal .sum div{display:flex;justify-content:space-between;padding:3px 0}
+.tk-modal .acties{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+@media print{
+  .tk{background:#fff}
+  .tk .sticky,.tk .am,.tk .geen-print,.tk-modal{display:none!important}
+  .tk .wrap{max-width:none;padding:0}
+  .tk .card,.tk .bevestigd{border:0;padding:0 0 14px;margin:0 0 14px;border-bottom:1px solid #ddd;break-inside:avoid}
+}
 `
 
 function SignaturePad({ disabled, onChange }) {
@@ -83,7 +116,7 @@ function SignaturePad({ disabled, onChange }) {
     ctx.lineWidth = 2.2
     ctx.lineCap = 'round'
     ctx.lineJoin = 'round'
-    ctx.strokeStyle = '#14171F'
+    ctx.strokeStyle = '#0B0B0C'
   }, [])
 
   const pos = (e) => {
@@ -146,6 +179,7 @@ export default function Tekenen() {
   const [hasInk, setHasInk] = useState(false)
   const [busy, setBusy] = useState(false)
   const [afwijzen, setAfwijzen] = useState(false)
+  const [bevestig, setBevestig] = useState(false)
   const [reden, setReden] = useState('')
   const [submitErr, setSubmitErr] = useState(null)
   const padRoot = useRef(null)
@@ -187,10 +221,14 @@ export default function Tekenen() {
       const body = await res.json().catch(() => ({}))
       if (!res.ok || !body?.ok) {
         if (body?.state) { setData({ ...data, state: body.state }); return }
-        setSubmitErr(body?.error === 'handtekening_ongeldig' ? 'De handtekening kon niet worden opgeslagen. Probeer het opnieuw.' : 'Er ging iets mis. Probeer het opnieuw of bel ons.')
+        setSubmitErr(
+          body?.error === 'handtekening_ongeldig' ? 'De handtekening kon niet worden opgeslagen. Probeer het opnieuw.'
+            : body?.error === 'akkoord_ontbreekt' ? 'Zet eerst het vinkje dat u akkoord gaat.'
+              : 'Er ging iets mis. Probeer het opnieuw of bel ons.')
         return
       }
-      setData({ ...data, state: body.state, getekend_op: body.getekend_op, door: naam })
+      setData({ ...data, state: body.state, getekend_op: body.getekend_op, door: naam, functie })
+      setBevestig(false)
       window.scrollTo({ top: 0 })
     } catch {
       setSubmitErr('Geen verbinding. Controleer uw internet en probeer het opnieuw.')
@@ -200,18 +238,23 @@ export default function Tekenen() {
   }
 
   function tekenen() {
-    const png = SignaturePad.getPng(padRoot.current)
-    post({ actie: 'tekenen', naam: naam.trim(), functie: functie.trim(), png })
+    const png = metHandtekening ? SignaturePad.getPng(padRoot.current) : undefined
+    post({ actie: 'tekenen', naam: naam.trim(), functie: functie.trim(), png, akkoord: true })
   }
 
   const org = data?.org || {}
   const am = data?.am || {}
+  // Kleuren van het merk. Zonder ingesteld merk blijft het de standaardkleur.
+  const merkStijl = {
+    ...(org.accent_kleur ? { '--accent': org.accent_kleur } : {}),
+    ...(org.accent_tekst_kleur ? { '--accent-ink': org.accent_tekst_kleur } : {}),
+  }
 
   const Header = () => (
     <header>
       {org.logo_url ? <img src={org.logo_url} alt={org.naam || ''} /> : <div className="brand">{org.naam || 'Offerte'}</div>}
       {data?.nummer || data?.offerte?.nummer ? (
-        <div className="nr">Offerte {data?.nummer || data?.offerte?.nummer}{data?.offerte?.geldig_tot ? <><br />geldig tot {datum(data.offerte.geldig_tot)}</> : null}</div>
+        <div className="nr">Offerte {data?.nummer || data?.offerte?.nummer}{data?.offerte?.geldig_tot && data?.state !== 'getekend' ? <><br />geldig tot {datum(data.offerte.geldig_tot)}</> : null}</div>
       ) : null}
     </header>
   )
@@ -226,7 +269,7 @@ export default function Tekenen() {
   ) : null)
 
   const State = ({ kind, icon, title, text }) => (
-    <div className="tk"><style>{CSS}</style><div className="wrap">
+    <div className="tk" style={merkStijl}><style>{CSS}</style><div className="wrap">
       <Header />
       <div className={`card state ${kind}`}>
         <div className="ico">{icon}</div>
@@ -243,87 +286,121 @@ export default function Tekenen() {
   if (!data) {
     return <div className="tk"><style>{CSS}</style><div className="wrap"><div className="card state"><p className="muted">Offerte laden…</p></div></div></div>
   }
-  if (data.state === 'getekend') {
-    return <State kind="ok" icon="✓" title="Ondertekend, bedankt" text={`Offerte ${data.nummer || ''} is op ${tijd(data.getekend_op)} ondertekend${data.door ? ` door ${data.door}` : ''}. U ontvangt een bevestiging per e-mail.`} />
-  }
   if (data.state === 'verlopen') return <State kind="warn" icon="⌛" title="Deze offerte is verlopen" text="De geldigheid van deze offerte is voorbij. Neem contact met ons op voor een nieuwe versie." />
   if (data.state === 'afgewezen') return <State kind="bad" icon="×" title="Offerte afgewezen" text="U heeft aangegeven niet akkoord te gaan met deze offerte. Wij nemen contact met u op." />
   if (data.state === 'geannuleerd') return <State kind="bad" icon="×" title="Deze offerte is ingetrokken" text="Deze offerte is door ons ingetrokken. Neem contact met ons op voor een actuele versie." />
 
+  const getekend = data.state === 'getekend'
   const o = data.offerte
+  // Een oudere getekende offerte kan nog zonder inhoud terugkomen; dan tonen we
+  // alleen de bevestiging.
+  if (getekend && !o) {
+    return <State kind="ok" icon="✓" title="Ondertekend, bedankt" text={`Offerte ${data.nummer || ''} is op ${tijd(data.getekend_op)} ondertekend${data.door ? ` door ${data.door}` : ''}. U ontvangt een bevestiging per e-mail.`} />
+  }
+
   const regels = Array.isArray(o.regels) ? o.regels : []
   const upsell = Array.isArray(o.upsell) ? o.upsell : []
   const spec = o.speclijst && typeof o.speclijst === 'object' ? Object.entries(o.speclijst).filter(([, v]) => v) : []
-  const canSign = naam.trim().length >= 2 && hasInk && gelezen && !busy
-  // v112: een offerte kan alleen eenmalige regels hebben, alleen maandregels, of
-  // allebei. Een leeg blok met "€ 0,00" ziet er niet uit, dus die laten we weg.
+  const voorwaarden = Array.isArray(org.voorwaarden) ? org.voorwaarden : []
+  const metHandtekening = o.handtekening_vereist !== false
+  const canSign = naam.trim().length >= 2 && gelezen && !busy && (metHandtekening ? hasInk : true)
+
   const eenmaligeRegels = regels.filter((r) => r.type !== 'maand')
   const maandRegels = regels.filter((r) => Number(r.mnd) > 0)
   const toonEenmalig = eenmaligeRegels.length > 0 || Number(o.eenmalig_incl) > 0
   const toonMaand = maandRegels.length > 0 || upsell.length > 0 || Number(o.maandbedrag_ex) > 0
 
   return (
-    <div className="tk"><style>{CSS}</style>
+    <div className="tk" style={merkStijl}><style>{CSS}</style>
       <div className="wrap">
         <Header />
 
-        <div className="card">
-          <h1>Offerte voor {o.zaak_naam}</h1>
-          <div className="muted">
-            {o.contact_naam && <div>T.a.v. {o.contact_naam}</div>}
-            {o.adres && <div>{o.adres}</div>}
+        {getekend ? (
+          <div className="bevestigd">
+            <div className="kop">
+              <div className="vink">✓</div>
+              <div>
+                <h1 style={{ fontSize: 20, margin: 0 }}>Ondertekend, bedankt</h1>
+                <div className="muted">
+                  Offerte {data.nummer || o.nummer} is op {tijd(data.getekend_op)} ondertekend
+                  {data.door ? ` door ${data.door}` : ''}{data.functie ? ` (${data.functie})` : ''}.
+                </div>
+              </div>
+            </div>
+            <p className="muted" style={{ marginBottom: 0 }}>
+              U krijgt een bevestiging per e-mail. Deze pagina blijft bereikbaar via dezelfde link, zodat u de ondertekende offerte altijd kunt terugzien.
+            </p>
+            <div className="row geen-print" style={{ justifyContent: 'flex-start' }}>
+              <button type="button" className="btn p" style={{ width: 'auto' }} onClick={() => window.print()}>Download offerte (pdf)</button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="card">
+            <h1>Offerte voor {o.zaak_naam}</h1>
+            <div className="muted">
+              {o.contact_naam && <div>T.a.v. {o.contact_naam}</div>}
+              {o.adres && <div>{o.adres}</div>}
+            </div>
+          </div>
+        )}
 
         <AmBlok />
 
         {toonEenmalig && (
-        <div className="card">
-          <h2>Eenmalig</h2>
-          <table>
-            <tbody>
-              {eenmaligeRegels.map((r, i) => (
-                <tr key={i}>
-                  <td>{r.naam}{r.aantal > 1 ? <span className="muted"> × {r.aantal}</span> : null}</td>
-                  <td className="r">{euro(r.totaal ?? (r.prijs * (r.aantal || 1)))}</td>
-                </tr>
-              ))}
-              {Number(o.korting) > 0 && (
-                <tr><td>Korting</td><td className="r">- {euro(o.korting)}</td></tr>
-              )}
-              <tr className="tot"><td>Subtotaal (excl. btw)</td><td className="r">{euro(o.eenmalig_ex)}</td></tr>
-              <tr><td className="n">Btw 21%</td><td className="r n">{euro(o.btw)}</td></tr>
-              <tr className="tot big"><td>Totaal eenmalig (incl. btw)</td><td className="r">{euro(o.eenmalig_incl)}</td></tr>
-            </tbody>
-          </table>
-        </div>
+          <div className="card">
+            <h2>Eenmalig</h2>
+            <table>
+              <tbody>
+                {eenmaligeRegels.map((r, i) => (
+                  <tr key={i}>
+                    <td>
+                      {r.naam}{r.aantal > 1 ? <span className="muted"> × {r.aantal}</span> : null}
+                      {r.sub ? <span className="sub">{r.sub}</span> : null}
+                    </td>
+                    <td className="r">{euro(r.totaal ?? (r.prijs * (r.aantal || 1)))}</td>
+                  </tr>
+                ))}
+                {Number(o.korting) > 0 && (
+                  <tr><td>Korting</td><td className="r">- {euro(o.korting)}</td></tr>
+                )}
+                <tr className="tot"><td>Subtotaal (excl. btw)</td><td className="r">{euro(o.eenmalig_ex)}</td></tr>
+                <tr><td className="n">Btw</td><td className="r n">{euro(o.btw)}</td></tr>
+                <tr className="tot big"><td>Totaal eenmalig (incl. btw)</td><td className="r">{euro(o.eenmalig_incl)}</td></tr>
+              </tbody>
+            </table>
+          </div>
         )}
 
         {toonMaand && (
-        <div className="card">
-          <h2>Per maand</h2>
-          <table>
-            <tbody>
-              {maandRegels.map((r, i) => (
-                <tr key={'m' + i}><td>{r.naam}</td><td className="r">{euro(r.mnd)}</td></tr>
-              ))}
-              {upsell.map((u, i) => (
-                <tr key={'u' + i}><td>{u.naam}</td><td className="r">{u.prijs == null || u.op_aanvraag ? 'op aanvraag' : euro(u.prijs)}</td></tr>
-              ))}
-              <tr className="tot big"><td>Totaal per maand (excl. btw)</td><td className="r">{euro(o.maandbedrag_ex)}</td></tr>
-            </tbody>
-          </table>
-          {o.pakket && <div className="muted" style={{ marginTop: 8, fontSize: 13 }}>Pakket: {o.pakket}</div>}
-          {spec.length > 0 && (
-            <details>
-              <summary>Bijbehorende specificaties ({spec.length})</summary>
-              <ul>{spec.map(([k, v]) => <li key={k}>{typeof v === 'string' ? v : k}</li>)}</ul>
-            </details>
-          )}
-        </div>
+          <div className="card">
+            <h2>Per maand</h2>
+            <table>
+              <tbody>
+                {maandRegels.map((r, i) => (
+                  <tr key={'m' + i}>
+                    <td>
+                      {r.naam}{r.aantal > 1 ? <span className="muted"> × {r.aantal}</span> : null}
+                      <span className="sub">{looptijd(r)}{r.sub ? ` · ${r.sub}` : ''}</span>
+                    </td>
+                    <td className="r">{euro(r.mnd)}</td>
+                  </tr>
+                ))}
+                {upsell.map((u, i) => (
+                  <tr key={'u' + i}><td>{u.naam}</td><td className="r">{u.prijs == null || u.op_aanvraag ? 'op aanvraag' : euro(u.prijs)}</td></tr>
+                ))}
+                <tr className="tot big"><td>Totaal per maand (excl. btw)</td><td className="r">{euro(o.maandbedrag_ex)}</td></tr>
+              </tbody>
+            </table>
+            {o.pakket && <div className="muted" style={{ marginTop: 8, fontSize: 13 }}>Pakket: {o.pakket}</div>}
+            {spec.length > 0 && (
+              <details>
+                <summary>Bijbehorende specificaties ({spec.length})</summary>
+                <ul>{spec.map(([k, v]) => <li key={k}>{typeof v === 'string' ? v : k}</li>)}</ul>
+              </details>
+            )}
+          </div>
         )}
 
-        {/* v112: notitie van de accountmanager (afspraken over start, oplevering) */}
         {o.notitie_klant && (
           <div className="card">
             <h2>Afspraken</h2>
@@ -334,21 +411,48 @@ export default function Tekenen() {
         <div className="card">
           <h2>Akkoordverklaring</h2>
           <div className="akkoord">{o.akkoord_tekst}</div>
+          {voorwaarden.length > 0 && (
+            <details>
+              <summary>Voorwaarden ({voorwaarden.length})</summary>
+              <div className="vw" style={{ marginTop: 8 }}>
+                {voorwaarden.map((v, i) => (
+                  <p key={i}><b>{i + 1}. {v.titel}.</b> {v.tekst}</p>
+                ))}
+              </div>
+            </details>
+          )}
         </div>
 
-        {!afwijzen ? (
+        {getekend ? (
+          <div className="card">
+            <h2>Ondertekening</h2>
+            <div className="muted">
+              Digitaal ondertekend door <b style={{ color: 'var(--text)' }}>{data.door || '—'}</b>{data.functie ? ` (${data.functie})` : ''} op {tijd(data.getekend_op)}.
+              <br />Akkoord gegeven op deze pagina, na het lezen van de offerte en de akkoordverklaring.
+            </div>
+          </div>
+        ) : !afwijzen ? (
           <div className="card" ref={padRoot}>
             <h2>Ondertekenen</h2>
             <label htmlFor="tk-naam">Uw naam</label>
             <input id="tk-naam" type="text" value={naam} onChange={(e) => setNaam(e.target.value)} placeholder="Voor- en achternaam" autoComplete="name" />
             <label htmlFor="tk-functie">Functie (optioneel)</label>
             <input id="tk-functie" type="text" value={functie} onChange={(e) => setFunctie(e.target.value)} placeholder="Bijv. eigenaar" />
-            <label>Handtekening</label>
-            <SignaturePad disabled={busy} onChange={setHasInk} />
+            {metHandtekening && (
+              <>
+                <label>Handtekening</label>
+                <SignaturePad disabled={busy} onChange={setHasInk} />
+              </>
+            )}
             <label className="check">
               <input type="checkbox" checked={gelezen} onChange={(e) => setGelezen(e.target.checked)} />
               <span>Ik heb de offerte en de akkoordverklaring gelezen en ga hiermee akkoord namens {o.zaak_naam}.</span>
             </label>
+            {!metHandtekening && (
+              <p className="muted" style={{ fontSize: 13, marginBottom: 0 }}>
+                U ondertekent digitaal. Uw naam, het tijdstip en uw akkoord worden vastgelegd; dat geldt als rechtsgeldige ondertekening.
+              </p>
+            )}
             {submitErr && <div className="err">{submitErr}</div>}
           </div>
         ) : (
@@ -363,13 +467,45 @@ export default function Tekenen() {
             {submitErr && <div className="err">{submitErr}</div>}
           </div>
         )}
+
+        {(org.kvk || org.btw_nummer || org.adres) && (
+          <p className="muted" style={{ fontSize: 12, textAlign: 'center' }}>
+            {[org.naam, org.adres, org.kvk ? `KvK ${org.kvk}` : null, org.btw_nummer ? `Btw ${org.btw_nummer}` : null].filter(Boolean).join(' · ')}
+          </p>
+        )}
       </div>
 
-      {!afwijzen && (
+      {!getekend && !afwijzen && (
         <div className="sticky"><div className="in">
-          <button type="button" className="btn p" onClick={tekenen} disabled={!canSign}>{busy ? 'Bezig…' : 'Akkoord en ondertekenen'}</button>
+          <button type="button" className="btn p" onClick={() => setBevestig(true)} disabled={!canSign}>{busy ? 'Bezig…' : 'Ondertekenen'}</button>
           <button type="button" className="link" onClick={() => setAfwijzen(true)} disabled={busy}>Ik ga niet akkoord</button>
         </div></div>
+      )}
+
+      {bevestig && (
+        <div className="tk-modal" role="dialog" aria-modal="true">
+          <div className="box">
+            <h3>Weet u het zeker?</h3>
+            <p style={{ margin: 0, color: '#6B6B75', fontSize: 14 }}>
+              U ondertekent offerte {o.nummer} namens {o.zaak_naam} als {naam.trim()}{functie.trim() ? ` (${functie.trim()})` : ''}.
+            </p>
+            <div className="sum">
+              {Number(o.eenmalig_incl) > 0 && <div><span>Eenmalig incl. btw</span><b>{euro(o.eenmalig_incl)}</b></div>}
+              {Number(o.maandbedrag_ex) > 0 && <div><span>Per maand excl. btw</span><b>{euro(o.maandbedrag_ex)}</b></div>}
+              {maandRegels.map((r, i) => (
+                <div key={i} style={{ color: '#6B6B75', fontSize: 12.5 }}><span>{r.naam}</span><span>{looptijd(r)}</span></div>
+              ))}
+            </div>
+            <p style={{ margin: 0, color: '#6B6B75', fontSize: 12.5 }}>
+              Na ondertekenen staat de offerte vast. U krijgt direct een bevestiging per e-mail.
+            </p>
+            {submitErr && <div className="err">{submitErr}</div>}
+            <div className="acties">
+              <button type="button" className="btn p" style={{ width: 'auto' }} onClick={tekenen} disabled={busy}>{busy ? 'Bezig…' : 'Ja, ondertekenen'}</button>
+              <button type="button" className="btn" onClick={() => setBevestig(false)} disabled={busy}>Terug</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

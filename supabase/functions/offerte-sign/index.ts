@@ -1,10 +1,15 @@
-// ReachConnect v65 — publieke tekenpagina-API (geen login, verify_jwt = false).
+// ReachConnect v65 — publieke ondertekenpagina-API (geen login, verify_jwt = false).
 // GET  ?t=<token>            -> bevroren offerte (of state getekend/verlopen/afgewezen)
-// POST { t, actie, ... }     -> 'tekenen' (naam, functie?, png) of 'afwijzen' (reden?)
+// POST { t, actie, ... }     -> 'tekenen' (naam, functie?, png?) of 'afwijzen' (reden?)
 // Werkt uitsluitend met de kolommen van public.offertes; geeft NOOIT interne
 // velden terug (user_id, lead_id, notitie, roi). Alleen de sha256-hash van het
 // token staat in de DB; het token komt alleen uit de mail. Na tekenen blijft de
 // link werken als read-only bevestiging (GET geeft state getekend).
+//
+// v112: merk/branding uit offertes.branding_org_id.
+// v113: ondertekenen mag zonder handtekeningafbeelding wanneer
+//       offertes.handtekening_vereist false is (akkoordknop + bevestiging).
+//       De merkkleuren en bedrijfsgegevens gaan mee naar de pagina.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -79,7 +84,7 @@ Deno.serve(async (req: Request) => {
     let org: Record<string, unknown> | null = null;
     const merkId = off.branding_org_id || off.organization_id;
     if (merkId) {
-      const { data } = await admin.from("organizations").select("name, afzender_naam, afzender_email, logo_url").eq("id", merkId).single();
+      const { data } = await admin.from("organizations").select("name, afzender_naam, afzender_email, logo_url, accent_kleur, accent_tekst_kleur, kvk, btw_nummer, adres, telefoon, website, iban, offerte_voorwaarden").eq("id", merkId).single();
       org = data;
     }
     const fallbackFrom = Deno.env.get("RESEND_FROM") || "ReachConnect <onboarding@resend.dev>";
@@ -87,13 +92,39 @@ Deno.serve(async (req: Request) => {
     const orgNaam = String(org?.afzender_naam || org?.name || (fromMatch ? fromMatch[1] : "") || "Uw leverancier");
     const afzenderEmail = String(org?.afzender_email || (fromMatch ? fromMatch[2] : fallbackFrom));
     const from = `${orgNaam} <${afzenderEmail}>`;
+    const accent = String(org?.accent_kleur || "#15803D");
+    const accentInkt = String(org?.accent_tekst_kleur || "#FFFFFF");
     const { data: am } = await admin.from("profiles").select("full_name, email, phone").eq("id", off.verzonden_door || off.user_id).maybeSingle();
     const amInfo = { naam: am?.full_name || off.accountmanager || orgNaam, telefoon: am?.phone || null, email: am?.email || null };
-    const orgInfo = { naam: orgNaam, logo_url: (org?.logo_url as string) || null };
+    const orgInfo = {
+      naam: orgNaam,
+      logo_url: (org?.logo_url as string) || null,
+      accent_kleur: accent,
+      accent_tekst_kleur: accentInkt,
+      email: afzenderEmail,
+      telefoon: (org?.telefoon as string) || null,
+      adres: (org?.adres as string) || null,
+      website: (org?.website as string) || null,
+      kvk: (org?.kvk as string) || null,
+      btw_nummer: (org?.btw_nummer as string) || null,
+      iban: (org?.iban as string) || null,
+      voorwaarden: Array.isArray(org?.offerte_voorwaarden) ? org?.offerte_voorwaarden : [],
+    };
 
     // Eindstates
     if (off.status === "getekend") {
-      return json({ state: "getekend", nummer: off.nummer, getekend_op: off.getekend_op, door: off.akkoord?.door || null, org: orgInfo, am: amInfo });
+      return json({
+        state: "getekend", nummer: off.nummer, getekend_op: off.getekend_op,
+        door: off.akkoord?.door || null, functie: off.akkoord?.functie || null,
+        zaak_naam: off.zaak_naam, org: orgInfo, am: amInfo,
+        offerte: {
+          nummer: off.nummer, zaak_naam: off.zaak_naam, contact_naam: off.contact_naam, adres: off.adres,
+          pakket: off.pakket, regels: off.regels, upsell: off.upsell, korting: off.korting,
+          eenmalig_ex: off.eenmalig_ex, btw: off.btw, eenmalig_incl: off.eenmalig_incl, maandbedrag_ex: off.maandbedrag_ex,
+          speclijst: off.speclijst, akkoord_tekst: off.akkoord_tekst, geldig_tot: off.sign_token_expires_at,
+          notitie_klant: off.notitie || null, handtekening_vereist: off.handtekening_vereist !== false,
+        },
+      });
     }
     if (off.status === "afgewezen" || off.status === "geannuleerd") {
       return json({ state: off.status, nummer: off.nummer, org: orgInfo, am: amInfo }, 410);
@@ -117,7 +148,7 @@ Deno.serve(async (req: Request) => {
           pakket: off.pakket, regels: off.regels, upsell: off.upsell, korting: off.korting,
           eenmalig_ex: off.eenmalig_ex, btw: off.btw, eenmalig_incl: off.eenmalig_incl, maandbedrag_ex: off.maandbedrag_ex,
           speclijst: off.speclijst, akkoord_tekst: off.akkoord_tekst, geldig_tot: off.sign_token_expires_at,
-          notitie_klant: off.notitie || null,
+          notitie_klant: off.notitie || null, handtekening_vereist: off.handtekening_vereist !== false,
         },
         org: orgInfo, am: amInfo,
       });
@@ -142,13 +173,21 @@ Deno.serve(async (req: Request) => {
     const naam = String(body?.naam || "").trim();
     const functie = String(body?.functie || "").trim().slice(0, 120) || null;
     const png = String(body?.png || "");
+    const pngNodig = off.handtekening_vereist !== false;
     if (naam.length < 2) return json({ error: "naam_ontbreekt" }, 400);
-    if (!png.startsWith("data:image/png;base64,") || png.length > 400_000) return json({ error: "handtekening_ongeldig" }, 400);
+    if (pngNodig) {
+      if (!png.startsWith("data:image/png;base64,") || png.length > 400_000) return json({ error: "handtekening_ongeldig" }, 400);
+    } else if (png && (!png.startsWith("data:image/png;base64,") || png.length > 400_000)) {
+      return json({ error: "handtekening_ongeldig" }, 400);
+    }
+    // Zonder handtekening moet de klant expliciet het vinkje hebben gezet.
+    if (!pngNodig && body?.akkoord !== true) return json({ error: "akkoord_ontbreekt" }, 400);
 
     const now = new Date();
     const akkoord = {
-      door: naam, functie, op: now.toISOString(), png, ua, ip,
-      tekst: off.akkoord_tekst, inhoud_hash: off.inhoud_hash, verzonden_naar: off.verzonden_naar, methode: "op_afstand",
+      door: naam, functie, op: now.toISOString(), png: png || null, ua, ip,
+      tekst: off.akkoord_tekst, inhoud_hash: off.inhoud_hash, verzonden_naar: off.verzonden_naar,
+      methode: pngNodig ? "op_afstand" : "op_afstand_knop",
     };
     const { error: updErr } = await admin.from("offertes").update({
       status: "getekend", akkoord, getekend_op: now.toISOString(),
@@ -174,7 +213,7 @@ Deno.serve(async (req: Request) => {
           disposed_at: now.toISOString(),
           duration_seconds: 0,
           source: "offerte_remote",
-          notes: `Offerte ${off.nummer} getekend op afstand door ${naam}`,
+          notes: `Offerte ${off.nummer} ondertekend op afstand door ${naam}`,
         });
       }
     }
@@ -183,17 +222,17 @@ Deno.serve(async (req: Request) => {
     const wanneer = tijdNL(now);
     const appUrl = (Deno.env.get("APP_URL") || "https://leadgendash.netlify.app").replace(/\/$/, "");
     if (off.verzonden_naar) {
-      await sendMail(off.verzonden_naar, from, amInfo.email, `Bevestiging: offerte ${off.nummer} ondertekend`,
-        `<div style="font-family:-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#14171f">
+      await sendMail(off.verzonden_naar, from, amInfo.email, `Bevestiging: offerte ${off.nummer} is ondertekend`,
+        `<div style="font-family:Inter,-apple-system,Segoe UI,Helvetica,Arial,sans-serif;max-width:560px;margin:0 auto;padding:24px;color:#0B0B0C">
          <h1 style="font-size:20px">Bedankt, uw akkoord is ontvangen</h1>
          <p>Offerte <b>${esc(off.nummer)}</b> voor ${esc(off.zaak_naam)} is op ${esc(wanneer)} ondertekend door ${esc(naam)}${functie ? ` (${esc(functie)})` : ""}.</p>
-         <table style="border-collapse:collapse;font-size:14px"><tr><td style="padding:4px 12px 4px 0;color:#5b6270">Eenmalig (excl. btw)</td><td><b>${euro(off.eenmalig_ex)}</b></td></tr><tr><td style="padding:4px 12px 4px 0;color:#5b6270">Per maand (excl. btw)</td><td><b>${euro(off.maandbedrag_ex)}</b></td></tr></table>
-         <p style="font-size:13px;color:#5b6270">De getekende offerte blijft in te zien via de link uit de eerdere mail. ${esc(amInfo.naam)} neemt contact met u op over de vervolgstappen.</p>
+         <table style="border-collapse:collapse;font-size:14px"><tr><td style="padding:4px 12px 4px 0;color:#6B6B75">Eenmalig (excl. btw)</td><td><b>${euro(off.eenmalig_ex)}</b></td></tr><tr><td style="padding:4px 12px 4px 0;color:#6B6B75">Per maand (excl. btw)</td><td><b>${euro(off.maandbedrag_ex)}</b></td></tr></table>
+         <p style="font-size:13px;color:#6B6B75">Bewaar deze mail als bevestiging. Via de link uit de eerdere mail kunt u de ondertekende offerte altijd terugzien en downloaden. ${esc(amInfo.naam)} neemt contact met u op over de vervolgstappen.</p>
          </div>`);
     }
     if (amInfo.email) {
-      await sendMail(amInfo.email, from, null, `${off.zaak_naam} heeft offerte ${off.nummer} getekend`,
-        `<p><b>${esc(off.zaak_naam)}</b> heeft offerte ${esc(off.nummer)} op ${esc(wanneer)} getekend (${esc(naam)}${functie ? `, ${esc(functie)}` : ""}).</p><p>Eenmalig ${euro(off.eenmalig_ex)} · per maand ${euro(off.maandbedrag_ex)}.</p><p><a href="${esc(appUrl)}/offertes">Bekijk in ReachConnect</a></p>`);
+      await sendMail(amInfo.email, from, null, `${off.zaak_naam} heeft offerte ${off.nummer} ondertekend`,
+        `<p><b>${esc(off.zaak_naam)}</b> heeft offerte ${esc(off.nummer)} op ${esc(wanneer)} ondertekend (${esc(naam)}${functie ? `, ${esc(functie)}` : ""}).</p><p>Eenmalig ${euro(off.eenmalig_ex)} · per maand ${euro(off.maandbedrag_ex)}.</p><p><a href="${esc(appUrl)}/offertes" style="background:${esc(accent)};color:${esc(accentInkt)};padding:10px 16px;border-radius:999px;text-decoration:none;font-weight:600;display:inline-block">Bekijk in ReachConnect</a></p>`);
     }
 
     return json({ ok: true, state: "getekend", getekend_op: now.toISOString() });

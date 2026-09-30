@@ -5,86 +5,96 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Offerte</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0F1117; --panel:#171a22; --panel2:#1f232d; --line:#2a2f3a; --line2:#39404e;
-    --txt:#ffffff; --muted:#a3abba; --acc:#22C55E; --acc-dark:#1BA84E; --acc-ink:#04140a;
-    --warn:#ffb020; --err:#ff5c5c; --radius:14px;
+    --bg:#FAFAF7; --panel:#FFFFFF; --panel2:#F4F4F0; --line:#E6E6E1; --line2:#D5D5CE;
+    --txt:#0B0B0C; --muted:#6B6B75; --acc:#15803D; --acc-ink:#FFFFFF;
+    --warn:#B45309; --warn-bg:#FEF3C7; --err:#B91C1C; --err-bg:#FEE2E2; --ok-bg:#ECFDF3;
+    --radius:14px;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;background:var(--bg);color:var(--txt);font-family:Poppins,system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.45;-webkit-text-size-adjust:100%}
-  a{color:var(--acc)}
-  h1,h2,h3{margin:0;font-weight:600;line-height:1.2}
-  h2{font-size:16px;letter-spacing:.2px}
+  html,body{margin:0;background:var(--bg);color:var(--txt);font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.5;-webkit-text-size-adjust:100%}
+  a{color:var(--txt)}
+  h1,h2,h3{margin:0;font-weight:700;line-height:1.2;letter-spacing:-0.01em}
+  h2{font-size:17px}
   h2 .n{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:var(--acc);color:var(--acc-ink);font-size:12px;font-weight:700;margin-right:8px;vertical-align:middle}
   .sub{color:var(--muted);font-size:13px;margin-top:4px}
-  header{position:sticky;top:0;z-index:20;background:rgba(15,17,23,.94);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;gap:12px}
-  .logo{font-weight:700;font-size:17px;white-space:nowrap;letter-spacing:.3px;display:flex;align-items:center;gap:8px}
-  .logo img{height:26px;width:auto;border-radius:4px;background:#fff;padding:2px}
+  header{position:sticky;top:0;z-index:20;background:rgba(250,250,247,.93);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;gap:12px}
+  .logo{font-weight:800;font-size:17px;white-space:nowrap;letter-spacing:-0.02em;display:flex;align-items:center;gap:8px}
+  .logo img{height:28px;width:auto}
   .hdr-right{margin-left:auto;display:flex;gap:6px;flex-wrap:nowrap;align-items:center;font-size:12px;color:var(--muted)}
-  .chip{white-space:nowrap;border:1px solid var(--line2);border-radius:999px;padding:4px 10px;font-size:12px;color:var(--txt);background:var(--panel)}
+  .chip{white-space:nowrap;border:1px solid var(--line2);border-radius:999px;padding:4px 11px;font-size:12px;color:var(--txt);background:var(--panel)}
   .chip.on{background:var(--acc);color:var(--acc-ink);border-color:var(--acc);font-weight:600}
-  main{max-width:860px;margin:0 auto;padding:16px 16px 150px}
-  section.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px;margin-bottom:14px}
+  main{max-width:880px;margin:0 auto;padding:16px 16px 160px}
+  section.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:14px}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   @media(max-width:560px){.grid{grid-template-columns:1fr}}
-  label.f{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  label.f{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;font-weight:500}
   input[type=text],input[type=email],input[type=tel],input[type=number],select,textarea{
-    width:100%;background:var(--panel2);border:1px solid var(--line2);color:var(--txt);border-radius:10px;padding:11px 12px;font:inherit;font-size:16px}
+    width:100%;background:var(--panel);border:1px solid var(--line2);color:var(--txt);border-radius:10px;padding:11px 12px;font:inherit;font-size:16px}
   textarea{min-height:70px;resize:vertical}
-  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--acc)}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb, var(--acc) 25%, transparent)}
+  /* regels */
   .reg{border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:10px;background:var(--panel2)}
   .reg .top{display:flex;gap:8px;align-items:flex-start}
   .reg .top .nm{flex:1;min-width:0}
-  .reg .del{flex:none;border:1px solid var(--line2);background:transparent;color:var(--muted);border-radius:10px;width:38px;height:38px;font-size:18px;cursor:pointer}
+  .reg .del{flex:none;border:1px solid var(--line2);background:var(--panel);color:var(--muted);border-radius:10px;width:38px;height:38px;font-size:18px;cursor:pointer}
   .reg .del:hover{color:var(--err);border-color:var(--err)}
-  .reg .cols{display:grid;grid-template-columns:90px 1fr 1fr;gap:8px;margin-top:8px}
-  @media(max-width:560px){.reg .cols{grid-template-columns:1fr 1fr}.reg .cols .per{grid-column:1/-1}}
-  .reg .lijn{display:flex;justify-content:space-between;align-items:center;margin-top:8px;font-size:13px;color:var(--muted)}
-  .reg .lijn b{color:var(--acc);font-size:15px}
-  .seg{display:flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden}
-  .seg button{flex:1;border:0;background:var(--panel2);color:var(--txt);padding:10px 6px;font:inherit;font-size:13px;cursor:pointer}
+  .reg .cols{display:grid;grid-template-columns:90px 1fr 1.2fr;gap:8px;margin-top:8px}
+  @media(max-width:620px){.reg .cols{grid-template-columns:1fr 1fr}.reg .cols .per{grid-column:1/-1}}
+  .reg .lijn{display:flex;justify-content:space-between;align-items:center;margin-top:10px;font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px}
+  .reg .lijn b{color:var(--txt);font-size:15px}
+  .seg{display:flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden;background:var(--panel)}
+  .seg button{flex:1;border:0;background:transparent;color:var(--txt);padding:10px 6px;font:inherit;font-size:13px;cursor:pointer}
   .seg button.on{background:var(--acc);color:var(--acc-ink);font-weight:600}
-  .sjab{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
-  .sjab button{border:1px dashed var(--line2);background:transparent;color:var(--muted);border-radius:999px;padding:6px 11px;font:inherit;font-size:12px;cursor:pointer}
-  .sjab button:hover{color:var(--acc);border-color:var(--acc)}
+  .sjab{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+  .sjab button{border:1px solid var(--line2);background:var(--panel);color:var(--txt);border-radius:999px;padding:7px 13px;font:inherit;font-size:12.5px;cursor:pointer}
+  .sjab button:hover{border-color:var(--acc);background:color-mix(in srgb, var(--acc) 12%, var(--panel))}
+  /* totalen */
   .trow{display:flex;justify-content:space-between;padding:6px 0;font-size:14px}
   .trow.big{font-size:18px;font-weight:700;border-top:1px solid var(--line2);margin-top:4px;padding-top:10px}
-  .trow.big .r{color:var(--acc)}
   .trow .l{color:var(--muted)}
   .trow.big .l{color:var(--txt)}
+  /* akkoord */
   .akk{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px;font-size:13px;color:var(--muted);max-height:200px;overflow:auto;white-space:pre-wrap}
-  .sig{margin-top:10px;background:#fff;border-radius:12px;position:relative;touch-action:none}
+  .check{display:flex;gap:10px;align-items:flex-start;margin-top:12px;font-size:14px;cursor:pointer}
+  .check input{width:20px;height:20px;flex:none;margin-top:1px;accent-color:var(--acc)}
+  .sig{margin-top:10px;background:#fff;border:1px solid var(--line2);border-radius:12px;position:relative;touch-action:none}
   .sig canvas{display:block;width:100%;height:180px;border-radius:12px}
   .sig .hint{position:absolute;left:0;right:0;bottom:8px;text-align:center;color:#999;font-size:12px;pointer-events:none}
   .sig .line{position:absolute;left:24px;right:24px;bottom:40px;border-top:1px dashed #bbb;pointer-events:none}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:12px;padding:13px 18px;font:inherit;font-weight:600;font-size:15px;cursor:pointer;background:var(--panel2);color:var(--txt);border:1px solid var(--line2)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:999px;padding:13px 20px;font:inherit;font-weight:600;font-size:15px;cursor:pointer;background:var(--panel);color:var(--txt);border:1px solid var(--line2)}
   .btn.acc{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
-  .btn.acc:active{background:var(--acc-dark)}
   .btn:disabled{opacity:.45;cursor:not-allowed}
-  .btn.sm{padding:8px 12px;font-size:13px;border-radius:10px}
-  .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-  .bar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#0b0d12;border-top:1px solid var(--line2);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:flex;align-items:center;gap:12px}
+  .btn.sm{padding:9px 14px;font-size:13px}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .bar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:var(--panel);border-top:1px solid var(--line2);padding:10px 16px calc(10px + env(safe-area-inset-bottom));display:flex;align-items:center;gap:12px}
   .bar .b{flex:1;min-width:0}
-  .bar .k{font-size:9px;white-space:nowrap;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .bar .k{font-size:9px;white-space:nowrap;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:700}
   .bar .v{font-size:15px;font-weight:700;white-space:nowrap}
-  .bar .v.acc{color:var(--acc)}
-  .signed{background:rgba(34,197,94,.1);border:1px solid var(--acc);border-radius:12px;padding:12px;margin-top:12px}
-  .signed b{color:var(--acc)}
-  .warn{background:rgba(255,176,32,.12);border:1px solid rgba(255,176,32,.4);color:var(--warn);border-radius:10px;padding:10px 12px;font-size:13px;margin-top:10px}
+  .signed{background:var(--ok-bg);border:1px solid var(--acc);border-radius:12px;padding:14px;margin-top:12px}
+  .signed b{font-weight:700}
+  .warn{background:var(--warn-bg);border:1px solid #F5C77E;color:var(--warn);border-radius:10px;padding:10px 12px;font-size:13px;margin-top:10px}
   .note{font-size:12px;color:var(--muted);margin-top:8px}
   .lock{pointer-events:none;opacity:.6}
   .hidden{display:none!important}
   body.klant .vk-only,body.klant #backLink,body.klant #dbState{display:none!important}
+  /* bevestig-venster */
+  .modal{position:fixed;inset:0;z-index:60;background:rgba(11,11,12,.45);display:flex;align-items:center;justify-content:center;padding:16px}
+  .modal .box{background:var(--panel);border-radius:16px;max-width:420px;width:100%;padding:22px;border:1px solid var(--line)}
+  .modal h3{font-size:19px;margin-bottom:8px}
+  .modal .sum{background:var(--panel2);border-radius:10px;padding:12px;margin:12px 0;font-size:14px}
+  .modal .sum div{display:flex;justify-content:space-between;padding:3px 0}
+  /* document (print) */
   #doc{display:none}
   @media print{
     @page{margin:14mm}
     body{background:#fff;color:#111;font-size:12px}
-    header,main,.bar{display:none!important}
-    #doc{display:block;font-family:Poppins,Arial,sans-serif;color:#111}
-    #doc .dh{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #15803D;padding-bottom:10px;margin-bottom:16px}
-    #doc .dh .logo{font-size:22px;color:#111;font-weight:700}
+    header,main,.bar,.modal{display:none!important}
+    #doc{display:block;font-family:Inter,Arial,sans-serif;color:#111}
+    #doc .dh{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid var(--acc);padding-bottom:10px;margin-bottom:16px}
+    #doc .dh .logo{font-size:22px;color:#111;font-weight:800}
     #doc .dh .logo img{height:42px;width:auto;display:block;margin-bottom:4px}
     #doc .dh .meta{text-align:right;font-size:11px;color:#555}
     #doc h2{font-size:14px;margin:16px 0 6px;color:#111;border-bottom:1px solid #ddd;padding-bottom:4px}
@@ -117,21 +127,21 @@
   <section class="card">
     <h2><span class="n">1</span>Klant</h2>
     <div class="grid" style="margin-top:12px">
-      <div><label class="f">Naam van het bedrijf *</label><input type="text" id="k_zaak" placeholder="Bedrijfsnaam" oninput="save();chkSign()"></div>
+      <div><label class="f">Naam van het bedrijf *</label><input type="text" id="k_zaak" placeholder="Bedrijfsnaam" oninput="save();chkKlaar()"></div>
       <div><label class="f">Contactpersoon</label><input type="text" id="k_naam" placeholder="Voor- en achternaam" oninput="save()"></div>
-      <div><label class="f">E-mail (voor de tekenlink)</label><input type="email" id="k_mail" placeholder="naam@bedrijf.nl" oninput="save();chkSend()"></div>
+      <div><label class="f">E-mail (voor de tekenlink)</label><input type="email" id="k_mail" placeholder="naam@bedrijf.nl" oninput="save();chkKlaar()"></div>
       <div><label class="f">Telefoon</label><input type="tel" id="k_tel" placeholder="06…" oninput="save()"></div>
       <div style="grid-column:1/-1"><label class="f">Adres</label><input type="text" id="k_adres" placeholder="Straat 1, 1234 AB Plaats" oninput="save()"></div>
-      <div class="vk-only"><label class="f">Accountmanager</label><input type="text" id="v_naam" placeholder="Jouw naam" oninput="save()"></div>
+      <div class="vk-only"><label class="f">Jouw naam (contactpersoon bij ons)</label><input type="text" id="v_naam" placeholder="Jouw naam" oninput="save()"></div>
     </div>
   </section>
 
   <section class="card">
-    <h2><span class="n">2</span>Wat bied je aan?</h2>
-    <div class="sub">Typ zelf de regels. Kies per regel of het eenmalig is of per maand.</div>
+    <h2><span class="n">2</span>Wat bieden we aan?</h2>
+    <div class="sub">Klik een suggestie aan of voeg een eigen regel toe. Kies per regel of het eenmalig is of per maand, en bij per maand de looptijd.</div>
     <div class="sjab" id="sjab"></div>
     <div id="regels"></div>
-    <div class="btns"><button class="btn sm" onclick="addRegel()">+ Regel toevoegen</button></div>
+    <div class="btns"><button class="btn sm" onclick="addRegel()">+ Eigen regel toevoegen</button></div>
   </section>
 
   <section class="card">
@@ -139,51 +149,73 @@
     <div class="grid" style="margin-top:12px">
       <div><label class="f">Korting op het eenmalige bedrag (&euro;)</label><input type="number" id="v_korting" min="0" step="1" placeholder="0" oninput="calc();save()"></div>
       <div><label class="f">Btw-percentage</label><input type="number" id="v_btw" min="0" max="30" step="1" value="21" oninput="calc();save()"></div>
-      <div style="grid-column:1/-1"><label class="f">Notitie op de offerte (optioneel)</label><textarea id="v_notitie" placeholder="Bijvoorbeeld: startdatum, wat de klant aanlevert, afspraken over oplevering" oninput="save()"></textarea></div>
+      <div style="grid-column:1/-1"><label class="f">Notitie op de offerte (de klant ziet dit)</label><textarea id="v_notitie" placeholder="Bijvoorbeeld: startdatum, wat de klant aanlevert, afspraken over oplevering" oninput="save()"></textarea></div>
     </div>
-    <div style="margin-top:14px">
-      <div class="trow"><span class="l">Eenmalig (excl. btw)</span><span class="r" id="t_een">&euro;0</span></div>
-      <div class="trow" id="t_kortrow"><span class="l">Korting</span><span class="r" id="t_kort">&euro;0</span></div>
-      <div class="trow"><span class="l">Btw</span><span class="r" id="t_btw">&euro;0</span></div>
-      <div class="trow big"><span class="l">Eenmalig (incl. btw)</span><span class="r" id="t_incl">&euro;0</span></div>
-      <div class="trow big"><span class="l">Per maand (excl. btw)</span><span class="r" id="t_mnd">&euro;0</span></div>
+    <div style="margin-top:16px">
+      <div class="trow"><span class="l">Eenmalig (excl. btw)</span><span id="t_een">&euro;0</span></div>
+      <div class="trow" id="t_kortrow"><span class="l">Korting</span><span id="t_kort">&euro;0</span></div>
+      <div class="trow"><span class="l">Btw</span><span id="t_btw">&euro;0</span></div>
+      <div class="trow big"><span class="l">Eenmalig (incl. btw)</span><span id="t_incl">&euro;0</span></div>
+      <div class="trow big"><span class="l">Per maand (excl. btw)</span><span id="t_mnd">&euro;0</span></div>
     </div>
     <div class="warn hidden" id="leegwarn">Er staat nog geen regel met een bedrag op deze offerte.</div>
   </section>
 
   <section class="card" id="akkoord">
-    <h2><span class="n">4</span>Akkoord &amp; handtekening</h2>
-    <div class="akk" id="akktekst" style="margin-top:10px"></div>
+    <h2><span class="n">4</span>Akkoord</h2>
+    <div class="akk" id="akktekst" style="margin-top:12px"></div>
     <details style="margin-top:8px" id="vwbox"><summary style="cursor:pointer;color:var(--muted);font-size:13px">Voorwaarden (staan volledig op de offerte)</summary><div class="akk" id="vwtekst" style="margin-top:8px;max-height:260px;white-space:normal"></div></details>
-    <div class="grid" style="margin-top:10px">
-      <div><label class="f">Naam ondertekenaar *</label><input type="text" id="s_naam" placeholder="Naam zoals op het contract" oninput="chkSign()"></div>
+    <div class="grid" style="margin-top:12px">
+      <div><label class="f">Naam ondertekenaar *</label><input type="text" id="s_naam" placeholder="Naam zoals op het contract" oninput="chkKlaar()"></div>
       <div><label class="f">Functie</label><input type="text" id="s_functie" placeholder="Eigenaar" oninput="save()"></div>
     </div>
-    <div class="sig" id="sigwrap">
-      <canvas id="sig"></canvas>
-      <div class="line"></div>
-      <div class="hint" id="sighint">Teken hier met vinger of pen</div>
+
+    <div id="sigblok" class="hidden">
+      <div class="sig" id="sigwrap">
+        <canvas id="sig"></canvas>
+        <div class="line"></div>
+        <div class="hint" id="sighint">Teken hier met vinger of pen</div>
+      </div>
+      <div class="btns"><button class="btn sm" onclick="clearSig()">Wis handtekening</button></div>
     </div>
+
+    <label class="check" id="akkoordCheckWrap">
+      <input type="checkbox" id="s_gelezen" onchange="chkKlaar()">
+      <span id="akkoordCheckTekst">Ik heb de offerte en de akkoordverklaring gelezen en ga hiermee akkoord.</span>
+    </label>
+
     <div class="btns">
-      <button class="btn sm" onclick="clearSig()">Wis handtekening</button>
-      <button class="btn acc" id="signBtn" onclick="sign()" disabled>Akkoord en ondertekenen</button>
-      <button class="btn vk-only" id="sendBtn" onclick="sendForSign()" disabled title="Mailt de klant een link om thuis te tekenen">Verstuur ter ondertekening</button>
+      <button class="btn acc" id="signBtn" onclick="vraagBevestiging()" disabled>Ondertekenen</button>
+      <button class="btn vk-only" id="sendBtn" onclick="sendForSign()" disabled title="Mailt de klant een link om zelf te ondertekenen">Verstuur ter ondertekening</button>
     </div>
     <div class="signed hidden" id="signedbox"></div>
     <div class="signed hidden" id="sentbox"></div>
     <div class="btns">
-      <button class="btn" onclick="showDoc()">Bekijk / print offerte (PDF)</button>
+      <button class="btn" onclick="showDoc()">Bekijk / download offerte (PDF)</button>
       <button class="btn vk-only" onclick="nieuw()">Nieuwe offerte</button>
     </div>
-    <div class="note vk-only">Tekent de klant nu niet? Vul het e-mailadres in en kies "Verstuur ter ondertekening": de klant krijgt een link om thuis te tekenen en je ziet de status (verzonden, geopend, getekend) terug bij de lead en op de pagina Offertes.</div>
+    <div class="note vk-only">Tekent de klant nu niet? Vul het e-mailadres in en kies "Verstuur ter ondertekening": de klant krijgt een link om zelf te ondertekenen en je ziet de status (verzonden, geopend, getekend) terug bij de lead en op de pagina Offertes.</div>
   </section>
 </main>
 
 <div class="bar">
-  <div class="b"><div class="k">Eenmalig incl. btw</div><div class="v acc" id="b_een">&euro;0</div></div>
+  <div class="b"><div class="k">Eenmalig incl. btw</div><div class="v" id="b_een">&euro;0</div></div>
   <div class="b"><div class="k">Per maand</div><div class="v" id="b_mnd">&euro;0</div></div>
   <button class="btn acc" id="barBtn" onclick="barAction()">Naar akkoord</button>
   <button class="btn sm hidden" id="barNieuw" onclick="nieuw()">Nieuw</button>
+</div>
+
+<div class="modal hidden" id="bevestig">
+  <div class="box">
+    <h3>Weet je het zeker?</h3>
+    <p style="margin:0;color:var(--muted);font-size:14px" id="bev_tekst"></p>
+    <div class="sum" id="bev_sum"></div>
+    <p style="margin:0;color:var(--muted);font-size:12.5px">Na ondertekenen staat de offerte vast en kan hij niet meer gewijzigd worden.</p>
+    <div class="btns">
+      <button class="btn acc" onclick="sign()">Ja, ondertekenen</button>
+      <button class="btn" onclick="sluitBevestiging()">Terug</button>
+    </div>
+  </div>
 </div>
 
 <div id="doc"></div>
@@ -191,32 +223,40 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script>
 /* ============================================================================
-   Vrije offerte-tool (v112). Geen vast prijsmodel: de accountmanager typt de
-   regels zelf. Het merk (afzender, logo, voorwaarden, akkoordtekst) komt uit de
-   organisatie die bij het project van de lead hoort - zie migration_v112 en
-   public.offerte_merk(). Opslaan, tekenlink en tekenen lopen via dezelfde weg
-   als de bestelplatform-tool: tabel public.offertes + Edge Functions
-   offerte-send / offerte-sign + pagina /tekenen/:token.
+   Offerte op maat (v112, uitgebreid in v113). Geen vast prijsmodel: de
+   accountmanager typt de regels zelf. Het merk (kleuren, afzender, logo,
+   voorwaarden, akkoordtekst, sjabloonregels en de manier van ondertekenen)
+   komt uit de organisatie die bij het project van de lead hoort, via
+   public.offerte_merk(). Opslaan, tekenlink en tekenen lopen via
+   public.offertes + Edge Functions offerte-send / offerte-sign +
+   pagina /tekenen/:token.
    ========================================================================== */
 
 const LG = { url:"https://zboyxwwrbtpjnlgquhzs.supabase.co", anon:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpib3l4d3dyYnRwam5sZ3F1aHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwMjUxMzMsImV4cCI6MjA5MTYwMTEzM30.1YWu29OCZlHQrijnVFFAU1T2W_lqDw0A9ImoaLbyM9U" };
 const LS_DATA = 'rc_offerte_vrij', LS_ID = 'rc_dbid_vrij';
 
-/* Standaardregels om snel te beginnen. Puur invulhulp: naam en prijs zijn vrij
-   aan te passen en er zit geen prijsmodel achter. */
-const SJABLONEN = [
-  { naam:'SEO en vindbaarheid', periode:'maand', prijs:'' },
-  { naam:'Short form content (4 video’s per maand)', periode:'maand', prijs:'' },
-  { naam:'Social media beheer', periode:'maand', prijs:'' },
-  { naam:'Meta / TikTok advertenties (beheer)', periode:'maand', prijs:'' },
-  { naam:'Website', periode:'eenmalig', prijs:'' },
-  { naam:'Opstartkosten', periode:'eenmalig', prijs:'' },
-  { naam:'Filmen op locatie (per dag)', periode:'eenmalig', prijs:'' },
+/* Looptijd van een maandregel. 0 = maandelijks opzegbaar. */
+const LOOPTIJDEN = [
+  { v:0,  label:'Maandelijks opzegbaar' },
+  { v:12, label:'12 maanden' },
+  { v:24, label:'24 maanden' },
 ];
+const looptijdLabel = (v) => (LOOPTIJDEN.find(l => l.v === Number(v)) || LOOPTIJDEN[0]).label;
+
+/* Valt terug op deze lijst als het merk geen eigen sjablonen heeft. */
+const STANDAARD_SJABLONEN = [
+  { naam:'Website', periode:'eenmalig' },
+  { naam:'Opstartkosten', periode:'eenmalig' },
+  { naam:'Hosting en onderhoud', periode:'maand', looptijd:12 },
+  { naam:'Social media content', periode:'maand', looptijd:12 },
+  { naam:'SEO en vindbaarheid', periode:'maand', looptijd:12 },
+];
+let SJABLONEN = STANDAARD_SJABLONEN;
 
 let MERK = { org_id:null, naam:'ReachConnect', afzender_naam:null, afzender_email:null, logo_url:null,
              kvk:null, btw_nummer:null, adres:null, telefoon:null, website:null, iban:null,
-             btw_percentage:21, offerte_geldigheid_dagen:14, offerte_akkoord_tekst:null, offerte_voorwaarden:[] };
+             btw_percentage:21, offerte_geldigheid_dagen:14, offerte_akkoord_tekst:null, offerte_voorwaarden:[],
+             accent_kleur:null, accent_tekst_kleur:null, offerte_handtekening:'knop', offerte_sjablonen:[] };
 let S = { nummer:null, lead_id:null, campaign_id:null, signed:null, verzonden:null, klantmodus:false };
 let REGELS = [];
 let last = null;
@@ -228,6 +268,7 @@ const eur = n => '€' + Math.round(n||0).toLocaleString('nl-NL');
 const eur2 = n => '€' + (n||0).toLocaleString('nl-NL',{minimumFractionDigits:2,maximumFractionDigits:2});
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const merkNaam = () => MERK.afzender_naam || MERK.naam || 'ReachConnect';
+const metHandtekening = () => MERK.offerte_handtekening === 'tekenen';
 
 function nummerPrefix(){
   const w = merkNaam().replace(/[^A-Za-z]/g,'').toUpperCase();
@@ -239,7 +280,7 @@ function nieuwNummer(){
 
 /* ===== regels ===== */
 function addRegel(v){
-  REGELS.push(Object.assign({ naam:'', sub:'', aantal:1, prijs:'', periode:'eenmalig' }, v||{}));
+  REGELS.push(Object.assign({ naam:'', sub:'', aantal:1, prijs:'', periode:'eenmalig', looptijd:0 }, v||{}));
   renderRegels(); calc(); save();
   const inputs = document.querySelectorAll('#regels .reg input[data-f="naam"]');
   const laatste = inputs[inputs.length-1];
@@ -247,7 +288,7 @@ function addRegel(v){
 }
 function delRegel(i){ REGELS.splice(i,1); renderRegels(); calc(); save(); }
 function setRegel(i, f, v){
-  if(f==='aantal' || f==='prijs') REGELS[i][f] = v === '' ? '' : Number(v);
+  if(f==='aantal' || f==='prijs' || f==='looptijd') REGELS[i][f] = v === '' ? '' : Number(v);
   else REGELS[i][f] = v;
   if(f==='periode') renderRegels();
   calc(); save();
@@ -260,11 +301,11 @@ function renderRegels(){
       <div class="top">
         <div class="nm">
           <label class="f">Omschrijving</label>
-          <input type="text" data-f="naam" value="${esc(r.naam)}" placeholder="bv. SEO en vindbaarheid" oninput="setRegel(${i},'naam',this.value)">
+          <input type="text" data-f="naam" value="${esc(r.naam)}" placeholder="bv. Website" oninput="setRegel(${i},'naam',this.value)">
         </div>
         <button class="del vk-only" title="Regel verwijderen" onclick="delRegel(${i})">&times;</button>
       </div>
-      <label class="f" style="margin-top:8px">Toelichting (optioneel, komt onder de regel op de offerte)</label>
+      <label class="f" style="margin-top:8px">Toelichting (de klant ziet dit onder de regel)</label>
       <input type="text" data-f="sub" value="${esc(r.sub)}" placeholder="Wat de klant hiervoor krijgt" oninput="setRegel(${i},'sub',this.value)">
       <div class="cols">
         <div><label class="f">Aantal</label><input type="number" min="1" step="1" value="${r.aantal}" oninput="setRegel(${i},'aantal',this.value)"></div>
@@ -276,12 +317,24 @@ function renderRegels(){
           </div>
         </div>
       </div>
-      <div class="lijn"><span>${r.periode==='maand'?'Per maand':'Eenmalig'}</span><b>${eur(regelTotaal(r))}${r.periode==='maand'?' /mnd':''}</b></div>
-    </div>`).join('') || '<div class="note">Nog geen regels. Klik op een suggestie hierboven of op "Regel toevoegen".</div>';
+      ${r.periode==='maand' ? `
+      <div style="margin-top:8px">
+        <label class="f">Looptijd</label>
+        <select onchange="setRegel(${i},'looptijd',this.value)">
+          ${LOOPTIJDEN.map(l => `<option value="${l.v}" ${Number(r.looptijd||0)===l.v?'selected':''}>${l.label}</option>`).join('')}
+        </select>
+      </div>` : ''}
+      <div class="lijn">
+        <span>${r.periode==='maand' ? 'Per maand · ' + esc(looptijdLabel(r.looptijd)) : 'Eenmalig'}</span>
+        <b>${eur(regelTotaal(r))}${r.periode==='maand'?' /mnd':''}</b>
+      </div>
+    </div>`).join('') || '<div class="note">Nog geen regels. Klik hierboven op een suggestie of voeg een eigen regel toe.</div>';
 }
 
 function renderSjablonen(){
-  el('sjab').innerHTML = SJABLONEN.map((s,i) => `<button onclick="addRegel(SJABLONEN[${i}])">+ ${esc(s.naam)}</button>`).join('');
+  el('sjab').innerHTML = SJABLONEN.map((s,i) =>
+    `<button onclick="addRegel(SJABLONEN[${i}])">+ ${esc(s.naam)}${s.periode==='maand'?' <span style="color:var(--muted)">p/m</span>':''}</button>`
+  ).join('');
 }
 
 /* ===== rekenen ===== */
@@ -306,67 +359,105 @@ function calc(){
   el('b_een').textContent = eur(t.incl);
   el('b_mnd').textContent = eur(t.mnd);
   el('leegwarn').classList.toggle('hidden', !t.leeg);
-  chkSign();
+  chkKlaar();
 }
 
 /* ===== akkoordtekst & voorwaarden ===== */
 function akkoordTekst(){
   if(MERK.offerte_akkoord_tekst && MERK.offerte_akkoord_tekst.trim()) return MERK.offerte_akkoord_tekst.trim();
   const dagen = MERK.offerte_geldigheid_dagen || 14;
-  return `Door te ondertekenen gaat de klant akkoord met deze offerte van ${merkNaam()}, zoals hierboven gespecificeerd. Alle prijzen zijn exclusief btw. Het eenmalige bedrag wordt bij akkoord gefactureerd. Maandelijkse diensten gaan in bij de start van de werkzaamheden, worden maandelijks vooraf gefactureerd en zijn maandelijks opzegbaar met een opzegtermijn van een kalendermaand. Marketing- en vindbaarheidsdiensten zijn inspanningsverplichtingen: er wordt geen bepaald resultaat, bereik of omzet gegarandeerd. Werk buiten deze offerte wordt vooraf afgestemd en apart geoffreerd. Deze offerte is ${dagen} dagen geldig. De klant ontvangt een bevestiging per e-mail met deze offerte, de handtekening en het tijdstip van ondertekening.`;
+  return `Door te ondertekenen gaat de klant akkoord met deze offerte van ${merkNaam()}, zoals hierboven gespecificeerd. Alle prijzen zijn exclusief btw. Het eenmalige bedrag wordt bij akkoord gefactureerd. Maandelijkse diensten gaan in bij de start van de werkzaamheden en worden maandelijks vooraf gefactureerd; de looptijd staat per regel vermeld en na afloop van een looptijd is de dienst maandelijks opzegbaar met een opzegtermijn van een kalendermaand. Marketing- en vindbaarheidsdiensten zijn inspanningsverplichtingen: er wordt geen bepaald resultaat, bereik of omzet gegarandeerd. Advertentiebudget bij campagnes is niet inbegrepen, tenzij dat er als regel op staat. Werk buiten deze offerte wordt vooraf afgestemd en apart geoffreerd. Deze offerte is ${dagen} dagen geldig. De klant ontvangt een bevestiging per e-mail met deze offerte, de naam van de ondertekenaar en het tijdstip van ondertekening.`;
 }
 function voorwaarden(){ return Array.isArray(MERK.offerte_voorwaarden) ? MERK.offerte_voorwaarden : []; }
 function renderAkkoord(){
   el('akktekst').textContent = akkoordTekst();
+  el('akkoordCheckTekst').textContent = `Ik heb de offerte en de akkoordverklaring van ${merkNaam()} gelezen en ga hiermee akkoord namens het bedrijf.`;
   const vw = voorwaarden();
   if(!vw.length){ el('vwbox').classList.add('hidden'); return; }
   el('vwbox').classList.remove('hidden');
   el('vwtekst').innerHTML = vw.map((v,i)=>`<p style="margin:0 0 8px"><b>${i+1}. ${esc(v.titel)}.</b> ${esc(v.tekst)}</p>`).join('');
 }
 function renderMerk(){
+  if(MERK.accent_kleur) document.documentElement.style.setProperty('--acc', MERK.accent_kleur);
+  if(MERK.accent_tekst_kleur) document.documentElement.style.setProperty('--acc-ink', MERK.accent_tekst_kleur);
   el('merkLogo').innerHTML = (MERK.logo_url ? `<img src="${esc(MERK.logo_url)}" alt="">` : '') + `<span>${esc(merkNaam())}</span>`;
   document.title = 'Offerte · ' + merkNaam();
   if(!val('v_btw')) el('v_btw').value = MERK.btw_percentage ?? 21;
+  SJABLONEN = (Array.isArray(MERK.offerte_sjablonen) && MERK.offerte_sjablonen.length) ? MERK.offerte_sjablonen : STANDAARD_SJABLONEN;
+  renderSjablonen();
+  el('sigblok').classList.toggle('hidden', !metHandtekening());
+  if(metHandtekening() && !ctx) initSig();
   renderAkkoord();
 }
 
-/* ===== handtekening ===== */
+/* ===== handtekening (alleen als het merk daarom vraagt) ===== */
 let ctx, drawing=false, hasSig=false, ratio=1;
 function initSig(){
-  const c = el('sig'); ratio = Math.max(1, window.devicePixelRatio||1);
+  const c = el('sig'); if(!c) return;
+  ratio = Math.max(1, window.devicePixelRatio||1);
   const w = c.clientWidth, h = 180; c.width = w*ratio; c.height = h*ratio; c.style.height = h+'px';
   ctx = c.getContext('2d'); ctx.scale(ratio,ratio); ctx.lineWidth = 2.2; ctx.lineCap='round'; ctx.lineJoin='round'; ctx.strokeStyle='#111';
   const pos = e => { const r=c.getBoundingClientRect(); const t=e.touches?e.touches[0]:e; return [t.clientX-r.left, t.clientY-r.top]; };
   const start = e => { if(S.signed) return; drawing=true; ctx.beginPath(); ctx.moveTo(...pos(e)); e.preventDefault(); };
-  const move  = e => { if(!drawing) return; ctx.lineTo(...pos(e)); ctx.stroke(); hasSig=true; el('sighint').style.display='none'; chkSign(); e.preventDefault(); };
+  const move  = e => { if(!drawing) return; ctx.lineTo(...pos(e)); ctx.stroke(); hasSig=true; el('sighint').style.display='none'; chkKlaar(); e.preventDefault(); };
   const end   = () => { drawing=false; };
   c.addEventListener('pointerdown',start); c.addEventListener('pointermove',move); window.addEventListener('pointerup',end);
 }
-function clearSig(){ if(S.signed) return; const c=el('sig'); ctx.clearRect(0,0,c.width,c.height); hasSig=false; el('sighint').style.display=''; chkSign(); }
-function klaar(){ return !!val('k_zaak').trim() && last && !last.t.leeg && !S.signed && !S.verzonden; }
-function chkSign(){ const b=el('signBtn'); if(!b) return; b.disabled = !(hasSig && val('s_naam').trim().length>1 && klaar()); chkSend(); }
-function chkSend(){
-  const b = el('sendBtn'); if(!b) return;
-  const mailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val('k_mail').trim());
-  b.disabled = !(sb && lgUser && mailOk && klaar());
+function clearSig(){ if(S.signed||!ctx) return; const c=el('sig'); ctx.clearRect(0,0,c.width,c.height); hasSig=false; el('sighint').style.display=''; chkKlaar(); }
+
+/* ===== klaar om te tekenen / te versturen ===== */
+function basisKlaar(){ return !!val('k_zaak').trim() && last && !last.t.leeg && !S.signed && !S.verzonden; }
+function chkKlaar(){
+  const b = el('signBtn');
+  if(b){
+    const naamOk = val('s_naam').trim().length > 1;
+    const gelezen = el('s_gelezen').checked;
+    const sigOk = metHandtekening() ? hasSig : true;
+    b.disabled = !(basisKlaar() && naamOk && gelezen && sigOk);
+  }
+  const s = el('sendBtn');
+  if(s){
+    const mailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val('k_mail').trim());
+    s.disabled = !(sb && lgUser && mailOk && basisKlaar());
+  }
 }
+
+/* ===== ondertekenen met bevestiging ===== */
+function vraagBevestiging(){
+  if(el('signBtn').disabled) return;
+  const t = totals();
+  el('bev_tekst').textContent = `${val('s_naam').trim()} ondertekent offerte ${S.nummer} namens ${val('k_zaak').trim()}.`;
+  const maand = REGELS.filter(r => r.periode==='maand' && r.naam.trim());
+  el('bev_sum').innerHTML =
+    `<div><span>Eenmalig incl. btw</span><b>${eur2(t.incl)}</b></div>` +
+    (t.mnd > 0 ? `<div><span>Per maand excl. btw</span><b>${eur2(t.mnd)}</b></div>` : '') +
+    maand.map(r => `<div style="color:var(--muted);font-size:12.5px"><span>${esc(r.naam)}</span><span>${esc(looptijdLabel(r.looptijd))}</span></div>`).join('');
+  el('bevestig').classList.remove('hidden');
+}
+function sluitBevestiging(){ el('bevestig').classList.add('hidden'); }
 function sign(){
+  sluitBevestiging();
   if(S.signed) return;
-  S.signed = { door:val('s_naam'), functie:val('s_functie'), op:new Date().toISOString(),
-               png:el('sig').toDataURL('image/png'), ua:navigator.userAgent, tekst:akkoordTekst(),
-               methode:'op_locatie', snapshot:JSON.parse(JSON.stringify(last)) };
+  S.signed = {
+    door: val('s_naam').trim(), functie: val('s_functie').trim(), op: new Date().toISOString(),
+    png: metHandtekening() && ctx ? el('sig').toDataURL('image/png') : null,
+    ua: navigator.userAgent, tekst: akkoordTekst(),
+    methode: metHandtekening() ? 'op_locatie' : 'op_locatie_knop',
+    snapshot: JSON.parse(JSON.stringify(last)),
+  };
   renderSigned(); lockAll(); save(); dbSave(true);
 }
 function renderSigned(){
   if(!S.signed) return; const d = new Date(S.signed.op);
   el('signedbox').classList.remove('hidden');
-  el('signedbox').innerHTML = `<b>Ondertekend</b> door ${esc(S.signed.door)}${S.signed.functie?' ('+esc(S.signed.functie)+')':''} op ${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})} · offerte ${S.nummer}.<br><span class="note">Deze offerte is nu vergrendeld. Print of bewaar de PDF en mail hem naar de klant.</span>`;
-  el('signBtn').textContent='Ondertekend'; el('signBtn').disabled=true; el('barBtn').textContent='Print / PDF';
+  el('signedbox').innerHTML = `<b>Ondertekend</b> door ${esc(S.signed.door)}${S.signed.functie?' ('+esc(S.signed.functie)+')':''} op ${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})} · offerte ${S.nummer}.<br><span class="note">Deze offerte staat nu vast. Download de PDF hieronder en mail hem naar de klant, of stuur hem vanuit het offerte-overzicht.</span>`;
+  el('signBtn').textContent='Ondertekend'; el('signBtn').disabled=true; el('barBtn').textContent='Download PDF';
   el('barNieuw').classList.remove('hidden');
 }
 function lockAll(){
   document.querySelectorAll('main section.card').forEach(s => { if(s.id!=='akkoord') s.classList.add('lock'); });
-  el('sigwrap').classList.add('lock'); el('s_naam').disabled=true; el('s_functie').disabled=true;
+  const w = el('sigwrap'); if(w) w.classList.add('lock');
+  el('s_naam').disabled=true; el('s_functie').disabled=true; el('s_gelezen').disabled=true;
 }
 function barAction(){ if(S.signed) showDoc(); else el('akkoord').scrollIntoView({behavior:'smooth'}); }
 function toggleMode(){ S.klantmodus = !S.klantmodus; applyMode(); save(); }
@@ -397,17 +488,17 @@ function buildDoc(){
           <tr class="tt"><td colspan="3">Eenmalig incl. btw</td><td class="r">${eur2(t.incl)}</td></tr></table>`;
   }
   if(mnd.length){
-    h += `<h2>Per maand</h2><table><tr><th>Omschrijving</th><th class="r">Aantal</th><th class="r">Per maand</th></tr>`;
-    mnd.forEach(r => { h += `<tr><td>${esc(r.naam)}${r.sub?'<br><span class="small">'+esc(r.sub)+'</span>':''}</td><td class="r">${r.aantal}</td><td class="r">${eur2(regelTotaal(r))}</td></tr>`; });
-    h += `<tr class="tt"><td colspan="2">Per maand excl. btw · maandelijks opzegbaar</td><td class="r">${eur2(t.mnd)}</td></tr></table>`;
+    h += `<h2>Per maand</h2><table><tr><th>Omschrijving</th><th>Looptijd</th><th class="r">Aantal</th><th class="r">Per maand</th></tr>`;
+    mnd.forEach(r => { h += `<tr><td>${esc(r.naam)}${r.sub?'<br><span class="small">'+esc(r.sub)+'</span>':''}</td><td>${esc(looptijdLabel(r.looptijd))}</td><td class="r">${r.aantal}</td><td class="r">${eur2(regelTotaal(r))}</td></tr>`; });
+    h += `<tr class="tt"><td colspan="3">Per maand excl. btw</td><td class="r">${eur2(t.mnd)}</td></tr></table>`;
   }
-  if(val('v_notitie').trim()) h += `<h2>Notitie</h2><div class="box">${esc(val('v_notitie'))}</div>`;
+  if(val('v_notitie').trim()) h += `<h2>Afspraken</h2><div class="box">${esc(val('v_notitie'))}</div>`;
   const vw = voorwaarden();
   if(vw.length) h += `<h2>Voorwaarden</h2><div class="vw">${vw.map((v,i)=>`<p><b>${i+1}. ${esc(v.titel)}.</b> ${esc(v.tekst)}</p>`).join('')}</div>`;
   h += `<h2>Akkoord</h2><div class="box">${esc(akkoordTekst())}</div>`;
   if(S.signed){
     const d = new Date(S.signed.op);
-    h += `<div class="sigbox"><div><img src="${S.signed.png}" alt=""><div class="small">${esc(S.signed.door)}${S.signed.functie?' · '+esc(S.signed.functie):''}<br>${d.toLocaleDateString('nl-NL')} ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}</div></div>
+    h += `<div class="sigbox"><div>${S.signed.png?`<img src="${S.signed.png}" alt="">`:''}<div class="small"><b>Digitaal ondertekend door ${esc(S.signed.door)}</b>${S.signed.functie?' · '+esc(S.signed.functie):''}<br>${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})}${S.signed.png?'':' · akkoord gegeven via de akkoordknop'}</div></div>
       <div class="small">Namens ${esc(merkNaam())}: ${esc(val('v_naam')||'')}</div></div>`;
   } else {
     h += `<div class="sigbox"><div class="small" style="border-top:1px solid #999;padding-top:4px;width:220px">Handtekening klant</div><div class="small" style="border-top:1px solid #999;padding-top:4px;width:220px">Datum</div></div>`;
@@ -431,15 +522,12 @@ function save(){
   dbQueue();
 }
 function load(){
-  try{
-    const d = JSON.parse(localStorage.getItem(LS_DATA)||'null');
-    return zetToolState(d);
-  }catch(e){ return false; }
+  try{ return zetToolState(JSON.parse(localStorage.getItem(LS_DATA)||'null')); }catch(e){ return false; }
 }
 function nieuw(){
-  if(!confirm('Nieuwe offerte starten? De huidige blijft bewaard in ReachConnect onder Offertes.')) return;
+  if(!confirm('Nieuwe offerte starten? De huidige blijft bewaard onder Offertes.')) return;
   try{ localStorage.removeItem(LS_DATA); localStorage.removeItem(LS_ID); }catch(e){}
-  location.reload();
+  location.href = location.pathname + (S.lead_id ? '?lead=' + encodeURIComponent(S.lead_id) : '');
 }
 
 /* ===== opslag in ReachConnect ===== */
@@ -448,7 +536,7 @@ function dbState(txt, ok){
   const e = el('dbState'); if(!e) return;
   e.textContent = txt;
   e.style.borderColor = ok===false ? 'var(--err)' : ok ? 'var(--acc)' : 'var(--line2)';
-  e.style.color = ok===false ? 'var(--err)' : ok ? 'var(--acc)' : 'var(--muted)';
+  e.style.color = ok===false ? 'var(--err)' : 'var(--muted)';
 }
 function dealRow(){
   const t = totals();
@@ -457,10 +545,13 @@ function dealRow(){
     naam: r.naam.trim(), sub: r.sub||'', aantal: Number(r.aantal)||1, prijs: Number(r.prijs)||0,
     totaal: r.periode==='maand' ? 0 : regelTotaal(r),
     mnd: r.periode==='maand' ? regelTotaal(r) : 0,
+    looptijd: r.periode==='maand' ? (Number(r.looptijd)||0) : null,
+    looptijd_label: r.periode==='maand' ? looptijdLabel(r.looptijd) : null,
   }));
   return {
     user_id: lgUser.id, nummer: S.nummer, lead_id: S.lead_id || null, campaign_id: S.campaign_id || null,
     branding_org_id: MERK.org_id || null, akkoord_tekst: akkoordTekst(), soort: 'vrij', data: toolState(),
+    handtekening_vereist: metHandtekening(),
     status: S.signed ? 'getekend' : (S.verzonden ? 'verzonden' : 'concept'),
     prijsmodel_versie: 'vrij', accountmanager: val('v_naam'),
     zaak_naam: val('k_zaak'), contact_naam: val('k_naam'), email: val('k_mail'), telefoon: val('k_tel'), adres: val('k_adres'),
@@ -498,11 +589,11 @@ async function dbSave(force){
   }finally{ dbBusy=false; if(dbDirty) dbQueue(); }
 }
 
-/* ===== op afstand laten tekenen ===== */
+/* ===== op afstand laten ondertekenen ===== */
 async function sendForSign(){
   if(!sb || !lgUser || S.signed || S.verzonden) return;
   const email = val('k_mail').trim();
-  if(!confirm('Offerte '+S.nummer+' ter ondertekening mailen naar '+email+'?\n\nDaarna is de offerte bevroren; wijzigen kan alleen via "Nieuwe offerte".')) return;
+  if(!confirm('Offerte '+S.nummer+' ter ondertekening mailen naar '+email+'?\n\nDaarna staat de offerte vast; wijzigen kan alleen via "Nieuwe offerte".')) return;
   el('sendBtn').disabled = true; el('sendBtn').textContent = 'Versturen…';
   try{
     await dbSave(true);
@@ -519,7 +610,7 @@ async function sendForSign(){
     renderSent(); lockAll(); save();
   }catch(e){
     alert('Versturen mislukt: '+(e.message||e));
-    el('sendBtn').textContent = 'Verstuur ter ondertekening'; chkSend();
+    el('sendBtn').textContent = 'Verstuur ter ondertekening'; chkKlaar();
   }
 }
 function renderSent(){
@@ -528,8 +619,8 @@ function renderSent(){
   el('barNieuw').classList.remove('hidden');
   el('sentbox').innerHTML = `<b>Verstuurd ter ondertekening</b> naar ${esc(v.naar)} op ${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})} · geldig tot ${esc(v.geldigTot||'-')}.`
     + (v.mailError ? `<br><span style="color:var(--err)">De mail kon niet verstuurd worden (${esc(v.mailError)}). Stuur de link zelf door.</span>` : '')
-    + `<br><span class="note">De status (geopend, getekend) zie je in ReachConnect bij de lead en op de pagina Offertes.</span>`
-    + `<div class="btns" style="margin-top:8px"><button class="btn sm" onclick="kopieerLink()">Link kopiëren</button><a class="btn sm" href="${esc(v.url)}" target="_blank" rel="noopener">Open tekenpagina</a></div>`;
+    + `<br><span class="note">De status (geopend, getekend) zie je bij de lead en op de pagina Offertes.</span>`
+    + `<div class="btns" style="margin-top:8px"><button class="btn sm" onclick="kopieerLink()">Link kopiëren</button><a class="btn sm" href="${esc(v.url)}" target="_blank" rel="noopener">Open ondertekenpagina</a></div>`;
   el('sendBtn').textContent = 'Verstuurd'; el('sendBtn').disabled = true; el('signBtn').disabled = true;
 }
 function kopieerLink(){
@@ -548,18 +639,17 @@ function kopieerLink(){
     try{ localStorage.removeItem(LS_DATA); localStorage.removeItem(LS_ID); }catch(e){}
     S = { nummer:null, lead_id:leadParam, campaign_id:null, signed:null, verzonden:null, klantmodus:false };
     REGELS = [];
-    ['k_zaak','k_naam','k_mail','k_tel','k_adres','v_korting','v_notitie','s_naam','s_functie'].forEach(id => { const e=el(id); if(e) e.value=''; });
+    VELDEN.forEach(id => { if(id!=='v_btw'){ const e=el(id); if(e) e.value=''; } });
   }
   if(!S.nummer) S.nummer = nieuwNummer();
   el('h_nr').textContent = S.nummer;
-  renderSjablonen(); renderRegels(); renderMerk(); initSig(); calc(); applyMode();
+  renderSjablonen(); renderRegels(); renderMerk(); calc(); applyMode();
   if(S.signed){
     renderSigned(); lockAll();
-    const img = new Image(); img.onload = () => ctx.drawImage(img,0,0,el('sig').clientWidth,180); img.src = S.signed.png;
-    hasSig = true; el('sighint').style.display='none';
+    if(S.signed.png && ctx){ const img = new Image(); img.onload = () => ctx.drawImage(img,0,0,el('sig').clientWidth,180); img.src = S.signed.png; hasSig = true; el('sighint').style.display='none'; }
   }
   if(S.verzonden){ renderSent(); lockAll(); }
-  window.addEventListener('resize', () => { if(!hasSig) initSig(); });
+  window.addEventListener('resize', () => { if(metHandtekening() && !hasSig) initSig(); });
 })();
 
 async function lgInit(){
@@ -576,7 +666,7 @@ async function lgInit(){
     dbState('opslag aan', true);
 
     // Bestaande offerte heropenen (?id=). Een verstuurde of getekende offerte
-    // is bevroren: je ziet hem dan alleen terug, wijzigen kan niet meer.
+    // staat vast: je ziet hem dan alleen terug, wijzigen kan niet meer.
     if(OPEN_ID){
       const { data: row } = await sb.from('offertes').select('id, data, status, lead_id, campaign_id, nummer').eq('id', OPEN_ID).maybeSingle();
       if(!row){ alert('Deze offerte is niet gevonden of je mag hem niet zien.'); OPEN_ID = null; dbId = null; }
@@ -605,8 +695,9 @@ async function lgInit(){
         }
       }
     }
-    // Merk van het project (afzender, logo, voorwaarden). Zonder project of zonder
-    // ingesteld merk blijft het de standaard ReachConnect-tekst.
+    // Merk van het project: kleuren, afzender, voorwaarden, sjablonen en de
+    // manier van ondertekenen. Zonder project of zonder ingesteld merk blijft
+    // het de standaard ReachConnect-opmaak.
     if(S.lead_id || S.campaign_id){
       const { data: merk } = await sb.rpc('offerte_merk', { p_campaign: S.campaign_id || null, p_lead: S.lead_id || null });
       const m = Array.isArray(merk) ? merk[0] : merk;
@@ -617,7 +708,7 @@ async function lgInit(){
         el('v_btw').value = MERK.btw_percentage ?? 21;
       }
     }
-    renderMerk(); calc(); chkSend();
+    renderMerk(); calc();
     if(S.signed && !dbId) dbSave(true);
   }catch(e){
     console.error('ReachConnect-koppeling mislukt', e);
