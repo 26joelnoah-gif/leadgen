@@ -39,6 +39,7 @@ import LeadManagement from './LeadManagement' // IMPORT THE MANAGEMENT COMPONENT
 
 // Seconden -> "1u 11m" / "11m"
 import PersonSelect, { ROLE_LABELS } from '../components/PersonSelect' // v102
+import { fmtGeleden, fmtVolledig, aanwezigheidsStand, aanwezigheidsTitel } from '../lib/aanwezigheid' // v111
 function fmtBeltijd(totalSeconds) {
   const s = Math.max(0, Math.round(totalSeconds || 0))
   const h = Math.floor(s / 3600)
@@ -115,6 +116,8 @@ export default function Admin() {
   const [teamTeam, setTeamTeam] = useState('all')
   const [teamProject, setTeamProject] = useState('all')
   const [expandedTeamUser, setExpandedTeamUser] = useState(null)
+  const [teamSort, setTeamSort] = useState('naam') // v111: naam | actief | login
+  const [presence, setPresence] = useState({}) // v111: id -> { laatste_login, laatst_actief, account_sinds }
   const [teamView, setTeamView] = useState(() => { try { return localStorage.getItem('reachconnect-team-view') || 'lijst' } catch { return 'lijst' } })
   const setTeamViewPersist = v => { setTeamView(v); try { localStorage.setItem('reachconnect-team-view', v) } catch { /* geen opslag */ } }
 
@@ -362,6 +365,19 @@ export default function Admin() {
       setTrashedUsers((u || []).filter(x => !!x.deleted_at))
       setManagerLinks(pm || [])
       setOrgs(o || [])
+
+      // v111: laatste login (uit auth.users) + laatst actief (profiles.last_seen_at)
+      // in een keer via de RPC. Los in een try, zodat een fout hier de rest van
+      // het Team-overzicht niet meesleept.
+      try {
+        const { data: aw, error: awErr } = await supabase.rpc('team_aanwezigheid')
+        if (awErr) throw awErr
+        const map = {}
+        ;(aw || []).forEach(r => { map[r.user_id] = r })
+        setPresence(map)
+      } catch (awErr) {
+        console.error('team_aanwezigheid mislukt:', awErr?.message || awErr)
+      }
 
       // Vandaag: gesprekken, beltijd en resultaten uit call_logs (voor KPI-rij + teamkaarten)
       const todayStart = new Date()
@@ -834,6 +850,26 @@ export default function Admin() {
                            )}
                         </div>
                      </div>
+                     {/* v111: wanneer was deze persoon voor het laatst echt bezig, en wanneer is er voor het laatst ingelogd */}
+                     {(() => {
+                       const aw = presence[u.id]
+                       const stand = aanwezigheidsStand(aw?.laatst_actief)
+                       return (
+                         <div className="mt-4 pt-3 border-t border-border flex items-center gap-5" style={{ flexWrap: 'wrap' }} title={aanwezigheidsTitel(aw)}>
+                            <div>
+                               <div className="text-[10px] text-muted font-black uppercase tracking-widest">Laatst actief</div>
+                               <div className="text-sm font-black text-body flex items-center gap-2">
+                                  <span style={{ width: 8, height: 8, borderRadius: 99, background: stand.kleur, flexShrink: 0 }} />
+                                  {fmtGeleden(aw?.laatst_actief)}
+                               </div>
+                            </div>
+                            <div>
+                               <div className="text-[10px] text-muted font-black uppercase tracking-widest">Laatste login</div>
+                               <div className="text-sm font-bold text-muted">{fmtGeleden(aw?.laatste_login)}</div>
+                            </div>
+                         </div>
+                       )
+                     })()}
                      <div className="mt-6 pt-4 border-t border-border flex justify-between items-center">
                         <div>
                            <div className="text-xs text-muted font-bold uppercase tracking-tight">Actieve Leads</div>
@@ -1044,9 +1080,18 @@ export default function Admin() {
                   if (teamProject !== 'all' && !getUserAssignments(u).projects.some(p => p.id === teamProject)) return false
                   return true
                 })
+                // v111: standaard op naam, maar je kan ook sorteren op wie het langst
+                // niets gedaan heeft (of het langst niet ingelogd is). Nooit-waarden
+                // komen dan onderaan.
+                const opNaam = (a, b) => String(a.full_name || a.email || '').localeCompare(String(b.full_name || b.email || ''), 'nl')
+                const tijdVan = (u2, veld) => { const t = presence[u2.id]?.[veld]; return t ? new Date(t).getTime() : 0 }
+                const sortFn = teamSort === 'actief'
+                  ? (a, b) => (tijdVan(b, 'laatst_actief') - tijdVan(a, 'laatst_actief')) || opNaam(a, b)
+                  : teamSort === 'login'
+                    ? (a, b) => (tijdVan(b, 'laatste_login') - tijdVan(a, 'laatste_login')) || opNaam(a, b)
+                    : opNaam
                 const sortedUsers = [...filtered].sort((a, b) =>
-                  ((a.is_active === false ? 1 : 0) - (b.is_active === false ? 1 : 0)) ||
-                  String(a.full_name || a.email || '').localeCompare(String(b.full_name || b.email || ''), 'nl'))
+                  ((a.is_active === false ? 1 : 0) - (b.is_active === false ? 1 : 0)) || sortFn(a, b))
                 const groups = orgs.length > 0
                   ? [
                       { key: 'none', label: 'Mijn eigen omgeving', users: sortedUsers.filter(u => !u.organization_id) },
@@ -1085,6 +1130,12 @@ export default function Admin() {
                           <option value="all">Actief + inactief</option>
                           <option value="actief">Alleen actief</option>
                           <option value="inactief">Alleen inactief</option>
+                       </select>
+                       {/* v111: sorteren op wie het langst niets gedaan heeft */}
+                       <select value={teamSort} onChange={e => setTeamSort(e.target.value)} className="form-dark" style={{ ...selStyle, flex: '0 1 165px' }} title="Waarop wil je de lijst sorteren?">
+                          <option value="naam">Sorteer: naam</option>
+                          <option value="actief">Sorteer: laatst actief</option>
+                          <option value="login">Sorteer: laatste login</option>
                        </select>
                        <div className="flex" style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
                           {[{ id: 'lijst', icon: <List size={14} />, label: 'Lijst' }, { id: 'kaarten', icon: <Layers size={14} />, label: 'Kaarten' }].map(v => (
@@ -1126,6 +1177,8 @@ export default function Admin() {
                             const uTeams = teamOf[u.id] || []
                             const nProj = u.role === 'admin' ? null : getUserAssignments(u).projects.length
                             const today = todayStats.perAgent[u.id]
+                            const aw = presence[u.id] // v111
+                            const stand = aanwezigheidsStand(aw?.laatst_actief)
                             return (
                               <div key={u.id} style={{ borderTop: i === 0 ? 'none' : '1px solid var(--border)' }}>
                                  <button
@@ -1151,6 +1204,14 @@ export default function Admin() {
                                     <div className="text-[11px] text-muted whitespace-nowrap" style={{ width: 80 }}>{nProj == null ? 'Alles' : `${nProj} project${nProj === 1 ? '' : 'en'}`}</div>
                                     <div className="text-[11px] text-muted whitespace-nowrap" style={{ width: 70 }} title="Leads op naam">{leadCount[u.id] || 0} leads</div>
                                     <div className="text-[11px] whitespace-nowrap font-bold" style={{ width: 110 }} title="Vandaag">{today?.calls || 0} gespr. · {fmtBeltijd(today?.seconds || 0)}</div>
+                                    {/* v111: laatst actief (bolletje) en laatste login */}
+                                    <div className="text-[11px] whitespace-nowrap flex items-center gap-1.5" style={{ width: 120 }} title={aanwezigheidsTitel(aw)}>
+                                       <span style={{ width: 7, height: 7, borderRadius: 99, background: stand.kleur, flexShrink: 0 }} />
+                                       <span className="font-bold text-body">{fmtGeleden(aw?.laatst_actief)}</span>
+                                    </div>
+                                    <div className="text-[11px] text-muted whitespace-nowrap" style={{ width: 95 }} title={`Laatste keer echt ingelogd: ${fmtVolledig(aw?.laatste_login)}`}>
+                                       login {fmtGeleden(aw?.laatste_login)}
+                                    </div>
                                     <ChevronRight size={16} className="text-muted shrink-0" style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }} />
                                  </button>
                                  {open && <div className="px-4 pb-4">{renderUserCard(u)}</div>}

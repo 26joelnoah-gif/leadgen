@@ -595,3 +595,30 @@ Twee-zijdig platform:
   (favicon.svg, favicon-16.png, favicon-32.png, favicon.ico, apple-touch-icon.png).
   De browser bewaart favicons lang, dus een harde ververs (cmd+shift+R) kan nodig
   zijn voordat je het nieuwe icoon ziet.
+
+- **LAATSTE LOGIN + LAATST ACTIEF PER ACCOUNT (v111, 2026-09-30, migratie
+  toegepast):** in Admin > Team was niet te zien wanneer iemand voor het laatst
+  inlogde of voor het laatst echt bezig was. Twee losse gegevens:
+  1. **Laatste login** komt uit `auth.users.last_sign_in_at` - dat houdt Supabase
+     zelf al bij, dus het werkt met terugwerkende kracht en er wordt niets extra
+     weggeschreven. De browser kan niet bij auth.users, dus het gaat via
+     `public.team_aanwezigheid()` (security definer, alleen admin/manager binnen
+     de eigen org krijgt alle rijen; een beller krijgt alleen zijn eigen rij;
+     REVOKE van anon/public per v101-regel). Let op: mensen blijven ingelogd,
+     dus deze datum kan ouder zijn dan "laatst actief" - dat is geen bug.
+  2. **Laatst actief** = nieuwe kolom `profiles.last_seen_at`, gezet door
+     trigger `profielen_last_seen_bij()` op INSERT in `activity_pings`
+     (klik-heartbeat v43, ~1 rij per 60s zolang er geklikt wordt) en in
+     `call_logs` (gesprek of bord-actie). De kolomnaam met "wie" verschilt per
+     tabel (user_id vs agent_id), die geeft de trigger als argument mee. De tijd
+     schuift alleen vooruit, nooit terug. GEEN extra write uit de frontend, dus
+     een vergeten openstaand tabblad schuift "laatst actief" niet op.
+     Eenmalig gebackfilld uit activity_pings + call_logs.
+  UI: `src/lib/aanwezigheid.js` (fmtGeleden "nu / 12 min / gisteren 16:12 / 4
+  dagen", fmtVolledig, aanwezigheidsStand voor het bolletje groen/oranje/grijs/
+  rood). Admin > Team lijstweergave heeft de kolommen "laatst actief" (met
+  bolletje) en "login <geleden>", de uitgeklapte kaart een blok met beide, en de
+  filterbalk een select "Sorteer: naam / laatst actief / laatste login" zodat je
+  ziet wie het langst niets gedaan heeft. Admin.jsx haalt de RPC 1x op in
+  fetchData, in een eigen try zodat een fout daar het teamoverzicht niet sloopt.
+  Migratie: migration_v111_laatste_login_actief.sql.
