@@ -38,4 +38,18 @@ export const offerteHrefForLead = (leadId) => `/tools/offerte-tool.html?lead=${e
 // v76: zelfde idee voor de verduurzaming-tool; ?id= opent een bestaande offerte.
 export const verduurzamingHrefForLead = (leadId) => `/tools/verduurzaming-tool.html?lead=${encodeURIComponent(leadId)}`
 export const verduurzamingHrefForOfferte = (offerteId) => `/tools/verduurzaming-tool.html?id=${encodeURIComponent(offerteId)}`
-export const OFFERTE_TOOL_KEYS = ['offerte_bestelplatform', 'offerte_verduurzaming']
+// v112: offerte op maat - geen vast prijsmodel, de AM typt de regels zelf.
+// Afzender, logo en voorwaarden komen uit de organisatie van het project.
+export const vrijeOfferteHrefForLead = (leadId) => `/tools/offerte-vrij.html?lead=${encodeURIComponent(leadId)}`
+export const vrijeOfferteHrefForOfferte = (offerteId) => `/tools/offerte-vrij.html?id=${encodeURIComponent(offerteId)}`
+export const OFFERTE_TOOL_KEYS = ['offerte_bestelplatform', 'offerte_verduurzaming', 'offerte_vrij']
+
+// Link om een BESTAANDE offerte weer te openen in de tool waar hij mee gemaakt
+// is. De bestelplatform-tool kan dat niet (die bewaart alleen lokaal), dus die
+// geeft null terug en toont alleen het nummer.
+export function offerteHrefVoorBestaande(o) {
+  if (!o) return null
+  if (o.soort === 'vrij') return vrijeOfferteHrefForOfferte(o.id)
+  if (o.soort === 'verduurzaming') return verduurzamingHrefForOfferte(o.id)
+  return null
+}

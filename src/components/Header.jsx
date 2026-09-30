@@ -100,6 +100,8 @@ export default function Header({ onOpenSettings }) {
         { path: '/tba', label: 'TBA\'s' },
         ...(isRealAdmin ? [{ path: '/recruitment', label: 'Sollicitanten' }] : []),
         { path: '/roosters', label: 'Roosters' },
+        // v112: status van de offertes (verstuurd, geopend, getekend)
+        ...(hasTools ? [{ path: '/offertes', label: 'Offertes' }] : []),
         ...(hasTools ? [{ path: '/tools', label: 'Tools' }] : []),
       ]
     : [
@@ -115,6 +117,8 @@ export default function Header({ onOpenSettings }) {
         { path: '/roosters', label: 'Roosters' },
         // v59: offerte-tool bestelplatform + overzicht eigen offertes
         // v60: alleen zichtbaar als een project van jou tools heeft (campaign_tools)
+        // v112: status van de offertes (verstuurd, geopend, getekend)
+        ...(hasTools ? [{ path: '/offertes', label: 'Offertes' }] : []),
         ...(hasTools ? [{ path: '/tools', label: 'Tools' }] : []),
         ...(isManager ? [
           { path: '/manager', label: 'Mijn Projecten' },
@@ -133,7 +137,7 @@ export default function Header({ onOpenSettings }) {
     { path: '/admin/telemetry', label: 'Telemetrie' },
     { path: '/admin/fouten', label: 'Foutlogboek' },
     { path: '/kanban', label: 'Kanban' },
-    ...(hasTools ? [] : [{ path: '/tools', label: 'Tools' }]),
+    ...(hasTools ? [] : [{ path: '/tools', label: 'Tools' }, { path: '/offertes', label: 'Offertes' }]),
   ].filter(l => !navLinks.some(n => n.path === l.path)) // v103: niets dubbel in het menu (Sollicitanten stond er 2x)
 
   // Links met een query (bv. ?view=agenda) zijn alleen actief als die query

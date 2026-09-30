@@ -20,6 +20,7 @@ import { parseCSV, validateLeads } from '../utils/importUtils'
 import { CAMPAIGN_TYPES } from '../utils/campaignUtils'
 import { getSettings, saveSettings } from '../utils/settingsUtils'
 import { useToast } from '../components/Toast'
+import MerkInstellingen from '../components/MerkInstellingen' // v112
 import LoadingSpinner from '../components/LoadingSpinner'
 import StatusSelector from '../components/StatusSelector'
 import PipelineFunnel from '../components/PipelineFunnel'
@@ -813,6 +814,8 @@ export default function Admin() {
                               {users.filter(u2 => u2.organization_id === o.id).length} medewerker(s)
                               {o.owner_id === user.id ? ' · eigenaar: jij' : ''}
                             </div>
+                            {/* v112: hoe een offerte van deze organisatie eruitziet en van wie hij komt */}
+                            <MerkInstellingen orgId={o.id} orgNaam={o.name} />
                          </div>
                        ))}
                     </div>

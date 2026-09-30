@@ -51,6 +51,7 @@ export default function LeadDetailModal({ isOpen, onClose, lead, assignedName, o
   const { hasTool } = useProjectTools(lead?.lead_list_id)
   const canMakeOfferte = hasTool('offerte_bestelplatform')
   const canMakeVerduurzaming = hasTool('offerte_verduurzaming')
+  const canMakeVrij = hasTool('offerte_vrij') // v112: offerte op maat
   // v98: belbaarheid (rechtsvorm/toestemming/afgemeld) + klachtenlog
   const complianceProject = useProjectCompliance(lead?.lead_list_id)
   const [meldingTick, setMeldingTick] = useState(0)
@@ -388,7 +389,7 @@ export default function LeadDetailModal({ isOpen, onClose, lead, assignedName, o
 
         {/* v65: offertes van deze lead (status, verstuurd/geopend/getekend, acties) */}
         <div style={{ marginBottom: '20px' }}>
-          <OffertesBlok lead={lead} canCreate={canMakeOfferte} canCreateVerduurzaming={canMakeVerduurzaming} />
+          <OffertesBlok lead={lead} canCreate={canMakeOfferte} canCreateVerduurzaming={canMakeVerduurzaming} canCreateVrij={canMakeVrij} />
           <MailStatusBlok leadId={lead?.id} />
         </div>
 

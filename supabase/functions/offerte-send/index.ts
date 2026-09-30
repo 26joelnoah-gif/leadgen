@@ -4,6 +4,9 @@
 // token staat in de DB. Werkt uitsluitend met de kolommen van public.offertes;
 // afzender en branding komen uit organizations (fallback: secrets).
 //
+// v112: het merk komt uit offertes.branding_org_id (gezet door de tool op basis
+// van campaigns.offerte_org_id). organization_id is de tenant en blijft leeg.
+//
 // Secrets: RESEND_API_KEY, APP_URL (bijv. https://leadgendash.netlify.app),
 //          RESEND_FROM (fallback afzender, bijv. "ReachConnect <offertes@reachconnect.nl>")
 //
@@ -67,8 +70,8 @@ function mailHtml(opts: {
       <tr><td style="padding:6px 0;color:#5b6270">Per maand (excl. btw)</td><td style="padding:6px 0;text-align:right;font-weight:600">${euro(o.maand)}</td></tr>
       <tr><td style="padding:6px 0;color:#5b6270">Geldig tot</td><td style="padding:6px 0;text-align:right">${esc(o.geldigTot)}</td></tr>
     </table>
-    <a href="${esc(o.url)}" style="display:block;text-align:center;background:#2f6fe0;color:#fff;text-decoration:none;font-weight:600;padding:14px 20px;border-radius:10px">Offerte bekijken en ondertekenen</a>
-    <p style="margin:20px 0 0;font-size:13px;color:#5b6270;line-height:1.5">Vragen? Neem contact op met ${esc(o.amNaam)}${o.amTel ? ` via <a href="tel:${esc(o.amTel)}" style="color:#2f6fe0">${esc(o.amTel)}</a>` : ""}${o.amEmail ? ` of <a href="mailto:${esc(o.amEmail)}" style="color:#2f6fe0">${esc(o.amEmail)}</a>` : ""}.</p>
+    <a href="${esc(o.url)}" style="display:block;text-align:center;background:#15803D;color:#fff;text-decoration:none;font-weight:600;padding:14px 20px;border-radius:10px">Offerte bekijken en ondertekenen</a>
+    <p style="margin:20px 0 0;font-size:13px;color:#5b6270;line-height:1.5">Vragen? Neem contact op met ${esc(o.amNaam)}${o.amTel ? ` via <a href="tel:${esc(o.amTel)}" style="color:#15803D">${esc(o.amTel)}</a>` : ""}${o.amEmail ? ` of <a href="mailto:${esc(o.amEmail)}" style="color:#15803D">${esc(o.amEmail)}</a>` : ""}.</p>
   </div>
   <p style="font-size:12px;color:#8a90a0;margin:16px 0 0;line-height:1.5">Werkt de knop niet? Kopieer deze link in uw browser:<br>${esc(o.url)}</p>
 </div></body></html>`;
@@ -111,10 +114,14 @@ Deno.serve(async (req: Request) => {
     const allowed = off.user_id === caller.id || caller.role === "admin" || caller.role === "manager";
     if (!allowed) return json({ error: "Geen toestemming voor deze offerte" }, 403);
 
-    // Organisatie-instellingen met fallback op secrets.
+    // Merk/afzender van de offerte, met fallback op secrets.
+    // v112: branding_org_id is het MERK dat bij het project hoort (ProSell,
+    // MarketingKiezer, ...). organization_id blijft de tenant en is meestal leeg,
+    // dus die is alleen nog de terugval voor oude offertes.
     let org: Record<string, unknown> | null = null;
-    if (off.organization_id) {
-      const { data } = await admin.from("organizations").select("name, afzender_naam, afzender_email, logo_url, offerte_geldigheid_dagen, offerte_opvolg_dagen").eq("id", off.organization_id).single();
+    const merkId = off.branding_org_id || off.organization_id;
+    if (merkId) {
+      const { data } = await admin.from("organizations").select("name, afzender_naam, afzender_email, logo_url, offerte_geldigheid_dagen, offerte_opvolg_dagen").eq("id", merkId).single();
       org = data;
     }
     const fallbackFrom = Deno.env.get("RESEND_FROM") || "ReachConnect <onboarding@resend.dev>";

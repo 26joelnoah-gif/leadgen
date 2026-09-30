@@ -30,6 +30,21 @@ export const TOOLS = [
     newTab: false,
   },
   {
+    // v112: offerte op maat. Geen prijsmodel: de accountmanager typt de regels
+    // zelf (eenmalig of per maand). Afzender, logo, voorwaarden en akkoordtekst
+    // komen uit de organisatie die bij het project hoort (campaigns.offerte_org_id).
+    key: 'offerte_vrij',
+    label: 'Offerte op maat',
+    description: 'Zelf de regels typen: omschrijving, aantal, prijs, eenmalig of per maand. Klant tekent op het scherm of via een link in de mail. De afzender en de voorwaarden komen van het merk dat bij het project staat.',
+    href: '/tools/offerte-vrij.html',
+    cta: 'Nieuwe offerte',
+    icon: 'FileSignature',
+    color: '#22C55E',
+    bg: 'rgba(34,197,94,0.14)',
+    primary: true,
+    newTab: false,
+  },
+  {
     key: 'presentatie_bestelplatform',
     label: 'Klantpresentatie bestelplatform',
     description: 'De presentatie met Dr. Shawarma als voorbeeld: wat het systeem is, wat het de zaak oplevert en hoe de uitrol gaat. Laat zien vóór je de offerte opent.',

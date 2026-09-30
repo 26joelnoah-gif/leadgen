@@ -255,6 +255,12 @@ export default function Tekenen() {
   const upsell = Array.isArray(o.upsell) ? o.upsell : []
   const spec = o.speclijst && typeof o.speclijst === 'object' ? Object.entries(o.speclijst).filter(([, v]) => v) : []
   const canSign = naam.trim().length >= 2 && hasInk && gelezen && !busy
+  // v112: een offerte kan alleen eenmalige regels hebben, alleen maandregels, of
+  // allebei. Een leeg blok met "€ 0,00" ziet er niet uit, dus die laten we weg.
+  const eenmaligeRegels = regels.filter((r) => r.type !== 'maand')
+  const maandRegels = regels.filter((r) => Number(r.mnd) > 0)
+  const toonEenmalig = eenmaligeRegels.length > 0 || Number(o.eenmalig_incl) > 0
+  const toonMaand = maandRegels.length > 0 || upsell.length > 0 || Number(o.maandbedrag_ex) > 0
 
   return (
     <div className="tk"><style>{CSS}</style>
@@ -271,11 +277,12 @@ export default function Tekenen() {
 
         <AmBlok />
 
+        {toonEenmalig && (
         <div className="card">
           <h2>Eenmalig</h2>
           <table>
             <tbody>
-              {regels.map((r, i) => (
+              {eenmaligeRegels.map((r, i) => (
                 <tr key={i}>
                   <td>{r.naam}{r.aantal > 1 ? <span className="muted"> × {r.aantal}</span> : null}</td>
                   <td className="r">{euro(r.totaal ?? (r.prijs * (r.aantal || 1)))}</td>
@@ -290,12 +297,14 @@ export default function Tekenen() {
             </tbody>
           </table>
         </div>
+        )}
 
+        {toonMaand && (
         <div className="card">
           <h2>Per maand</h2>
           <table>
             <tbody>
-              {regels.filter((r) => Number(r.mnd) > 0).map((r, i) => (
+              {maandRegels.map((r, i) => (
                 <tr key={'m' + i}><td>{r.naam}</td><td className="r">{euro(r.mnd)}</td></tr>
               ))}
               {upsell.map((u, i) => (
@@ -312,6 +321,15 @@ export default function Tekenen() {
             </details>
           )}
         </div>
+        )}
+
+        {/* v112: notitie van de accountmanager (afspraken over start, oplevering) */}
+        {o.notitie_klant && (
+          <div className="card">
+            <h2>Afspraken</h2>
+            <div style={{ whiteSpace: 'pre-wrap' }}>{o.notitie_klant}</div>
+          </div>
+        )}
 
         <div className="card">
           <h2>Akkoordverklaring</h2>

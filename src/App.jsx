@@ -24,6 +24,7 @@ import Outside from './pages/Outside'
 import Tekenen from './pages/Tekenen'
 import Agenda from './pages/Agenda'
 import MijnAfspraken from './pages/MijnAfspraken' // v110
+import Offertes from './pages/Offertes' // v112
 import Home from './pages/Home'
 import Aanmelden from './pages/Aanmelden'
 import AanmeldenBedankt from './pages/AanmeldenBedankt'
@@ -263,6 +264,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Earnings />
+          </ProtectedRoute>
+        }
+      />
+      {/* v112: alle offertes met hun status (verstuurd, geopend, getekend) */}
+      <Route
+        path="/offertes"
+        element={
+          <ProtectedRoute>
+            <Offertes />
           </ProtectedRoute>
         }
       />

@@ -74,10 +74,12 @@ Deno.serve(async (req: Request) => {
     const { data: off } = await admin.from("offertes").select("*").eq("sign_token_hash", tokenHash).maybeSingle();
     if (!off) return json({ error: "onbekend" }, 404);
 
-    // Organisatie + AM voor branding en contact.
+    // Merk + AM voor branding en contact. v112: branding_org_id eerst (het merk
+    // van het project), organization_id alleen nog als terugval voor oude rijen.
     let org: Record<string, unknown> | null = null;
-    if (off.organization_id) {
-      const { data } = await admin.from("organizations").select("name, afzender_naam, afzender_email, logo_url").eq("id", off.organization_id).single();
+    const merkId = off.branding_org_id || off.organization_id;
+    if (merkId) {
+      const { data } = await admin.from("organizations").select("name, afzender_naam, afzender_email, logo_url").eq("id", merkId).single();
       org = data;
     }
     const fallbackFrom = Deno.env.get("RESEND_FROM") || "ReachConnect <onboarding@resend.dev>";
@@ -115,6 +117,7 @@ Deno.serve(async (req: Request) => {
           pakket: off.pakket, regels: off.regels, upsell: off.upsell, korting: off.korting,
           eenmalig_ex: off.eenmalig_ex, btw: off.btw, eenmalig_incl: off.eenmalig_incl, maandbedrag_ex: off.maandbedrag_ex,
           speclijst: off.speclijst, akkoord_tekst: off.akkoord_tekst, geldig_tot: off.sign_token_expires_at,
+          notitie_klant: off.notitie || null,
         },
         org: orgInfo, am: amInfo,
       });
@@ -190,7 +193,7 @@ Deno.serve(async (req: Request) => {
     }
     if (amInfo.email) {
       await sendMail(amInfo.email, from, null, `${off.zaak_naam} heeft offerte ${off.nummer} getekend`,
-        `<p><b>${esc(off.zaak_naam)}</b> heeft offerte ${esc(off.nummer)} op ${esc(wanneer)} getekend (${esc(naam)}${functie ? `, ${esc(functie)}` : ""}).</p><p>Eenmalig ${euro(off.eenmalig_ex)} · per maand ${euro(off.maandbedrag_ex)}.</p><p><a href="${esc(appUrl)}/tools">Bekijk in ReachConnect</a></p>`);
+        `<p><b>${esc(off.zaak_naam)}</b> heeft offerte ${esc(off.nummer)} op ${esc(wanneer)} getekend (${esc(naam)}${functie ? `, ${esc(functie)}` : ""}).</p><p>Eenmalig ${euro(off.eenmalig_ex)} · per maand ${euro(off.maandbedrag_ex)}.</p><p><a href="${esc(appUrl)}/offertes">Bekijk in ReachConnect</a></p>`);
     }
 
     return json({ ok: true, state: "getekend", getekend_op: now.toISOString() });

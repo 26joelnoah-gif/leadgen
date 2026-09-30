@@ -14,7 +14,7 @@ import { normalizeWebsite, displayWebsite } from '../utils/urlUtils'
 import { getStatusDetails, RECRUITMENT_LABELS } from '../utils/statusUtils'
 import { OfferteBriefing } from './OfferteStatus'
 import { MailStatusBriefing } from './MailStatus'
-import { useProjectTools, offerteHrefForLead, verduurzamingHrefForLead } from '../hooks/useProjectTools'
+import { useProjectTools, offerteHrefForLead, verduurzamingHrefForLead, vrijeOfferteHrefForLead } from '../hooks/useProjectTools'
 import { useProjectMailService } from '../hooks/useProjectMailService'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
 import MailingserviceModal from './MailingserviceModal'
@@ -171,6 +171,7 @@ export default function WorkInterface() {
   const { hasTool } = useProjectTools(workingListId || workingLead?.lead_list_id)
   const canMakeOfferte = hasTool('offerte_bestelplatform')
   const canMakeVerduurzaming = hasTool('offerte_verduurzaming') // v76
+  const canMakeVrij = hasTool('offerte_vrij') // v112: offerte op maat
 
   // v69: Mailingservice aan in dit project? Dan een extra knop bij de
   // afboekingen. De bron van het project verstuurt de mail; daarna boeken we
@@ -1057,6 +1058,13 @@ export default function WorkInterface() {
                    title="Opent de verduurzaming-offerte, voorgevuld met de gegevens van deze lead"
                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', whiteSpace: 'nowrap' }}>
                   <FileSignature size={14} /> {canMakeOfferte ? 'Offerte verduurzaming' : 'Offerte maken'}
+                </a>
+              )}
+              {canMakeVrij && !isRecruitmentCampaign && (
+                <a href={vrijeOfferteHrefForLead(currentLead.id)} target="_blank" rel="noopener" className="btn btn-outline btn-sm"
+                   title="Opent de offerte op maat, voorgevuld met de gegevens van deze lead"
+                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                  <FileSignature size={14} /> {(canMakeOfferte || canMakeVerduurzaming) ? 'Offerte op maat' : 'Offerte maken'}
                 </a>
               )}
               {!isRecruitmentCampaign && !isBackofficeMode && (

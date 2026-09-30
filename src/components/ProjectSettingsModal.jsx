@@ -95,6 +95,12 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
 
   const allManagers = (agents || []).filter(a => a.role === 'manager')
 
+  // v112: namens welk merk (organisatie) de offertes van dit project uitgaan.
+  // Bepaalt afzendernaam, afzendmail, logo, voorwaarden en akkoordtekst op de
+  // offerte en op de tekenpagina. Leeg = de standaard ReachConnect-tekst.
+  const [merken, setMerken] = useState([])
+  const [offerteOrgId, setOfferteOrgId] = useState('')
+
   useEffect(() => {
     if (!isOpen || !campaign) return
     setName(campaign.name || '')
@@ -106,6 +112,9 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
     setAppointmentScheduling(campaign.appointment_scheduling_enabled === true)
     setKwartaalBellen(campaign.kwartaal_bellen_enabled === true)
     setHiddenDisp(Array.isArray(campaign.hidden_dispositions) ? campaign.hidden_dispositions : [])
+    setOfferteOrgId(campaign.offerte_org_id || '')
+    supabase.from('organizations').select('id, name, afzender_naam, afzender_email').order('name')
+      .then(({ data }) => setMerken(data || []))
     supabase.from('custom_dispositions').select('id, label, base_status').eq('is_active', true).order('sort_order').order('created_at')
       .then(({ data }) => setCustomReasons(data || []))
     setConfirmDelete(false)
@@ -180,6 +189,10 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       }
       if (appointmentScheduling !== (campaign.appointment_scheduling_enabled === true)) {
         const { error } = await supabase.from('campaigns').update({ appointment_scheduling_enabled: appointmentScheduling }).eq('id', campaign.id)
+        if (error) throw error
+      }
+      if ((offerteOrgId || null) !== (campaign.offerte_org_id || null)) {
+        const { error } = await supabase.from('campaigns').update({ offerte_org_id: offerteOrgId || null }).eq('id', campaign.id)
         if (error) throw error
       }
       if (kwartaalBellen !== (campaign.kwartaal_bellen_enabled === true)) {
@@ -393,6 +406,24 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
                 Bij de afboekreden "Afspraak gemaakt" vraagt het belscherm om een datum en tijd
               </label>
               <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>Zelfde datumveld als bij sollicitatiegesprekken, maar dan voor een afspraak met de klant. Die momenten zijn te zien op het bord in de kolom Agenda, zodat degene die de afspraken nabelt of nakomt weet wanneer.</p>
+            </div>
+
+            {/* v112: merk/afzender van de offertes van dit project */}
+            <div>
+              <label className={labelStyle}>Offertes gaan uit namens</label>
+              <select
+                value={offerteOrgId}
+                onChange={e => setOfferteOrgId(e.target.value)}
+                style={{ width: '100%' }}
+              >
+                <option value="">ReachConnect (standaard)</option>
+                {merken.map(m => (
+                  <option key={m.id} value={m.id}>{m.afzender_naam || m.name}{m.afzender_email ? ` (${m.afzender_email})` : ''}</option>
+                ))}
+              </select>
+              <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>
+                Bepaalt de naam, het logo, het afzenderadres, de voorwaarden en de akkoordtekst op de offerte, in de mail en op de tekenpagina. Die gegevens vul je in bij Admin &rsaquo; Organisaties.
+              </p>
             </div>
 
             <div>

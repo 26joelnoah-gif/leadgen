@@ -10,7 +10,7 @@ import { FileSignature, Send, Ban, Copy, ExternalLink } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './Toast'
-import { offerteHrefForLead, verduurzamingHrefForLead, verduurzamingHrefForOfferte } from '../hooks/useProjectTools'
+import { offerteHrefForLead, verduurzamingHrefForLead, verduurzamingHrefForOfferte, vrijeOfferteHrefForLead, offerteHrefVoorBestaande } from '../hooks/useProjectTools'
 
 export const OFFERTE_STATUS = {
   concept: { label: 'Concept', color: 'var(--text-muted)', bg: 'var(--bg-elevated)' },
@@ -120,7 +120,7 @@ export function OfferteBriefing({ leadId }) {
 }
 
 // Blok voor de contactkaart: lijst + acties.
-export function OffertesBlok({ lead, canCreate, canCreateVerduurzaming }) {
+export function OffertesBlok({ lead, canCreate, canCreateVerduurzaming, canCreateVrij }) {
   const { profile } = useAuth()
   const toast = useToast()
   const { offertes, loading } = useOffertesForLead(lead?.id)
@@ -169,6 +169,12 @@ export function OffertesBlok({ lead, canCreate, canCreateVerduurzaming }) {
             {canCreate ? 'Offerte verduurzaming' : 'Offerte maken'} <ExternalLink size={12} />
           </a>
         )}
+        {/* v112: offerte op maat - regels zelf typen, merk van het project */}
+        {canCreateVrij && lead?.id && (
+          <a className="btn btn-outline btn-sm" href={vrijeOfferteHrefForLead(lead.id)} target="_blank" rel="noopener" style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>
+            {(canCreate || canCreateVerduurzaming) ? 'Offerte op maat' : 'Offerte maken'} <ExternalLink size={12} />
+          </a>
+        )}
         </span>
       </div>
       {loading ? (
@@ -184,8 +190,9 @@ export function OffertesBlok({ lead, canCreate, canCreateVerduurzaming }) {
               <div key={o.id} style={{ padding: '10px 12px', background: 'var(--bg-elevated)', borderRadius: 8, borderLeft: `3px solid ${s.color}`, opacity: ['verlopen', 'geannuleerd'].includes(o.status) ? 0.7 : 1 }}>
                 <div className="flex justify-between items-center" style={{ flexWrap: 'wrap', gap: 6 }}>
                   <span style={{ fontWeight: 700, fontSize: '0.85rem' }} className="mono-num">
-                    {o.soort === 'verduurzaming' ? <a href={verduurzamingHrefForOfferte(o.id)} target="_blank" rel="noopener" title="Offerte openen in de tool">{o.nummer}</a> : o.nummer}
+                    {offerteHrefVoorBestaande(o) ? <a href={offerteHrefVoorBestaande(o)} target="_blank" rel="noopener" title="Offerte openen in de tool">{o.nummer}</a> : o.nummer}
                     {o.soort === 'verduurzaming' && <span className="text-muted" style={{ fontWeight: 500, marginLeft: 6 }}>verduurzaming</span>}
+                    {o.soort === 'vrij' && <span className="text-muted" style={{ fontWeight: 500, marginLeft: 6 }}>op maat</span>}
                   </span>
                   <OfferteChip status={o.status} />
                 </div>
