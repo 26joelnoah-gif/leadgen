@@ -622,3 +622,39 @@ Twee-zijdig platform:
   ziet wie het langst niets gedaan heeft. Admin.jsx haalt de RPC 1x op in
   fetchData, in een eigen try zodat een fout daar het teamoverzicht niet sloopt.
   Migratie: migration_v111_laatste_login_actief.sql.
+
+- **GOOGLE AGENDA-KOPPELING (v114, 2026-09-30, migratie toegepast, Edge
+  Functions google-agenda-oauth / -push / -busy live):** elke accountmanager
+  koppelt zijn eigen Google Agenda op /agenda. Twee kanten op, met zo min
+  mogelijk rechten: ReachConnect maakt een APARTE agenda "ReachConnect
+  afspraken" in zijn Google-account (recht `calendar.app.created`, dus geen
+  toegang tot zijn privé-agenda) en zet daar de afspraken in; andersom haalt
+  het alleen op WANNEER hij bezet is (recht `calendar.freebusy`, geen titels)
+  en schrijft dat weg als `agenda_blocks` met `bron='google'`.
+  1. Tokens in `public.google_agenda_accounts`: RLS aan en BEWUST GEEN
+     policies, dus alleen service_role komt erbij. De browser leest zijn
+     status via RPC `google_agenda_status()` en zet de twee richtingen aan of
+     uit met `google_agenda_instellen(p_push, p_busy)`.
+  2. De koppeling schrijft NOOIT in `public.leads` (dat zou de lock-,
+     eigenaar- en compliance-triggers raken en een lus geven); lead <-> event
+     staat in `public.google_agenda_events`.
+  3. Heen: trigger `tr_leads_google_agenda` op leads (alleen in projecten met
+     `appointment_scheduling_enabled`) roept via pg_net
+     `google-agenda-push` aan bij elke wijziging van appointment_at,
+     assigned_to, status, deleted_at, uitkomst, naam of adres. Die functie
+     kijkt zelf naar de huidige stand en maakt het event aan, werkt het bij of
+     haalt het weg (ook bij een andere accountmanager). Eén plek dus, in
+     plaats van in belscherm, bord, agendapicker en AppointmentModal apart.
+  4. Terug: pg_cron `reachconnect-google-agenda-busy` (elk kwartier) roept
+     `google-agenda-busy` aan. Die zet de blokkades van de komende 28 dagen
+     elke ronde opnieuw, zodat een verdwenen afspraak in Google hier vanzelf
+     weer vrijkomt. Blokkades met `bron='google'` zijn in de UI grijs, niet te
+     slepen en niet te verwijderen; de RLS-policies van agenda_blocks eisen nu
+     `bron='reachconnect'` bij insert, update en delete.
+  5. Google Cloud moet eenmalig ingesteld worden (project, Calendar API,
+     toestemmingsscherm met precies die twee scopes, OAuth-client met
+     omleidings-URI `<supabase>/functions/v1/google-agenda-oauth`) en de
+     secrets `GOOGLE_CLIENT_ID` + `GOOGLE_CLIENT_SECRET` moeten in Supabase
+     staan. Zonder die secrets doet de knop netjes niets en geeft hij een
+     uitleg. Volledige handleiding: docs/GOOGLE_AGENDA_KOPPELING.md.
+  Migratie: migration_v114_google_agenda.sql.

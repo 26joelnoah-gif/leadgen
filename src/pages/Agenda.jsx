@@ -15,6 +15,7 @@ import { APPOINTMENT_LABEL, APPOINTMENT_DURATION_MINUTES } from '../lib/appointm
 import AppointmentModal from '../components/AppointmentModal'
 import { findAppointmentConflict, outcomeInfo, sentimentInfo, leadAddressText, navigationUrl } from '../lib/appointments'
 import PersonSelect from '../components/PersonSelect' // v102
+import GoogleAgendaKoppeling from '../components/GoogleAgendaKoppeling' // v114
 
 function startOfWeek(date) {
   const d = new Date(date)
@@ -547,6 +548,9 @@ export default function Agenda() {
           </div>
         </div>
 
+        {/* v114: Google Agenda koppelen (persoonlijk, per medewerker) */}
+        <GoogleAgendaKoppeling onVeranderd={fetchData} />
+
         {/* Weeknavigatie balk */}
         <div className="glass-panel p-3 mb-6 flex justify-between items-center border border-border" style={{ flexWrap: 'wrap', gap: '12px' }}>
           <div className="flex items-center gap-2">
@@ -740,26 +744,32 @@ export default function Agenda() {
                         // Geblokkeerd tijdvak
                         const b = item.block
                         const amName = amMap[b.user_id] || 'Accountmanager'
+                        // v114: blokkades uit Google zijn een spiegel van de
+                        // eigen agenda - hier niet te verzetten of te wissen.
+                        const uitGoogle = b.bron === 'google'
                         return (
                           <div
                             key={item.id}
-                            onMouseDown={e => handleItemMouseDown(e, item, dayIdx)}
+                            onMouseDown={e => { if (!uitGoogle) handleItemMouseDown(e, item, dayIdx) }}
                             onClick={e => e.stopPropagation()}
                             style={{
                               position: 'absolute', top, height, left: `calc(${leftPct}% + 2px)`, width: `calc(${widthPct}% - 4px)`,
-                              background: 'repeating-linear-gradient(45deg, rgba(245, 158, 11, 0.25), rgba(245, 158, 11, 0.25) 6px, rgba(245, 158, 11, 0.35) 6px, rgba(245, 158, 11, 0.35) 12px)',
-                              border: '1px solid rgba(245, 158, 11, 0.7)',
+                              background: uitGoogle
+                                ? 'repeating-linear-gradient(45deg, rgba(148, 163, 184, 0.22), rgba(148, 163, 184, 0.22) 6px, rgba(148, 163, 184, 0.32) 6px, rgba(148, 163, 184, 0.32) 12px)'
+                                : 'repeating-linear-gradient(45deg, rgba(245, 158, 11, 0.25), rgba(245, 158, 11, 0.25) 6px, rgba(245, 158, 11, 0.35) 6px, rgba(245, 158, 11, 0.35) 12px)',
+                              border: uitGoogle ? '1px solid rgba(148, 163, 184, 0.7)' : '1px solid rgba(245, 158, 11, 0.7)',
                               borderRadius: '6px', padding: '4px 6px', overflow: 'hidden',
-                              cursor: isSaving ? 'wait' : 'grab', zIndex: isDragPreviewSource ? 20 : 1,
+                              cursor: uitGoogle ? 'default' : (isSaving ? 'wait' : 'grab'), zIndex: isDragPreviewSource ? 20 : 1,
                               opacity: isSaving ? 0.6 : 1, boxShadow: isDragPreviewSource ? '0 4px 14px rgba(0,0,0,0.4)' : 'none',
                               transition: isDragPreviewSource ? 'none' : 'top 0.12s ease'
                             }}
-                            title={`Geblokkeerd · sleep om te verzetten`}
+                            title={uitGoogle ? 'Bezet volgens je Google Agenda · pas dit aan in Google' : 'Geblokkeerd · sleep om te verzetten'}
                           >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                              <span style={{ fontSize: '0.65rem', fontWeight: 800, color: 'var(--warning)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                              <span style={{ fontSize: '0.65rem', fontWeight: 800, color: uitGoogle ? 'var(--text-muted)' : 'var(--warning)', display: 'flex', alignItems: 'center', gap: 3 }}>
                                 <Lock size={10} /> {formatTime(b.start_at)}
                               </span>
+                              {!uitGoogle && (
                               <button
                                 type="button"
                                 onMouseDown={e => e.stopPropagation()}
@@ -774,6 +784,7 @@ export default function Agenda() {
                               >
                                 <Trash2 size={11} />
                               </button>
+                              )}
                             </div>
                             {height > 30 && (
                               <div style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--text-main)', marginTop: 1 }} className="truncate">
@@ -863,25 +874,32 @@ export default function Agenda() {
                     } else {
                       const b = item.data
                       const amName = amMap[b.user_id] || 'Accountmanager'
+                      const uitGoogle = b.bron === 'google' // v114
                       return (
                         <div
                           key={`b-${b.id}`}
                           className="card p-4 flex justify-between items-center"
-                          style={{ borderLeft: '4px solid var(--warning)', background: 'rgba(245, 158, 11, 0.05)' }}
+                          style={uitGoogle
+                            ? { borderLeft: '4px solid rgba(148, 163, 184, 0.8)', background: 'rgba(148, 163, 184, 0.06)' }
+                            : { borderLeft: '4px solid var(--warning)', background: 'rgba(245, 158, 11, 0.05)' }}
                         >
                           <div className="flex items-center gap-4">
                             <div className="text-center min-w-[70px]">
-                              <div className="text-xs font-bold text-warning">{formatDateNl(item.at)}</div>
+                              <div className="text-xs font-bold" style={{ color: uitGoogle ? 'var(--text-muted)' : 'var(--warning)' }}>{formatDateNl(item.at)}</div>
                               <div className="text-xs font-black text-body">{formatTime(b.start_at)} - {formatTime(b.end_at)}</div>
                             </div>
 
                             <div>
                               <div className="font-bold text-body flex items-center gap-2">
-                                <Lock size={14} className="text-warning" /> {b.title || 'Geblokkeerd'}
-                                <span className="badge badge-warning text-[10px]">Blokkade</span>
+                                <Lock size={14} style={{ color: uitGoogle ? 'var(--text-muted)' : 'var(--warning)' }} /> {b.title || 'Geblokkeerd'}
+                                <span className={uitGoogle ? 'badge text-[10px]' : 'badge badge-warning text-[10px]'}>
+                                  {uitGoogle ? 'Google Agenda' : 'Blokkade'}
+                                </span>
                               </div>
                               <div className="text-xs text-muted mt-0.5">
-                                Geen afspraken mogelijk tijdens dit tijdvak
+                                {uitGoogle
+                                  ? 'Bezet volgens de eigen Google Agenda. Aanpassen doe je in Google.'
+                                  : 'Geen afspraken mogelijk tijdens dit tijdvak'}
                               </div>
                             </div>
                           </div>
@@ -891,6 +909,7 @@ export default function Agenda() {
                               <span className="text-xs text-muted block">Accountmanager:</span>
                               <span className="text-xs font-bold text-body">{amName}</span>
                             </div>
+                            {!uitGoogle && (
                             <button
                               type="button"
                               onClick={() => {
@@ -902,6 +921,7 @@ export default function Agenda() {
                             >
                               <Trash2 size={14} /> {confirmDeleteId === b.id ? 'Zeker? Klik nogmaals' : ''}
                             </button>
+                            )}
                           </div>
                         </div>
                       )
