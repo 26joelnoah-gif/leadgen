@@ -1,2 +1,9 @@
+# De app zelf blijft uit de zoekmachines.
+# Alleen de juridische pagina's en het verificatiebestand van Google
+# mogen opgehaald worden: die heeft Google nodig voor het
+# OAuth-toestemmingsscherm en voor Search Console.
 User-agent: *
 Disallow: /
+Allow: /privacy
+Allow: /voorwaarden
+Allow: /google

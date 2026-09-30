@@ -28,6 +28,7 @@ import Offertes from './pages/Offertes' // v112
 import Home from './pages/Home'
 import Aanmelden from './pages/Aanmelden'
 import AanmeldenBedankt from './pages/AanmeldenBedankt'
+import { Privacy, Voorwaarden } from './pages/Juridisch'
 import AccountManagement from './pages/AccountManagement'
 import BriefingScript from './pages/BriefingScript'
 import { useToolAccess } from './hooks/useToolAccess'
@@ -203,6 +204,9 @@ function AppRoutes() {
       {/* v65: publieke tekenpagina voor klanten, bewust buiten ProtectedRoute */}
       <Route path="/tekenen/:token" element={<Tekenen />} />
       {/* v88: publieke aanmeldpagina voor bellers die zelf een account willen, bewust buiten ProtectedRoute */}
+      {/* Publiek: privacybeleid en voorwaarden. Nodig voor het Google-toestemmingsscherm. */}
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/voorwaarden" element={<Voorwaarden />} />
       <Route path="/aanmelden" element={<Aanmelden />} />
       <Route path="/aanmelden/bedankt" element={<AanmeldenBedankt />} />
       <Route path="/login" element={user ? <Navigate to="/" replace /> : <Login />} />
