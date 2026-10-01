@@ -67,6 +67,10 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
   const [sending, setSending] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // v121: technische details van een mislukte verzending (alleen admin/manager
+  // krijgt ze van de Edge Function): het verzoek dat eruit ging en het antwoord.
+  const [errorDebug, setErrorDebug] = useState(null)
+  const [debugOpen, setDebugOpen] = useState(false)
   const [planning, setPlanning] = useState('nu') // v83, v84: nu standaard
   const [eigenTijd, setEigenTijd] = useState(() => naarLokaal(werkdagOm(1)))
   const bezig = sending || saving
@@ -122,6 +126,7 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
     if (bezig || !kanVersturen) return
     setSending(true)
     setError('')
+    setErrorDebug(null)
     try {
       const { data, error: fnError } = await supabase.functions.invoke('mailingservice', {
         body: { lead_id: lead.id, mail: mailType, email: email.trim(), contactpersoon: contactpersoon.trim() || undefined, beller_naam: bellerNaam.trim() || undefined }
@@ -129,10 +134,17 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
       if (fnError) {
         // supabase-js geeft bij een foutstatus de body in fnError.context
         let msg = 'Versturen mislukt'
-        try { msg = (await fnError.context?.json())?.error || msg } catch { /* geen json */ }
+        try {
+          const body = await fnError.context?.json()
+          msg = body?.error || msg
+          if (body?.debug) setErrorDebug(body.debug)
+        } catch { /* geen json */ }
         throw new Error(msg)
       }
-      if (!data?.ok) throw new Error(data?.error || 'Versturen mislukt')
+      if (!data?.ok) {
+        if (data?.debug) setErrorDebug(data.debug)
+        throw new Error(data?.error || 'Versturen mislukt')
+      }
       await onSent({ email: data.email, contactpersoon: contactpersoon.trim(), followUpDays: data.follow_up_days || dagen, source: data.source, mailType: data.mail_type || mailType })
     } catch (e) {
       setError(e.message || 'Versturen mislukt')
@@ -205,7 +217,33 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
           </div>
 
           {error && (
-            <div style={{ background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid var(--danger)', borderRadius: '8px', padding: '10px 12px', fontSize: '0.85rem' }}>{error}</div>
+            <div style={{ background: 'var(--danger-bg)', color: 'var(--danger)', border: '1px solid var(--danger)', borderRadius: '8px', padding: '10px 12px', fontSize: '0.85rem' }}>
+              {error}
+              {errorDebug && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setDebugOpen(o => !o)}
+                    style={{ display: 'block', marginTop: '8px', background: 'none', border: 'none', padding: 0, color: 'inherit', textDecoration: 'underline', cursor: 'pointer', fontSize: '0.78rem' }}
+                  >
+                    {debugOpen ? 'Technische details verbergen' : 'Technische details tonen'}
+                  </button>
+                  {debugOpen && (
+                    <pre style={{ fontSize: '0.72rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', marginTop: '6px', maxHeight: '260px', overflow: 'auto', color: 'var(--text-primary)' }}>
+{[
+  `${errorDebug.verzoek?.methode || 'POST'} ${errorDebug.verzoek?.url || ''}`,
+  ...Object.entries(errorDebug.verzoek?.headers || {}).map(([k, v]) => `${k}: ${v}`),
+  '',
+  JSON.stringify(errorDebug.verzoek?.body ?? {}, null, 2),
+  '',
+  `--- antwoord ${errorDebug.antwoord?.status ?? '(geen verbinding)'} ---`,
+  errorDebug.antwoord?.body || errorDebug.reden || '(leeg)'
+].join('\n')}
+                    </pre>
+                  )}
+                </>
+              )}
+            </div>
           )}
 
           {onQueued && (

@@ -760,3 +760,18 @@ Twee-zijdig platform:
      mailservice_logs.error; een admin of manager ziet hem ook in de melding op
      het scherm, een gewone beller krijgt een korte zin. Bij 401/403 staat er nu
      letterlijk dat de bron de token niet accepteert.
+
+- **VERZOEK EN ANTWOORD ZICHTBAAR BIJ EEN MISLUKTE MAIL (v121, 2026-10-01,
+  geen migratie; mailingservice v16 en mailservice-test v2 live):** bij een fout
+  wil je zien WAT er precies de deur uit ging. mailingservice geeft bij een
+  mislukte verzending nu een `debug`-blok mee in het antwoord, maar ALLEEN aan
+  een admin of manager: `{ verzoek: { url, methode, headers, body }, antwoord:
+  { status, body }, reden }`. De Authorization-header staat er gemaskeerd in
+  (`Bearer ****<laatste4> (n tekens)`) via helper `gemaskeerd()`.
+  REGEL: een token komt nooit onafgekort in een antwoord, een logregel of een
+  melding - altijd door gemaskeerd() heen.
+  In het belscherm (MailingserviceModal) zit onder de foutmelding een knop
+  "Technische details tonen" met het volledige verzoek en antwoord; in de
+  Mailinglijst (MailQueueView) gaat hetzelfde blok naar de console, want in een
+  toast past het niet. De testknop in de projectinstellingen toont nu ook de
+  headers, niet alleen de body.

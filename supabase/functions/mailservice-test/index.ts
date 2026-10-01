@@ -47,6 +47,12 @@ function veiligeUrl(u: string): boolean {
   }
 }
 
+// v121: token nooit tonen, alleen lengte en de laatste vier tekens.
+function gemaskeerd(token: string): string {
+  if (token.length >= 20) return `Bearer ****${token.slice(-4)} (${token.length} tekens)`;
+  return `Bearer **** (${token.length} tekens)`;
+}
+
 function vulTemplate(tpl: unknown, velden: Record<string, string | undefined>): unknown {
   if (typeof tpl === "string") {
     const alleen = tpl.match(/^\{\{\s*([a-z_]{1,40})\s*\}\}$/);
@@ -194,6 +200,15 @@ Deno.serve(async (req: Request) => {
     return json({
       ok: gelukt,
       url,
+      verzoek: {
+        url,
+        methode: "POST",
+        headers: {
+          "Authorization": gemaskeerd(token),
+          "Content-Type": "application/json",
+        },
+        body: payload,
+      },
       mail_soort: mailSoort,
       test_email: email,
       status: status || null,

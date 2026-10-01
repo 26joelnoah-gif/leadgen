@@ -62,6 +62,14 @@ function veiligeUrl(u: string): boolean {
   }
 }
 
+// v121: de token hoort nooit in een foutmelding of een logregel. Alleen de
+// lengte en de laatste vier tekens, genoeg om te zien WELKE token er gebruikt
+// wordt zonder hem prijs te geven.
+function gemaskeerd(token: string): string {
+  if (token.length >= 20) return `Bearer ****${token.slice(-4)} (${token.length} tekens)`;
+  return `Bearer **** (${token.length} tekens)`;
+}
+
 // v119: body uit de template van het project. {{veld}} wordt vervangen; een
 // waarde die ALLEEN uit een lege placeholder bestaat valt helemaal weg, zodat
 // optionele velden niet als lege tekst meegaan. Geen template = oude vaste body.
@@ -241,6 +249,18 @@ Deno.serve(async (req: Request) => {
     let foutmelding = "";
     let logFout = "";            // v120: volledige reden, gaat altijd in mailservice_logs
     const magDetail = caller.role === "admin" || caller.role === "manager";
+    // v121: wat ging er precies de deur uit? Alleen voor admin en manager, en
+    // altijd met een gemaskeerde token.
+    const verzoek = {
+      url: bronUrl,
+      methode: "POST",
+      headers: {
+        "Authorization": gemaskeerd(bronKey),
+        "Content-Type": "application/json",
+      },
+      body: payload,
+    };
+    let antwoord: { status: number | null; body: string | null } = { status: null, body: null };
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
@@ -255,6 +275,7 @@ Deno.serve(async (req: Request) => {
       // v120: eerst als tekst lezen, anders raken we het antwoord kwijt zodra de
       // bron geen JSON teruggeeft (en juist bij een 401 is dat vaak zo).
       const ruw = (await res.text().catch(() => "")).slice(0, 1000);
+      antwoord = { status: res.status, body: ruw || null };
       let resBody: Record<string, unknown> = {};
       try {
         resBody = ruw ? JSON.parse(ruw) : {};
@@ -295,7 +316,12 @@ Deno.serve(async (req: Request) => {
       error: ok ? null : (logFout || foutmelding).slice(0, 500),
     }).select("id").maybeSingle();
 
-    if (!ok) return json({ error: foutmelding }, status);
+    if (!ok) {
+      return json({
+        error: foutmelding,
+        ...(magDetail ? { debug: { verzoek, antwoord, reden: logFout } } : {}),
+      }, status);
+    }
 
     // v78: bewaarde mail is nu weg -> rij afvinken (service role, de app mag dit niet zelf)
     if (queue) {

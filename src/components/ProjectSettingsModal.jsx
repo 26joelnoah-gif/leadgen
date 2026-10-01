@@ -743,10 +743,19 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
                               <pre style={{ fontSize: '0.72rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, maxHeight: '140px', overflow: 'auto' }}>{testUitslag.antwoord_van_de_bron}</pre>
                             </>
                           )}
-                          {testUitslag.verstuurde_body && (
+                          {(testUitslag.verzoek || testUitslag.verstuurde_body) && (
                             <>
-                              <span className="text-muted" style={{ fontSize: '0.72rem', display: 'block', margin: '8px 0 2px' }}>Dit stuurden wij ({testUitslag.url})</span>
-                              <pre style={{ fontSize: '0.72rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, maxHeight: '160px', overflow: 'auto' }}>{JSON.stringify(testUitslag.verstuurde_body, null, 2)}</pre>
+                              <span className="text-muted" style={{ fontSize: '0.72rem', display: 'block', margin: '8px 0 2px' }}>Dit stuurden wij</span>
+                              <pre style={{ fontSize: '0.72rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, maxHeight: '220px', overflow: 'auto' }}>
+{testUitslag.verzoek
+  ? [
+      `POST ${testUitslag.verzoek.url}`,
+      ...Object.entries(testUitslag.verzoek.headers || {}).map(([k, v]) => `${k}: ${v}`),
+      '',
+      JSON.stringify(testUitslag.verzoek.body, null, 2)
+    ].join('\n')
+  : `POST ${testUitslag.url}\n\n${JSON.stringify(testUitslag.verstuurde_body, null, 2)}`}
+                              </pre>
                             </>
                           )}
                           {Array.isArray(testUitslag.opmerkingen) && testUitslag.opmerkingen.length > 0 && (

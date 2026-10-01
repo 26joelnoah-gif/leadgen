@@ -90,10 +90,19 @@ export default function MailQueueView({ listId, listIds, mailService, onChanged 
       const { data, error: fnError } = await supabase.functions.invoke('mailingservice', { body: { queue_id: row.id } })
       if (fnError) {
         let msg = 'Versturen mislukt'
-        try { msg = (await fnError.context?.json())?.error || msg } catch { /* geen json */ }
+        try {
+          const body = await fnError.context?.json()
+          msg = body?.error || msg
+          // v121: admin en manager krijgen het verzoek en het antwoord mee; in
+          // een toast past dat niet, dus hier naar de console.
+          if (body?.debug) console.error('[mailingservice] mislukt', body.debug)
+        } catch { /* geen json */ }
         throw new Error(msg)
       }
-      if (!data?.ok) throw new Error(data?.error || 'Versturen mislukt')
+      if (!data?.ok) {
+        if (data?.debug) console.error('[mailingservice] mislukt', data.debug)
+        throw new Error(data?.error || 'Versturen mislukt')
+      }
       const next = new Date()
       next.setDate(next.getDate() + (Number(data.follow_up_days) || followUpDays))
       const updates = { status: 'mail_verstuurd', next_contact_date: next.toISOString(), updated_at: new Date().toISOString() }
