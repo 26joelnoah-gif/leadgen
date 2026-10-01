@@ -5,7 +5,8 @@
 // belscherm laat het live zien.
 //
 //   POST https://<project>.supabase.co/functions/v1/mailstatus
-//   Authorization: Bearer <MAILSTATUS_KEY>      (ook goed: x-leadgen-key of x-api-key)
+//   Authorization: Bearer <MAILSTATUS_KEY>      (ook goed: x-reachconnect-key,
+//                                               of de oude namen x-leadgen-key / x-api-key)
 //   {
 //     "lead_id": "uuid van de ReachConnect-lead",
 //     "email": "info@bureau.nl",
@@ -39,7 +40,7 @@ import { createClient } from "jsr:@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-leadgen-key, x-api-key",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-reachconnect-key, x-leadgen-key, x-api-key",
 };
 
 // stap -> rang + kolom waarin de datum van die stap wordt bewaard
@@ -82,7 +83,9 @@ function zelfdeSleutel(a: string, b: string): boolean {
 function sleutelUitRequest(req: Request): string {
   const auth = req.headers.get("Authorization") || "";
   if (/^Bearer\s+/i.test(auth)) return auth.replace(/^Bearer\s+/i, "").trim();
-  return (req.headers.get("x-leadgen-key") || req.headers.get("x-api-key") || auth).trim();
+  // v118: x-reachconnect-key is de naam van nu. x-leadgen-key blijft erin omdat
+  // MarketingKiezer daarmee stuurt; die kan pas weg samen met de MK-repo.
+  return (req.headers.get("x-reachconnect-key") || req.headers.get("x-leadgen-key") || req.headers.get("x-api-key") || auth).trim();
 }
 
 Deno.serve(async (req: Request) => {
@@ -200,7 +203,7 @@ Deno.serve(async (req: Request) => {
       if (bestaandeTerugbel) {
         isNieuw = false;
         terugbelLeadId = bestaandeTerugbel.id as string;
-        const nieuweNotitie = `Nogmaals "Bel mij terug" via MarketingKiezer${wensLabel ? " - " + wensLabel : ""} (${statusOp.slice(0, 10)}).`;
+        const nieuweNotitie = `Nogmaals "Bel mij terug" via ${source}${wensLabel ? " - " + wensLabel : ""} (${statusOp.slice(0, 10)}).`;
         const { error: updateFout } = await admin
           .from("leads")
           .update({
@@ -226,7 +229,7 @@ Deno.serve(async (req: Request) => {
             phone: telefoonVoorLead,
             email: kort(body?.email, 254)?.toLowerCase() ?? null,
             contact_person: naam,
-            notes: `Terugbelverzoek via MarketingKiezer${wensLabel ? " - " + wensLabel : ""}.`,
+            notes: `Terugbelverzoek via ${source}${wensLabel ? " - " + wensLabel : ""}.`,
             status: "new",
             lead_list_id: targetListId,
             organization_id: lead.organization_id ?? null,

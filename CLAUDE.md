@@ -702,3 +702,9 @@ Twee-zijdig platform:
      met "source": "BEAUTYINFO" in de body en de sleutel uit MAILSTATUS_KEY.
      Zonder source gaat mailstatus uit van MARKETINGKIEZER.
   Migratie: migration_v118_mailbron_beautyinfo.sql.
+  4. mailstatus (v12 live, 01-10): accepteert de sleutel nu ook in de header
+     `x-reachconnect-key`. `x-leadgen-key` en `x-api-key` blijven werken, want
+     MarketingKiezer stuurt daarmee - die kan pas weg samen met de MK-repo.
+     Nieuwe bronnen krijgen `Authorization: Bearer <sleutel>`, dan speelt de
+     naamgeving geen rol. Ook de notitie bij een terugbelverzoek noemt nu de
+     echte bron in plaats van altijd "MarketingKiezer".
