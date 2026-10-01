@@ -658,3 +658,26 @@ Twee-zijdig platform:
      staan. Zonder die secrets doet de knop netjes niets en geeft hij een
      uitleg. Volledige handleiding: docs/GOOGLE_AGENDA_KOPPELING.md.
   Migratie: migration_v114_google_agenda.sql.
+
+- **ONDERHOUDSMODUS (v117, 2026-10-01, migratie toegepast):** de software is
+  tijdelijk op slot te zetten met de melding "We zijn bezig met onderhoud".
+  1. Eén rij in `public.app_onderhoud` (id=1, kolom `actief`). Lezen mag anon
+     EN authenticated (de inlogpagina moet de stand ook kunnen opvragen, er
+     staat niets gevoeligs in). Er is BEWUST geen insert/update/delete-policy:
+     aan- en uitzetten gaat via RPC `public.onderhoud_zetten(p_actief)`
+     (security definer), die zelf controleert of de aanroeper een actieve
+     admin is. Tabel zit in de publicatie supabase_realtime.
+  2. Frontend: `src/hooks/useOnderhoud.js` (realtime + poll elke 60s + bij
+     focus; faalt OPEN - een leesfout zet de app nooit zelf op slot) en
+     `src/components/Onderhoud.jsx` met drie onderdelen: OnderhoudScherm
+     (fullscreen melding), OnderhoudBanner (pil links onderin voor de admin
+     die doorwerkt, met "Uitzetten") en OnderhoudSchakelaar (blok in
+     Admin > Dashboard, aanzetten vraagt twee klikken, geen window.confirm).
+  3. De grens zit in `AppRoutes` (App.jsx): staat onderhoud aan en is de
+     gebruiker geen echte admin (`profile.role`, niet de v94-werkmodus), dan
+     krijgt hij het onderhoudsscherm. Vrijgesteld blijven `/tekenen/*` (klanten
+     moeten hun offerte kunnen blijven ondertekenen), `/privacy`,
+     `/voorwaarden` en `/login` (anders kan de admin zelf niet meer inloggen om
+     het weer uit te zetten). Bij een ingelogde gebruiker wachten we op het
+     profiel, anders ziet een admin eerst even de melding.
+  Migratie: migration_v117_onderhoud.sql.

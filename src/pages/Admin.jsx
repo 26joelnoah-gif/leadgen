@@ -41,6 +41,7 @@ import LeadManagement from './LeadManagement' // IMPORT THE MANAGEMENT COMPONENT
 // Seconden -> "1u 11m" / "11m"
 import PersonSelect, { ROLE_LABELS } from '../components/PersonSelect' // v102
 import { fmtGeleden, fmtVolledig, aanwezigheidsStand, aanwezigheidsTitel } from '../lib/aanwezigheid' // v111
+import { OnderhoudSchakelaar } from '../components/Onderhoud' // v117
 function fmtBeltijd(totalSeconds) {
   const s = Math.max(0, Math.round(totalSeconds || 0))
   const h = Math.floor(s / 3600)
@@ -667,6 +668,9 @@ export default function Admin() {
                    <button className="btn btn-outline" onClick={() => setShowSources(true)} title="Bronnen aanmaken, hernoemen of verwijderen"><Tag size={18}/> Bronnen</button>
                 </div>
              </div>
+
+             {/* v117: software tijdelijk op slot met de melding "We zijn bezig met onderhoud" */}
+             <OnderhoudSchakelaar />
 
              {/* KPI-rij: wat gebeurt er vandaag (live uit call_logs) */}
              <div className="stats-grid">

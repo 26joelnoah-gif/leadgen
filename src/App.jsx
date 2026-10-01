@@ -35,6 +35,8 @@ import { useToolAccess } from './hooks/useToolAccess'
 import WorkInterface from './components/WorkInterface'
 import ErrorBoundary from './components/ErrorBoundary'
 import OfflineBanner from './components/OfflineBanner'
+import { OnderhoudScherm, OnderhoudBanner } from './components/Onderhoud' // v117
+import { useOnderhoud } from './hooks/useOnderhoud' // v117
 import FeatureAwareness from './components/FeatureAwareness'
 import Chat from './components/Chat'
 
@@ -171,8 +173,23 @@ function HomeRoute() {
 }
 
 function AppRoutes() {
-  const { user } = useAuth()
+  const { user, profile, loading } = useAuth()
   const location = useLocation()
+  const { actief: onderhoud, loading: onderhoudLaadt } = useOnderhoud() // v117
+
+  // v117: onderhoudsmodus. Alleen een echte admin komt er dan nog in.
+  // Bewust buiten de grens gehouden: de tekenpagina (klanten moeten hun
+  // offerte kunnen blijven ondertekenen), de juridische pagina's en /login
+  // (anders kan de admin zelf niet meer inloggen om het weer uit te zetten).
+  const onderhoudVrijPad = ['/tekenen', '/privacy', '/voorwaarden', '/login']
+    .some(p => location.pathname.startsWith(p))
+
+  if (onderhoud && !onderhoudLaadt && !onderhoudVrijPad) {
+    // Wachten tot het profiel binnen is, anders ziet een admin bij het laden
+    // eerst even het onderhoudsscherm.
+    if (user && loading) return null
+    if (profile?.role !== 'admin') return <OnderhoudScherm />
+  }
 
   return (
     <>
@@ -418,6 +435,7 @@ export default function App() {
             <AppRoutes />
             <UpdateChecker />
             <OfflineBanner />
+            <OnderhoudBanner />
           </ToastProvider>
         </AuthProvider>
       </ThemeProvider>
