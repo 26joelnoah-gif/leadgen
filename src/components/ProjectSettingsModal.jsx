@@ -81,6 +81,10 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   const [mailTemplate, setMailTemplate] = useState('')
   const [mailToken, setMailToken] = useState('')
   const [mailTokenBestaat, setMailTokenBestaat] = useState(false)
+  // v120: koppeling testen zonder eerst op te slaan
+  const [testEmail, setTestEmail] = useState('')
+  const [testBezig, setTestBezig] = useState(false)
+  const [testUitslag, setTestUitslag] = useState(null)
   const [mailRowExists, setMailRowExists] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -162,6 +166,7 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       setMailTemplate(svc?.body_template ? JSON.stringify(svc.body_template, null, 2) : '')
       setMailToken('')
       setMailTokenBestaat(!!secretRes.data)
+      setTestUitslag(null)
       setLoading(false)
     })
   }, [isOpen, campaign?.id])
@@ -176,6 +181,45 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   function toggleTeam(id) {
     setSelectedTeams(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
+  // v120: stuurt echt een verzoek naar de webhook van dit project en laat zien
+  // wat eruit komt. Velden die nog niet zijn opgeslagen gaan mee, zodat je kan
+  // proberen voordat je bewaart. Lukt het, dan komt er ook echt een testmail.
+  async function testKoppeling() {
+    if (testBezig) return
+    setTestBezig(true)
+    setTestUitslag(null)
+    try {
+      let template
+      if ((mailTemplate || '').trim()) {
+        try {
+          template = JSON.parse(mailTemplate)
+        } catch {
+          throw new Error('De body-template is geen geldige JSON, dus testen heeft nog geen zin')
+        }
+      }
+      const { data, error: fnError } = await supabase.functions.invoke('mailservice-test', {
+        body: {
+          campaign_id: campaign.id,
+          email: (testEmail || '').trim() || undefined,
+          mail: mailTypes[0] || undefined,
+          webhook_url: (mailWebhookUrl || '').trim() || undefined,
+          token: (mailToken || '').trim() || undefined,
+          body_template: template
+        }
+      })
+      if (fnError) {
+        let msg = 'Testen mislukt'
+        try { msg = (await fnError.context?.json())?.error || msg } catch { /* geen json */ }
+        throw new Error(msg)
+      }
+      setTestUitslag(data)
+    } catch (e) {
+      setTestUitslag({ ok: false, uitleg: e.message || 'Testen mislukt' })
+    } finally {
+      setTestBezig(false)
+    }
+  }
+
   function toggleMailType(key) {
     setMailTypes(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
   }
@@ -658,6 +702,60 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
                       >
                         Standaard template terugzetten
                       </button>
+                    </div>
+
+                    <div style={{ flex: '1 1 100%', borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
+                      <span className="text-muted" style={{ fontSize: '0.75rem', display: 'block', marginBottom: '4px' }}>Koppeling testen</span>
+                      <div className="flex gap-2" style={{ flexWrap: 'wrap', alignItems: 'center' }}>
+                        <input
+                          type="email"
+                          value={testEmail}
+                          onChange={e => setTestEmail(e.target.value)}
+                          placeholder="E-mailadres voor de test (standaard je eigen adres)"
+                          className="form-dark"
+                          style={{ flex: '1 1 240px' }}
+                        />
+                        <button type="button" className="btn btn-sm btn-outline" onClick={testKoppeling} disabled={testBezig}>
+                          {testBezig ? 'Bezig met testen...' : 'Testen'}
+                        </button>
+                      </div>
+                      <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>
+                        Dit is een echte aanroep: lukt hij, dan stuurt de bron ook echt een mail naar dat adres. Er wordt geen lead afgeboekt. Velden die je hierboven hebt gewijzigd maar nog niet hebt opgeslagen gaan mee in de test.
+                      </p>
+
+                      {testUitslag && (
+                        <div
+                          style={{
+                            marginTop: '10px', padding: '10px', borderRadius: '8px',
+                            border: `1px solid ${testUitslag.ok ? 'var(--primary)' : 'var(--danger)'}`,
+                            background: testUitslag.ok ? 'rgba(34,197,94,0.08)' : 'rgba(239,68,68,0.08)'
+                          }}
+                        >
+                          <strong style={{ fontSize: '0.85rem' }}>
+                            {testUitslag.ok ? 'Gelukt' : 'Mislukt'}
+                            {testUitslag.status ? ` - HTTP ${testUitslag.status}` : ''}
+                            {testUitslag.duur_ms != null ? ` - ${testUitslag.duur_ms} ms` : ''}
+                          </strong>
+                          {testUitslag.uitleg && <p style={{ fontSize: '0.8rem', margin: '6px 0 0' }}>{testUitslag.uitleg}</p>}
+                          {testUitslag.antwoord_van_de_bron && (
+                            <>
+                              <span className="text-muted" style={{ fontSize: '0.72rem', display: 'block', margin: '8px 0 2px' }}>Antwoord van de bron</span>
+                              <pre style={{ fontSize: '0.72rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, maxHeight: '140px', overflow: 'auto' }}>{testUitslag.antwoord_van_de_bron}</pre>
+                            </>
+                          )}
+                          {testUitslag.verstuurde_body && (
+                            <>
+                              <span className="text-muted" style={{ fontSize: '0.72rem', display: 'block', margin: '8px 0 2px' }}>Dit stuurden wij ({testUitslag.url})</span>
+                              <pre style={{ fontSize: '0.72rem', whiteSpace: 'pre-wrap', wordBreak: 'break-word', margin: 0, maxHeight: '160px', overflow: 'auto' }}>{JSON.stringify(testUitslag.verstuurde_body, null, 2)}</pre>
+                            </>
+                          )}
+                          {Array.isArray(testUitslag.opmerkingen) && testUitslag.opmerkingen.length > 0 && (
+                            <ul style={{ fontSize: '0.72rem', margin: '8px 0 0', paddingLeft: '16px' }}>
+                              {testUitslag.opmerkingen.map((o, i) => <li key={i}>{o}</li>)}
+                            </ul>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}

@@ -736,3 +736,27 @@ Twee-zijdig platform:
      de database. REGEL: nieuwe plek die een webhook uit de database aanroept =
      altijd eerst veiligeUrl().
   Migratie: migration_v119_webhook_per_project.sql.
+
+- **TESTKNOP + DUIDELIJKE FOUTMELDING BIJ DE MAILINGSERVICE (v120, 2026-10-01,
+  geen migratie; mailservice-test v1 en mailingservice v15 live):**
+  aanleiding: bij een mislukte mail stond er alleen "Versturen via BRON mislukt
+  (401)" en was er geen manier om te proberen zonder een echte lead af te boeken.
+  1. Nieuwe Edge Function `mailservice-test` (verify_jwt aan, ALLEEN rol admin,
+     20 tests per uur via rate_limit_hit). Doet precies dezelfde POST als de
+     echte Mailingservice en geeft terug: URL, HTTP-status, het ANTWOORD van de
+     bron (eerste 1000 tekens), duur in ms, de body die wij stuurden, uitleg in
+     gewone taal per statuscode, en opmerkingen (waar de token vandaan komt,
+     zijn lengte, en of er een spatie of regeleinde aan vastzit - de meest
+     voorkomende oorzaak van een 401). Schrijft NIETS weg: geen mailservice_logs
+     en geen afboeking. Lukt de aanroep, dan stuurt de bron wel echt een mail,
+     standaard naar het e-mailadres van de admin zelf.
+     De token wordt nooit teruggegeven in het antwoord.
+  2. Knop "Testen" in ProjectSettingsModal onder de Mailingservice, met een veld
+     voor het testadres. Velden die nog NIET zijn opgeslagen (webhook-URL, token,
+     template) gaan mee in de test, zodat je kan proberen voor je bewaart.
+  3. mailingservice leest het antwoord van de bron nu eerst als TEKST (een 401 is
+     vaak geen JSON, dus die melding ging voorheen verloren). De volledige reden
+     (`HTTP <status> - <melding van de bron>`) gaat altijd in
+     mailservice_logs.error; een admin of manager ziet hem ook in de melding op
+     het scherm, een gewone beller krijgt een korte zin. Bij 401/403 staat er nu
+     letterlijk dat de bron de token niet accepteert.

@@ -239,6 +239,8 @@ Deno.serve(async (req: Request) => {
     let ok = false;
     let status = 502;
     let foutmelding = "";
+    let logFout = "";            // v120: volledige reden, gaat altijd in mailservice_logs
+    const magDetail = caller.role === "admin" || caller.role === "manager";
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
@@ -250,17 +252,35 @@ Deno.serve(async (req: Request) => {
         redirect: "error",
       });
       clearTimeout(timer);
-      const resBody = await res.json().catch(() => ({}));
+      // v120: eerst als tekst lezen, anders raken we het antwoord kwijt zodra de
+      // bron geen JSON teruggeeft (en juist bij een 401 is dat vaak zo).
+      const ruw = (await res.text().catch(() => "")).slice(0, 1000);
+      let resBody: Record<string, unknown> = {};
+      try {
+        resBody = ruw ? JSON.parse(ruw) : {};
+      } catch {
+        resBody = {};
+      }
       ok = res.ok && resBody?.success === true;
       if (!ok) {
-        // Alleen gebruikersvriendelijke meldingen van de bron doorgeven; 401/5xx = configuratie.
         status = [400, 409, 429].includes(res.status) ? res.status : 502;
-        foutmelding = status === 502
-          ? `Versturen via ${svc.source} mislukt (${res.status})`
-          : String(resBody?.error || "Versturen mislukt").slice(0, 200);
+        const bronMelding = String(resBody?.error || resBody?.message || ruw || "").trim().slice(0, 200);
+        logFout = `HTTP ${res.status}${bronMelding ? " - " + bronMelding : " - geen uitleg van de bron"}`;
+        if (status === 502) {
+          const basis = res.status === 401 || res.status === 403
+            ? `${svc.source} accepteert de token niet (${res.status}). Controleer de token in de projectinstellingen van dit project.`
+            : `Versturen via ${svc.source} mislukt (${res.status})`;
+          // Een beller kan hier niets mee; een admin of manager juist wel.
+          foutmelding = magDetail && bronMelding ? `${basis} Antwoord van de bron: ${bronMelding}` : basis;
+        } else {
+          foutmelding = bronMelding || "Versturen mislukt";
+        }
       }
     } catch (e) {
-      foutmelding = e instanceof Error && e.name === "AbortError" ? "De mailserver reageert niet" : "Versturen mislukt";
+      foutmelding = e instanceof Error && e.name === "AbortError"
+        ? "De mailserver reageert niet"
+        : "Geen verbinding met de bron (adres, doorverwijzing of certificaat)";
+      logFout = foutmelding;
     }
 
     const { data: logRow } = await admin.from("mailservice_logs").insert({
@@ -272,7 +292,7 @@ Deno.serve(async (req: Request) => {
       mail_type: mailSoort,
       email,
       ok,
-      error: ok ? null : foutmelding,
+      error: ok ? null : (logFout || foutmelding).slice(0, 500),
     }).select("id").maybeSingle();
 
     if (!ok) return json({ error: foutmelding }, status);
