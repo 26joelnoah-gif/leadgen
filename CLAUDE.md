@@ -708,3 +708,31 @@ Twee-zijdig platform:
      Nieuwe bronnen krijgen `Authorization: Bearer <sleutel>`, dan speelt de
      naamgeving geen rol. Ook de notitie bij een terugbelverzoek noemt nu de
      echte bron in plaats van altijd "MarketingKiezer".
+
+- **MAILINGSERVICE PER PROJECT INSTELBAAR (v119, 2026-10-01, migratie
+  toegepast, mailingservice v14 / mailstop v8 / mailqueue-runner v7 live):**
+  een nieuwe bron koppelen vroeg code plus twee Supabase secrets. Nu zet een
+  admin alles in de projectinstellingen.
+  1. `campaign_mail_services.webhook_url`, `.stop_url` en `.body_template`
+     (jsonb). Geen stop-URL ingevuld = afgeleid van de webhook-URL
+     (.../mail -> .../stop), net als voorheen.
+  2. De token staat APART in `public.campaign_mail_secrets` (1 rij per project,
+     RLS: alleen `is_admin()` mag lezen en schrijven). De Edge Functions lezen
+     hem met de service role. Het scherm leest hem NOOIT terug: leeg laten bij
+     opslaan = ongewijzigd.
+  3. Terugval: is webhook_url of de token leeg, dan pakt de functie alsnog
+     `MAILSERVICE_<BRON>_URL` / `_KEY` uit de secrets. Zo blijft een bestaande
+     koppeling werken tot de token is overgezet.
+  4. Body-template: vrije JSON met `{{mail}} {{lead_id}} {{email}}
+     {{bedrijfsnaam}} {{contactpersoon}} {{stad}} {{website}} {{telefoon}}
+     {{beller_naam}} {{beller_telefoon}} {{bron}}`. Helper `vulTemplate()` zit
+     identiek in mailingservice en mailqueue-runner. Een waarde die ALLEEN uit
+     een lege placeholder bestaat valt uit de body (dus geen lege strings), en
+     een object dat daardoor leeg raakt valt ook weg. Geen template = de oude
+     vaste body.
+  5. Veiligheid: `veiligeUrl()` laat alleen https met een gewone domeinnaam
+     door, geen kaal IP-adres, localhost, .local of .internal; plus de bestaande
+     `redirect: "error"` en timeout. Een CHECK op de kolommen doet hetzelfde in
+     de database. REGEL: nieuwe plek die een webhook uit de database aanroept =
+     altijd eerst veiligeUrl().
+  Migratie: migration_v119_webhook_per_project.sql.

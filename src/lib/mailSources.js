@@ -1,9 +1,11 @@
 // v69: bronnen voor de Mailingservice. Per project kiest de admin in de
-// projectinstellingen waar de mail vandaan komt. De URL en sleutel van een bron
-// staan NIET hier en niet in de database, maar in Supabase secrets:
-//   MAILSERVICE_<KEY>_URL en MAILSERVICE_<KEY>_KEY
-// Nieuwe bron = die twee secrets zetten + hier een regel. De tekst van de mail
-// beheert de bron zelf (voor MarketingKiezer: lib/leadgenMail.ts in die repo).
+// projectinstellingen waar de mail vandaan komt.
+// v119: webhook-URL, token en body-template zet je gewoon bij het project zelf
+// (projectinstellingen -> Mailingservice). Deze lijst bepaalt alleen nog de
+// naam van de bron en welke mailsoorten hij kent. Vult een project geen eigen
+// webhook in, dan valt hij terug op de oude secrets MAILSERVICE_<KEY>_URL en
+// MAILSERVICE_<KEY>_KEY. De tekst van de mail beheert de bron zelf (voor
+// MarketingKiezer: lib/leadgenMail.ts in die repo).
 // v118: elke bron kent zijn eigen mailsoorten (types). BeautyInfo kent geen
 // infomail, alleen een aanmeldmail en een herinnering. Welke soorten een
 // project daarvan gebruikt staat in campaign_mail_services.mail_types.

@@ -73,6 +73,14 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   // v118: welke mailsoorten dit project mag versturen (campaign_mail_services.mail_types).
   // Alleen soorten die de gekozen bron kent; de eerste is de standaardkeuze (mail_type).
   const [mailTypes, setMailTypes] = useState([])
+  // v119: webhook, token en body-template per project. De token staat in
+  // campaign_mail_secrets (alleen admin mag die tabel lezen/schrijven) en wordt
+  // nooit teruggelezen in dit scherm: leeg laten = ongewijzigd.
+  const [mailWebhookUrl, setMailWebhookUrl] = useState('')
+  const [mailStopUrl, setMailStopUrl] = useState('')
+  const [mailTemplate, setMailTemplate] = useState('')
+  const [mailToken, setMailToken] = useState('')
+  const [mailTokenBestaat, setMailTokenBestaat] = useState(false)
   const [mailRowExists, setMailRowExists] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -126,9 +134,10 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       supabase.from('campaign_managers').select('manager_id').eq('campaign_id', campaign.id),
       supabase.from('campaign_teams').select('team_id').eq('campaign_id', campaign.id),
       supabase.from('campaign_tools').select('tool_key').eq('campaign_id', campaign.id),
-      supabase.from('campaign_mail_services').select('enabled, source, mail_type, mail_types, follow_up_days').eq('campaign_id', campaign.id).maybeSingle(),
+      supabase.from('campaign_mail_services').select('enabled, source, mail_type, mail_types, follow_up_days, webhook_url, stop_url, body_template').eq('campaign_id', campaign.id).maybeSingle(),
+      supabase.from('campaign_mail_secrets').select('campaign_id').eq('campaign_id', campaign.id).maybeSingle(),
       supabase.from('campaigns').select('doelgroep, rechtsvorm_modus, compliance_checklist, compliance_ok_at').eq('id', campaign.id).maybeSingle()
-    ]).then(([mRes, tRes, toolRes, mailRes, compRes]) => {
+    ]).then(([mRes, tRes, toolRes, mailRes, secretRes, compRes]) => {
       const comp = {
         doelgroep: compRes.data?.doelgroep || null,
         rechtsvorm_modus: compRes.data?.rechtsvorm_modus || 'waarschuwen',
@@ -148,6 +157,11 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       const kent = mailTypesVanBron(bron).map(t => t.key)
       const opgeslagen = (Array.isArray(svc?.mail_types) ? svc.mail_types : [svc?.mail_type].filter(Boolean)).filter(k => kent.includes(k))
       setMailTypes(opgeslagen.length ? opgeslagen : kent)
+      setMailWebhookUrl(svc?.webhook_url || '')
+      setMailStopUrl(svc?.stop_url || '')
+      setMailTemplate(svc?.body_template ? JSON.stringify(svc.body_template, null, 2) : '')
+      setMailToken('')
+      setMailTokenBestaat(!!secretRes.data)
       setLoading(false)
     })
   }, [isOpen, campaign?.id])
@@ -288,6 +302,20 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
         if (mailEnabled && !gekozenSoorten.length) throw new Error('Kies minstens een mailsoort voor de Mailingservice')
         const soorten = gekozenSoorten.length ? gekozenSoorten : kent
         const days = Math.min(60, Math.max(1, Number(mailFollowUpDays) || 5))
+        const webhookUrl = (mailWebhookUrl || '').trim()
+        const stopUrl = (mailStopUrl || '').trim()
+        for (const [label, u] of [['Webhook-URL', webhookUrl], ['Stop-URL', stopUrl]]) {
+          if (u && !/^https:\/\/[a-z0-9.-]+\.[a-z]{2,}(\/|$)/i.test(u)) throw new Error(`${label} moet beginnen met https:// en een gewone domeinnaam hebben`)
+        }
+        let template = null
+        if ((mailTemplate || '').trim()) {
+          try {
+            template = JSON.parse(mailTemplate)
+          } catch {
+            throw new Error('De body-template is geen geldige JSON')
+          }
+          if (!template || typeof template !== 'object' || Array.isArray(template)) throw new Error('De body-template moet een JSON-object zijn, dus beginnen met {')
+        }
         const { data: { user } } = await supabase.auth.getUser()
         const { error } = await supabase.from('campaign_mail_services').upsert({
           campaign_id: campaign.id,
@@ -295,11 +323,28 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
           source: bron,
           mail_type: soorten[0],
           mail_types: soorten,
+          webhook_url: webhookUrl || null,
+          stop_url: stopUrl || null,
+          body_template: template,
           follow_up_days: days,
           updated_at: new Date().toISOString(),
           updated_by: user?.id || null
         }, { onConflict: 'campaign_id' })
         if (error) throw error
+
+        // Token alleen wegschrijven als er een nieuwe is ingevuld; leeg = laten staan.
+        const token = (mailToken || '').trim()
+        if (token) {
+          const { error: tokenFout } = await supabase.from('campaign_mail_secrets').upsert({
+            campaign_id: campaign.id,
+            token,
+            updated_at: new Date().toISOString(),
+            updated_by: user?.id || null
+          }, { onConflict: 'campaign_id' })
+          if (tokenFout) throw tokenFout
+          setMailToken('')
+          setMailTokenBestaat(true)
+        }
       }
 
       toast('Projectinstellingen opgeslagen', 'success')
@@ -546,6 +591,73 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
                         emptyText="Deze bron heeft geen mailsoorten."
                       />
                       <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>De bovenste aangevinkte soort in deze lijst is de standaardkeuze in de popup.</p>
+                    </div>
+
+                    <div style={{ flex: '1 1 100%', borderTop: '1px solid var(--border)', paddingTop: '10px' }}>
+                      <span className="text-muted" style={{ fontSize: '0.75rem', display: 'block', marginBottom: '6px' }}>
+                        Webhook van de bron (leeg = de oude instelling uit Supabase secrets)
+                      </span>
+                      <input
+                        type="url"
+                        value={mailWebhookUrl}
+                        onChange={e => setMailWebhookUrl(e.target.value)}
+                        placeholder="https://bron.nl/api/mail"
+                        className="form-dark w-full"
+                        style={{ marginBottom: '8px' }}
+                      />
+                      <input
+                        type="url"
+                        value={mailStopUrl}
+                        onChange={e => setMailStopUrl(e.target.value)}
+                        placeholder="Stop-URL, leeg = dezelfde URL met /stop"
+                        className="form-dark w-full"
+                        style={{ marginBottom: '8px' }}
+                      />
+                      <input
+                        type="password"
+                        value={mailToken}
+                        onChange={e => setMailToken(e.target.value)}
+                        autoComplete="new-password"
+                        placeholder={mailTokenBestaat ? 'Token staat ingesteld - vul alleen in om hem te vervangen' : 'Token (gaat mee als Authorization: Bearer ...)'}
+                        className="form-dark w-full"
+                      />
+                      <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>
+                        De token wordt na opslaan nooit meer getoond en is alleen voor admins. Alleen https-adressen.
+                      </p>
+                    </div>
+
+                    <div style={{ flex: '1 1 100%' }}>
+                      <span className="text-muted" style={{ fontSize: '0.75rem', display: 'block', marginBottom: '4px' }}>Body-template (JSON die naar de webhook gaat)</span>
+                      <textarea
+                        value={mailTemplate}
+                        onChange={e => setMailTemplate(e.target.value)}
+                        rows={10}
+                        spellCheck={false}
+                        placeholder={'{\n  "mail": "{{mail}}",\n  "email": "{{email}}"\n}'}
+                        className="form-dark w-full"
+                        style={{ fontFamily: 'ui-monospace, monospace', fontSize: '0.78rem' }}
+                      />
+                      <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>
+                        Te gebruiken velden: {'{{mail}} {{lead_id}} {{email}} {{bedrijfsnaam}} {{contactpersoon}} {{stad}} {{website}} {{telefoon}} {{beller_naam}} {{beller_telefoon}} {{bron}}'}.
+                        Een veld dat leeg is bij deze lead valt automatisch uit de body. Leeg laten = de standaard body.
+                      </p>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline"
+                        style={{ marginTop: '8px' }}
+                        onClick={() => setMailTemplate(JSON.stringify({
+                          mail: '{{mail}}',
+                          lead_id: '{{lead_id}}',
+                          email: '{{email}}',
+                          bedrijfsnaam: '{{bedrijfsnaam}}',
+                          contactpersoon: '{{contactpersoon}}',
+                          stad: '{{stad}}',
+                          website: '{{website}}',
+                          beller: { naam: '{{beller_naam}}', telefoon: '{{beller_telefoon}}' }
+                        }, null, 2))}
+                      >
+                        Standaard template terugzetten
+                      </button>
                     </div>
                   </div>
                 )}

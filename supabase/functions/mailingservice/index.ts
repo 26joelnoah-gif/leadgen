@@ -4,14 +4,20 @@
 // useLeads.handleLeadDisposition, dispositie-logica blijft daar).
 //
 // Bron per project: public.campaign_mail_services.source (bijv. MARKETINGKIEZER).
-// URL en sleutel van een bron staan ALLEEN in Supabase secrets:
-//   MAILSERVICE_<SOURCE>_URL   bijv. https://marketingkiezer.nl/api/leadgen/mail
-//   MAILSERVICE_<SOURCE>_KEY   zelfde waarde als LEADGEN_API_KEY bij de bron
-// De inhoud van de mail bepaalt de bron zelf; ReachConnect kent de tekst niet.
+// v119: webhook-URL en body-template staan bij het project zelf
+// (campaign_mail_services.webhook_url / .body_template), de token apart in
+// public.campaign_mail_secrets - die tabel mag alleen een admin lezen, en de
+// Edge Function leest hem met de service role. Leeg = terugval op de oude
+// secrets MAILSERVICE_<SOURCE>_URL / _KEY, zodat bestaande koppelingen blijven
+// werken. De inhoud van de mail bepaalt de bron zelf.
 //
-// Contract naar de bron (POST, Authorization: Bearer <KEY>):
+// Standaard body naar de bron (POST, Authorization: Bearer <token>):
 //   { mail, email, bedrijfsnaam, contactpersoon?, stad?, website?,
 //     beller: { naam, telefoon? }, lead_id }
+// Een eigen template mag elke JSON zijn met {{mail}} {{lead_id}} {{email}}
+// {{bedrijfsnaam}} {{contactpersoon}} {{stad}} {{website}} {{telefoon}}
+// {{beller_naam}} {{beller_telefoon}} {{bron}}. Een veld dat leeg is bij deze
+// lead valt uit de body.
 //
 // body van het belscherm: { lead_id, email, contactpersoon?, mail?, beller_naam?, queue_id? }
 // v83: rijen met status 'fout' (automatisch versturen mislukte) mogen ook
@@ -39,6 +45,44 @@ const MAILSOORT_RE = /^[a-z][a-z0-9_]{1,39}$/;
 function kort(v: unknown, max: number): string | undefined {
   const s = typeof v === "string" ? v.trim() : "";
   return s ? s.slice(0, max) : undefined;
+}
+
+// v119: alleen https, geen kale IP-adressen of interne namen. De URL komt uit
+// de projectinstellingen, dus dit is de rem op "laat de server maar bellen".
+function veiligeUrl(u: string): boolean {
+  try {
+    const x = new URL(u);
+    if (x.protocol !== "https:") return false;
+    const h = x.hostname.toLowerCase();
+    if (h === "localhost" || h.endsWith(".local") || h.endsWith(".internal")) return false;
+    if (/^[0-9.]+$/.test(h) || h.includes(":")) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// v119: body uit de template van het project. {{veld}} wordt vervangen; een
+// waarde die ALLEEN uit een lege placeholder bestaat valt helemaal weg, zodat
+// optionele velden niet als lege tekst meegaan. Geen template = oude vaste body.
+function vulTemplate(tpl: unknown, velden: Record<string, string | undefined>): unknown {
+  if (typeof tpl === "string") {
+    const alleen = tpl.match(/^\{\{\s*([a-z_]{1,40})\s*\}\}$/);
+    if (alleen) return velden[alleen[1]] ?? null;
+    return tpl.replace(/\{\{\s*([a-z_]{1,40})\s*\}\}/g, (_m, k) => velden[k] ?? "");
+  }
+  if (Array.isArray(tpl)) return tpl.map((v) => vulTemplate(v, velden)).filter((v) => v !== null && v !== "");
+  if (tpl && typeof tpl === "object") {
+    const uit: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(tpl as Record<string, unknown>)) {
+      const w = vulTemplate(v, velden);
+      if (w === null || w === undefined || w === "") continue;
+      if (typeof w === "object" && !Array.isArray(w) && Object.keys(w as Record<string, unknown>).length === 0) continue;
+      uit[k] = w;
+    }
+    return uit;
+  }
+  return tpl;
 }
 
 Deno.serve(async (req: Request) => {
@@ -106,7 +150,7 @@ Deno.serve(async (req: Request) => {
     // Toegang tot de lead = de beller kan hem zien via RLS (zelfde regels als het belscherm).
     const { data: lead } = await userClient
       .from("leads")
-      .select("id, name, city, website, status, lead_list_id, organization_id, deleted_at")
+      .select("id, name, phone, city, website, status, lead_list_id, organization_id, deleted_at")
       .eq("id", leadId)
       .maybeSingle();
     if (!lead || lead.deleted_at) return json({ error: "Lead niet gevonden" }, 404);
@@ -121,7 +165,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: svc } = await admin
       .from("campaign_mail_services")
-      .select("enabled, source, mail_type, mail_types, follow_up_days")
+      .select("enabled, source, mail_type, mail_types, follow_up_days, webhook_url, body_template")
       .eq("campaign_id", list.campaign_id)
       .maybeSingle();
     if (!svc?.enabled) return json({ error: "Mailingservice staat niet aan voor dit project" }, 403);
@@ -136,10 +180,16 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Deze mailsoort staat niet aan voor dit project" }, 400);
     }
 
-    const bronUrl = Deno.env.get(`MAILSERVICE_${svc.source}_URL`) || "";
-    const bronKey = Deno.env.get(`MAILSERVICE_${svc.source}_KEY`) || "";
-    if (!bronUrl.startsWith("https://") || bronKey.length < 32) {
-      return json({ error: `Bron ${svc.source} is nog niet ingesteld (Supabase secrets)` }, 503);
+    // v119: URL en token staan bij het project zelf (campaign_mail_services +
+    // campaign_mail_secrets, dat laatste alleen leesbaar voor admin). Niets
+    // ingevuld = terugval op de oude Supabase secrets, zodat bestaande
+    // koppelingen blijven werken tijdens de overgang.
+    const { data: geheim } = await admin
+      .from("campaign_mail_secrets").select("token").eq("campaign_id", list.campaign_id).maybeSingle();
+    const bronUrl = (svc.webhook_url || Deno.env.get(`MAILSERVICE_${svc.source}_URL`) || "").trim();
+    const bronKey = (geheim?.token || Deno.env.get(`MAILSERVICE_${svc.source}_KEY`) || "").trim();
+    if (!veiligeUrl(bronUrl) || bronKey.length < 8) {
+      return json({ error: `Bron ${svc.source} is nog niet ingesteld (webhook-URL of token ontbreekt)` }, 503);
     }
 
     // Rem: max gelukte mails per beller per uur, en niet twee keer per dag
@@ -157,19 +207,34 @@ Deno.serve(async (req: Request) => {
       .eq("lead_id", lead.id).eq("mail_type", mailSoort).eq("ok", true).gte("created_at", dagGeleden);
     if ((dezeLead ?? 0) > 0) return json({ error: "Deze lead heeft deze mail de afgelopen 24 uur al gekregen" }, 409);
 
-    const payload = {
+    const velden: Record<string, string | undefined> = {
       mail: mailSoort,
+      lead_id: lead.id,
       email,
       bedrijfsnaam: String(lead.name || "").trim().slice(0, 120) || email,
-      ...(contactpersoon ? { contactpersoon } : {}),
-      ...(kort(lead.city, 80) ? { stad: kort(lead.city, 80) } : {}),
-      ...(kort(lead.website, 200) ? { website: kort(lead.website, 200) } : {}),
-      beller: {
-        naam: bellerNaam || kort(caller.full_name, 100) || String(caller.email || "").split("@")[0] || "Team",
-        ...(kort(caller.phone, 30) ? { telefoon: kort(caller.phone, 30) } : {}),
-      },
-      lead_id: lead.id,
+      contactpersoon,
+      stad: kort(lead.city, 80),
+      website: kort(lead.website, 200),
+      telefoon: kort(lead.phone, 30),
+      beller_naam: bellerNaam || kort(caller.full_name, 100) || String(caller.email || "").split("@")[0] || "Team",
+      beller_telefoon: kort(caller.phone, 30),
+      bron: svc.source,
     };
+    const payload = svc.body_template
+      ? vulTemplate(svc.body_template, velden)
+      : {
+        mail: velden.mail,
+        email: velden.email,
+        bedrijfsnaam: velden.bedrijfsnaam,
+        ...(velden.contactpersoon ? { contactpersoon: velden.contactpersoon } : {}),
+        ...(velden.stad ? { stad: velden.stad } : {}),
+        ...(velden.website ? { website: velden.website } : {}),
+        beller: {
+          naam: velden.beller_naam,
+          ...(velden.beller_telefoon ? { telefoon: velden.beller_telefoon } : {}),
+        },
+        lead_id: velden.lead_id,
+      };
 
     let ok = false;
     let status = 502;

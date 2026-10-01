@@ -6,10 +6,10 @@
 // MarketingKiezer vijf dagen na de infomail alsnog een opvolgmail naar een
 // bureau dat aan de telefoon nee heeft gezegd.
 //
-// URL en sleutel komen uit dezelfde secrets als de Mailingservice:
-//   MAILSERVICE_<SOURCE>_URL   bijv. https://marketingkiezer.nl/api/leadgen/mail
-//   MAILSERVICE_<SOURCE>_KEY
-// De stop-route van de bron is hetzelfde pad met /stop in plaats van /mail.
+// v119: stop-URL en token staan bij het project zelf (campaign_mail_services
+// .stop_url en campaign_mail_secrets.token). Geen eigen stop-URL ingevuld? Dan
+// leiden we hem af van de webhook-URL (.../mail -> .../stop). Niets ingevuld =
+// terugval op de oude secrets MAILSERVICE_<SOURCE>_URL / _KEY.
 //
 // body: { lead_id, reden? }
 // Antwoordt altijd 200 zodra de lead bestaat: een afboeking mag nooit
@@ -77,15 +77,22 @@ Deno.serve(async (req: Request) => {
 
     const { data: svc } = await admin
       .from("campaign_mail_services")
-      .select("enabled, source")
+      .select("enabled, source, webhook_url, stop_url")
       .eq("campaign_id", list.campaign_id)
       .maybeSingle();
     if (!svc?.source) return json({ ok: true, gestopt: 0, reden: "geen mailingservice" });
 
-    const bronUrl = Deno.env.get(`MAILSERVICE_${svc.source}_URL`) || "";
-    const bronKey = Deno.env.get(`MAILSERVICE_${svc.source}_KEY`) || "";
-    if (!bronUrl.startsWith("https://") || bronKey.length < 32) {
-      return json({ ok: false, error: `Bron ${svc.source} is nog niet ingesteld (Supabase secrets)` }, 503);
+    // v119: stop-URL en token staan bij het project (campaign_mail_services +
+    // campaign_mail_secrets). Geen eigen stop-URL? Dan leiden we hem af van de
+    // mail-URL (.../mail -> .../stop), net als voorheen. Niets ingevuld =
+    // terugval op de oude Supabase secrets.
+    const { data: geheim } = await admin
+      .from("campaign_mail_secrets").select("token").eq("campaign_id", list.campaign_id).maybeSingle();
+    const mailUrl = (svc.webhook_url || Deno.env.get(`MAILSERVICE_${svc.source}_URL`) || "").trim();
+    const bronUrl = (svc.stop_url || stopUrlVan(mailUrl)).trim();
+    const bronKey = (geheim?.token || Deno.env.get(`MAILSERVICE_${svc.source}_KEY`) || "").trim();
+    if (!bronUrl.startsWith("https://") || bronKey.length < 8) {
+      return json({ ok: false, error: `Bron ${svc.source} is nog niet ingesteld (stop-URL of token ontbreekt)` }, 503);
     }
 
     const payload = {
@@ -97,7 +104,7 @@ Deno.serve(async (req: Request) => {
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
-      const res = await fetch(stopUrlVan(bronUrl), {
+      const res = await fetch(bronUrl, {
         method: "POST",
         headers: { Authorization: `Bearer ${bronKey}`, "Content-Type": "application/json" },
         body: JSON.stringify(payload),
