@@ -4,15 +4,32 @@
 //   MAILSERVICE_<KEY>_URL en MAILSERVICE_<KEY>_KEY
 // Nieuwe bron = die twee secrets zetten + hier een regel. De tekst van de mail
 // beheert de bron zelf (voor MarketingKiezer: lib/leadgenMail.ts in die repo).
+// v118: elke bron kent zijn eigen mailsoorten (types). BeautyInfo kent geen
+// infomail, alleen een aanmeldmail en een herinnering. Welke soorten een
+// project daarvan gebruikt staat in campaign_mail_services.mail_types.
 export const MAIL_SOURCES = [
   {
     key: 'MARKETINGKIEZER',
     label: 'MarketingKiezer',
     description: 'Intro-mail van MarketingKiezer met een link naar de pagina voor bureaus.',
+    types: ['introductie', 'aanmelding', 'opvolging'],
+  },
+  {
+    key: 'BEAUTYINFO',
+    label: 'BeautyInfo',
+    description: 'Aanmeldmail van BeautyInfo waarmee een beautyzaak zich direct kan aansluiten en afrekenen.',
+    types: ['aanmelding', 'opvolging'],
   },
 ]
 
 export const mailSourceLabel = (key) => MAIL_SOURCES.find(s => s.key === key)?.label || key
+
+// Welke mailsoorten deze bron kent. Bron zonder lijst = alle soorten.
+export const mailTypesVanBron = (key) => {
+  const bron = MAIL_SOURCES.find(s => s.key === key)
+  const sleutels = Array.isArray(bron?.types) && bron.types.length ? bron.types : MAIL_TYPES.map(t => t.key)
+  return MAIL_TYPES.filter(t => sleutels.includes(t.key))
+}
 
 // v70: mailsoorten die de beller in het belscherm kan kiezen. De sleutel gaat
 // als 'mail' mee naar de Edge Function mailingservice en van daar naar de bron;

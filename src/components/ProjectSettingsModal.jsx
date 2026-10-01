@@ -4,7 +4,7 @@ import { X, Settings, Check, Trash2, Pause, Play, Layers } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useToast } from './Toast'
 import { TOOLS } from '../lib/tools'
-import { MAIL_SOURCES } from '../lib/mailSources'
+import { MAIL_SOURCES, mailTypesVanBron } from '../lib/mailSources'
 import ComplianceChecklist, { checklistCompleet } from './ComplianceChecklist'
 import { useChecklistSearch } from './PersonSelect' // v102
 import { SALES_DISPOSITION_KEYS } from '../lib/dispositions' // v104
@@ -70,6 +70,9 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   const [mailEnabled, setMailEnabled] = useState(false)
   const [mailSource, setMailSource] = useState(MAIL_SOURCES[0]?.key || '')
   const [mailFollowUpDays, setMailFollowUpDays] = useState(5)
+  // v118: welke mailsoorten dit project mag versturen (campaign_mail_services.mail_types).
+  // Alleen soorten die de gekozen bron kent; de eerste is de standaardkeuze (mail_type).
+  const [mailTypes, setMailTypes] = useState([])
   const [mailRowExists, setMailRowExists] = useState(false)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -123,7 +126,7 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       supabase.from('campaign_managers').select('manager_id').eq('campaign_id', campaign.id),
       supabase.from('campaign_teams').select('team_id').eq('campaign_id', campaign.id),
       supabase.from('campaign_tools').select('tool_key').eq('campaign_id', campaign.id),
-      supabase.from('campaign_mail_services').select('enabled, source, follow_up_days').eq('campaign_id', campaign.id).maybeSingle(),
+      supabase.from('campaign_mail_services').select('enabled, source, mail_type, mail_types, follow_up_days').eq('campaign_id', campaign.id).maybeSingle(),
       supabase.from('campaigns').select('doelgroep, rechtsvorm_modus, compliance_checklist, compliance_ok_at').eq('id', campaign.id).maybeSingle()
     ]).then(([mRes, tRes, toolRes, mailRes, compRes]) => {
       const comp = {
@@ -139,8 +142,12 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       const svc = mailRes.data
       setMailRowExists(!!svc)
       setMailEnabled(svc?.enabled === true)
-      setMailSource(svc?.source || MAIL_SOURCES[0]?.key || '')
+      const bron = svc?.source || MAIL_SOURCES[0]?.key || ''
+      setMailSource(bron)
       setMailFollowUpDays(svc?.follow_up_days || 5)
+      const kent = mailTypesVanBron(bron).map(t => t.key)
+      const opgeslagen = (Array.isArray(svc?.mail_types) ? svc.mail_types : [svc?.mail_type].filter(Boolean)).filter(k => kent.includes(k))
+      setMailTypes(opgeslagen.length ? opgeslagen : kent)
       setLoading(false)
     })
   }, [isOpen, campaign?.id])
@@ -155,6 +162,10 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   function toggleTeam(id) {
     setSelectedTeams(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
+  function toggleMailType(key) {
+    setMailTypes(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
+  }
+
   function toggleTool(key) {
     setSelectedTools(prev => prev.includes(key) ? prev.filter(x => x !== key) : [...prev, key])
   }
@@ -271,12 +282,19 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       // v69: Mailingservice - alleen wegschrijven als hij aan staat of al bestond
       if (mailEnabled || mailRowExists) {
         if (mailEnabled && !mailSource) throw new Error('Kies een bron voor de Mailingservice')
+        const bron = mailSource || MAIL_SOURCES[0]?.key
+        const kent = mailTypesVanBron(bron).map(t => t.key)
+        const gekozenSoorten = kent.filter(k => (mailTypes || []).includes(k)) // vaste volgorde: eerste = standaardkeuze
+        if (mailEnabled && !gekozenSoorten.length) throw new Error('Kies minstens een mailsoort voor de Mailingservice')
+        const soorten = gekozenSoorten.length ? gekozenSoorten : kent
         const days = Math.min(60, Math.max(1, Number(mailFollowUpDays) || 5))
         const { data: { user } } = await supabase.auth.getUser()
         const { error } = await supabase.from('campaign_mail_services').upsert({
           campaign_id: campaign.id,
           enabled: mailEnabled,
-          source: mailSource || MAIL_SOURCES[0]?.key,
+          source: bron,
+          mail_type: soorten[0],
+          mail_types: soorten,
           follow_up_days: days,
           updated_at: new Date().toISOString(),
           updated_by: user?.id || null
@@ -511,13 +529,23 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '10px' }}>
                     <div style={{ flex: '1 1 200px' }}>
                       <span className="text-muted" style={{ fontSize: '0.75rem', display: 'block', marginBottom: '4px' }}>Bron (waar de mail vandaan komt)</span>
-                      <select value={mailSource} onChange={e => setMailSource(e.target.value)} className="form-dark w-full">
+                      <select value={mailSource} onChange={e => { setMailSource(e.target.value); setMailTypes(mailTypesVanBron(e.target.value).map(t => t.key)) }} className="form-dark w-full">
                         {MAIL_SOURCES.map(src => <option key={src.key} value={src.key}>{src.label}</option>)}
                       </select>
                     </div>
                     <div style={{ flex: '0 1 140px' }}>
                       <span className="text-muted" style={{ fontSize: '0.75rem', display: 'block', marginBottom: '4px' }}>Opvolgen na (dagen)</span>
                       <input type="number" min={1} max={60} value={mailFollowUpDays} onChange={e => setMailFollowUpDays(e.target.value)} className="form-dark w-full" />
+                    </div>
+                    <div style={{ flex: '1 1 100%' }}>
+                      <span className="text-muted" style={{ fontSize: '0.75rem', display: 'block', marginBottom: '4px' }}>Welke mails mag de beller sturen?</span>
+                      <CheckList
+                        items={mailTypesVanBron(mailSource).map(t => ({ id: t.key, label: t.label }))}
+                        selected={mailTypes}
+                        onToggle={toggleMailType}
+                        emptyText="Deze bron heeft geen mailsoorten."
+                      />
+                      <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>De bovenste aangevinkte soort in deze lijst is de standaardkeuze in de popup.</p>
                     </div>
                   </div>
                 )}

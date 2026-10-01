@@ -681,3 +681,24 @@ Twee-zijdig platform:
      het weer uit te zetten). Bij een ingelogde gebruiker wachten we op het
      profiel, anders ziet een admin eerst even de melding.
   Migratie: migration_v117_onderhoud.sql.
+
+- **TWEEDE MAILBRON: BEAUTYINFO (v118, 2026-10-01, migratie toegepast):** de
+  Mailingservice werkt nu ook voor het project BEAUTYINFO. Er is GEEN nieuwe
+  code in de Edge Functions nodig: mailingservice, mailqueue-runner en mailstop
+  lezen de bron uit campaign_mail_services.source en halen URL + sleutel uit de
+  secrets MAILSERVICE_<BRON>_URL / _KEY. Voor BeautyInfo:
+  MAILSERVICE_BEAUTYINFO_URL = https://beautyinfo.nl/api/reachconnect/mail
+  (mailstop maakt daar zelf .../stop van).
+  1. src/lib/mailSources.js: bron BEAUTYINFO erbij, en elke bron heeft nu een
+     eigen lijstje `types` met de mailsoorten die hij kent. BeautyInfo kent
+     alleen 'aanmelding' (aanmeldmail met afrekenlink) en 'opvolging'
+     (herinnering), geen infomail. Helper: mailTypesVanBron(bronsleutel).
+     REGEL: nieuwe bron = regel hier + die twee secrets, verder niets.
+  2. ProjectSettingsModal: mail_types is eindelijk in te stellen per project
+     (vinkjes, beperkt tot wat de bron kent). Van bron wisselen zet de vinkjes
+     op alle soorten van die bron. De eerste aangevinkte soort in de volgorde
+     van de bron wordt mail_type (de standaardkeuze in de popup).
+  3. Terugkoppeling: BeautyInfo post naar dezelfde Edge Function mailstatus,
+     met "source": "BEAUTYINFO" in de body en de sleutel uit MAILSTATUS_KEY.
+     Zonder source gaat mailstatus uit van MARKETINGKIEZER.
+  Migratie: migration_v118_mailbron_beautyinfo.sql.
