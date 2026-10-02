@@ -775,3 +775,47 @@ Twee-zijdig platform:
   Mailinglijst (MailQueueView) gaat hetzelfde blok naar de console, want in een
   toast past het niet. De testknop in de projectinstellingen toont nu ook de
   headers, niet alleen de body.
+
+- **STATUSUPDATES VAN BEAUTYINFO (v122, 2026-10-02, migratie toegepast,
+  mailstatus v14 live):** BeautyInfo stuurt vanaf nu 19 statusupdates per
+  gemailde lead (spec van 02-10) naar de bestaande Edge Function `mailstatus`:
+  `{ lead_id, status, event_id, occurred_at, stage, details }`. Callback-URL
+  voor hen: `https://zboyxwwrbtpjnlgquhzs.supabase.co/functions/v1/mailstatus?source=BEAUTYINFO`
+  met `Authorization: Bearer <MAILSTATUS_KEY>` (zelfde sleutel als eerder).
+  1. Herkenning nieuw formaat = er zit een `event_id` in. Dan: `source` ook uit
+     `?source=` in de URL, `occurred_at` = tijd van de stap, ALTIJD 200 (ook bij
+     onbekende lead, status "test" of rare body), alleen een verkeerde sleutel
+     geeft 401. Synoniemen (o.a. `geopend` = offerte open) gelden ALLEEN voor
+     het oude MK-formaat; bij BeautyInfo is `geopend` = mail geopend (rang 1).
+  2. `public.lead_mail_events`: elke update ruw (uniek op source + event_id ->
+     herhaalpoging = `{dubbel:true}`, niets opnieuw). RLS: lezen binnen org,
+     alleen service role schrijft. Realtime aan.
+  3. `lead_mail_status` erbij: `laatste_event(_op)` (nieuwste op occurred_at),
+     `fase` (mail|bezoek|betaling|klant|einde), `pagina_actief_op` /
+     `pagina_verlaten_op` (live = actief > verlaten, UI vangnet 15 min),
+     `actie_nodig(_op)` (bounced, mail_mislukt, spam_melding, checkout_verlaten,
+     betaling_mislukt, abonnement_opgezegd; een latere gewone stap wist hem).
+     Funnel (status_rank 1-5) blijft: `checkout_gestart` = rang 3 (zelfde
+     warmte als offerte_open), `pagina_bekeken/actief/verlaten` = rang 2,
+     `bezorgd/geopend/herinnering_verstuurd` = rang 1, `welkomstmail_verstuurd`
+     en `abonnement_verlengd` = rang 5. Tabel EVENTS in de functie.
+  4. `afgemeld` in het nieuwe formaat = echo van ONZE /stop-aanroep (beller
+     zette geen interesse), dus GEEN blokkeer_lead en geen wissen; alleen
+     vastleggen (fase einde). In het oude formaat blijft afgemeld een echte
+     afmelding (v98). REGEL: nooit een status van een bron blind op de
+     afmeldlijst zetten; eerst kijken wie de stap veroorzaakte.
+  5. Meldingen (notifications): `lead_warm` bij checkout_gestart (eerste keer)
+     en bij de overgang naar pagina_actief (max 1x per 20 min per lead);
+     `mail_actie` bij een nieuwe terugbel-vlag; `mailstatus_onbekend` max 1x
+     per lead + status (was: elke keer).
+  6. UI (src/components/MailStatus.jsx): voortgangsbalk Mail > Bezoek >
+     Betaling > Klant (MailFaseBalk), chip "Nu op de pagina" (MailLiveChip,
+     .ms-live in polish.css), rode chip "Terugbellen: ..." (MailActieChip),
+     tijdlijn uit lead_mail_events op de contactkaart (useMailEvents). Bord
+     (LeadBoard.jsx): warm = rang 3 OF live op de pagina; signaal "Bel nu:
+     klant is op de pagina" / "Bel nu: bij het betalen"; terugbel-chip.
+  Niet getest met de echte sleutel vanuit Cowork (geen netwerk naar Supabase);
+  de 401-route is via pg_net gecontroleerd. Migratie:
+  migration_v122_mail_events_beautyinfo.sql (uitgevoerd in losse statements,
+  de MCP-tool liep vast op de FK naar leads in een batch; FK is daarom eerst
+  NOT VALID aangemaakt en daarna gevalideerd).

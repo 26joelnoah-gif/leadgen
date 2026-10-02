@@ -15,7 +15,7 @@ import { SENTIMENTS } from '../lib/appointments'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
 import { stopMailsVoorLead } from '../lib/mailStop'
 import { logBoardAction } from '../lib/boardLog' // v103
-import { MAIL_STATUS } from '../components/MailStatus'
+import { MAIL_STATUS, isLiveOpPagina, mailActieLabel } from '../components/MailStatus'
 import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import EmptyState from '../components/EmptyState'
@@ -294,7 +294,7 @@ export default function LeadBoard() {
     const stukken = []
     for (let i = 0; i < ids.length; i += 150) stukken.push(ids.slice(i, i + 150))
     Promise.all(stukken.map(deel => supabase.from('lead_mail_status')
-      .select('lead_id, source, mail_soort, status, status_rank, status_op, gemaild_op, offerte_url')
+      .select('lead_id, source, mail_soort, status, status_rank, status_op, gemaild_op, offerte_url, laatste_event, fase, pagina_actief_op, pagina_verlaten_op, actie_nodig')
       .in('lead_id', deel)))
       .then(results => {
         if (!alive) return
@@ -653,9 +653,13 @@ export default function LeadBoard() {
   // dat laat alleen de neutrale chip "Link geklikt" zien (mailInfo hieronder),
   // want iemand die klikte maar niet doorging naar de offerte hoeft nog geen
   // "bel nu"-behandeling. Getekend/betaald (rang 4/5) is geen belmoment meer.
+  // v122 (BeautyInfo): rang 3 is daar "bij het betalen" (checkout_gestart), en
+  // "klant is NU op de aanmeldpagina" (pagina_actief zonder pagina_verlaten,
+  // max 15 min oud) telt ook als warm. Beide zijn de beste belmomenten.
   const isWarm = useCallback((lead) => {
-    const r = mailRows[lead.id]?.status_rank || 0
-    return r === 3 && !DONE_STATUSES.includes(lead.status)
+    const m = mailRows[lead.id]
+    if (!m || DONE_STATUSES.includes(lead.status)) return false
+    return (m.status_rank || 0) === 3 || isLiveOpPagina(m)
   }, [mailRows])
 
   // Wat vraagt om actie op deze lead?
@@ -673,7 +677,14 @@ export default function LeadBoard() {
     }
     const mail = mailRows[lead.id]
     if (isWarm(lead)) {
-      out.push({ label: 'Bel nu: offerte open', color: '#fff', bg: 'var(--secondary)', warm: true })
+      const live = isLiveOpPagina(mail)
+      const label = live ? 'Bel nu: klant is op de pagina'
+        : mail?.source === 'BEAUTYINFO' ? 'Bel nu: bij het betalen' : 'Bel nu: offerte open'
+      out.push({ label, color: '#fff', bg: 'var(--secondary)', warm: true })
+    }
+    // v122: terugbel-vlag van de bron (mail gebounced, betaling mislukt, ...)
+    if (mail?.actie_nodig && !DONE_STATUSES.includes(lead.status)) {
+      out.push({ label: `Terugbellen: ${mailActieLabel(mail.actie_nodig)}`, color: 'var(--danger)', bg: 'var(--danger-bg)' })
     }
     if (isFollowUpDue(lead) && !DONE_STATUSES.includes(lead.status)) {
       out.push({ label: lead.status === 'mail_verstuurd' ? 'Opvolgen na mail' : 'Opvolgen', color: 'var(--warning)', bg: 'var(--warning-bg)' })
@@ -962,7 +973,7 @@ export default function LeadBoard() {
                       type="button"
                       onClick={() => setFilter(k)}
                       className={`lb-pill${filter === k ? ' is-active' : ''}${k === 'warm' && warmCount > 0 && filter !== 'warm' ? ' is-warm' : ''}`}
-                      title={k === 'warm' ? 'Leads die de offerte openden. Die bel je eerst.' : undefined}
+                      title={k === 'warm' ? 'Leads die de offerte openden, bij het betalen zijn of nu op de aanmeldpagina staan. Die bel je eerst.' : undefined}
                     >
                       {k === 'warm' && <Flame size={12} />} {label}
                     </button>
@@ -999,7 +1010,7 @@ export default function LeadBoard() {
             <div className="flex items-center mb-2" style={{ gap: 12, flexWrap: 'wrap', fontSize: '0.8rem' }}>
               {warmCount > 0 && (
                 <span style={{ color: 'var(--secondary)', fontWeight: 800 }}>
-                  <Flame size={12} style={{ verticalAlign: -2 }} /> {warmCount} warme lead{warmCount === 1 ? '' : 's'}: {warmCount === 1 ? 'heeft' : 'hebben'} je mail geopend of de offerte bekeken. Bel die eerst.
+                  <Flame size={12} style={{ verticalAlign: -2 }} /> {warmCount} warme lead{warmCount === 1 ? '' : 's'}: {warmCount === 1 ? 'is' : 'zijn'} nu op de pagina, bij het betalen of in de offerte. Bel die eerst.
                 </span>
               )}
               {filter === 'afgemeld' && (
@@ -1080,7 +1091,7 @@ export default function LeadBoard() {
                 height={Math.max(420, (typeof window !== 'undefined' ? window.innerHeight : 800) - 300)}
               />
             ) : visible.length === 0 ? (
-              <EmptyState icon={Inbox} title="Geen leads" message={filter === 'open' ? 'Alle leads in deze lijst zijn afgerond.' : filter === 'warm' ? 'Nog geen warme leads. Zodra een bureau de offerte opent, komt hij hier bovenaan.' : 'Niets gevonden.'} />
+              <EmptyState icon={Inbox} title="Geen leads" message={filter === 'open' ? 'Alle leads in deze lijst zijn afgerond.' : filter === 'warm' ? 'Nog geen warme leads. Zodra iemand de offerte opent, gaat betalen of op de aanmeldpagina staat, komt hij hier bovenaan.' : 'Niets gevonden.'} />
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {visible.map(lead => {
