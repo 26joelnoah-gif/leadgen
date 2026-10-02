@@ -481,8 +481,13 @@ Deno.serve(async (req: Request) => {
       status_op: vooruit ? statusOp : bestaand!.status_op,
       updated_at: new Date().toISOString(),
     };
-    // Datum van deze stap vastleggen (de eerste keer telt).
-    if (stap) rij[stap.kolom] = (oud?.[stap.kolom] as string | null) || statusOp;
+    // Datum van deze stap vastleggen: de VROEGSTE telt (v122: pagina_actief kan
+    // eerder binnenkomen dan de link_geklikt die ervoor zat; dan wint de oudste
+    // occurred_at, niet de eerste die wij ontvingen).
+    if (stap) {
+      const huidig = (oud?.[stap.kolom] as string | null) || null;
+      rij[stap.kolom] = huidig && huidig < statusOp ? huidig : statusOp;
+    }
     // Een latere stap betekent dat de stappen ervoor ook gebeurd zijn.
     for (const [naam, s] of Object.entries(STAPPEN)) {
       if (s.rang < rang && naam !== stapNaam) {
