@@ -4,7 +4,7 @@ import { Navigate, Link, useSearchParams } from 'react-router-dom'
 import {
   Plus, Phone, Search, X, UserPlus, Users, Clock, RefreshCw, ExternalLink,
   LayoutGrid, List as ListIcon, Download, Upload, AlertTriangle, Filter, Tag,
-  CalendarDays, ChevronLeft, ChevronRight, Gift
+  CalendarDays, ChevronLeft, ChevronRight, Gift, UserCog
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
@@ -24,7 +24,8 @@ import { useToast } from '../components/Toast'
 import PersonSelect from '../components/PersonSelect' // v102
 import { logBoardAction } from '../lib/boardLog' // v103
 import EmployeeModal from '../components/EmployeeModal' // v107
-import { maakAccount, magAccountsAanmaken, ROLLEN_ZONDER_ADMIN } from '../lib/accounts' // v107
+import { maakAccount, magAccountsAanmaken, rollenVoorMaker, magFunctiesWijzigen } from '../lib/accounts' // v107, v125
+import AccountFuncties from '../components/AccountFuncties' // v125
 
 // v36: recruiter-thuisbasis. Een sollicitant is gewoon een lead in het
 // (automatisch aangemaakte) recruitment-project van deze recruiter -
@@ -98,9 +99,11 @@ export default function Recruitment() {
   // (nav-link "Agenda" in de header).
   const [searchParams] = useSearchParams()
   // v58: 'referrals' is de vierde weergave (?view=referrals, nav-link "Referrals").
-  const VIEW_PARAMS = ['agenda', 'referrals']
+  // v125: 'accounts' is de vijfde weergave (?view=accounts): planning-accounts
+  // een functie geven. Alleen voor wie accounts mag aanmaken.
+  const VIEW_PARAMS = ['agenda', 'referrals', 'accounts']
   const initialView = VIEW_PARAMS.includes(searchParams.get('view')) ? searchParams.get('view') : 'board'
-  const [view, setView] = useState(initialView) // 'board' | 'list' | 'agenda' | 'referrals'
+  const [view, setView] = useState(initialView) // 'board' | 'list' | 'agenda' | 'referrals' | 'accounts'
   useEffect(() => {
     const v = searchParams.get('view')
     if (VIEW_PARAMS.includes(v)) setView(v)
@@ -119,26 +122,36 @@ export default function Recruitment() {
   const [orgProfiles, setOrgProfiles] = useState([])
   const [rosterDays, setRosterDays] = useState(() => new Map())
   const [rosterLoading, setRosterLoading] = useState(false)
-  useEffect(() => {
-    let alive = true
-    supabase.from('profiles').select('id, full_name, email, role, is_active').is('deleted_at', null).order('full_name')
-      .then(({ data }) => { if (alive) setOrgProfiles(data || []) })
-    return () => { alive = false }
-  }, [])
+  // v125: als losse functie zodat de Accounts-weergave hem na een
+  // functiewijziging opnieuw kan aanroepen.
+  async function laadOrgProfiles() {
+    const { data } = await supabase.from('profiles').select('id, full_name, email, role, is_active').is('deleted_at', null).order('full_name')
+    setOrgProfiles(data || [])
+  }
+  useEffect(() => { laadOrgProfiles() }, [])
 
   // v107: recruiter met het recht "Accounts aanmaken" (profiles.can_create_users)
-  // maakt hier meteen een medewerkersaccount voor een aangenomen sollicitant.
+  // maakt hier meteen een account voor een aangenomen sollicitant.
+  // v125: voor een recruiter is dat altijd een planning-account.
+  const isAdminRole = profile?.role === 'admin'
   const [showNewAccount, setShowNewAccount] = useState(false)
   async function handleNieuwAccount(data) {
     try {
       const { waarschuwing } = await maakAccount({
         naam: data.name, email: data.email, wachtwoord: data.password, rol: data.role
       })
-      toast(waarschuwing || 'Account aangemaakt! De beheerder koppelt het aan een project of team.', waarschuwing ? 'error' : 'success')
+      const planning = data.role === 'planning'
+      toast(waarschuwing || (planning
+        ? 'Planning-account aangemaakt. Zodra deze persoon begint geef je hem een functie via "Accounts".'
+        : 'Account aangemaakt! De beheerder koppelt het aan een project of team.'), waarschuwing ? 'error' : 'success')
+      laadOrgProfiles()
     } catch (err) {
       toast(err.message, 'error')
     }
   }
+  // v125: recruiter (of iemand anders met het recht) mag planning-accounts
+  // een functie geven; admin doet dat gewoon in Admin > Team.
+  const kanAccounts = !isAdminRole && magFunctiesWijzigen(profile)
 
   const [showImport, setShowImport] = useState(false)
   const [importText, setImportText] = useState('')
@@ -707,6 +720,16 @@ export default function Recruitment() {
                 >
                   <Gift size={15} /> Referrals{referralCount > 0 ? ` (${referralCount})` : ''}
                 </button>
+                {kanAccounts && (
+                  <button
+                    onClick={() => setView('accounts')}
+                    className="btn btn-sm"
+                    style={{ background: view === 'accounts' ? 'var(--primary)' : 'transparent', color: view === 'accounts' ? 'var(--text-on-accent)' : 'var(--text-muted)' }}
+                    title="Accounts: planning-accounts een functie geven (beller, backoffice, accountmanager)"
+                  >
+                    <UserCog size={15} /> Accounts
+                  </button>
+                )}
               </div>
 
               <button className="btn btn-outline btn-sm" onClick={handleExportCSV} disabled={!applicants.length}>
@@ -716,6 +739,8 @@ export default function Recruitment() {
 
             {loading ? (
               <LoadingSpinner size="large" />
+            ) : view === 'accounts' && kanAccounts ? (
+              <AccountFuncties profiles={orgProfiles} me={profile} onChanged={laadOrgProfiles} />
             ) : view === 'referrals' ? (
               <ReferralOverview
                 applicants={applicants}
@@ -1225,8 +1250,8 @@ export default function Recruitment() {
         isOpen={showNewAccount}
         onClose={() => setShowNewAccount(false)}
         onAdd={handleNieuwAccount}
-        title="Nieuw account"
-        allowedRoles={ROLLEN_ZONDER_ADMIN}
+        title={profile?.role === 'recruiter' ? 'Nieuw planning-account' : 'Nieuw account'}
+        allowedRoles={rollenVoorMaker(profile)}
       />
 
       {/* v56: bronnen beheren */}

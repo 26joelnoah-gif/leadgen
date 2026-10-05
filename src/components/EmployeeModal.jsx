@@ -22,7 +22,10 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState('employee')
+  // v125: standaardrol = de eerste toegestane rol, anders staat de select op
+  // een waarde die niet in de lijst staat (recruiter mag alleen 'planning').
+  const standaardRol = (allowedRoles && allowedRoles.length && !allowedRoles.includes('employee')) ? allowedRoles[0] : 'employee'
+  const [role, setRole] = useState(standaardRol)
   const [loading, setLoading] = useState(false)
 
   // v30: leeg de velden bij elk openen, zodat er nooit gegevens van een
@@ -32,9 +35,9 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
       setName('')
       setEmail('')
       setPassword('')
-      setRole('employee')
+      setRole(standaardRol)
     }
-  }, [isOpen])
+  }, [isOpen, standaardRol])
 
   if (!isOpen) return null
 
@@ -46,7 +49,7 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
     setName('')
     setEmail('')
     setPassword('')
-    setRole('employee')
+    setRole(standaardRol)
     setLoading(false)
     onClose()
   }

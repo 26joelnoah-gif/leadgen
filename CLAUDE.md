@@ -874,3 +874,40 @@ Twee-zijdig platform:
   notities/veldwijzigingen van dat moment gingen niet mee.
   REGEL: een veld dat de app zelf aan een lead toevoegt hoort in
   CLIENT_ONLY_LEAD_FIELDS.
+
+- **RECRUITER MAAKT PLANNING-ACCOUNTS EN GEEFT ZE LATER EEN FUNCTIE (v125,
+  2026-10-05, migratie toegepast in losse statements):** wens Noah: een
+  recruiter met het recht "Accounts aanmaken" (v107-vinkje) geeft een
+  aangenomen sollicitant alvast een account voor de rooster-app. Dat is ALTIJD
+  een planning-account. Begint de persoon echt, dan geeft de recruiter het
+  account een functie: beller, backoffice of accountmanager (of planning
+  laten). Nooit manager, admin of recruiter.
+  1. src/lib/accounts.js: rollenVoorMaker(profile) (admin = alles, recruiter =
+     ['planning'], anders ROLLEN_ZONDER_ADMIN, waar 'planning' nu ook in zit),
+     FUNCTIES_UITDEELBAAR / FUNCTIES_AANPASBAAR / FUNCTIE_LABELS en
+     wijzigFunctie(userId, rol) -> RPC account_functie_wijzigen. EmployeeModal
+     kiest als standaardrol de eerste toegestane rol (anders stond de select op
+     'employee' terwijl alleen 'planning' kiesbaar was).
+  2. Weergave "Accounts" op /recruitment (?view=accounts, nav-link in de header
+     alleen met can_create_users): src/components/AccountFuncties.jsx, lijst van
+     accounts in de org (planning bovenaan, vinkje "Alleen planning", zoekveld),
+     per account een functie-select + "Bevestig". Admin/manager/recruiter-
+     accounts staan erin maar zijn niet aan te passen ("Alleen de beheerder").
+  3. DB: nieuw_account_afronden laat een niet-admin nu ook 'planning' uitdelen
+     en een recruiter ALLEEN 'planning'. Nieuwe RPC account_functie_wijzigen
+     (security definer): aanroeper admin/manager/can_create_users en actief,
+     doel in dezelfde org, niet jezelf; niet-admin mag alleen een account dat
+     nu planning/employee/backoffice/accountmanager/extern is aanpassen en
+     alleen planning/employee/backoffice/accountmanager uitdelen. Log in
+     public.account_functie_log (alleen admin leest).
+  4. BUG UIT V107 GEFIXT: trigger guard_profile_privileges op profiles weigerde
+     elke rolwijziging door een niet-admin, dus een manager/recruiter kon via
+     nieuw_account_afronden nooit een accountmanager- of backoffice-account
+     afronden. De trigger slaat nu over als leadgen_systeem() waar is; beide
+     RPC's zetten set_config('leadgen.systeem','1') alleen rond hun eigen
+     UPDATE en halen hem daarna weer weg. Directe UPDATE van profiles.role door
+     een niet-admin blijft geweigerd (getest als Serge, teruggedraaid).
+     REGEL: bij een RPC die profiles.role/organization_id zet voor een
+     niet-admin: eigen controle + die vlag, nooit de trigger versoepelen.
+  Serge en Mo hebben het vinkje "Accounts aanmaken" nog NIET aan; dat zet Noah
+  zelf in Admin > Team. Migratie: migration_v125_recruiter_planning_functie.sql.

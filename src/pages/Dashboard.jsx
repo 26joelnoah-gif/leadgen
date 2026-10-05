@@ -16,7 +16,7 @@ import ActivityFeed from '../components/ActivityFeed'
 import Header from '../components/Header'
 import ImportLeadsModal from '../components/ImportLeadsModal'
 import EmployeeModal from '../components/EmployeeModal' // v107
-import { maakAccount, magAccountsAanmaken, ROLLEN_ZONDER_ADMIN } from '../lib/accounts' // v107
+import { maakAccount, magAccountsAanmaken, rollenVoorMaker } from '../lib/accounts' // v107, v125
 import MyMailStats from '../components/MyMailStats' // v82
 import MyAppointmentStats from '../components/MyAppointmentStats' // v110
 import NieuwsBlok from '../components/NieuwsBlok' // v108
@@ -553,8 +553,8 @@ export default function Dashboard() {
         isOpen={showNewAccount}
         onClose={() => setShowNewAccount(false)}
         onAdd={handleNieuwAccount}
-        title="Nieuw account"
-        allowedRoles={ROLLEN_ZONDER_ADMIN}
+        title={profile?.role === 'recruiter' ? 'Nieuw planning-account' : 'Nieuw account'}
+        allowedRoles={rollenVoorMaker(profile)}
       />
 
       <ImportLeadsModal

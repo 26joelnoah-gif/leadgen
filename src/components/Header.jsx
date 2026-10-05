@@ -88,6 +88,8 @@ export default function Header({ onOpenSettings }) {
         { path: '/recruitment?view=agenda', label: 'Agenda' },
         // v58: referral-overzicht (zelfde pagina, ?view=referrals)
         { path: '/recruitment?view=referrals', label: 'Referrals' },
+        // v125: planning-accounts een functie geven (alleen met het recht "Accounts aanmaken")
+        ...(profile?.can_create_users === true ? [{ path: '/recruitment?view=accounts', label: 'Accounts' }] : []),
         { path: '/tba', label: 'TBA\'s' },
         { path: '/roosters', label: 'Roosters' },
         ...(hasLeadBoard ? [{ path: '/leads', label: 'Leads' }] : []),

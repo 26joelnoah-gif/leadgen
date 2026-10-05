@@ -15,7 +15,47 @@ import { supabase } from './supabase'
 
 // Rollen die iemand zonder adminrol mag aanmaken. Dezelfde lijst staat in de
 // RPC; die is de echte bewaking, dit is alleen wat de app laat zien.
-export const ROLLEN_ZONDER_ADMIN = ['employee', 'backoffice', 'accountmanager']
+export const ROLLEN_ZONDER_ADMIN = ['employee', 'backoffice', 'accountmanager', 'planning']
+
+// v125: een recruiter maakt ALLEEN planning-accounts aan (rooster-app). Zodra
+// de persoon echt begint geeft de recruiter het account een functie via
+// wijzigFunctie(). Nooit manager, admin of recruiter.
+export const ROLLEN_RECRUITER = ['planning']
+
+// v125: functies die iemand zonder adminrol later aan een account mag geven,
+// en welke huidige functies hij daarbij mag aanpassen. De RPC bewaakt dit ook.
+export const FUNCTIES_UITDEELBAAR = ['planning', 'employee', 'backoffice', 'accountmanager']
+export const FUNCTIES_AANPASBAAR = ['planning', 'employee', 'backoffice', 'accountmanager', 'extern']
+export const FUNCTIE_LABELS = {
+  planning: 'Planning (alleen rooster)',
+  employee: 'Beller',
+  backoffice: 'Backoffice',
+  accountmanager: 'Accountmanager',
+  extern: 'Extern (alleen tools)',
+  manager: 'Manager',
+  recruiter: 'Recruiter',
+  admin: 'Admin'
+}
+
+// Welke rollen mag deze persoon kiezen bij "Nieuw account"? null = alles (admin).
+export function rollenVoorMaker(profile) {
+  if (!profile) return ROLLEN_ZONDER_ADMIN
+  if (profile.role === 'admin') return null
+  if (profile.role === 'recruiter') return ROLLEN_RECRUITER
+  return ROLLEN_ZONDER_ADMIN
+}
+
+// Mag deze persoon bestaande accounts een (andere) functie geven?
+export function magFunctiesWijzigen(profile) {
+  return magAccountsAanmaken(profile)
+}
+
+// v125: geeft een bestaand account een andere functie via RPC
+// account_functie_wijzigen. Gooit bij geen recht of een verboden functie.
+export async function wijzigFunctie(userId, rol) {
+  const { error } = await supabase.rpc('account_functie_wijzigen', { p_user: userId, p_role: rol })
+  if (error) throw error
+}
 
 // Mag deze persoon accounts aanmaken?
 export function magAccountsAanmaken(profile) {
