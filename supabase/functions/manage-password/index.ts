@@ -8,6 +8,11 @@
 // is voor agents afgeschermd) - dit MOET via de Admin-API met de
 // service-role key, vandaar deze Edge Function.
 // Elke geslaagde wijziging wordt gelogd in password_reset_log (v35).
+// v126: dezelfde functie wijzigt ook e-mailadres en naam van een account
+// (body { targetUserId, action: "account", newEmail?, newName? }). ALLEEN een
+// admin mag dat, en nooit van zichzelf (eigen e-mail gaat via "Mijn account").
+// Het e-mailadres wordt direct gezet (email_confirm), er gaat geen
+// bevestigingsmail; de persoon logt daarna in met het nieuwe adres.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -54,10 +59,23 @@ Deno.serve(async (req: Request) => {
     const targetUserId = String(body?.targetUserId || "");
     if (!targetUserId) return json({ error: "Geen gebruiker opgegeven" }, 400);
 
+    const action = body?.action === "account" ? "account" : "password";
+
+    // v126: e-mail en/of naam wijzigen (alleen admin, zie verderop)
+    const newEmail = typeof body?.newEmail === "string" ? body.newEmail.trim().toLowerCase() : "";
+    const newName = typeof body?.newName === "string" ? body.newName.trim() : "";
+    if (action === "account") {
+      if (!newEmail && !newName) return json({ error: "Geen wijziging opgegeven" }, 400);
+      if (newEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+        return json({ error: "Dat is geen geldig e-mailadres" }, 400);
+      }
+      if (newName && newName.length > 120) return json({ error: "Naam is te lang" }, 400);
+    }
+
     const generate = !!body?.generate;
     let newPassword = typeof body?.newPassword === "string" ? body.newPassword.trim() : "";
     if (generate) newPassword = randomPassword(12);
-    if (!newPassword || newPassword.length < 6) {
+    if (action === "password" && (!newPassword || newPassword.length < 6)) {
       return json({ error: "Wachtwoord moet minimaal 6 tekens zijn" }, 400);
     }
 
@@ -113,6 +131,66 @@ Deno.serve(async (req: Request) => {
           if (logRow && logRow.length) allowed = true;
         }
       }
+    }
+
+    if (action === "account") {
+      // Strenger dan wachtwoorden: alleen een admin, en niet voor zichzelf.
+      if (caller.role !== "admin" || !allowed || target.id === caller.id) {
+        return json({ error: "Alleen een beheerder mag het e-mailadres of de naam van een ander account wijzigen." }, 403);
+      }
+      const wijzigingen: string[] = [];
+      const authPatch: Record<string, unknown> = {};
+      const profielPatch: Record<string, unknown> = {};
+
+      if (newEmail && newEmail !== String(target.email || "").toLowerCase()) {
+        // Dubbel adres vooraf afvangen, dan is de melding begrijpelijk.
+        const { data: bestaand } = await admin
+          .from("profiles")
+          .select("id")
+          .ilike("email", newEmail)
+          .neq("id", target.id)
+          .limit(1);
+        if (bestaand && bestaand.length) {
+          return json({ error: "Dit e-mailadres is al in gebruik door een ander account." }, 409);
+        }
+        authPatch.email = newEmail;
+        authPatch.email_confirm = true;
+        profielPatch.email = newEmail;
+        wijzigingen.push(`e-mail: ${target.email || "-"} -> ${newEmail}`);
+      }
+      if (newName && newName !== (target.full_name || "")) {
+        authPatch.user_metadata = { full_name: newName }; // wordt hieronder samengevoegd met de huidige metadata
+        profielPatch.full_name = newName;
+        wijzigingen.push(`naam: ${target.full_name || "-"} -> ${newName}`);
+      }
+      if (!wijzigingen.length) return json({ success: true, email: target.email, ongewijzigd: true });
+
+      if (authPatch.email || authPatch.user_metadata) {
+        // user_metadata overschrijft alles; haal eerst de huidige metadata op.
+        if (authPatch.user_metadata) {
+          const { data: huidig } = await admin.auth.admin.getUserById(target.id);
+          authPatch.user_metadata = { ...(huidig?.user?.user_metadata || {}), full_name: newName };
+        }
+        const { error: authErr } = await admin.auth.admin.updateUserById(target.id, authPatch);
+        if (authErr) {
+          const m = authErr.message || "";
+          if (/already|exists|registered/i.test(m)) {
+            return json({ error: "Dit e-mailadres is al in gebruik door een ander account." }, 409);
+          }
+          return json({ error: authErr.message }, 500);
+        }
+      }
+      const { error: profErr } = await admin.from("profiles").update(profielPatch).eq("id", target.id);
+      if (profErr) return json({ error: profErr.message }, 500);
+
+      await admin.from("password_reset_log").insert({
+        actor_id: caller.id,
+        target_id: target.id,
+        target_email: newEmail || target.email,
+        method: "account",
+        details: wijzigingen.join("; "),
+      });
+      return json({ success: true, email: newEmail || target.email, full_name: newName || target.full_name });
     }
 
     if (!allowed) {

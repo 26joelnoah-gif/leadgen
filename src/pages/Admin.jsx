@@ -12,7 +12,7 @@ import {
   Plus, Users, Settings, UserPlus, Phone, PhoneOff, Mail,
   UserCheck, Shield, Activity, Download, Play, Zap, Upload,
   X, CheckCircle, AlertTriangle, Bell, Megaphone, Target,
-  DollarSign, Calendar, List, ChevronRight, Layers, Trash2, Search, KeyRound, Tag, Wrench, Link2, Newspaper, Pencil
+  DollarSign, Calendar, List, ChevronRight, Layers, Trash2, Search, KeyRound, Tag, Wrench, Link2, Newspaper, Pencil, UserCog
 } from 'lucide-react'
 import { STATUS_MAP } from '../utils/statusUtils'
 import { exportToCSV } from '../utils/exportUtils'
@@ -29,6 +29,7 @@ import BriefingModal, { BriefingCard } from '../components/BriefingModal'
 import { LeadListModal } from '../components/LeadListModal'
 import EmployeeModal from '../components/EmployeeModal'
 import ResetPasswordModal from '../components/ResetPasswordModal'
+import EditAccountModal from '../components/EditAccountModal'
 import IntensityModal from '../components/IntensityModal'
 import ManagerProjectsModal from '../components/ManagerProjectsModal'
 import UserToolsModal from '../components/UserToolsModal' // v77
@@ -85,6 +86,7 @@ export default function Admin() {
   const [managingMode, setManagingMode] = useState('manager')
   const [toolsUser, setToolsUser] = useState(null) // v77: tools per medewerker
   const [resettingUser, setResettingUser] = useState(null) // v35: wachtwoord resetten voor deze gebruiker
+  const [editingAccount, setEditingAccount] = useState(null) // v126: naam/e-mail wijzigen voor deze gebruiker
   const [intensityUser, setIntensityUser] = useState(null) // v43: intensiteit/ingelogde-tijd voor deze gebruiker
   const [showNewProject, setShowNewProject] = useState(false)
   const [managerLinks, setManagerLinks] = useState([]) // campaign_managers-rijen voor de projectenteller (v23)
@@ -905,6 +907,13 @@ export default function Admin() {
                               <KeyRound size={18}/>
                             </button>
                             <button
+                              onClick={() => setEditingAccount(u)}
+                              className="p-2 rounded-lg transition-all text-muted hover:bg-primary/20 hover:text-primary opacity-0 group-hover:opacity-100"
+                              title="Naam of e-mailadres wijzigen"
+                            >
+                              <UserCog size={18}/>
+                            </button>
+                            <button
                               onClick={() => handleToggleActive(u)}
                               className={`p-2 rounded-lg transition-all ${u.is_active === false ? 'text-success hover:bg-success/20' : 'text-muted hover:bg-secondary/20 hover:text-secondary opacity-0 group-hover:opacity-100'}`}
                               title={u.is_active === false ? 'Weer activeren (kan dan weer inloggen)' : (u.signup_source === 'self_service' ? 'Inactief zetten - kan niet meer inloggen, zegt ook meteen het maandabonnement bij Mollie op' : 'Inactief zetten - kan niet meer inloggen, historie blijft bewaard')}
@@ -1399,6 +1408,7 @@ export default function Admin() {
 
       <EmployeeModal isOpen={showEmployee} onClose={() => setShowEmployee(false)} onAdd={handleAddEmployee} />
       <ResetPasswordModal isOpen={!!resettingUser} onClose={() => setResettingUser(null)} targetUser={resettingUser} />
+      <EditAccountModal isOpen={!!editingAccount} onClose={() => setEditingAccount(null)} targetUser={editingAccount} onDone={fetchData} />
       <IntensityModal isOpen={!!intensityUser} onClose={() => setIntensityUser(null)} targetUser={intensityUser} users={users} />
       <AnimatePresence>
         {managingUser && (

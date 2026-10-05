@@ -911,3 +911,18 @@ Twee-zijdig platform:
      niet-admin: eigen controle + die vlag, nooit de trigger versoepelen.
   Serge en Mo hebben het vinkje "Accounts aanmaken" nog NIET aan; dat zet Noah
   zelf in Admin > Team. Migratie: migration_v125_recruiter_planning_functie.sql.
+
+- **NAAM EN E-MAILADRES VAN EEN ACCOUNT WIJZIGEN (v126, 2026-10-05, migratie
+  toegepast, manage-password v11 live):** wachtwoord resetten bestond al (v35);
+  nu kan een admin in Admin > Team ook de naam en het e-mailadres (= inlognaam)
+  van een ander account aanpassen. Knop met het UserCog-icoon naast het
+  sleutel-icoon op de medewerkerskaart, popup
+  src/components/EditAccountModal.jsx. Loopt via DEZELFDE Edge Function
+  manage-password met body { targetUserId, action: 'account', newEmail?,
+  newName? }: alleen rol admin (zelfde org-check als bij wachtwoorden), nooit
+  voor jezelf (eigen gegevens gaan via "Mijn account"). E-mail wordt direct
+  gezet met email_confirm (geen bevestigingsmail), ook in profiles.email;
+  naam in auth user_metadata + profiles.full_name. Dubbel adres geeft een
+  409 met een duidelijke melding. Log: password_reset_log met method 'account'
+  en nieuwe kolom details ("e-mail: oud -> nieuw; naam: ...").
+  Migratie: migration_v126_account_gegevens.sql.
