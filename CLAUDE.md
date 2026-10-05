@@ -960,3 +960,29 @@ Twee-zijdig platform:
      kunnen aanpassen. Daarna normale belwachtrij, niets nieuws voor bellers.
   REGEL: een aanbrenger krijgt nooit directe select op leads; alles wat hij
   ziet loopt via mijn_aanbrengingen().
+
+- **AANBRENGER PLANT METEEN EEN AFSPRAAK (v128, 2026-10-05, migratie
+  migration_v128_aanbrengen_afspraak.sql door Noah te draaien):** wens: Imran
+  (ProSell) moet als aanbrenger bij het aanbrengen een afspraak in onze agenda
+  kunnen zetten. Hij ziet NIET de hele agenda, alleen wanneer de gekozen
+  accountmanager bezet is (grijs, zonder namen).
+  1. RPC aanbreng_accountmanagers(p_campaign): rol accountmanager/admin in de
+     org, alleen voor een aanbrenger die aan dat project hangt. RPC
+     aanbreng_bezet(p_am, p_van, p_tot): afspraken (status afspraak_gemaakt in
+     projecten met appointment_scheduling_enabled, duur via
+     public.afspraak_minuten(type) = spiegel van appointmentConfig.js) en
+     agenda_blocks, alleen tijden. REGEL: nieuwe afspraaksoort = ook
+     afspraak_minuten() bijwerken.
+  2. lead_aanbrengen kreeg p_am, p_at, p_type, p_straat erbij (oude versie met
+     7 parameters is gedropt, anders twee overloads voor PostgREST). Met p_at:
+     contactpersoon + plaats verplicht, project moet afspraken aan hebben,
+     conflictcheck in de DB tegen blokkades en andere afspraken; de lead komt
+     binnen als status afspraak_gemaakt, assigned_to = accountmanager,
+     appointment_at/_type gezet, dus hij staat meteen in /agenda en gaat via
+     tr_leads_google_agenda naar Google Agenda. appointment_by blijft leeg
+     (geen beller, geen commissie).
+  3. UI: Aanbrengen.jsx vinkje "Meteen een afspraak inplannen" -> keuze
+     accountmanager + soort + straat, knop "Kies een moment" opent
+     AgendaPickerModal met nieuwe props loadBusy (bron van bezette tijden) en
+     anoniem (labels "Bezet"). mijn_aanbrengingen geeft nu ook afspraak_op en
+     afspraak_soort terug, zichtbaar in de lijst.

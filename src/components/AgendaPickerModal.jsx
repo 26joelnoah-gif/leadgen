@@ -58,7 +58,11 @@ const HOURS_DISPLAY = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_
 
 // v124: `type` = soort van de nieuwe afspraak (shoot/bezoek), bepaalt de blokhoogte
 // en of een klik op een vrij moment past.
-export default function AgendaPickerModal({ accountmanagers, defaultAmId, excludeLeadId, type, onConfirm, onClose }) {
+// v128: loadBusy(amId, rangeStartIso, rangeEndIso) -> { appointments, blocks }
+// laat een andere bron de bezette tijden leveren (de aanbrenger mag leads en
+// agenda_blocks niet lezen en krijgt ze via RPC aanbreng_bezet, zonder namen).
+// anoniem = toon "Bezet" in plaats van bedrijfsnamen.
+export default function AgendaPickerModal({ accountmanagers, defaultAmId, excludeLeadId, type, onConfirm, onClose, loadBusy = null, anoniem = false }) {
   const nieuwMin = appointmentMinutes(type)
   const [selectedAmId, setSelectedAmId] = useState(defaultAmId || accountmanagers?.[0]?.id || null)
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date()))
@@ -74,6 +78,12 @@ export default function AgendaPickerModal({ accountmanagers, defaultAmId, exclud
     const rangeStart = addDays(currentWeekStart, -1).toISOString()
     const rangeEnd = addDays(currentWeekStart, 8).toISOString()
     try {
+      if (loadBusy) {
+        const r = await loadBusy(selectedAmId, rangeStart, rangeEnd)
+        setAppointments(r?.appointments || [])
+        setBlockedSlots(r?.blocks || [])
+        return
+      }
       const { data: leadsData } = await supabase
         .from('leads')
         .select(`
@@ -102,7 +112,7 @@ export default function AgendaPickerModal({ accountmanagers, defaultAmId, exclud
     } finally {
       setLoading(false)
     }
-  }, [selectedAmId, currentWeekStart, excludeLeadId])
+  }, [selectedAmId, currentWeekStart, excludeLeadId, loadBusy])
 
   useEffect(() => { fetchData() }, [fetchData])
   useEffect(() => { setPickedSlot(null) }, [selectedAmId, currentWeekStart])
@@ -121,18 +131,18 @@ export default function AgendaPickerModal({ accountmanagers, defaultAmId, exclud
         const at = new Date(l.appointment_at)
         if (at.toDateString() !== dayStr) return
         const startMin = minutesSinceMidnight(at)
-        map[dayIdx].push({ kind: 'appointment', id: `a-${l.id}`, label: l.name, startMin, endMin: startMin + appointmentMinutes(l) })
+        map[dayIdx].push({ kind: 'appointment', id: `a-${l.id}`, label: anoniem ? 'Bezet' : l.name, startMin, endMin: startMin + appointmentMinutes(l) })
       })
       blockedSlots.forEach(b => {
         if (!b.start_at) return
         const at = new Date(b.start_at)
         if (at.toDateString() !== dayStr) return
         const end = new Date(b.end_at)
-        map[dayIdx].push({ kind: 'block', id: `b-${b.id}`, label: b.title || 'Niet beschikbaar', startMin: minutesSinceMidnight(at), endMin: minutesSinceMidnight(at) + Math.max(15, (end - at) / 60000) })
+        map[dayIdx].push({ kind: 'block', id: `b-${b.id}`, label: anoniem ? 'Niet beschikbaar' : (b.title || 'Niet beschikbaar'), startMin: minutesSinceMidnight(at), endMin: minutesSinceMidnight(at) + Math.max(15, (end - at) / 60000) })
       })
     })
     return map
-  }, [weekDays, appointments, blockedSlots])
+  }, [weekDays, appointments, blockedSlots, anoniem])
 
   function slotIsFree(dayIdx, startMin) {
     const endMin = startMin + nieuwMin

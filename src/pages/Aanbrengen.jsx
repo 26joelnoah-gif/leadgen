@@ -6,9 +6,11 @@
 // gewone lead aan in de lijst "Aangebracht" van het gekozen project, en
 // mijn_aanbrengingen() geeft alleen de eigen aanbrengingen terug met beperkte
 // velden. De aanbrenger heeft zelf geen leesrecht op leads (is_planning()).
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Handshake, Building2, User, Phone, Mail, MapPin, MessageSquare, RefreshCw, Send } from 'lucide-react'
+import { Handshake, Building2, User, Phone, Mail, MapPin, MessageSquare, RefreshCw, Send, CalendarClock, Home } from 'lucide-react'
+import AgendaPickerModal from '../components/AgendaPickerModal'
+import { APPOINTMENT_TYPES, appointmentLabel, duurTekst } from '../lib/appointmentConfig'
 import { supabase } from '../lib/supabase'
 import { useToast } from '../components/Toast'
 import Header from '../components/Header'
@@ -47,8 +49,14 @@ function fmtDatum(iso) {
   if (!iso) return ''
   return new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric' })
 }
+function fmtMoment(d) {
+  if (!d) return ''
+  const x = new Date(d)
+  return x.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' }) + ' ' +
+    x.toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' })
+}
 
-const LEEG = { bedrijf: '', contact: '', telefoon: '', email: '', plaats: '', toelichting: '' }
+const LEEG = { bedrijf: '', contact: '', telefoon: '', email: '', plaats: '', straat: '', toelichting: '' }
 
 export default function Aanbrengen() {
   const toast = useToast()
@@ -58,6 +66,13 @@ export default function Aanbrengen() {
   const [bezig, setBezig] = useState(false)
   const [lijst, setLijst] = useState([])
   const [laden, setLaden] = useState(true)
+  // v128: meteen een afspraak inplannen bij een accountmanager
+  const [metAfspraak, setMetAfspraak] = useState(false)
+  const [ams, setAms] = useState([])
+  const [amId, setAmId] = useState('')
+  const [soort, setSoort] = useState(APPOINTMENT_TYPES[0].id)
+  const [moment, setMoment] = useState(null) // Date
+  const [kiezer, setKiezer] = useState(false)
 
   function zet(veld, waarde) { setForm(f => ({ ...f, [veld]: waarde })) }
 
@@ -78,7 +93,40 @@ export default function Aanbrengen() {
 
   useEffect(() => { laadProjecten(); laadLijst() }, [])
 
-  const kanVersturen = projectId && form.bedrijf.trim() && (form.telefoon.trim() || form.email.trim()) && !bezig
+  // accountmanagers van het gekozen project (alleen als de aanbrenger een afspraak wil)
+  useEffect(() => {
+    if (!metAfspraak || !projectId) return
+    let weg = false
+    supabase.rpc('aanbreng_accountmanagers', { p_campaign: projectId }).then(({ data, error }) => {
+      if (weg) return
+      if (error) { toast('Accountmanagers laden mislukt: ' + error.message, 'error'); return }
+      setAms(data || [])
+      if (data?.length && !data.some(a => a.id === amId)) setAmId(data[0].id)
+    })
+    return () => { weg = true }
+  }, [metAfspraak, projectId])
+
+  useEffect(() => { setMoment(null) }, [soort, projectId])
+
+  // bezette tijden van de accountmanager, zonder namen (RPC aanbreng_bezet)
+  const loadBusy = useCallback(async (am, van, tot) => {
+    const { data, error } = await supabase.rpc('aanbreng_bezet', { p_am: am, p_van: van, p_tot: tot })
+    if (error) { toast('Agenda laden mislukt: ' + error.message, 'error'); return { appointments: [], blocks: [] } }
+    const appointments = []
+    const blocks = []
+    ;(data || []).forEach((r, i) => {
+      if (r.soort === 'afspraak') {
+        const min = Math.round((new Date(r.end_at) - new Date(r.start_at)) / 60000)
+        appointments.push({ id: `x${i}`, name: 'Bezet', appointment_at: r.start_at, appointment_type: min <= 60 ? 'bezoek' : 'shoot' })
+      } else {
+        blocks.push({ id: `x${i}`, start_at: r.start_at, end_at: r.end_at, title: 'Niet beschikbaar' })
+      }
+    })
+    return { appointments, blocks }
+  }, [])
+
+  const afspraakOk = !metAfspraak || (amId && moment && form.contact.trim() && form.plaats.trim())
+  const kanVersturen = projectId && form.bedrijf.trim() && (form.telefoon.trim() || form.email.trim()) && afspraakOk && !bezig
 
   async function verstuur(e) {
     e.preventDefault()
@@ -92,11 +140,19 @@ export default function Aanbrengen() {
       p_email: form.email.trim() || null,
       p_plaats: form.plaats.trim() || null,
       p_toelichting: form.toelichting.trim() || null,
+      p_am: metAfspraak ? amId : null,
+      p_at: metAfspraak && moment ? new Date(moment).toISOString() : null,
+      p_type: metAfspraak ? soort : null,
+      p_straat: form.straat.trim() || null,
     })
     setBezig(false)
     if (error) { toast(error.message, 'error'); return }
-    toast('Bedankt! We nemen contact op met ' + form.bedrijf.trim() + '.', 'success')
+    toast(metAfspraak
+      ? 'Afspraak ingepland op ' + fmtMoment(moment) + ' voor ' + form.bedrijf.trim() + '.'
+      : 'Bedankt! We nemen contact op met ' + form.bedrijf.trim() + '.', 'success')
     setForm(LEEG)
+    setMoment(null)
+    setMetAfspraak(false)
     laadLijst()
   }
 
@@ -151,6 +207,45 @@ export default function Aanbrengen() {
               {veld(<Mail size={14} />, 'E-mailadres', 'email', { type: 'email', placeholder: 'info@bedrijf.nl' })}
               {veld(<MapPin size={14} />, 'Plaats', 'plaats', { placeholder: 'Arnhem' })}
             </div>
+            {/* v128: meteen een afspraak inplannen */}
+            <div style={{ border: '1px solid var(--border)', borderRadius: '12px', padding: '14px', display: 'grid', gap: '12px' }}>
+              <label className="flex items-center gap-2" style={{ cursor: 'pointer', fontWeight: 600, margin: 0 }}>
+                <input type="checkbox" checked={metAfspraak} onChange={e => setMetAfspraak(e.target.checked)} />
+                <CalendarClock size={16} /> Meteen een afspraak inplannen
+              </label>
+              {metAfspraak && (
+                <>
+                  <p className="text-muted" style={{ fontSize: '0.78rem', margin: 0 }}>
+                    Kies wie de afspraak doet en een vrij moment. Voor een afspraak zijn contactpersoon, straat en plaats nodig.
+                  </p>
+                  <div style={{ display: 'grid', gap: '12px', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label>Accountmanager</label>
+                      <select value={amId} onChange={e => { setAmId(e.target.value); setMoment(null) }}>
+                        {ams.length === 0 && <option value="">Geen accountmanager beschikbaar</option>}
+                        {ams.map(a => <option key={a.id} value={a.id}>{a.full_name}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group" style={{ margin: 0 }}>
+                      <label>Soort afspraak</label>
+                      <select value={soort} onChange={e => setSoort(e.target.value)}>
+                        {APPOINTMENT_TYPES.map(t => <option key={t.id} value={t.id}>{t.label} ({duurTekst(t.minutes)})</option>)}
+                      </select>
+                    </div>
+                    {veld(<Home size={14} />, 'Straat en huisnummer', 'straat', { placeholder: 'Hoofdstraat 12' })}
+                  </div>
+                  <div className="flex items-center gap-3" style={{ flexWrap: 'wrap' }}>
+                    <button type="button" className="btn btn-outline btn-sm" onClick={() => setKiezer(true)} disabled={!amId}>
+                      <CalendarClock size={14} /> {moment ? 'Ander moment kiezen' : 'Kies een moment'}
+                    </button>
+                    {moment
+                      ? <span style={{ fontWeight: 600 }}>{appointmentLabel(soort)} op {fmtMoment(moment)}</span>
+                      : <span className="text-muted" style={{ fontSize: '0.8rem' }}>Nog geen moment gekozen</span>}
+                  </div>
+                </>
+              )}
+            </div>
+
             <div className="form-group" style={{ margin: 0 }}>
               <label><MessageSquare size={14} /> Toelichting</label>
               <textarea rows={3} value={form.toelichting} onChange={e => zet('toelichting', e.target.value)} placeholder="Bijvoorbeeld: zoekt een nieuwe website, vraag naar Peter" />
@@ -158,7 +253,7 @@ export default function Aanbrengen() {
             <p className="text-muted" style={{ fontSize: '0.75rem', margin: 0 }}>Vul minimaal een telefoonnummer of e-mailadres in.</p>
             <div>
               <button type="submit" className="btn btn-primary" disabled={!kanVersturen}>
-                <Send size={14} /> {bezig ? 'Versturen...' : 'Aanbrengen'}
+                <Send size={14} /> {bezig ? 'Versturen...' : metAfspraak ? 'Aanbrengen en afspraak inplannen' : 'Aanbrengen'}
               </button>
             </div>
           </motion.form>
@@ -195,6 +290,11 @@ export default function Aanbrengen() {
                       {[r.contact, r.plaats, r.project].filter(Boolean).join(' · ')}
                       {r.aangebracht_op ? ` · ${fmtDatum(r.aangebracht_op)}` : ''}
                     </div>
+                    {r.afspraak_op && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--secondary)', marginTop: '2px' }}>
+                        <CalendarClock size={12} style={{ verticalAlign: '-2px' }} /> {appointmentLabel(r.afspraak_soort)} op {fmtMoment(r.afspraak_op)}
+                      </div>
+                    )}
                   </div>
                   <span style={{
                     fontSize: '0.72rem', fontWeight: 700, padding: '4px 10px', borderRadius: '999px',
@@ -206,6 +306,17 @@ export default function Aanbrengen() {
           </div>
         )}
       </main>
+      {kiezer && (
+        <AgendaPickerModal
+          accountmanagers={ams}
+          defaultAmId={amId}
+          type={soort}
+          loadBusy={loadBusy}
+          anoniem
+          onConfirm={({ amId: gekozenAm, date }) => { setAmId(gekozenAm); setMoment(date); setKiezer(false) }}
+          onClose={() => setKiezer(false)}
+        />
+      )}
     </>
   )
 }
