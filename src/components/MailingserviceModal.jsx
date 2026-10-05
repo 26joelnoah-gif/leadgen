@@ -3,7 +3,7 @@ import { motion } from 'framer-motion'
 import { X, Send, Mail, ListPlus, Clock } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
-import { mailSourceLabel, mailTypesVoor, mailTypeLabel } from '../lib/mailSources'
+import { mailSourceLabel, mailTypesVoor, mailTypeLabel, verplichteVeldenVanBron } from '../lib/mailSources'
 
 // v69: Mailingservice vanuit het belscherm. De beller checkt e-mail en
 // contactpersoon, de Edge Function 'mailingservice' laat de bron van het
@@ -29,6 +29,10 @@ import { mailSourceLabel, mailTypesVoor, mailTypeLabel } from '../lib/mailSource
 // v84: één keuze "Wanneer versturen?" (Nu staat standaard aan) en één knop die
 // meebeweegt, in plaats van een verstuur-knop bovenaan en een inplan-knop
 // onderaan. De popup scrolt nu ook op kleine schermen (max-hoogte + overflow).
+// v123: sommige bronnen eisen extra leadvelden (BeautyInfo: stad). Staat dat
+// veld leeg bij de lead, dan vraagt de popup het hier en slaat het eerst op bij
+// de lead (leads.city). De Edge Functions mailingservice en mailqueue-runner
+// lezen de plaats uit de lead, dus zo klopt het ook voor geplande mails.
 const EMAIL_RE = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[a-z]{2,}$/i
 
 // Eerstvolgende werkdag om `uur` uur, minstens `dagen` dagen vooruit.
@@ -64,6 +68,9 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
   const [email, setEmail] = useState((defaults?.email || '').trim())
   const [contactpersoon, setContactpersoon] = useState((defaults?.contactpersoon || '').trim())
   const [bellerNaam, setBellerNaam] = useState(eigenNaam)
+  // v123: plaats, alleen gevraagd als de bron hem eist
+  const stadVerplicht = verplichteVeldenVanBron(mailService?.source).includes('stad')
+  const [stad, setStad] = useState((lead?.city || '').trim())
   const [sending, setSending] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -87,7 +94,18 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
   const dagen = mailService?.follow_up_days || 5
   const emailOk = EMAIL_RE.test(email.trim())
   const naamOk = bellerNaam.trim().length >= 2
-  const kanVersturen = emailOk && naamOk
+  const stadOk = !stadVerplicht || stad.trim().length >= 2
+  const kanVersturen = emailOk && naamOk && stadOk
+
+  // v123: plaats op de lead zetten als die nieuw of anders is, voordat de
+  // mail gaat. Mislukt dit, dan stoppen we: anders weigert de bron de mail toch.
+  async function bewaarStad() {
+    if (!stadVerplicht) return
+    const nieuw = stad.trim()
+    if (!nieuw || nieuw === (lead?.city || '').trim()) return
+    const { error: updErr } = await supabase.from('leads').update({ city: nieuw }).eq('id', lead.id)
+    if (updErr) throw new Error('Plaats opslaan bij de lead mislukt: ' + (updErr.message || ''))
+  }
   const nuVersturen = planning === 'nu' || !onQueued // v84
   const keuzes = onQueued ? PLANNING : PLANNING.filter(p => p.key === 'nu')
 
@@ -97,6 +115,7 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
     setSaving(true)
     setError('')
     try {
+      await bewaarStad()
       const rij = {
         agent_id: user?.id,
         lead_id: lead.id,
@@ -128,6 +147,7 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
     setError('')
     setErrorDebug(null)
     try {
+      await bewaarStad()
       const { data, error: fnError } = await supabase.functions.invoke('mailingservice', {
         body: { lead_id: lead.id, mail: mailType, email: email.trim(), contactpersoon: contactpersoon.trim() || undefined, beller_naam: bellerNaam.trim() || undefined }
       })
@@ -208,6 +228,17 @@ export default function MailingserviceModal({ lead, defaults, mailService, listI
             <label style={labelStyle}>Contactpersoon (voor de aanhef)</label>
             <input type="text" autoComplete="off" value={contactpersoon} onChange={e => setContactpersoon(e.target.value)} placeholder="Voornaam" style={inputStyle} />
           </div>
+          {stadVerplicht && (
+            <div>
+              <label style={labelStyle}>Plaats (verplicht voor {bron})</label>
+              <input type="text" autoComplete="off" value={stad} onChange={e => setStad(e.target.value)} placeholder="Bijv. Arnhem" style={inputStyle} />
+              {!stadOk && (
+                <p className="text-muted" style={{ margin: '6px 0 0', fontSize: '0.78rem', lineHeight: 1.4 }}>
+                  {bron} stuurt geen mail zonder plaats. Vul de plaats van de zaak in; die wordt ook bij de lead opgeslagen.
+                </p>
+              )}
+            </div>
+          )}
           <div>
             <label style={labelStyle}>Jouw naam (onder de mail, verplicht)</label>
             <input type="text" autoComplete="off" value={bellerNaam} onChange={e => setBellerNaam(e.target.value)} placeholder="Voornaam Achternaam" style={inputStyle} />

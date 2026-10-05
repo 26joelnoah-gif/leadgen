@@ -819,3 +819,16 @@ Twee-zijdig platform:
   migration_v122_mail_events_beautyinfo.sql (uitgevoerd in losse statements,
   de MCP-tool liep vast op de FK naar leads in een batch; FK is daarom eerst
   NOT VALID aangemaakt en daarna gevalideerd).
+
+- **PLAATS VERPLICHT BIJ BEAUTYINFO-MAIL (v123, 2026-10-05, geen migratie):**
+  BeautyInfo weigert een mail zonder `stad` ("email, bedrijfsnaam, stad and
+  lead_id are required"). Een lege placeholder valt uit de body (v119), dus bij
+  een lead zonder plaats kwam die melding pas NA het klikken, van de bron.
+  Nu: `MAIL_SOURCES[].verplicht` in src/lib/mailSources.js (BeautyInfo:
+  ['stad']) + helper verplichteVeldenVanBron(). MailingserviceModal toont dan
+  een veld "Plaats" (voorgevuld met leads.city), de knop blijft uit tot hij is
+  ingevuld, en bewaarStad() schrijft hem eerst naar leads.city voordat de mail
+  gaat of in de Mailinglijst komt. De Edge Functions lezen de plaats uit de lead,
+  dus geplande mails (mailqueue-runner) kloppen daardoor ook.
+  REGEL: eist een bron een extra leadveld, zet het in `verplicht`; niet in de
+  Edge Function afdwingen, want daar is de beller al weg.

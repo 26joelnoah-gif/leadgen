@@ -21,8 +21,18 @@ export const MAIL_SOURCES = [
     label: 'BeautyInfo',
     description: 'Aanmeldmail van BeautyInfo waarmee een beautyzaak zich direct kan aansluiten en afrekenen.',
     types: ['aanmelding', 'opvolging'],
+    // v123: BeautyInfo weigert een mail zonder plaats ("stad is required").
+    verplicht: ['stad'],
   },
 ]
+
+// v123: welke extra leadvelden een bron eist voordat hij mailt. De popup vraagt
+// ze dan vooraf aan de beller en slaat ze op bij de lead, zodat de Edge Function
+// (die uit de lead leest) ze mee kan sturen. Nu alleen 'stad' (= leads.city).
+export const verplichteVeldenVanBron = (key) => {
+  const bron = MAIL_SOURCES.find(s => s.key === key)
+  return Array.isArray(bron?.verplicht) ? bron.verplicht : []
+}
 
 export const mailSourceLabel = (key) => MAIL_SOURCES.find(s => s.key === key)?.label || key
 
