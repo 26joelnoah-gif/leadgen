@@ -928,8 +928,9 @@ Twee-zijdig platform:
   Migratie: migration_v126_account_gegevens.sql.
 
 - **AANBRENGER: KLANT BRENGT ANDERE KLANTEN AAN (v127, 2026-10-05, migratie
-  NOG NIET toegepast - Noah draait migration_v127_aanbrenger.sql zelf in de
-  SQL-editor):** wens Noah: een klant van bijvoorbeeld ProSell krijgt een
+  toegepast door Noah in de SQL-editor, in twee stappen: eerst de
+  profiles-constraint met lock_timeout omdat de app die tabel continu leest
+  en het anders deadlockt, daarna migration_v127_stap2.sql voor de rest):** wens Noah: een klant van bijvoorbeeld ProSell krijgt een
   account om andere bedrijven aan te brengen. Geen vergoeding in het systeem
   (bewuste keuze), alleen de stand zien.
   1. Nieuwe rol 'aanbrenger' (profiles_role_check). Zit in is_planning(), dus
