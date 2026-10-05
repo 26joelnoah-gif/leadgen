@@ -962,7 +962,7 @@ Twee-zijdig platform:
   ziet loopt via mijn_aanbrengingen().
 
 - **AANBRENGER PLANT METEEN EEN AFSPRAAK (v128, 2026-10-05, migratie
-  migration_v128_aanbrengen_afspraak.sql door Noah te draaien):** wens: Imran
+  migration_v128_aanbrengen_afspraak.sql toegepast door Noah in de SQL-editor):** wens: Imran
   (ProSell) moet als aanbrenger bij het aanbrengen een afspraak in onze agenda
   kunnen zetten. Hij ziet NIET de hele agenda, alleen wanneer de gekozen
   accountmanager bezet is (grijs, zonder namen).
