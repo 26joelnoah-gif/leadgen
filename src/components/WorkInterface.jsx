@@ -29,6 +29,9 @@ import { APPOINTMENT_TYPES, DEFAULT_APPOINTMENT_TYPE, appointmentMinutes, appoin
 import PersonSelect from './PersonSelect' // v102
 import { dispositionKey } from '../lib/dispositions' // v104
 
+// v125: velden die de app zelf aan een lead toevoegt en die NIET in public.leads staan
+const CLIENT_ONLY_LEAD_FIELDS = ['lead_score', 'lead_lists']
+
 // v96: Date -> waarde voor een <input type="datetime-local">, in lokale tijd
 // (niet UTC, anders schuift het gekozen moment een paar uur op).
 function toDatetimeLocalValue(date) {
@@ -570,6 +573,13 @@ export default function WorkInterface() {
       // die waarde had - dat kon contact_attempts/next_contact_date dubbel
       // ophogen zodra dit vlak vóór een afboeking wordt aangeroepen.
       if (['id', 'created_at', 'updated_at', 'lead_lists', 'status'].includes(key)) return
+      // v125: velden die alleen in de browser bestaan nooit meesturen.
+      // lead_score rekent useLeads zelf uit en staat niet in de tabel; de
+      // verse DB-rij (v63) heeft hem niet, dus hij leek altijd "gewijzigd"
+      // en de update faalde met "Could not find the 'lead_score' column".
+      if (CLIENT_ONLY_LEAD_FIELDS.includes(key)) return
+      // Gejoinde rijen (objecten/arrays) zijn ook geen kolommen van leads.
+      if (cleaned[key] !== null && typeof cleaned[key] === 'object') return
       if ((cleaned[key] ?? '') !== (base[key] ?? '')) changed[key] = cleaned[key]
     })
     if (Object.keys(changed).length === 0) return 'niets'

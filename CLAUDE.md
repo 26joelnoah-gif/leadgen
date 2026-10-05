@@ -862,3 +862,15 @@ Twee-zijdig platform:
      moet nog in de SQL-editor gedraaid worden. Tot dan: wie appointment_type
      schrijft, schrijft appointment_at mee (gebeurt al overal).
 
+
+- **lead_score IS GEEN KOLOM (v125, 2026-10-05, geen migratie):** melding
+  "Wijziging niet opgeslagen: Could not find the 'lead_score' column of
+  'leads'" bij een afboeking in het belscherm. useLeads rekent lead_score
+  zelf uit en plakt hem aan elke lead; de verse DB-rij (v63 applyFreshLead)
+  heeft dat veld niet, dus saveLeadEdits zag hem als gewijzigd en stuurde
+  hem mee. Fix: constante CLIENT_ONLY_LEAD_FIELDS (lead_score, lead_lists)
+  bovenin WorkInterface.jsx wordt overgeslagen, net als elk veld dat een
+  object/array is (joins). De afboeking zelf ging al wel door; alleen
+  notities/veldwijzigingen van dat moment gingen niet mee.
+  REGEL: een veld dat de app zelf aan een lead toevoegt hoort in
+  CLIENT_ONLY_LEAD_FIELDS.
