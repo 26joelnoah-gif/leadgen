@@ -11,7 +11,7 @@ import { X, MapPin, Phone, Mail, User, Navigation, Trash2, CalendarClock, FileTe
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './Toast'
-import { APPOINTMENT_LABEL, APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
+import { APPOINTMENT_TYPES, appointmentMinutes, appointmentLabel, duurTekst } from '../lib/appointmentConfig'
 import { OUTCOMES, sentimentInfo, outcomeInfo, leadAddressText, navigationUrl, findAppointmentConflict } from '../lib/appointments'
 import PersonSelect from './PersonSelect' // v102
 
@@ -77,7 +77,7 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
   const sentiment = sentimentInfo(lead.appointment_sentiment)
   const outcome = outcomeInfo(lead.appointment_outcome)
   const canAfboeken = canManage || lead.assigned_to === user?.id
-  const end = new Date(new Date(lead.appointment_at).getTime() + APPOINTMENT_DURATION_MINUTES * 60000)
+  const end = new Date(new Date(lead.appointment_at).getTime() + appointmentMinutes(lead) * 60000)
 
   async function logAct(action, notes) {
     try { await supabase.from('activities').insert({ lead_id: lead.id, user_id: user.id, action, notes }) } catch { /* niet blokkerend */ }
@@ -126,7 +126,7 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
     setBusy(true)
     const start = new Date(moveAt)
     const amId = moveAm || lead.assigned_to
-    const conflict = await findAppointmentConflict({ amId, start, excludeLeadId: lead.id })
+    const conflict = await findAppointmentConflict({ amId, start, excludeLeadId: lead.id, type: lead.appointment_type })
     if (conflict) { setBusy(false); setMoveError(conflict + '. Kies een ander moment.'); return }
     const updates = { appointment_at: start.toISOString(), assigned_to: amId, updated_at: new Date().toISOString() }
     const { error } = await supabase.from('leads').update(updates).eq('id', lead.id)
@@ -135,6 +135,25 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
     const nieuweAm = accountmanagers.find(a => a.id === amId)?.full_name
     logAct('afspraak_verplaatst', `Afspraak verplaatst naar ${fmt(start.toISOString())}${amId !== lead.assigned_to && nieuweAm ? ` (${nieuweAm})` : ''}`)
     toast('Afspraak verplaatst', 'success')
+    onChanged?.(lead.id, updates)
+  }
+
+  // v124: soort wijzigen (shoot <-> bezoek). De nieuwe duur moet nog passen
+  // bij de accountmanager, dus dezelfde conflictcheck als bij verplaatsen.
+  // appointment_at gaat (ongewijzigd) mee in de update zodat de Google
+  // Agenda-trigger (v114, luistert op die kolom) het event ook bijwerkt.
+  async function soortWijzigen(typeId) {
+    if (busy || typeId === (lead.appointment_type || APPOINTMENT_TYPES[0].id)) return
+    setMoveError(null)
+    setBusy(true)
+    const conflict = await findAppointmentConflict({ amId: lead.assigned_to, start: lead.appointment_at, excludeLeadId: lead.id, type: typeId })
+    if (conflict) { setBusy(false); setMoveError(`${conflict}. Past niet als ${appointmentLabel(typeId).toLowerCase()}.`); return }
+    const updates = { appointment_type: typeId, appointment_at: lead.appointment_at, updated_at: new Date().toISOString() }
+    const { error } = await supabase.from('leads').update(updates).eq('id', lead.id)
+    setBusy(false)
+    if (error) { toast(error.message || 'Soort niet gewijzigd', 'error'); return }
+    logAct('afspraak_soort', `Soort afspraak gewijzigd naar ${appointmentLabel(typeId)} (${duurTekst(appointmentMinutes(typeId))})`)
+    toast(`Afspraak is nu een ${appointmentLabel(typeId).toLowerCase()}`, 'success')
     onChanged?.(lead.id, updates)
   }
 
@@ -165,7 +184,7 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 18, width: '100%', maxWidth: 460, maxHeight: '92vh', overflowY: 'auto', padding: 22, position: 'relative' }}>
         <button onClick={onClose} aria-label="Sluiten" style={{ position: 'absolute', top: 14, right: 14, background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
 
-        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase' }}>{APPOINTMENT_LABEL}</div>
+        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--primary)', textTransform: 'uppercase' }}>{appointmentLabel(lead)} · {duurTekst(appointmentMinutes(lead))}</div>
         <h2 style={{ margin: '2px 0 4px', fontSize: '1.2rem', paddingRight: 28 }}>{lead.name}</h2>
         <div style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
           {fmt(lead.appointment_at)} - {pad(end.getHours())}:{pad(end.getMinutes())} · {amName}
@@ -278,6 +297,21 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
 
         {canManage && (
           <>
+            <div style={sectionTitle}>Soort afspraak</div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {APPOINTMENT_TYPES.map(t => {
+                const actief = (lead.appointment_type || APPOINTMENT_TYPES[0].id) === t.id
+                return (
+                  <button key={t.id} type="button" disabled={busy} title={t.uitleg} onClick={() => soortWijzigen(t.id)}
+                    style={{ flex: 1, padding: '8px 4px', borderRadius: 8, cursor: busy ? 'wait' : 'pointer', fontWeight: 800, fontSize: '0.8rem',
+                      border: `2px solid ${actief ? 'var(--primary)' : 'var(--border)'}`, background: actief ? 'var(--accent-soft)' : 'transparent',
+                      color: actief ? 'var(--primary)' : 'var(--text-primary)' }}>
+                    {t.label} <span style={{ fontWeight: 500, opacity: 0.8 }}>({duurTekst(t.minutes)})</span>
+                  </button>
+                )
+              })}
+            </div>
+
             <div style={sectionTitle}>Verplaatsen</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <input type="datetime-local" step="900" value={moveAt} onChange={e => { setMoveAt(e.target.value); setMoveError(null) }} className="form-control" style={{ width: '100%', fontSize: 16 }} />

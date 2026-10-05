@@ -11,9 +11,9 @@
 //
 // body: { lead_id }   header: x-google-agenda-key
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { AFSPRAAK_MINUTEN, TIJDZONE, accessToken, adminClient, corsHeaders, googleFetch } from "./google.ts";
+import { TIJDZONE, accessToken, adminClient, afspraakSoort, corsHeaders, googleFetch } from "./google.ts";
 
-const AFSPRAAK_LABEL = "Shoot"; // gelijk aan APPOINTMENT_LABEL in de app
+// v124: label en duur komen per afspraak uit afspraakSoort(lead.appointment_type)
 const EINDSTATUS_MET_AFSPRAAK = new Set(["afspraak_gemaakt", "deal"]);
 
 const UITKOMSTEN: Record<string, string> = {
@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: lead } = await admin
     .from("leads")
-    .select("id, name, contact_person, phone, email, notes, status, appointment_at, assigned_to, deleted_at, address, house_number, postal_code, city, appointment_outcome")
+    .select("id, name, contact_person, phone, email, notes, status, appointment_at, appointment_type, assigned_to, deleted_at, address, house_number, postal_code, city, appointment_outcome")
     .eq("id", leadId)
     .maybeSingle();
 
@@ -99,10 +99,11 @@ Deno.serve(async (req: Request) => {
     return json({ ok: true, actie: "geen koppeling voor deze accountmanager" });
   }
 
+  const soort = afspraakSoort(lead!.appointment_type);
   const start = new Date(String(lead!.appointment_at));
-  const eind = new Date(start.getTime() + AFSPRAAK_MINUTEN * 60 * 1000);
+  const eind = new Date(start.getTime() + soort.minuten * 60 * 1000);
   const event = {
-    summary: `${AFSPRAAK_LABEL}: ${lead!.name || "Afspraak"}`,
+    summary: `${soort.label}: ${lead!.name || "Afspraak"}`,
     description: omschrijving(lead!, appUrl),
     location: adres(lead!) || undefined,
     start: { dateTime: start.toISOString(), timeZone: TIJDZONE },

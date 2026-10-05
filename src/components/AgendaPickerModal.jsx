@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { X, ChevronLeft, ChevronRight, Lock, CalendarClock, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { APPOINTMENT_LABEL, APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
+import { appointmentMinutes, appointmentLabel, duurTekst } from '../lib/appointmentConfig'
 import PersonSelect from './PersonSelect' // v102
 
 // v96: visuele agendakeuze bij "Afspraak gemaakt" in het belscherm. Vroeger
@@ -56,7 +56,10 @@ const GRID_HEIGHT = GRID_TOTAL_MIN * (HOUR_PX / 60)
 const SNAP_MIN = 15
 const HOURS_DISPLAY = Array.from({ length: GRID_END_HOUR - GRID_START_HOUR }, (_, i) => GRID_START_HOUR + i)
 
-export default function AgendaPickerModal({ accountmanagers, defaultAmId, excludeLeadId, onConfirm, onClose }) {
+// v124: `type` = soort van de nieuwe afspraak (shoot/bezoek), bepaalt de blokhoogte
+// en of een klik op een vrij moment past.
+export default function AgendaPickerModal({ accountmanagers, defaultAmId, excludeLeadId, type, onConfirm, onClose }) {
+  const nieuwMin = appointmentMinutes(type)
   const [selectedAmId, setSelectedAmId] = useState(defaultAmId || accountmanagers?.[0]?.id || null)
   const [currentWeekStart, setCurrentWeekStart] = useState(() => startOfWeek(new Date()))
   const [loading, setLoading] = useState(true)
@@ -74,7 +77,7 @@ export default function AgendaPickerModal({ accountmanagers, defaultAmId, exclud
       const { data: leadsData } = await supabase
         .from('leads')
         .select(`
-          id, name, appointment_at,
+          id, name, appointment_at, appointment_type,
           lead_lists!inner(id, campaign_id, campaigns!inner(id, appointment_scheduling_enabled))
         `)
         .eq('status', 'afspraak_gemaakt')
@@ -118,7 +121,7 @@ export default function AgendaPickerModal({ accountmanagers, defaultAmId, exclud
         const at = new Date(l.appointment_at)
         if (at.toDateString() !== dayStr) return
         const startMin = minutesSinceMidnight(at)
-        map[dayIdx].push({ kind: 'appointment', id: `a-${l.id}`, label: l.name, startMin, endMin: startMin + APPOINTMENT_DURATION_MINUTES })
+        map[dayIdx].push({ kind: 'appointment', id: `a-${l.id}`, label: l.name, startMin, endMin: startMin + appointmentMinutes(l) })
       })
       blockedSlots.forEach(b => {
         if (!b.start_at) return
@@ -132,7 +135,7 @@ export default function AgendaPickerModal({ accountmanagers, defaultAmId, exclud
   }, [weekDays, appointments, blockedSlots])
 
   function slotIsFree(dayIdx, startMin) {
-    const endMin = startMin + APPOINTMENT_DURATION_MINUTES
+    const endMin = startMin + nieuwMin
     return !busyByDay[dayIdx].some(b => b.startMin < endMin && b.endMin > startMin)
   }
 
@@ -273,7 +276,7 @@ export default function AgendaPickerModal({ accountmanagers, defaultAmId, exclud
 
                       {pickedSlot && pickedSlot.dayIdx === dayIdx && (() => {
                         const top = (pickedSlot.startMin - GRID_START_MIN) * (HOUR_PX / 60)
-                        const height = APPOINTMENT_DURATION_MINUTES * (HOUR_PX / 60)
+                        const height = nieuwMin * (HOUR_PX / 60)
                         return (
                           <div style={{
                             position: 'absolute', left: 2, right: 2, top, height,
@@ -302,7 +305,7 @@ export default function AgendaPickerModal({ accountmanagers, defaultAmId, exclud
         <div style={{ padding: '16px 22px', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
           <div style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>
             {pickedDate
-              ? <>Gekozen: <strong style={{ textTransform: 'capitalize' }}>{formatDateNl(pickedDate)}</strong> om <strong>{formatTime(pickedDate)}</strong> ({APPOINTMENT_LABEL}, 2,5 uur)</>
+              ? <>Gekozen: <strong style={{ textTransform: 'capitalize' }}>{formatDateNl(pickedDate)}</strong> om <strong>{formatTime(pickedDate)}</strong> ({appointmentLabel(type)}, {duurTekst(nieuwMin)})</>
               : <span style={{ color: 'var(--text-muted)' }}>Nog geen moment gekozen</span>}
           </div>
           <button

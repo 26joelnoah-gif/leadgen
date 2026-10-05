@@ -10,7 +10,7 @@ import { getStatusDetails } from '../utils/statusUtils'
 import { distanceM, formatDistance, distanceBand } from '../utils/geoUtils'
 import { nextContactOnOtherDaypart, isFollowUpDue, daysSince } from '../utils/followUpUtils'
 import { SALES_BOARD_COLUMNS, BOARD_CLOSED_STATUSES, boardColumnFor } from '../lib/leadBoard'
-import { APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
+import { APPOINTMENT_TYPES, DEFAULT_APPOINTMENT_TYPE, appointmentMinutes, appointmentLabel, duurTekst } from '../lib/appointmentConfig'
 import { SENTIMENTS } from '../lib/appointments'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
 import { stopMailsVoorLead } from '../lib/mailStop'
@@ -216,7 +216,7 @@ export default function LeadBoard() {
       const alle = []
       for (let from = 0; from < 50000; from += PAGE) {
         const { data, error } = await supabase.from('leads')
-          .select('id, lead_list_id, name, phone, email, website, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, updated_at, lat, lng, rechtsvorm, rechtsvorm_bron, opt_in_at, opt_in_bewijs, afgemeld_at, afgemeld_bron, mail_pauze_tot')
+          .select('id, lead_list_id, name, phone, email, website, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, updated_at, lat, lng, rechtsvorm, rechtsvorm_bron, opt_in_at, opt_in_bewijs, afgemeld_at, afgemeld_bron, mail_pauze_tot, appointment_at, appointment_type')
           .in('lead_list_id', listIds)
           .is('deleted_at', null)
           .order('created_at', { ascending: true })
@@ -494,7 +494,8 @@ export default function LeadBoard() {
         lead, column, value: toLocalInput(lead[column.dateField]) || defaultTbaDateTimeLocal(),
         // v97: afspraakdetails (alleen gebruikt bij appointment_at)
         contact_person: lead.contact_person || '', address: lead.address || '', house_number: lead.house_number || '',
-        postal_code: lead.postal_code || '', city: lead.city || '', sentiment: null
+        postal_code: lead.postal_code || '', city: lead.city || '', sentiment: null,
+        type: lead.appointment_type || DEFAULT_APPOINTMENT_TYPE // v124: soort afspraak
       })
       return
     }
@@ -519,7 +520,9 @@ export default function LeadBoard() {
     if (column.dateField === 'appointment_at') {
       try {
         const targetDate = new Date(value)
-        const targetEnd = new Date(targetDate.getTime() + APPOINTMENT_DURATION_MINUTES * 60 * 1000)
+        // v124: duur per soort (shoot 2,5 uur / bezoek 1 uur)
+        const maxMs = Math.max(...APPOINTMENT_TYPES.map(t => t.minutes)) * 60 * 1000
+        const targetEnd = new Date(targetDate.getTime() + appointmentMinutes(datePrompt.type) * 60 * 1000)
         const amId = lead.assigned_to || user?.id
 
         if (amId) {
@@ -535,15 +538,14 @@ export default function LeadBoard() {
             return
           }
 
-          // Bestaande afspraken van dezelfde AM: elke afspraak duurt zelf
-          // ook APPOINTMENT_DURATION_MINUTES, dus haal alles op dat binnen
-          // die marge rond het gekozen moment kan overlappen en toets de
-          // echte overlap in JS.
-          const marginStart = new Date(targetDate.getTime() - APPOINTMENT_DURATION_MINUTES * 60 * 1000).toISOString()
-          const marginEnd = new Date(targetDate.getTime() + APPOINTMENT_DURATION_MINUTES * 60 * 1000).toISOString()
+          // Bestaande afspraken van dezelfde AM: elke afspraak heeft zijn
+          // eigen soort/duur, dus kijk zo ver terug als de langste soort en
+          // toets de echte overlap in JS.
+          const marginStart = new Date(targetDate.getTime() - maxMs).toISOString()
+          const marginEnd = targetEnd.toISOString()
           const { data: nearbyAppts } = await supabase
             .from('leads')
-            .select('id, name, appointment_at')
+            .select('id, name, appointment_at, appointment_type')
             .eq('assigned_to', amId)
             .eq('status', 'afspraak_gemaakt')
             .neq('id', lead.id)
@@ -553,7 +555,7 @@ export default function LeadBoard() {
 
           const overlapping = (nearbyAppts || []).find(a => {
             const aStart = new Date(a.appointment_at)
-            const aEnd = new Date(aStart.getTime() + APPOINTMENT_DURATION_MINUTES * 60 * 1000)
+            const aEnd = new Date(aStart.getTime() + appointmentMinutes(a) * 60 * 1000)
             return aStart < targetEnd && aEnd > targetDate
           })
           if (overlapping) {
@@ -575,6 +577,7 @@ export default function LeadBoard() {
         postal_code: datePrompt.postal_code.trim() || null,
         city: datePrompt.city.trim(),
         appointment_sentiment: datePrompt.sentiment,
+        appointment_type: datePrompt.type || DEFAULT_APPOINTMENT_TYPE, // v124
         appointment_outcome: null, appointment_outcome_at: null, appointment_outcome_by: null,
         appointment_by: user?.id || null, // v110: van wie is deze afspraak (uitbetaling)
       })
@@ -809,7 +812,7 @@ export default function LeadBoard() {
         )}
         {lead.appointment_at && lead.status === 'afspraak_gemaakt' ? (
           <div className="lc-meta" style={{ color: 'var(--secondary)' }} title="Afspraakmoment">
-            <CalendarDays size={11} />Afspraak {dateShort(lead.appointment_at)}
+            <CalendarDays size={11} />{appointmentLabel(lead)} {dateShort(lead.appointment_at)}
           </div>
         ) : lead.next_contact_date && !DONE_STATUSES.includes(lead.status) ? (
           <div className="lc-meta" title="Opvolgdatum: dan komt de lead terug in de wachtrij">
@@ -1227,6 +1230,25 @@ export default function LeadBoard() {
               <button onClick={() => setDatePrompt(null)} aria-label="Sluiten" style={{ position: 'absolute', top: 14, right: 14, background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}><X size={20} /></button>
               <h2 style={{ margin: '0 0 6px', fontSize: '1.1rem' }}>{datePrompt.column.dateTitle}</h2>
               <p className="text-muted" style={{ margin: '0 0 16px', fontSize: '0.85rem' }}>{datePrompt.lead.name}</p>
+              {datePrompt.column.dateField === 'appointment_at' && (
+                <div style={{ marginBottom: 12 }}>
+                  {/* v124: soort afspraak bepaalt de duur in de agenda */}
+                  <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: 6, fontSize: '0.85rem' }}>Wat voor afspraak is het?</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    {APPOINTMENT_TYPES.map(t => {
+                      const actief = (datePrompt.type || DEFAULT_APPOINTMENT_TYPE) === t.id
+                      return (
+                        <button key={t.id} type="button" title={t.uitleg} onClick={() => setDatePrompt(p => ({ ...p, type: t.id }))}
+                          style={{ flex: 1, padding: '9px 4px', borderRadius: 8, cursor: 'pointer', fontWeight: 800, fontSize: '0.8rem',
+                            border: `2px solid ${actief ? 'var(--primary)' : 'var(--border)'}`, background: actief ? 'var(--accent-soft)' : 'transparent',
+                            color: actief ? 'var(--primary)' : 'var(--text-primary)' }}>
+                          {t.label} <span style={{ fontWeight: 500, opacity: 0.8 }}>({duurTekst(t.minutes)})</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
               <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: 6, fontSize: '0.85rem' }}>{datePrompt.column.dateLabel}</label>
               <input
                 type="datetime-local"

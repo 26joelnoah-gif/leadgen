@@ -12,7 +12,16 @@ export const GOOGLE_SCOPES = [
 
 export const AGENDA_NAAM = "ReachConnect afspraken";
 export const TIJDZONE = "Europe/Amsterdam";
-export const AFSPRAAK_MINUTEN = 150; // gelijk aan APPOINTMENT_DURATION_MINUTES
+export const AFSPRAAK_MINUTEN = 150; // standaard (shoot), gelijk aan APPOINTMENT_DURATION_MINUTES
+// v124: duur en naam per soort afspraak (leads.appointment_type). Gelijk aan
+// APPOINTMENT_TYPES in src/lib/appointmentConfig.js. Leeg/onbekend = shoot.
+export const AFSPRAAK_SOORTEN: Record<string, { label: string; minuten: number }> = {
+  shoot: { label: "Shoot", minuten: 150 },
+  bezoek: { label: "Bezoek", minuten: 60 },
+};
+export function afspraakSoort(type: unknown): { label: string; minuten: number } {
+  return AFSPRAAK_SOORTEN[String(type || "")] || AFSPRAAK_SOORTEN.shoot;
+}
 
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",

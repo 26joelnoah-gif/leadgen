@@ -25,7 +25,7 @@ import { SENTIMENTS } from '../lib/appointments'
 import { useToast } from './Toast'
 import { foutTekst } from '../lib/retry'
 import { logAppError } from '../lib/errorLog'
-import { APPOINTMENT_LABEL, APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
+import { APPOINTMENT_TYPES, DEFAULT_APPOINTMENT_TYPE, appointmentMinutes, appointmentLabel, duurTekst } from '../lib/appointmentConfig'
 import PersonSelect from './PersonSelect' // v102
 import { dispositionKey } from '../lib/dispositions' // v104
 
@@ -273,6 +273,9 @@ export default function WorkInterface() {
   // v97: bij het inplannen van een afspraak geeft de beller ook op hoe de
   // klant erin staat (positief/neutraal/negatief) - verplicht.
   const [appointmentSentiment, setAppointmentSentiment] = useState(null)
+  // v124: soort afspraak (shoot 2,5 uur / bezoek 1 uur) - bepaalt de duur in
+  // de conflictcheck, de agenda en Google Agenda. Gaat in leads.appointment_type.
+  const [appointmentType, setAppointmentType] = useState(DEFAULT_APPOINTMENT_TYPE)
 
   // Call tracking: wanneer kwam deze lead in beeld + teller van vandaag
   const leadStartRef = useRef(new Date().toISOString())
@@ -286,7 +289,7 @@ export default function WorkInterface() {
   }, [])
 
   // v97: sentiment hoort bij één afspraak - bij een nieuwe lead weer leeg
-  useEffect(() => { setAppointmentSentiment(null) }, [currentLead?.id])
+  useEffect(() => { setAppointmentSentiment(null); setAppointmentType(currentLead?.appointment_type || DEFAULT_APPOINTMENT_TYPE) }, [currentLead?.id])
 
   // v94: Haal accountmanagers op zodra 'afspraak_gemaakt' wordt gekozen
   useEffect(() => {
@@ -325,11 +328,12 @@ export default function WorkInterface() {
           setConflictWarning(null)
           return
         }
-        // Elke afspraak (shoot) duurt APPOINTMENT_DURATION_MINUTES (2,5
-        // uur) - de conflictcontrole gebruikt diezelfde duur, zowel voor
-        // blokkades als voor bestaande afspraken, zodat een overlappende
-        // shoot altijd wordt gesignaleerd.
-        const targetEnd = new Date(targetDate.getTime() + APPOINTMENT_DURATION_MINUTES * 60 * 1000)
+        // v124: de duur hangt af van de gekozen soort (shoot 2,5 uur, bezoek
+        // 1 uur). Bestaande afspraken hebben elk hun eigen soort/duur, dus
+        // kijken we zo ver terug als de langste soort en toetsen de echte
+        // overlap per afspraak in JS.
+        const maxMs = Math.max(...APPOINTMENT_TYPES.map(t => t.minutes)) * 60 * 1000
+        const targetEnd = new Date(targetDate.getTime() + appointmentMinutes(appointmentType) * 60 * 1000)
 
         // 1. Check tijdsblokkades in agenda_blocks
         const { data: blocks } = await supabase
@@ -348,15 +352,12 @@ export default function WorkInterface() {
           return
         }
 
-        // 2. Check bestaande afspraken - elke afspraak duurt zelf ook
-        // APPOINTMENT_DURATION_MINUTES, dus we halen alles op dat binnen die
-        // marge rond het gekozen moment zou kunnen overlappen en toetsen de
-        // echte overlap in JS (i.p.v. een vaste +/- marge).
-        const conflictMarginStart = new Date(targetDate.getTime() - APPOINTMENT_DURATION_MINUTES * 60 * 1000).toISOString()
-        const conflictMarginEnd = new Date(targetDate.getTime() + APPOINTMENT_DURATION_MINUTES * 60 * 1000).toISOString()
+        // 2. Check bestaande afspraken van dezelfde accountmanager.
+        const conflictMarginStart = new Date(targetDate.getTime() - maxMs).toISOString()
+        const conflictMarginEnd = targetEnd.toISOString()
         const { data: nearbyAppts } = await supabase
           .from('leads')
-          .select('id, name, appointment_at')
+          .select('id, name, appointment_at, appointment_type')
           .eq('assigned_to', selectedAmId)
           .eq('status', 'afspraak_gemaakt')
           .neq('id', currentLead?.id || '')
@@ -367,7 +368,7 @@ export default function WorkInterface() {
         if (cancelled) return
         const overlapping = (nearbyAppts || []).find(a => {
           const aStart = new Date(a.appointment_at)
-          const aEnd = new Date(aStart.getTime() + APPOINTMENT_DURATION_MINUTES * 60 * 1000)
+          const aEnd = new Date(aStart.getTime() + appointmentMinutes(a) * 60 * 1000)
           return aStart < targetEnd && aEnd > targetDate
         })
         if (overlapping) {
@@ -386,7 +387,7 @@ export default function WorkInterface() {
     }
     checkAvailability()
     return () => { cancelled = true }
-  }, [selectedDisposition, appointmentSchedulingEnabled, nextContactDate, selectedAmId, accountmanagers, currentLead?.id])
+  }, [selectedDisposition, appointmentSchedulingEnabled, nextContactDate, selectedAmId, accountmanagers, currentLead?.id, appointmentType])
 
   // v63: baseline = laatst bekende databaseversie van de lead. Wordt
   // gebruikt om (a) alleen de door de beller GEWIJZIGDE velden op te slaan
@@ -906,6 +907,7 @@ export default function WorkInterface() {
         postal_code: (editableLead.postal_code || '').trim() || null,
         city: (editableLead.city || '').trim(),
         appointment_sentiment: appointmentSentiment,
+        appointment_type: appointmentType, // v124
         appointment_outcome: null,
         appointment_outcome_at: null,
         appointment_outcome_by: null,
@@ -1490,6 +1492,7 @@ export default function WorkInterface() {
               accountmanagers={accountmanagers}
               defaultAmId={selectedAmId}
               excludeLeadId={currentLead?.id}
+              type={appointmentType}
               onClose={() => setShowAgendaPicker(false)}
               onConfirm={({ amId, date }) => {
                 setSelectedAmId(amId)
@@ -1532,10 +1535,39 @@ export default function WorkInterface() {
                           </div>
                         )}
 
+                        {/* v124: soort afspraak - bepaalt hoe lang de agenda geblokkeerd wordt */}
+                        {selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled && !isRecruitmentCampaign && (
+                          <div style={{ marginBottom: '10px' }}>
+                            <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '4px', fontSize: '0.85rem' }}>
+                              Wat voor afspraak is het?
+                            </label>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              {APPOINTMENT_TYPES.map(t => {
+                                const actief = appointmentType === t.id
+                                return (
+                                  <button
+                                    key={t.id}
+                                    type="button"
+                                    onClick={() => setAppointmentType(t.id)}
+                                    title={t.uitleg}
+                                    style={{
+                                      flex: 1, padding: '8px 6px', borderRadius: '8px', cursor: 'pointer', fontWeight: 800, fontSize: '0.85rem',
+                                      border: `2px solid ${actief ? 'var(--primary)' : 'var(--border)'}`,
+                                      background: actief ? 'var(--accent-soft)' : 'transparent',
+                                      color: actief ? 'var(--primary)' : 'var(--text-primary)'
+                                    }}
+                                  >
+                                    {t.label} <span style={{ fontWeight: 500, opacity: 0.8 }}>({duurTekst(t.minutes)})</span>
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
                         <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>
                           {selectedDisposition === 'afspraak_gemaakt' ? (isRecruitmentCampaign ? 'Wanneer is het gesprek?' : 'Wanneer is de afspraak?') : 'Wanneer moet er teruggebeld worden?'}
                           {selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled && !isRecruitmentCampaign && (
-                            <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> ({APPOINTMENT_LABEL}, duurt 2,5 uur)</span>
+                            <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}> ({appointmentLabel(appointmentType)}, duurt {duurTekst(appointmentMinutes(appointmentType))})</span>
                           )}
                         </label>
                         <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>

@@ -11,7 +11,7 @@ import Header from '../components/Header'
 import LoadingSpinner from '../components/LoadingSpinner'
 import BlockTimeModal from '../components/BlockTimeModal'
 import LeadDetailModal from '../components/LeadDetailModal'
-import { APPOINTMENT_LABEL, APPOINTMENT_DURATION_MINUTES } from '../lib/appointmentConfig'
+import { appointmentMinutes, appointmentLabel } from '../lib/appointmentConfig'
 import AppointmentModal from '../components/AppointmentModal'
 import { findAppointmentConflict, outcomeInfo, sentimentInfo, leadAddressText, navigationUrl } from '../lib/appointments'
 import PersonSelect from '../components/PersonSelect' // v102
@@ -184,7 +184,7 @@ export default function Agenda() {
           assigned_to, lead_list_id, sale_date,
           address, house_number, postal_code, city,
           appointment_sentiment, appointment_outcome, appointment_outcome_at,
-          appointment_by, appointment_commission,
+          appointment_by, appointment_commission, appointment_type,
           lead_lists!inner(id, name, campaign_id, campaigns!inner(id, name, appointment_scheduling_enabled))
         `)
         .in('status', ['afspraak_gemaakt', 'deal'])
@@ -281,7 +281,7 @@ export default function Agenda() {
           leadId: l.id,
           at,
           startMin,
-          endMin: startMin + APPOINTMENT_DURATION_MINUTES,
+          endMin: startMin + appointmentMinutes(l), // v124: duur per soort
           lead: l
         })
       })
@@ -412,7 +412,7 @@ export default function Agenda() {
       try {
         if (ds.item.kind === 'appointment') {
           // v97: niet slepen op een moment waar de accountmanager al bezet is
-          const conflict = await findAppointmentConflict({ amId: ds.item.lead.assigned_to, start: newDate, excludeLeadId: ds.item.leadId })
+          const conflict = await findAppointmentConflict({ amId: ds.item.lead.assigned_to, start: newDate, excludeLeadId: ds.item.leadId, type: ds.item.lead.appointment_type })
           if (conflict) {
             toast(`${conflict}. Afspraak niet verplaatst.`, 'error', 7000)
             return
@@ -478,7 +478,7 @@ export default function Agenda() {
               <CalendarDays size={26} className="text-primary" /> Agenda &amp; Afspraken
             </h1>
             <p className="page-subtitle text-xs" style={{ margin: '4px 0 0' }}>
-              Klik op een afspraak voor adres, navigatie en afboeken.{canManage ? ' Sleep een afspraak naar een ander moment om hem te verzetten.' : ''} Elke afspraak is een {APPOINTMENT_LABEL.toLowerCase()} van 2,5 uur.
+              Klik op een afspraak voor adres, navigatie en afboeken.{canManage ? ' Sleep een afspraak naar een ander moment om hem te verzetten.' : ''} Een shoot duurt 2,5 uur, een bezoek 1 uur.
             </p>
           </div>
 
@@ -722,9 +722,9 @@ export default function Agenda() {
                                 opacity: isSaving ? 0.6 : 1, boxShadow: isDragPreviewSource ? '0 4px 14px rgba(0,0,0,0.4)' : 'none',
                                 transition: isDragPreviewSource ? 'none' : 'top 0.12s ease'
                               }}
-                              title={`${APPOINTMENT_LABEL} · ${l.name}${canManage ? ' · sleep om te verzetten' : ''}, klik om te openen`}
+                              title={`${appointmentLabel(l)} · ${l.name}${canManage ? ' · sleep om te verzetten' : ''}, klik om te openen`}
                             >
-                              <div style={{ fontSize: '0.68rem', fontWeight: 800 }}>{snt ? `${snt.emoji} ` : ''}{startLabel} · {oc ? oc.label : APPOINTMENT_LABEL}</div>
+                              <div style={{ fontSize: '0.68rem', fontWeight: 800 }}>{snt ? `${snt.emoji} ` : ''}{startLabel} · {oc ? oc.label : appointmentLabel(l)}</div>
                               <div style={{ fontSize: '0.72rem', fontWeight: 700 }} className="truncate">{l.name}</div>
                               {height > 44 && l.contact_person && (
                                 <div style={{ fontSize: '0.65rem', opacity: 0.9 }} className="truncate">
@@ -825,7 +825,7 @@ export default function Agenda() {
                     if (item.kind === 'appointment') {
                       const l = item.data
                       const amName = amMap[l.assigned_to] || 'Onbekend'
-                      const endLabel = formatTime(new Date(item.at.getTime() + APPOINTMENT_DURATION_MINUTES * 60000).toISOString())
+                      const endLabel = formatTime(new Date(item.at.getTime() + appointmentMinutes(l) * 60000).toISOString())
                       return (
                         <div
                           key={`l-${l.id}`}
@@ -842,7 +842,7 @@ export default function Agenda() {
                             <div>
                               <div className="font-bold text-body text-base flex items-center gap-2">
                                 {l.name}
-                                <span className="badge badge-info text-[10px]">{outcomeInfo(l.appointment_outcome)?.label || APPOINTMENT_LABEL}</span>
+                                <span className="badge badge-info text-[10px]">{outcomeInfo(l.appointment_outcome)?.label || appointmentLabel(l)}</span>
                                 {sentimentInfo(l.appointment_sentiment) && <span title={`Klant ${sentimentInfo(l.appointment_sentiment).label.toLowerCase()}`}>{sentimentInfo(l.appointment_sentiment).emoji}</span>}
                               </div>
                               <div className="text-xs text-muted mt-0.5 flex gap-3">

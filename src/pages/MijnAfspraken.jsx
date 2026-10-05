@@ -13,6 +13,7 @@ import { CalendarCheck, Clock, Trophy, Euro, Filter, RefreshCw } from 'lucide-re
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import { sentimentInfo, afspraakStand, euro } from '../lib/appointments'
+import { appointmentLabel } from '../lib/appointmentConfig'
 import Header from '../components/Header'
 import PersonSelect from '../components/PersonSelect'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -85,7 +86,7 @@ export default function MijnAfspraken() {
       let q = supabase
         .from('leads')
         .select(`
-          id, name, contact_person, city, status, appointment_at,
+          id, name, contact_person, city, status, appointment_at, appointment_type,
           appointment_sentiment, appointment_outcome, appointment_outcome_at,
           appointment_commission, appointment_commission_at, appointment_by,
           assigned_to, lead_list_id,
@@ -274,7 +275,7 @@ export default function MijnAfspraken() {
                   <div style={{ flex: '1 1 220px', minWidth: 0 }}>
                     <div style={{ fontWeight: 800, color: 'var(--text-primary)', fontSize: '1rem', overflowWrap: 'anywhere' }}>{l.name}</div>
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                      {fmtMoment(l.appointment_at)}
+                      {fmtMoment(l.appointment_at)} · {appointmentLabel(l)}
                       {l.city ? ` · ${l.city}` : ''}
                       {l.lead_lists?.campaigns?.name ? ` · ${l.lead_lists.campaigns.name}` : ''}
                     </div>

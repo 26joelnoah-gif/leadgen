@@ -1,7 +1,10 @@
 // v97: gedeelde helpers voor afspraken (sentiment, uitkomst, adres/navigatie,
 // conflictcheck). Gebruikt door WorkInterface, LeadBoard en Agenda.
 import { supabase } from './supabase'
-import { APPOINTMENT_DURATION_MINUTES } from './appointmentConfig'
+import { appointmentMinutes, APPOINTMENT_TYPES } from './appointmentConfig'
+
+// Langste afspraaksoort in ms: zo ver kijken we terug bij de conflictcheck.
+const MAX_APPOINTMENT_MS = Math.max(...APPOINTMENT_TYPES.map(t => t.minutes)) * 60 * 1000
 
 // Hoe staat de klant erin? Verplicht bij inplannen.
 export const SENTIMENTS = [
@@ -62,13 +65,17 @@ export function navigationUrl(lead) {
 }
 
 // Is dit moment vrij bij deze accountmanager? Kijkt naar blokkades en naar
-// andere afspraken (elke afspraak duurt APPOINTMENT_DURATION_MINUTES).
+// andere afspraken. v124: elke afspraak heeft zijn eigen duur (shoot 2,5 uur,
+// bezoek 1 uur) - geef met `type` de soort van de NIEUWE afspraak mee; van
+// bestaande afspraken lezen we de soort uit de lead zelf.
 // Geeft null terug als het vrij is, anders een korte uitleg.
-export async function findAppointmentConflict({ amId, start, excludeLeadId }) {
+export async function findAppointmentConflict({ amId, start, excludeLeadId, type }) {
   if (!amId || !start) return null
   const targetStart = new Date(start)
-  const dur = APPOINTMENT_DURATION_MINUTES * 60 * 1000
+  const dur = appointmentMinutes(type) * 60 * 1000
   const targetEnd = new Date(targetStart.getTime() + dur)
+  // Ruimste duur die een bestaande afspraak kan hebben: zo ver terugkijken
+  const maxDur = MAX_APPOINTMENT_MS
 
   const { data: blocks } = await supabase
     .from('agenda_blocks')
@@ -82,17 +89,17 @@ export async function findAppointmentConflict({ amId, start, excludeLeadId }) {
 
   let q = supabase
     .from('leads')
-    .select('id, name, appointment_at')
+    .select('id, name, appointment_at, appointment_type')
     .eq('assigned_to', amId)
     .eq('status', 'afspraak_gemaakt')
-    .gte('appointment_at', new Date(targetStart.getTime() - dur).toISOString())
-    .lte('appointment_at', new Date(targetStart.getTime() + dur).toISOString())
+    .gte('appointment_at', new Date(targetStart.getTime() - maxDur).toISOString())
+    .lte('appointment_at', targetEnd.toISOString())
     .is('deleted_at', null)
   if (excludeLeadId) q = q.neq('id', excludeLeadId)
   const { data: appts } = await q
   const overlap = (appts || []).find(a => {
     const s = new Date(a.appointment_at)
-    const e = new Date(s.getTime() + dur)
+    const e = new Date(s.getTime() + appointmentMinutes(a) * 60 * 1000)
     return s < targetEnd && e > targetStart
   })
   if (overlap) return `Er staat al een afspraak op dit moment (${overlap.name})`

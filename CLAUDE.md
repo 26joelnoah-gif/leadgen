@@ -832,3 +832,33 @@ Twee-zijdig platform:
   dus geplande mails (mailqueue-runner) kloppen daardoor ook.
   REGEL: eist een bron een extra leadveld, zet het in `verplicht`; niet in de
   Edge Function afdwingen, want daar is de beller al weg.
+
+- **SOORT AFSPRAAK: SHOOT OF BEZOEK (v124, 2026-10-05, kolom + check toegepast,
+  google-agenda-push v8 live):** elke afspraak was een shoot van 2,5 uur. Nu
+  kiest de beller bij "Afspraak gemaakt" (belscherm WorkInterface en bord
+  LeadBoard confirmDatePrompt) de soort: Shoot (2,5 uur) of Bezoek (1 uur).
+  1. `leads.appointment_type` ('shoot' | 'bezoek' | null = shoot, voor oude
+     afspraken). Soorten + duur staan in src/lib/appointmentConfig.js
+     (APPOINTMENT_TYPES, appointmentMinutes(lead|id), appointmentLabel,
+     duurTekst) en gespiegeld in supabase/functions/*/google.ts
+     (AFSPRAAK_SOORTEN, afspraakSoort). REGEL: nieuwe soort = die twee plekken
+     + de CHECK leads_appointment_type_check, verder niets. De oude constanten
+     APPOINTMENT_LABEL / APPOINTMENT_DURATION_MINUTES zijn de shoot-waarden en
+     worden nergens meer geimporteerd.
+  2. Conflictcheck (WorkInterface, LeadBoard, findAppointmentConflict in
+     src/lib/appointments.js met nieuwe parameter `type`) rekent met de duur
+     van de NIEUWE afspraak en met de eigen duur van elke bestaande afspraak;
+     hij kijkt zo ver terug als de langste soort. Agenda.jsx, AgendaPickerModal
+     (prop `type`), AppointmentModal en MijnAfspraken tonen de juiste lengte
+     en het label; het bord toont "Shoot 5 okt" / "Bezoek 5 okt".
+  3. AppointmentModal: admin/manager kan de soort van een bestaande afspraak
+     wijzigen (blok "Soort afspraak", met conflictcheck op de nieuwe duur).
+     Die update stuurt appointment_at (ongewijzigd) mee, zodat de Google
+     Agenda-trigger hem oppikt.
+  4. Google Agenda: google-agenda-push gebruikt label en duur per soort.
+     Functie leads_google_agenda_kick kijkt nu ook naar appointment_type. De
+     TRIGGER-kolomlijst is nog NIET bijgewerkt (drop trigger op leads bleef via
+     MCP hangen); het statement staat in migration_v124_afspraaksoort.sql en
+     moet nog in de SQL-editor gedraaid worden. Tot dan: wie appointment_type
+     schrijft, schrijft appointment_at mee (gebeurt al overal).
+
