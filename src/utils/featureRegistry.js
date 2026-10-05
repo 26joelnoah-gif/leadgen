@@ -133,6 +133,12 @@ const PLANNING_FEATURES = [
   { key: 'pl_note', group: 'Rooster', label: 'Notitie per dag', description: 'Zet er een opmerking bij, bijvoorbeeld "kan pas vanaf 10:00".' }
 ]
 
+// v127: aanbrenger - klant die andere bedrijven aanbrengt
+const AANBRENGER_FEATURES = [
+  { key: 'ab_form', group: 'Aanbrengen', label: 'Bedrijf aanbrengen', description: 'Vul een bedrijf in dat je kent. Wij nemen contact op.' },
+  { key: 'ab_stand', group: 'Aanbrengen', label: 'Stand van je aanbrengingen', description: 'Zie per bedrijf of het is gebeld, een afspraak heeft of klant is geworden.' }
+]
+
 // v77: extern account - alleen de tab Tools
 const EXTERN_FEATURES = [
   { key: 'ex_tools', group: 'Tools', label: 'Tools', description: 'Je ziet alleen de tools die voor jou zijn aangezet, bijvoorbeeld de offerte-tool.' }
@@ -161,6 +167,8 @@ export function getFeaturesForProfile(profile, extra = {}) {
       return PLANNING_FEATURES
     case 'extern':
       return EXTERN_FEATURES
+    case 'aanbrenger':
+      return AANBRENGER_FEATURES
     case 'backoffice':
       return [
         ...BACKOFFICE_FEATURES_BASE,

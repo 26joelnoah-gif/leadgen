@@ -296,6 +296,8 @@ export default function Admin() {
           ? 'Recruiter aangemaakt! Het sollicitatieproject "Sollicitanten" staat klaar.'
           : employeeData.role === 'planning'
           ? 'Planning-account aangemaakt! Dit account ziet alleen de roosterpagina. Koppel het aan een team via Lead Beheer > Teams om het in het roosteroverzicht van een project te zien.'
+          : employeeData.role === 'aanbrenger'
+          ? 'Aanbrenger-account aangemaakt! Koppel het nu aan een project via Lead Beheer > projectinstellingen > Aanbrengers.'
           : employeeData.role === 'extern'
           ? 'Extern account aangemaakt! Dit account ziet alleen de tab Tools. Klik op de knop "Tools" op de kaart om aan te vinken welke tools het mag gebruiken.'
           : employeeData.role === 'backoffice'
@@ -847,7 +849,7 @@ export default function Admin() {
                            </div>
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
-                           <span className={`self-start shrink-0 whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : u.role === 'accountmanager' ? 'bg-purple-500/20 text-purple-300' : u.role === 'recruiter' ? 'bg-warning/20 text-warning' : u.role === 'backoffice' ? 'bg-primary/20 text-primary' : u.role === 'planning' ? 'bg-muted/20 text-muted' : u.role === 'extern' ? 'bg-warning/20 text-warning' : 'bg-success/20 text-success'}`}>{u.role === 'employee' ? 'Beller' : u.role === 'accountmanager' ? 'Accountmanager' : u.role === 'recruiter' ? 'Recruiter' : u.role === 'backoffice' ? 'Backoffice' : u.role === 'planning' ? 'Planning' : u.role === 'extern' ? 'Extern' : u.role}</span>
+                           <span className={`self-start shrink-0 whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${u.role === 'admin' ? 'bg-secondary/20 text-secondary' : u.role === 'manager' ? 'bg-primary/20 text-primary' : u.role === 'accountmanager' ? 'bg-purple-500/20 text-purple-300' : u.role === 'recruiter' ? 'bg-warning/20 text-warning' : u.role === 'backoffice' ? 'bg-primary/20 text-primary' : u.role === 'planning' ? 'bg-muted/20 text-muted' : u.role === 'extern' ? 'bg-warning/20 text-warning' : u.role === 'aanbrenger' ? 'bg-primary/20 text-primary' : 'bg-success/20 text-success'}`}>{u.role === 'employee' ? 'Beller' : u.role === 'accountmanager' ? 'Accountmanager' : u.role === 'recruiter' ? 'Recruiter' : u.role === 'backoffice' ? 'Backoffice' : u.role === 'planning' ? 'Planning' : u.role === 'extern' ? 'Extern' : u.role === 'aanbrenger' ? 'Aanbrenger' : u.role}</span>
                            {/* v88: zelfregistratie-account dat nog op de EUR 50-betaling wacht - eigen badge i.p.v. het gewone "Inactief" (dat is voor bewust uitgezette medewerkers) */}
                            {u.is_active === false && u.signup_source === 'self_service' && u.payment_status === 'pending' ? (
                              <span className="whitespace-nowrap px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest bg-secondary/20 text-secondary" title="Zelf aangemeld via /aanmelden, wacht nog op de bevestiging van de eerste maandbetaling (€50/maand)">Wacht op betaling</span>

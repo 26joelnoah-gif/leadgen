@@ -15,7 +15,8 @@ import { supabase } from './supabase'
 
 // Rollen die iemand zonder adminrol mag aanmaken. Dezelfde lijst staat in de
 // RPC; die is de echte bewaking, dit is alleen wat de app laat zien.
-export const ROLLEN_ZONDER_ADMIN = ['employee', 'backoffice', 'accountmanager', 'planning']
+// v127: 'aanbrenger' = klant die andere klanten aanbrengt (alleen /aanbrengen).
+export const ROLLEN_ZONDER_ADMIN = ['employee', 'backoffice', 'accountmanager', 'planning', 'aanbrenger']
 
 // v125: een recruiter maakt ALLEEN planning-accounts aan (rooster-app). Zodra
 // de persoon echt begint geeft de recruiter het account een functie via
@@ -32,6 +33,7 @@ export const FUNCTIE_LABELS = {
   backoffice: 'Backoffice',
   accountmanager: 'Accountmanager',
   extern: 'Extern (alleen tools)',
+  aanbrenger: 'Aanbrenger (klant)',
   manager: 'Manager',
   recruiter: 'Recruiter',
   admin: 'Admin'

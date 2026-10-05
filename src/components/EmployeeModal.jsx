@@ -15,6 +15,7 @@ const ROLE_OPTIONS = [
   { value: 'recruiter', label: 'Recruiter' },
   { value: 'planning', label: 'Planning (alleen rooster)' },
   { value: 'extern', label: 'Extern (alleen tools)' },
+  { value: 'aanbrenger', label: 'Aanbrenger (klant die klanten aanbrengt)' },
   { value: 'admin', label: 'Admin' }
 ]
 
@@ -135,6 +136,11 @@ export default function EmployeeModal({ isOpen, onClose, onAdd, fixedRole = null
               {role === 'extern' && (
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
                   Voor iemand van buiten, bijvoorbeeld een installateur. Ziet alleen de tab Tools met de tools die je na het aanmaken aanvinkt via de knop "Tools" op zijn kaart. Geen leads, lijsten, chat of roosters.
+                </p>
+              )}
+              {role === 'aanbrenger' && (
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  Voor een klant die andere bedrijven aanbrengt. Ziet alleen de pagina "Aanbrengen": een formulier en de stand van zijn eigen aanbrengingen. Koppel het account na het aanmaken aan een project via de projectinstellingen (blok "Aanbrengers"); de aanbrengingen komen in de lijst "Aangebracht" van dat project.
                 </p>
               )}
               {role === 'manager' && (

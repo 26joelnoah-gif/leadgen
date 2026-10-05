@@ -25,6 +25,7 @@ import Tekenen from './pages/Tekenen'
 import Agenda from './pages/Agenda'
 import MijnAfspraken from './pages/MijnAfspraken' // v110
 import Offertes from './pages/Offertes' // v112
+import Aanbrengen from './pages/Aanbrengen' // v127
 import Home from './pages/Home'
 import Aanmelden from './pages/Aanmelden'
 import AanmeldenBedankt from './pages/AanmeldenBedankt'
@@ -103,7 +104,7 @@ function OutsideGate({ children }) {
   return children
 }
 
-function ProtectedRoute({ children, requireAdmin = false, allowManager = false, allowPlanning = false, allowExtern = false }) {
+function ProtectedRoute({ children, requireAdmin = false, allowManager = false, allowPlanning = false, allowExtern = false, allowAanbrenger = false }) {
   const { user, profile, loading, isDemoMode } = useAuth()
 
   if (loading) return (
@@ -144,6 +145,11 @@ function ProtectedRoute({ children, requireAdmin = false, allowManager = false, 
   if (profile?.role === 'extern' && !allowExtern) {
     return <Navigate to="/tools" replace />
   }
+  // v127: aanbrenger (klant die andere klanten aanbrengt) ziet alleen /aanbrengen.
+  // De DB sluit leads/lijsten/chat af via is_planning() (migration v127).
+  if (profile?.role === 'aanbrenger' && !allowAanbrenger) {
+    return <Navigate to="/aanbrengen" replace />
+  }
 
   const roleOk = profile?.role === 'admin' || (allowManager && profile?.role === 'manager')
 
@@ -167,6 +173,7 @@ function HomeRoute() {
   const active = profile?.role === 'admin' ? (effectiveRole || 'admin') : profile?.role
   if (active === 'planning') return <Navigate to="/roosters" replace />
   if (active === 'extern') return <Navigate to="/tools" replace />
+  if (active === 'aanbrenger') return <Navigate to="/aanbrengen" replace />
   if (active === 'recruiter') return <Navigate to="/recruitment" replace />
   if (active === 'accountmanager') return <Navigate to="/leads" replace />
   return <Dashboard />
@@ -303,6 +310,15 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <MijnAfspraken />
+          </ProtectedRoute>
+        }
+      />
+      {/* v127: klant brengt andere bedrijven aan */}
+      <Route
+        path="/aanbrengen"
+        element={
+          <ProtectedRoute allowAanbrenger>
+            <Aanbrengen />
           </ProtectedRoute>
         }
       />

@@ -44,6 +44,7 @@ export default function Header({ onOpenSettings }) {
   const isBackoffice = activeRole === 'backoffice'
   const isPlanning = activeRole === 'planning'
   const isExtern = activeRole === 'extern'
+  const isAanbrenger = activeRole === 'aanbrenger' // v127
 
   // v87: "Werk" opende voorheen de belmodus zonder ooit een lijst te kiezen
   // (toggleWorkingMode zet workingListId niet), waardoor WorkInterface nooit
@@ -73,7 +74,9 @@ export default function Header({ onOpenSettings }) {
   const canViewEarnings = profile?.can_view_earnings !== false
   // v61: planning en recruiter krijgen ook de tab Tools als een project van
   // hen tools heeft (campaign_tools via hun team) - verder blijft hun nav klein.
-  const navLinks = isExtern
+  const navLinks = isAanbrenger
+    ? [{ path: '/aanbrengen', label: 'Aanbrengen' }]
+    : isExtern
     ? [{ path: '/tools', label: 'Tools' }]
     : isPlanning
     ? [

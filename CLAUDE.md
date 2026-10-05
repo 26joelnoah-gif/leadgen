@@ -926,3 +926,36 @@ Twee-zijdig platform:
   409 met een duidelijke melding. Log: password_reset_log met method 'account'
   en nieuwe kolom details ("e-mail: oud -> nieuw; naam: ...").
   Migratie: migration_v126_account_gegevens.sql.
+
+- **AANBRENGER: KLANT BRENGT ANDERE KLANTEN AAN (v127, 2026-10-05, migratie
+  NOG NIET toegepast - Noah draait migration_v127_aanbrenger.sql zelf in de
+  SQL-editor):** wens Noah: een klant van bijvoorbeeld ProSell krijgt een
+  account om andere bedrijven aan te brengen. Geen vergoeding in het systeem
+  (bewuste keuze), alleen de stand zien.
+  1. Nieuwe rol 'aanbrenger' (profiles_role_check). Zit in is_planning(), dus
+     net als planning/extern geen leads, lijsten of chat. Frontend: ProtectedRoute
+     allowAanbrenger, alles anders gaat naar /aanbrengen; HomeRoute idem;
+     Header/MobileNav tonen alleen "Aanbrengen". Aanmaken via de gewone
+     "Nieuw account"-knop (EmployeeModal, ROLLEN_ZONDER_ADMIN in accounts.js;
+     nieuw_account_afronden laat manager/can_create_users 'aanbrenger' uitdelen,
+     recruiter niet).
+  2. Tabel public.campaign_aanbrengers (campaign_id, profile_id): wie mag voor
+     welk project aanbrengen. Instellen in ProjectSettingsModal, blok
+     "Aanbrengers" (niet bij recruitment). RLS: admin of campaign-manager
+     schrijft; de aanbrenger ziet zijn eigen rijen.
+  3. Pagina src/pages/Aanbrengen.jsx (/aanbrengen): formulier (bedrijfsnaam
+     verplicht, plus telefoon of e-mail) + lijst eigen aanbrengingen met een
+     grove stand (helper aanbrengStand: ontvangen / in behandeling / afspraak
+     of offerte / klant geworden / geen klant). Alles via RPC's:
+     mijn_aanbreng_projecten(), lead_aanbrengen(p_campaign, p_bedrijf, ...) en
+     mijn_aanbrengingen() (beperkte velden, alleen referred_by = auth.uid()).
+  4. lead_aanbrengen maakt een gewone lead: status new, lead_source
+     'aanbrenger', referred_by = de aanbrenger (bestaande kolom uit v58),
+     notitie "Aangebracht door <naam> op <datum>" + toelichting, in de lijst
+     "Aangebracht" van het project (wordt aangemaakt als hij er niet is; lijst
+     zonder eigen tarief/team, dus zichtbaar voor het hele projectteam). Rem
+     30 per uur per account. created_by blijft BEWUST leeg: anders zou de
+     aanbrenger via leads_update (created_by = auth.uid()) zijn eigen leads
+     kunnen aanpassen. Daarna normale belwachtrij, niets nieuws voor bellers.
+  REGEL: een aanbrenger krijgt nooit directe select op leads; alles wat hij
+  ziet loopt via mijn_aanbrengingen().

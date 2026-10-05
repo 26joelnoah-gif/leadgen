@@ -63,6 +63,7 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   // Recruitment-projecten (sollicitanten) blijven via hun eigen pagina lopen - niet hier wijzigen.
   const [projectType, setProjectType] = useState('sales')
   const [selectedManagers, setSelectedManagers] = useState([])
+  const [selectedAanbrengers, setSelectedAanbrengers] = useState([]) // v127
   const [selectedTeams, setSelectedTeams] = useState([])
   // v60: tools per project (campaign_tools) - wie aan het project hangt ziet ze in de tab Tools
   const [selectedTools, setSelectedTools] = useState([])
@@ -109,6 +110,8 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   const [complianceOrig, setComplianceOrig] = useState(null)
 
   const allManagers = (agents || []).filter(a => a.role === 'manager')
+  // v127: klanten met de rol aanbrenger die voor dit project bedrijven mogen aanbrengen
+  const allAanbrengers = (agents || []).filter(a => a.role === 'aanbrenger' && a.is_active !== false)
 
   // v112: namens welk merk (organisatie) de offertes van dit project uitgaan.
   // Bepaalt afzendernaam, afzendmail, logo, voorwaarden en akkoordtekst op de
@@ -136,12 +139,13 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
     setLoading(true)
     Promise.all([
       supabase.from('campaign_managers').select('manager_id').eq('campaign_id', campaign.id),
+      supabase.from('campaign_aanbrengers').select('profile_id').eq('campaign_id', campaign.id), // v127
       supabase.from('campaign_teams').select('team_id').eq('campaign_id', campaign.id),
       supabase.from('campaign_tools').select('tool_key').eq('campaign_id', campaign.id),
       supabase.from('campaign_mail_services').select('enabled, source, mail_type, mail_types, follow_up_days, webhook_url, stop_url, body_template').eq('campaign_id', campaign.id).maybeSingle(),
       supabase.from('campaign_mail_secrets').select('campaign_id').eq('campaign_id', campaign.id).maybeSingle(),
       supabase.from('campaigns').select('doelgroep, rechtsvorm_modus, compliance_checklist, compliance_ok_at').eq('id', campaign.id).maybeSingle()
-    ]).then(([mRes, tRes, toolRes, mailRes, secretRes, compRes]) => {
+    ]).then(([mRes, abRes, tRes, toolRes, mailRes, secretRes, compRes]) => {
       const comp = {
         doelgroep: compRes.data?.doelgroep || null,
         rechtsvorm_modus: compRes.data?.rechtsvorm_modus || 'waarschuwen',
@@ -150,6 +154,7 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       setCompliance(comp)
       setComplianceOrig({ ...comp, ok_at: compRes.data?.compliance_ok_at || null })
       setSelectedManagers((mRes.data || []).map(r => r.manager_id))
+      setSelectedAanbrengers((abRes.data || []).map(r => r.profile_id)) // v127
       setSelectedTeams((tRes.data || []).map(r => r.team_id))
       setSelectedTools((toolRes.data || []).map(r => r.tool_key))
       const svc = mailRes.data
@@ -177,6 +182,9 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
 
   function toggleManager(id) {
     setSelectedManagers(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  }
+  function toggleAanbrenger(id) { // v127
+    setSelectedAanbrengers(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
   }
   function toggleTeam(id) {
     setSelectedTeams(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
@@ -307,6 +315,20 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
         if (listIds.length) {
           await supabase.from('project_managers').delete().in('manager_id', removeManagers).in('lead_list_id', listIds)
         }
+      }
+
+      // v127: aanbrengers - zelfde verschil-logica
+      const { data: curAb } = await supabase.from('campaign_aanbrengers').select('profile_id').eq('campaign_id', campaign.id)
+      const curAbIds = new Set((curAb || []).map(r => r.profile_id))
+      const addAb = selectedAanbrengers.filter(id => !curAbIds.has(id))
+      const removeAb = [...curAbIds].filter(id => !selectedAanbrengers.includes(id))
+      if (addAb.length) {
+        const { error } = await supabase.from('campaign_aanbrengers').insert(addAb.map(id => ({ campaign_id: campaign.id, profile_id: id })))
+        if (error) throw error
+      }
+      if (removeAb.length) {
+        const { error } = await supabase.from('campaign_aanbrengers').delete().eq('campaign_id', campaign.id).in('profile_id', removeAb)
+        if (error) throw error
       }
 
       // Teams: zelfde verschil-logica
@@ -585,6 +607,19 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
                 emptyText="Nog geen manager-accounts. Maak er een aan via Admin of de projectwizard."
               />
             </div>
+
+            {projectType !== 'recruitment' && (
+              <div>
+                <label className={labelStyle}>Aanbrengers - klanten die bedrijven aanbrengen</label>
+                <CheckList
+                  items={allAanbrengers.map(a => ({ id: a.id, label: a.full_name || a.email }))}
+                  selected={selectedAanbrengers}
+                  onToggle={toggleAanbrenger}
+                  emptyText="Nog geen aanbrenger-accounts. Maak er een aan via Admin > Team met de rol Aanbrenger."
+                />
+                <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>Wat zij aanbrengen komt als lead in de lijst "Aangebracht" van dit project (wordt vanzelf aangemaakt) en loopt daarna gewoon in de belwachtrij.</p>
+              </div>
+            )}
 
             <div>
               <label className={labelStyle}>Teams - meerdere per project kan</label>
