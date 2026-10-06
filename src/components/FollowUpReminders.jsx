@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useLocation } from 'react-router-dom'
-import { BellRing, Phone, Clock, ChevronDown, ChevronUp, CalendarClock } from 'lucide-react'
+import { BellRing, Phone, Clock, ChevronDown, ChevronUp, CalendarClock, XCircle, Undo2 } from 'lucide-react'
+import { logBoardAction } from '../lib/boardLog'
+import { stopMailsVoorLead } from '../lib/mailStop'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './Toast'
@@ -10,6 +12,8 @@ import { REMINDER_STATUSES, reminderLabel, relativeDue, tomorrowAt, inHours } fr
 // v130: Te doen-paneel. Zodra een terugbelafspraak of opvolging van JOU zijn
 // tijd bereikt, komt de lead hier in beeld, op elke pagina. Wegklikken kan
 // alleen per lead, en alleen door er iets mee te doen:
+//   Afboeken  = Geen interesse / Verkeerd nummer (telt als actie)
+//   Terug in lijst = weer Nieuw en van niemand (am_release_lead)
 //   Bel nu    = belscherm open (afboeken zet een nieuwe status/datum)
 //   Verzetten = opvolgdatum echt verschuiven (+1 uur, morgen 10:00, zelf kiezen)
 //   Straks    = 1 uur uit het paneel, daarna komt hij terug
@@ -34,7 +38,7 @@ export default function FollowUpReminders() {
   const [ingeklapt, setIngeklapt] = useState(() => {
     try { return sessionStorage.getItem('reachconnect-todo-dicht') === '1' } catch { return false }
   })
-  const [verzetOpen, setVerzetOpen] = useState(null) // lead-id
+  const [open, setOpen] = useState(null) // { id, wat: 'verzet' | 'afboek' }
   const [eigenTijd, setEigenTijd] = useState('')
   const [bezig, setBezig] = useState(null)
 
@@ -103,8 +107,46 @@ export default function FollowUpReminders() {
     supabase.from('activities').insert({ lead_id: lead.id, user_id: user.id, action: 'status_change', notes: `${reminderLabel(lead.status)} verzet naar ${wanneer} (Te doen)` })
       .then(({ error: e }) => { if (e) console.error('activiteit loggen mislukt:', e) })
     setLeads(prev => prev.filter(l => l.id !== lead.id))
-    setVerzetOpen(null)
+    setOpen(null)
     toast(`${lead.name || 'Lead'} verzet naar ${wanneer}`, 'success')
+  }
+
+  function logActiviteit(leadId, notes) {
+    supabase.from('activities').insert({ lead_id: leadId, user_id: user.id, action: 'status_change', notes })
+      .then(({ error: e }) => { if (e) console.error('activiteit loggen mislukt:', e) })
+  }
+
+  // Afboeken zonder belscherm: telt mee als actie (call_logs source 'bord', 0 sec)
+  async function afboeken(lead, status, label) {
+    setBezig(lead.id)
+    const { error } = await supabase.from('leads')
+      .update({ status, next_contact_date: null, updated_at: new Date().toISOString() })
+      .eq('id', lead.id)
+    setBezig(null)
+    if (error) { toast(error.message || 'Afboeken mislukt', 'error'); return }
+    logActiviteit(lead.id, `Afgeboekt op "${label}" (Te doen)`)
+    logBoardAction({ lead, status, userId: user.id, organizationId: profile?.organization_id, notes: 'Via Te doen' })
+    stopMailsVoorLead(lead.id, status)
+    setLeads(prev => prev.filter(l => l.id !== lead.id))
+    setOpen(null)
+    toast(`${lead.name || 'Lead'} afgeboekt: ${label}`, 'success')
+  }
+
+  // Terug in de leadlijst: weer "Nieuw", geen opvolgdatum en van niemand,
+  // zodat een collega (of jijzelf) hem opnieuw kan oppakken.
+  async function terugInLijst(lead) {
+    setBezig(lead.id)
+    const { error } = await supabase.from('leads')
+      .update({ status: 'new', next_contact_date: null, updated_at: new Date().toISOString() })
+      .eq('id', lead.id)
+    if (error) { setBezig(null); toast(error.message || 'Terugzetten mislukt', 'error'); return }
+    const { error: relErr } = await supabase.rpc('am_release_lead', { p_lead_id: lead.id, p_reason: 'via Te doen' })
+    setBezig(null)
+    if (relErr) console.error('lead vrijgeven mislukt:', relErr)
+    logActiviteit(lead.id, 'Teruggezet in de leadlijst als nieuwe lead (Te doen)')
+    setLeads(prev => prev.filter(l => l.id !== lead.id))
+    setOpen(null)
+    toast(`${lead.name || 'Lead'} staat weer in de leadlijst`, 'success')
   }
 
   async function straks(lead) {
@@ -149,29 +191,51 @@ export default function FollowUpReminders() {
               <div className="todo-name" title={lead.name || ''}>{lead.name || 'Naam onbekend'}</div>
               {sub && <div className="todo-meta">{sub}</div>}
               {lead.phone && <div className="todo-meta" style={{ fontVariantNumeric: 'tabular-nums' }}>{lead.phone}</div>}
-              {verzetOpen === lead.id ? (
-                <div className="todo-verzet">
+              <div className="todo-actions">
+                <button type="button" className="lc-btn lc-btn-call" disabled={bezig === lead.id} onClick={() => belNu(lead)}>
+                  <Phone size={12} /> Bel nu
+                </button>
+                <button type="button" className="lc-btn" onClick={() => straks(lead)} title="Over 1 uur komt hij terug in dit lijstje">
+                  Straks
+                </button>
+              </div>
+              <div className="todo-actions">
+                <button type="button" className={`lc-btn${open?.id === lead.id && open.wat === 'verzet' ? ' is-active' : ''}`}
+                  onClick={() => { setOpen(o => (o?.id === lead.id && o.wat === 'verzet') ? null : { id: lead.id, wat: 'verzet' }); setEigenTijd(toLocalInput(tomorrowAt(10))) }}
+                  title="Opvolgdatum verschuiven">
+                  <CalendarClock size={13} /> Verzetten
+                </button>
+                <button type="button" className={`lc-btn${open?.id === lead.id && open.wat === 'afboek' ? ' is-active' : ''}`}
+                  onClick={() => setOpen(o => (o?.id === lead.id && o.wat === 'afboek') ? null : { id: lead.id, wat: 'afboek' })}
+                  title="Afboeken zonder te bellen">
+                  <XCircle size={13} /> Afboeken
+                </button>
+                <button type="button" className="lc-btn" disabled={bezig === lead.id} onClick={() => terugInLijst(lead)}
+                  title="Weer als nieuwe lead in de leadlijst, van niemand">
+                  <Undo2 size={13} /> Terug in lijst
+                </button>
+              </div>
+              {open?.id === lead.id && open.wat === 'verzet' && (
+                <div className="todo-sub-box">
                   <div className="todo-actions">
                     <button type="button" className="lc-btn" disabled={bezig === lead.id} onClick={() => verzet(lead, inHours(1))}>+1 uur</button>
                     <button type="button" className="lc-btn" disabled={bezig === lead.id} onClick={() => verzet(lead, tomorrowAt(10))}>Morgen 10:00</button>
-                    <button type="button" className="lc-btn" onClick={() => setVerzetOpen(null)}><ChevronUp size={13} /></button>
+                    <button type="button" className="lc-btn" disabled={bezig === lead.id} onClick={() => { const d = new Date(); d.setDate(d.getDate() + 7); d.setHours(10, 0, 0, 0); verzet(lead, d.toISOString()) }}>Over 1 week</button>
+                    <button type="button" className="lc-btn" onClick={() => setOpen(null)} aria-label="Sluiten"><ChevronUp size={13} /></button>
                   </div>
                   <div className="todo-actions">
                     <input type="datetime-local" className="form-control" style={{ flex: 1, fontSize: 14, padding: '4px 8px' }} value={eigenTijd} onChange={e => setEigenTijd(e.target.value)} />
                     <button type="button" className="lc-btn" disabled={!eigenTijd || bezig === lead.id} onClick={() => verzet(lead, new Date(eigenTijd).toISOString())}>Zet</button>
                   </div>
                 </div>
-              ) : (
-                <div className="todo-actions">
-                  <button type="button" className="lc-btn lc-btn-call" disabled={bezig === lead.id} onClick={() => belNu(lead)}>
-                    <Phone size={12} /> Bel nu
-                  </button>
-                  <button type="button" className="lc-btn" onClick={() => { setVerzetOpen(lead.id); setEigenTijd(toLocalInput(tomorrowAt(10))) }} title="Opvolgdatum verschuiven">
-                    <CalendarClock size={13} /> Verzetten
-                  </button>
-                  <button type="button" className="lc-btn" onClick={() => straks(lead)} title="Over 1 uur komt hij terug in dit lijstje">
-                    Straks
-                  </button>
+              )}
+              {open?.id === lead.id && open.wat === 'afboek' && (
+                <div className="todo-sub-box">
+                  <div className="todo-actions">
+                    <button type="button" className="lc-btn lc-btn-danger" disabled={bezig === lead.id} onClick={() => afboeken(lead, 'geen_interesse', 'Geen interesse')}>Geen interesse</button>
+                    <button type="button" className="lc-btn lc-btn-danger" disabled={bezig === lead.id} onClick={() => afboeken(lead, 'verkeerd_nummer', 'Verkeerd nummer')}>Verkeerd nummer</button>
+                    <button type="button" className="lc-btn" onClick={() => setOpen(null)} aria-label="Sluiten"><ChevronUp size={13} /></button>
+                  </div>
                 </div>
               )}
             </div>

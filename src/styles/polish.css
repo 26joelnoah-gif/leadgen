@@ -595,3 +595,7 @@
   padding: 8px 12px; border-radius: 10px; border: 1px solid var(--warning);
   background: var(--warning-bg); color: var(--text-primary); font-weight: 600;
 }
+.todo-sub-box { margin-top: 6px; padding: 6px 8px 8px; border-radius: 8px; background: var(--bg-card); border: 1px solid var(--border); }
+.todo-sub-box .todo-actions:first-child { margin-top: 0; }
+.todo-actions .lc-btn.is-active { color: var(--text-primary); border-color: var(--accent); }
+.todo-actions + .todo-actions { margin-top: 6px; }
