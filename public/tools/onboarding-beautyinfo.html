@@ -1,0 +1,349 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Onboarding setter BeautyInfo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* v130: onboarding voor setters op het project BEAUTYINFO.
+   Huisstijl van beautyinfo.nl: Inter, wit + stone-tinten, rose als accent. */
+:root{
+  --rose-50:#fff1f2;--rose-100:#ffe4e6;--rose-300:#ffa2ae;--rose-400:#ff667f;--rose-500:#ff2357;--rose-600:#e70044;--rose-700:#c20039;
+  --stone-50:#fafaf9;--stone-100:#f5f5f4;--stone-200:#e7e5e4;--stone-300:#d6d3d1;--stone-400:#a6a09b;--stone-500:#79716b;--stone-600:#57534d;--stone-700:#44403b;--stone-800:#292524;--stone-900:#1c1917;
+  --groen:#008138;--groen-bg:#f0fdf4;--oranje:#b75000;--oranje-bg:#fffbeb;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:80px}
+body{margin:0;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:var(--stone-50);color:var(--stone-900);line-height:1.6;font-size:16px;-webkit-font-smoothing:antialiased}
+a{color:var(--rose-600)}
+header{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.95);backdrop-filter:blur(8px);border-bottom:1px solid var(--stone-100)}
+.kop{max-width:1120px;margin:0 auto;padding:0 16px;height:64px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.logo{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;letter-spacing:-.01em;color:var(--stone-900);text-decoration:none}
+.stip{width:10px;height:10px;border-radius:999px;background:var(--rose-500);box-shadow:0 0 0 4px var(--rose-100)}
+.kop small{font-size:13px;font-weight:600;color:var(--stone-500)}
+.voortgang{font-size:13px;font-weight:600;color:var(--stone-600);background:var(--stone-100);padding:6px 12px;border-radius:999px;white-space:nowrap}
+.wrap{max-width:1120px;margin:0 auto;padding:24px 16px 80px;display:grid;grid-template-columns:240px 1fr;gap:32px}
+nav.inhoud{position:sticky;top:88px;align-self:start}
+nav.inhoud p{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--stone-400);margin:0 0 8px}
+nav.inhoud a{display:flex;gap:10px;align-items:center;padding:7px 10px;border-radius:12px;color:var(--stone-600);text-decoration:none;font-size:14px;font-weight:500}
+nav.inhoud a:hover{background:var(--stone-100);color:var(--stone-900)}
+nav.inhoud a span{width:22px;height:22px;flex:none;border-radius:999px;background:var(--stone-100);color:var(--stone-500);font-size:11px;font-weight:700;display:grid;place-items:center}
+nav.inhoud a.klaar span{background:var(--rose-500);color:#fff}
+main{min-width:0}
+.hero{background:linear-gradient(135deg,var(--rose-50),#fff 60%);border:1px solid var(--rose-100);border-radius:24px;padding:32px;margin-bottom:24px}
+.label{display:inline-block;font-size:12px;font-weight:700;color:var(--rose-600);background:#fff;border:1px solid var(--rose-300);padding:4px 10px;border-radius:999px;margin-bottom:12px}
+h1{font-size:clamp(28px,4vw,40px);line-height:1.15;letter-spacing:-.02em;margin:0 0 12px;font-weight:800}
+.hero p{font-size:17px;color:var(--stone-600);margin:0;max-width:640px}
+.doel{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:24px}
+.doel div{background:#fff;border:1px solid var(--stone-200);border-radius:16px;padding:14px}
+.doel b{display:block;font-size:22px;color:var(--rose-600);letter-spacing:-.02em}
+.doel span{font-size:13px;color:var(--stone-600)}
+section{background:#fff;border:1px solid var(--stone-200);border-radius:24px;padding:28px;margin-bottom:20px}
+section h2{display:flex;align-items:center;gap:12px;font-size:22px;letter-spacing:-.01em;margin:0 0 6px}
+section h2 .nr{width:32px;height:32px;flex:none;border-radius:999px;background:var(--rose-50);color:var(--rose-600);font-size:14px;font-weight:800;display:grid;place-items:center}
+.intro{color:var(--stone-500);margin:0 0 20px}
+h3{font-size:16px;margin:24px 0 8px}
+ul,ol{padding-left:20px;margin:8px 0}
+li{margin:4px 0}
+.kaarten{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
+.kaart{border:1px solid var(--stone-200);border-radius:16px;padding:16px;background:var(--stone-50)}
+.kaart b{display:block;margin-bottom:4px}
+.kaart p{margin:0;font-size:14px;color:var(--stone-600)}
+.prijs{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}
+.prijs div{border-radius:16px;padding:18px;border:1px solid var(--stone-200)}
+.prijs .nu{background:var(--rose-50);border-color:var(--rose-300)}
+.prijs small{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--stone-500)}
+.prijs b{display:block;font-size:30px;letter-spacing:-.02em;margin:4px 0}
+.prijs .nu b{color:var(--rose-600)}
+.prijs span{font-size:14px;color:var(--stone-600)}
+.stap{border-left:3px solid var(--rose-300);padding:4px 0 4px 18px;margin:0 0 22px}
+.stap h3{margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.stap h3 small{font-size:12px;font-weight:700;color:var(--rose-600);background:var(--rose-50);padding:2px 8px;border-radius:999px}
+.zeg{background:var(--stone-50);border:1px solid var(--stone-200);border-radius:14px;padding:12px 16px;margin:8px 0;font-size:15.5px}
+.zeg::before{content:"Jij zegt";display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--rose-500);margin-bottom:4px}
+.tip{font-size:14px;color:var(--stone-500);font-style:italic;margin:6px 0}
+.actie{display:flex;gap:10px;align-items:flex-start;background:var(--groen-bg);border:1px solid #b9f8cf;color:#0d542b;border-radius:14px;padding:12px 16px;margin:10px 0;font-size:15px}
+.actie b{white-space:nowrap}
+.let{background:var(--oranje-bg);border:1px solid #fee685;color:#7b3306;border-radius:14px;padding:12px 16px;margin:12px 0;font-size:15px}
+.knop{display:inline-block;font-family:inherit;font-size:12px;font-weight:700;letter-spacing:.02em;padding:3px 9px;border-radius:8px;background:var(--stone-800);color:#fff;white-space:nowrap}
+.balk{display:flex;gap:6px;margin:14px 0}
+.balk div{flex:1;text-align:center;font-size:13px;font-weight:600;padding:8px 4px;border-radius:10px;background:var(--stone-100);color:var(--stone-500)}
+.balk div.aan{background:var(--rose-500);color:#fff}
+.chip{display:inline-block;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px}
+.chip.live{background:var(--groen-bg);color:var(--groen);border:1px solid #b9f8cf}
+.chip.rood{background:#fef2f2;color:#bf000f;border:1px solid #ffcaca}
+details{border:1px solid var(--stone-200);border-radius:16px;margin:0 0 10px;background:#fff;overflow:hidden}
+summary{cursor:pointer;list-style:none;padding:14px 18px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:12px}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"+";font-size:20px;color:var(--rose-500);font-weight:500}
+details[open] summary::after{content:"\2212"}
+details[open] summary{background:var(--rose-50)}
+details .antw{padding:4px 18px 16px}
+.regels{display:grid;gap:10px}
+.regel{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--stone-200);border-radius:16px;padding:14px 16px}
+.regel .ic{width:28px;height:28px;flex:none;border-radius:999px;display:grid;place-items:center;font-weight:800;font-size:14px}
+.regel .ja{background:var(--groen-bg);color:var(--groen)}
+.regel .nee{background:#fef2f2;color:#bf000f}
+.regel p{margin:0;font-size:15px}
+.check label{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;border:1px solid var(--stone-200);border-radius:14px;margin-bottom:8px;cursor:pointer;font-size:15px}
+.check input{width:20px;height:20px;accent-color:var(--rose-500);margin-top:2px;flex:none}
+.check label:has(input:checked){background:var(--rose-50);border-color:var(--rose-300)}
+.klaarblok{display:none;margin-top:16px;text-align:center;background:var(--rose-500);color:#fff;border-radius:16px;padding:18px;font-weight:700;font-size:17px}
+.klaarblok.zichtbaar{display:block}
+footer{text-align:center;font-size:13px;color:var(--stone-400);padding:16px}
+@media (max-width:860px){
+  .wrap{grid-template-columns:1fr;gap:0}
+  nav.inhoud{display:none}
+  .hero,section{padding:20px;border-radius:20px}
+  .doel{grid-template-columns:1fr}
+  .kop small{display:none}
+}
+@media (max-width:480px){.prijs{grid-template-columns:1fr}}
+@media print{header,nav.inhoud{display:none}.wrap{display:block}section{break-inside:avoid}}
+</style>
+</head>
+<body>
+<header>
+  <div class="kop">
+    <a class="logo" href="#top"><span class="stip"></span>BeautyInfo <small>&nbsp;Onboarding setter</small></a>
+    <span class="voortgang" id="voortgang">0 van 8 gelezen</span>
+  </div>
+</header>
+
+<div class="wrap" id="top">
+  <nav class="inhoud" aria-label="Inhoud">
+    <p>Inhoud</p>
+    <a href="#wat"><span>1</span>Wat is BeautyInfo</a>
+    <a href="#aanbod"><span>2</span>Het aanbod</a>
+    <a href="#gesprek"><span>3</span>Het gesprek</a>
+    <a href="#mail"><span>4</span>De mail live sturen</a>
+    <a href="#balk"><span>5</span>De statusbalk</a>
+    <a href="#nietnu"><span>6</span>Lukt het niet nu?</a>
+    <a href="#bezwaren"><span>7</span>Bezwaren</a>
+    <a href="#regels"><span>8</span>Regels</a>
+  </nav>
+
+  <main>
+    <div class="hero">
+      <span class="label">Lees dit voordat je gaat bellen</span>
+      <h1>Klinieken aanmelden als Premium Partner</h1>
+      <p>Je belt huidklinieken en schoonheidssalons. Je stuurt de aanmeldmail live tijdens het gesprek en je rondt het samen af aan de telefoon.</p>
+      <div class="doel">
+        <div><b>Aan de lijn</b><span>Het doel: de kliniek betaalt terwijl jij nog belt.</span></div>
+        <div><b>Terugbellen</b><span>Lukt het niet? Dan plan je een vaste terugbelafspraak.</span></div>
+        <div><b>10 minuten</b><span>Zo lang duurt het lezen. Doe het rustig.</span></div>
+      </div>
+    </div>
+
+    <section id="wat" data-hoofdstuk>
+      <h2><span class="nr">1</span>Wat is BeautyInfo</h2>
+      <p class="intro">Weet waar je voor belt. Dan klink je zeker.</p>
+      <p>BeautyInfo.nl is een onafhankelijke vergelijkingssite voor huidtherapie in Nederland. Mensen zoeken er een kliniek in hun buurt voor een behandeling. Ze kunnen filteren op behandeling, BIG-registratie en vergoeding.</p>
+      <div class="kaarten">
+        <div class="kaart"><b>Voor bezoekers</b><p>Ze vinden snel een goede kliniek in de buurt en kunnen klinieken vergelijken.</p></div>
+        <div class="kaart"><b>Voor klinieken</b><p>Nieuwe klanten uit hun regio, die doorgestuurd worden naar hun eigen boekingslink.</p></div>
+        <div class="kaart"><b>Wie bel je</b><p>Huidklinieken, huidtherapeuten en schoonheidssalons. Vraag naar de eigenaar.</p></div>
+      </div>
+      <p class="tip">Kijk voor je eerste belronde zelf even rond op <a href="https://beautyinfo.nl" target="_blank" rel="noopener noreferrer">beautyinfo.nl</a>. Dan weet je wat de kliniek straks ziet.</p>
+    </section>
+
+    <section id="aanbod" data-hoofdstuk>
+      <h2><span class="nr">2</span>Het aanbod</h2>
+      <p class="intro">Ken dit uit je hoofd. Dit is wat je verkoopt.</p>
+      <div class="prijs">
+        <div class="nu"><small>Eerste jaar</small><b>&euro;200</b><span>Actieprijs: &euro;150 korting</span></div>
+        <div><small>Daarna</small><b>&euro;350 per jaar</b><span>Nog geen &euro;30 per maand</span></div>
+      </div>
+      <h3>Dit krijgt de kliniek</h3>
+      <ul>
+        <li>Een geverifieerd profiel op BeautyInfo</li>
+        <li>Een link waarmee bezoekers direct bij de kliniek boeken: de eigen website of bijvoorbeeld een Treatwell-link</li>
+        <li>Onbeperkt boekingen, zonder commissie per boeking</li>
+        <li>Ruim voordat jaar 2 begint een herinnering. Er wordt niets afgeschreven zonder akkoord vooraf.</li>
+      </ul>
+      <div class="let"><b>Zeg het precies zo.</b> Zeg niet "29 euro per maand", want de kliniek betaalt per jaar. Zeg ook niet "per dag opzegbaar" en beloof geen aantal boekingen.</div>
+    </section>
+
+    <section id="gesprek" data-hoofdstuk>
+      <h2><span class="nr">3</span>Het gesprek</h2>
+      <p class="intro">Het script in 7 stappen. Dit staat ook in het belscherm onder <span class="knop">Belscript</span>.</p>
+
+      <div class="stap">
+        <h3>Opening <small>stap 1</small></h3>
+        <div class="zeg">"Goedemiddag, je spreekt met [jouw naam] van BeautyInfo. Spreek ik met [bedrijfsnaam]?"<br>"Top, fijn dat ik je tref. Ik hou het kort."</div>
+        <p class="tip">Heb je niet de eigenaar aan de lijn? Vraag wanneer die er is en plan een terugbelafspraak.</p>
+      </div>
+
+      <div class="stap">
+        <h3>Reden van bellen <small>stap 2</small></h3>
+        <div class="zeg">"Ik bel omdat we op BeautyInfo veel bezoekers uit [regio] hebben die een behandeling zoeken. Die sturen we door naar klinieken in de buurt. Daar hebben we nu een actie voor."</div>
+      </div>
+
+      <div class="stap">
+        <h3>Laat ze zelf rekenen <small>stap 3</small></h3>
+        <div class="zeg">"Elke maand zoeken mensen uit [regio] bij ons naar een behandeling. Die komen nu nog niet bij jou terecht.<br>Wat kost een behandeling bij jou?"</div>
+        <p class="tip">Laat ze antwoorden. Wacht even.</p>
+        <div class="zeg">"Dan heb je het met een of twee klanten al terug. Alles daarna is winst."</div>
+        <p class="tip">Geen getallen beloven. De klant rekent zelf, en dat overtuigt meer.</p>
+      </div>
+
+      <div class="stap">
+        <h3>Aanbod <small>stap 4</small></h3>
+        <div class="zeg">"Bezoekers sturen we door naar je eigen website of je boekingslink, wat jij wilt. Wij vragen geen commissie per boeking.<br>Het eerste jaar betaal je nu 200 euro. Daarna is het 350 euro per jaar, dat is nog geen 30 euro per maand."</div>
+      </div>
+
+      <div class="stap">
+        <h3>Naar de mail <small>stap 5</small></h3>
+        <div class="zeg">"Zal ik je laten zien hoe jouw profiel eruit komt te zien? Dan stuur ik je nu de aanmeldmail."</div>
+        <ul>
+          <li>"Wat is je e-mailadres?" <span class="tip">Spel het terug, letter voor letter.</span></li>
+          <li>"Wat is je voor- en achternaam?"</li>
+          <li>"Jullie zitten op [adres] in [plaats], toch?" <span class="tip">De plaats is verplicht, anders gaat de mail niet weg.</span></li>
+        </ul>
+        <div class="actie"><b>Doe nu:</b> stuur de aanmeldmail. Zie hoofdstuk 4.</div>
+      </div>
+
+      <div class="stap">
+        <h3>Samenvatten en akkoord <small>stap 6</small></h3>
+        <div class="zeg">"Je krijgt van ons een geverifieerd profiel met een link voor je boekingen. Onbeperkt boekingen, zonder commissie. En 150 euro korting op het eerste jaar.<br>Het eerste jaar is dus 200 euro, daarna 350 euro per jaar. Je krijgt ruim op tijd een herinnering voordat jaar 2 begint. Er wordt niets afgeschreven zonder dat je vooraf akkoord geeft.<br><b>Is dat duidelijk, en ga je akkoord?"</b></div>
+      </div>
+
+      <div class="stap">
+        <h3>Afsluiten aan de telefoon <small>stap 7</small></h3>
+        <div class="zeg">"Gefeliciteerd! De mail staat nu in je inbox. Pak hem er even bij, dan lopen we er samen kort doorheen."</div>
+        <div class="zeg">"Lees hem rustig door. Onderaan staat de knop om te betalen. Na het betalen krijg je een betaalbewijs en de factuur, en kun je meteen in je account."</div>
+        <ul>
+          <li><b>Blijf aan de lijn</b> tot de betaling rond is.</li>
+          <li><b>Geen mail?</b> Laat ze in de spam kijken. Check of het e-mailadres goed gespeld is.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section id="mail" data-hoofdstuk>
+      <h2><span class="nr">4</span>De aanmeldmail live sturen</h2>
+      <p class="intro">Zo stuur je de mail in ReachConnect, terwijl je nog aan de lijn bent.</p>
+      <ol>
+        <li>Klik in het belscherm op <span class="knop">MAILINGSERVICE</span>.</li>
+        <li>Kies <b>Aanmeldmail</b>.</li>
+        <li>Vul het e-mailadres en de contactpersoon in. Check de <b>plaats</b>: die moet ingevuld zijn.</li>
+        <li>Laat "Wanneer versturen?" op <b>Nu versturen</b> staan en klik op de knop.</li>
+      </ol>
+      <div class="let"><b>Let op:</b> na het versturen gaat het belscherm meteen door naar de volgende lead. <b>Bel die nog niet.</b> Blijf bij je klant aan de lijn. Wil je de voortgang zien? Open dan <b>Leads</b> in het menu, kies het project BEAUTYINFO en zoek de kliniek op.</div>
+      <p class="tip">Fout gemaakt in het e-mailadres? Stuur de mail opnieuw met het goede adres. De Herinnering gebruik je alleen als de kliniek na een paar dagen nog niets met de mail gedaan heeft.</p>
+    </section>
+
+    <section id="balk" data-hoofdstuk>
+      <h2><span class="nr">5</span>De statusbalk lezen</h2>
+      <p class="intro">BeautyInfo laat ons live weten wat de kliniek met de mail doet. Dat zie je bij de lead.</p>
+      <div class="balk"><div class="aan">Mail</div><div class="aan">Bezoek</div><div>Betaling</div><div>Klant</div></div>
+      <div class="kaarten">
+        <div class="kaart"><b>Mail</b><p>De mail is bezorgd of geopend.</p></div>
+        <div class="kaart"><b>Bezoek</b><p>De kliniek heeft op de link geklikt en kijkt naar de pagina.</p></div>
+        <div class="kaart"><b>Betaling</b><p>De kliniek is begonnen met betalen.</p></div>
+        <div class="kaart"><b>Klant</b><p>Betaald. De kliniek is Premium Partner.</p></div>
+      </div>
+      <h3>Signalen</h3>
+      <ul>
+        <li><span class="chip live">Nu op de pagina</span> De kliniek kijkt nu. Dit is het beste moment om te bellen.</li>
+        <li><b>"Bel nu: bij het betalen"</b> op het bord: de kliniek is begonnen met betalen maar nog niet klaar. Bel en help even.</li>
+        <li><span class="chip rood">Terugbellen: ...</span> Er ging iets mis, bijvoorbeeld een mail die niet aankwam of een betaling die mislukte. Bel de kliniek.</li>
+      </ul>
+    </section>
+
+    <section id="nietnu" data-hoofdstuk>
+      <h2><span class="nr">6</span>Lukt het niet nu?</h2>
+      <p class="intro">Geen tijd, of moet nog overleggen? Dan plan je een vast moment.</p>
+      <div class="zeg">"Wanneer heb je vijf minuten om het samen af te ronden? Morgen om 10 uur of om 14 uur?"</div>
+      <p class="tip">Geef twee keuzes. Dan kiest de klant een moment in plaats van "ik bel je wel".</p>
+      <ul>
+        <li>Stuur de aanmeldmail toch alvast, dan heeft de kliniek hem al klaarstaan.</li>
+        <li>Boek af op <span class="knop">TBA (TERUGBEL)</span> met de afgesproken datum en tijd.</li>
+        <li>Zet in de notitie wat de klant zei, bijvoorbeeld "overlegt met partner, akkoord op prijs".</li>
+      </ul>
+      <p class="tip">Heb je eerst de mail gestuurd, dan staat de lead op "Mail verstuurd". Plan de terugbelafspraak dan via het bord bij Leads.</p>
+    </section>
+
+    <section id="bezwaren" data-hoofdstuk>
+      <h2><span class="nr">7</span>Bezwaren</h2>
+      <p class="intro">Een bezwaar is meestal een vraag. Klik er een open voor het antwoord.</p>
+      <details><summary>"Ik heb geen tijd."</summary><div class="antw"><div class="zeg">"Snap ik. Het duurt drie minuten. Of zal ik je morgen om [tijd] terugbellen?"</div></div></details>
+      <details><summary>"Stuur maar wat informatie."</summary><div class="antw"><div class="zeg">"Doe ik meteen. Dan kijken we er nu samen even naar. Je zit nergens aan vast tot je zelf betaalt."</div><p class="tip">Stuur de aanmeldmail en loop hem samen door.</p></div></details>
+      <details><summary>"Te duur."</summary><div class="antw"><div class="zeg">"Wat kost een behandeling bij jou gemiddeld? ... Dan heb je het met een of twee nieuwe klanten al terugverdiend. Het hele eerste jaar kost 200 euro, zo'n 17 euro per maand."</div></div></details>
+      <details><summary>"Ik heb al Treatwell" of "Ik heb genoeg klanten."</summary><div class="antw"><div class="zeg">"Dat blijft gewoon zo. Wij sturen extra bezoekers naar die link toe. Het is een extra kanaal erbij."</div><p class="tip">Zeg niets over wat Treatwell kost. Dat weet de klant zelf beter.</p></div></details>
+      <details><summary>"Nooit van BeautyInfo gehoord."</summary><div class="antw"><div class="zeg">"Klopt, wij zijn een vergelijkingssite voor huidklinieken. Kijk even mee op beautyinfo.nl, dan zie je hoe het werkt."</div></div></details>
+      <details><summary>"Ik moet overleggen met mijn partner."</summary><div class="antw"><div class="zeg">"Logisch. Wanneer spreek je hem of haar? Dan bel ik daarna even terug."</div><p class="tip">Plan een terugbelafspraak (hoofdstuk 6).</p></div></details>
+      <details><summary>"Ik wil niet vastzitten aan een abonnement."</summary><div class="antw"><div class="zeg">"Je zit niet vast. Je krijgt ruim op tijd een herinnering voor jaar 2, en er gaat niets van je rekening zonder je akkoord."</div></div></details>
+      <details><summary>"Ik betaal niet via de telefoon."</summary><div class="antw"><div class="zeg">"Hoeft ook niet. Je betaalt zelf, via de knop in de mail. Ik loop alleen even met je mee."</div></div></details>
+      <details><summary>"Bel me niet meer."</summary><div class="antw"><p>Zeg sorry, rond het gesprek netjes af en boek af op <span class="knop">BLACKLIST</span>. Dan wordt de kliniek niet meer gebeld en stoppen ook de mails. Niet overhalen.</p></div></details>
+    </section>
+
+    <section id="regels" data-hoofdstuk>
+      <h2><span class="nr">8</span>Regels</h2>
+      <p class="intro">Hier houd je je altijd aan. Ook als het gesprek goed loopt.</p>
+      <div class="regels">
+        <div class="regel"><span class="ic ja">&#10003;</span><p><b>Eerst de rechtsvorm checken.</b> Bovenin het belscherm kies je de rechtsvorm (via de KvK-link). Een eenmanszaak of vof mag je alleen bellen als ze toestemming gegeven hebben. Krijg je die melding? Klik op "Niet bellen, volgende lead".</p></div>
+        <div class="regel"><span class="ic ja">&#10003;</span><p><b>Altijd de echte prijs noemen:</b> 200 euro het eerste jaar, daarna 350 euro per jaar.</p></div>
+        <div class="regel"><span class="ic ja">&#10003;</span><p><b>Pas mailen als de klant ja zegt</b> tegen "zal ik je de mail sturen?".</p></div>
+        <div class="regel"><span class="ic nee">&#10005;</span><p><b>Geen aantal boekingen beloven.</b> Laat de klant zelf rekenen.</p></div>
+        <div class="regel"><span class="ic nee">&#10005;</span><p><b>Niet zeggen "per dag opzegbaar"</b> of "29 euro per maand".</p></div>
+        <div class="regel"><span class="ic nee">&#10005;</span><p><b>Niet doordrukken</b> als iemand nee zegt of vraagt om niet meer te bellen.</p></div>
+      </div>
+
+      <h3>Klaar om te bellen?</h3>
+      <div class="check" id="check">
+        <label><input type="checkbox"> Ik weet wat BeautyInfo is en wie ik bel.</label>
+        <label><input type="checkbox"> Ik ken het aanbod uit mijn hoofd: 200 euro, daarna 350 per jaar.</label>
+        <label><input type="checkbox"> Ik weet hoe ik de aanmeldmail live verstuur.</label>
+        <label><input type="checkbox"> Ik weet dat ik na het versturen aan de lijn blijf.</label>
+        <label><input type="checkbox"> Ik plan een terugbelafspraak als het niet meteen lukt.</label>
+        <label><input type="checkbox"> Ik check altijd eerst de rechtsvorm.</label>
+      </div>
+      <div class="klaarblok" id="klaar">Top, je bent klaar. Succes met bellen!</div>
+    </section>
+
+    <footer>Onboarding setter BeautyInfo &middot; ReachConnect</footer>
+  </main>
+</div>
+
+<script>
+// Gelezen hoofdstukken + checklist onthouden in deze browser (best effort).
+(function(){
+  var SLEUTEL='reachconnect-onboarding-beautyinfo';
+  var staat={gelezen:[],check:[]};
+  try{var s=JSON.parse(localStorage.getItem(SLEUTEL)||'null');if(s&&s.gelezen)staat=s;}catch(e){}
+  function bewaar(){try{localStorage.setItem(SLEUTEL,JSON.stringify(staat));}catch(e){}}
+  var secties=[].slice.call(document.querySelectorAll('[data-hoofdstuk]'));
+  var links=[].slice.call(document.querySelectorAll('nav.inhoud a'));
+  function teken(){
+    links.forEach(function(a){a.classList.toggle('klaar',staat.gelezen.indexOf(a.getAttribute('href').slice(1))>-1);});
+    document.getElementById('voortgang').textContent=staat.gelezen.length+' van '+secties.length+' gelezen';
+  }
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(items){
+      items.forEach(function(it){
+        if(it.isIntersecting&&staat.gelezen.indexOf(it.target.id)<0){staat.gelezen.push(it.target.id);bewaar();teken();}
+      });
+    },{rootMargin:'0px 0px -55% 0px'});
+    secties.forEach(function(s){io.observe(s);});
+  }
+  var vakjes=[].slice.call(document.querySelectorAll('#check input'));
+  function checkKlaar(){
+    var alles=vakjes.every(function(v){return v.checked;});
+    document.getElementById('klaar').classList.toggle('zichtbaar',alles);
+  }
+  vakjes.forEach(function(v,i){
+    v.checked=staat.check.indexOf(i)>-1;
+    v.addEventListener('change',function(){
+      staat.check=vakjes.map(function(x,j){return x.checked?j:-1;}).filter(function(j){return j>-1;});
+      bewaar();checkKlaar();
+    });
+  });
+  teken();checkKlaar();
+})();
+</script>
+</body>
+</html>

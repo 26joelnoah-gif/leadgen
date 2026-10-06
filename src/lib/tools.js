@@ -94,6 +94,21 @@ export const TOOLS = [
     primary: false,
     newTab: true,
   },
+  {
+    // v130: onboarding voor setters op het project BEAUTYINFO, in de huisstijl
+    // van beautyinfo.nl. Losse HTML-pagina, aan te zetten per medewerker
+    // (Admin > Team, tools) of voor het hele project (campaign_tools).
+    key: 'onboarding_beautyinfo',
+    label: 'Onboarding setter BeautyInfo',
+    description: 'De inwerkpagina: wat BeautyInfo is, het aanbod, het belscript, de aanmeldmail live versturen, de statusbalk, bezwaren en de regels. Lees dit voor je gaat bellen.',
+    href: '/tools/onboarding-beautyinfo.html',
+    cta: 'Open onboarding',
+    icon: 'GraduationCap',
+    color: '#ff2357',
+    bg: 'rgba(255,35,87,0.12)',
+    primary: false,
+    newTab: true,
+  },
 ]
 
 export const ALL_TOOL_KEYS = TOOLS.map(t => t.key)
