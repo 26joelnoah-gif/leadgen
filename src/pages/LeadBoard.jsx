@@ -26,7 +26,7 @@ import MailQueueView from '../components/MailQueueView'
 import LeadDetailModal from '../components/LeadDetailModal'
 import { leadBelstatus, BELSTATUS, useProjectCompliance, urenTotWissen, rechtsvormLabel } from '../lib/compliance'
 import PersonSelect from '../components/PersonSelect' // v102
-import { PLANNING_GROUPS, planningGroup, planningDate, byPlanningDate, startOfToday, endOfToday, tomorrowAt } from '../lib/followUps' // v130
+import { planningGroup, planningDate, byPlanningDate, endOfToday, tomorrowAt } from '../lib/followUps' // v130
 import { useLeadUserState } from '../hooks/useLeadUserState' // v130
 
 // v62: gedeelde Leadlijst. Iedereen die in een project zit (team, manager,
@@ -797,13 +797,8 @@ export default function LeadBoard() {
       // (stabiel: zonder datum houden ze de lijstvolgorde)
       rows.sort(byPlanningDate(DONE_STATUSES))
     }
-    // v82: warme leads altijd bovenaan (stabiel: de rest houdt zijn volgorde)
-    const warm = rows.filter(isWarm)
-    if (warm.length) {
-      const rest = rows.filter(l => !isWarm(l))
-      warm.sort((a, b) => (mailRows[b.id]?.status_rank || 0) - (mailRows[a.id]?.status_rank || 0))
-      return [...warm, ...rest]
-    }
+    // v130b: puur op opvolgmoment, over tijd bovenaan. Warme leads houden
+    // hun vlammetje en de filter Warm, maar springen niet meer voor.
     return rows
   }, [pool, filter, q, pos, sortBy, wie, vanPersoon, user?.id, isWarm, mailRows, view, belstatusVan, isHidden, isTodayTask, userState])
   const openCount = pool.filter(l => !DONE_STATUSES.includes(l.status)).length
@@ -823,34 +818,8 @@ export default function LeadBoard() {
     toast(`${data || 0} afgemelde lead${data === 1 ? '' : 's'} verwijderd`, 'success')
     load(true)
   }
-  // v130: kopjes in de lijst (Warm / Achterstallig / Vandaag / Afspraken / Later / Zonder datum)
-  const groupedList = useMemo(() => {
-    if (view !== 'list' || (pos && sortBy === 'distance')) return null
-    const groups = [{ id: 'warm', label: 'Warm', color: 'var(--secondary)', uitleg: 'Bel deze eerst', items: [] },
-      ...PLANNING_GROUPS.map(g => ({ ...g, items: [] }))]
-    const byId = Object.fromEntries(groups.map(g => [g.id, g]))
-    visible.forEach(l => {
-      const id = isWarm(l) ? 'warm' : planningGroup(l, DONE_STATUSES)
-      ;(byId[id] || byId.none).items.push(l)
-    })
-    return groups.filter(g => g.items.length > 0)
-  }, [view, pos, sortBy, visible, isWarm])
   const hiddenCount = useMemo(() => pool.filter(l => isHidden(l.id)).length, [pool, isHidden, userState]) // eslint-disable-line react-hooks/exhaustive-deps
   const todayCount = useMemo(() => pool.filter(isTodayTask).length, [pool, isTodayTask])
-  // Persoonlijke samenvatting bovenaan: wat staat er vandaag op jouw naam?
-  const mijnVandaag = useMemo(() => {
-    const me = user?.id
-    const start = startOfToday()
-    const out = { overdue: 0, today: 0, afspraken: 0 }
-    pool.forEach(l => {
-      if (l.assigned_to !== me && l.locked_by !== me) return
-      const g = planningGroup(l, DONE_STATUSES)
-      if (g === 'overdue') out.overdue++
-      else if (g === 'today') out.today++
-      else if (g === 'appointments' && new Date(l.appointment_at) < endOfToday() && new Date(l.appointment_at) >= start) out.afspraken++
-    })
-    return out
-  }, [pool, user?.id])
   const busyCount = pool.filter(isLockedByOther).length
   const actionCount = useMemo(
     () => pool.filter(l => !DONE_STATUSES.includes(l.status) && isFollowUpDue(l)).length,
@@ -1129,23 +1098,9 @@ export default function LeadBoard() {
                   Van deze leads is de rechtsvorm nog niet bekend. Open een lead, zoek hem op bij kvk.nl en kies de rechtsvorm. Pas daarna zie je het nummer.
                 </span>
               )}
-              {(mijnVandaag.overdue + mijnVandaag.today + mijnVandaag.afspraken) > 0 && filter !== 'vandaag' && (
-                <span className="lb-today">
-                  <Clock size={14} style={{ color: 'var(--warning)' }} />
-                  <span style={{ flex: 1, minWidth: 200 }}>
-                    Jouw dag:{' '}
-                    {[
-                      mijnVandaag.overdue > 0 && <strong key="o" style={{ color: 'var(--danger)' }}>{mijnVandaag.overdue} achterstallig</strong>,
-                      mijnVandaag.today > 0 && <strong key="t">{mijnVandaag.today} opvolging{mijnVandaag.today === 1 ? '' : 'en'} vandaag</strong>,
-                      mijnVandaag.afspraken > 0 && <strong key="a">{mijnVandaag.afspraken} afspra{mijnVandaag.afspraken === 1 ? 'ak' : 'ken'} vandaag</strong>,
-                    ].filter(Boolean).reduce((acc, el, i) => i === 0 ? [el] : [...acc, ', ', el], [])}
-                  </span>
-                  <button type="button" className="btn btn-sm btn-outline" onClick={() => { setFilter('vandaag'); if (view === 'map' || view === 'mail') setView('list') }}>Toon</button>
-                </span>
-              )}
-              {actionCount > 0 && filter !== 'vandaag' && (mijnVandaag.overdue + mijnVandaag.today) === 0 && (
+              {actionCount > 0 && (
                 <span style={{ color: 'var(--warning)', fontWeight: 700 }}>
-                  <Clock size={12} style={{ verticalAlign: -2 }} /> {actionCount} lead{actionCount === 1 ? '' : 's'} vraagt om opvolging
+                  <Clock size={12} style={{ verticalAlign: -2 }} /> {actionCount} lead{actionCount === 1 ? '' : 's'} over tijd, die staan bovenaan
                 </span>
               )}
               {filter === 'verborgen' && (
@@ -1205,7 +1160,7 @@ export default function LeadBoard() {
               <EmptyState icon={Inbox} title="Geen leads" message={filter === 'open' ? 'Alle leads in deze lijst zijn afgerond.' : filter === 'vandaag' ? 'Niets meer te doen voor vandaag.' : filter === 'verborgen' ? 'Je hebt geen leads verborgen.' : filter === 'warm' ? 'Nog geen warme leads. Zodra iemand de offerte opent, gaat betalen of op de aanmeldpagina staat, komt hij hier bovenaan.' : 'Niets gevonden.'} />
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
-                {(groupedList || [{ id: 'alle', items: visible }]).map(g => (
+                {[{ id: 'alle', items: visible }].map(g => (
                 <div key={g.id} style={{ display: 'grid', gap: 8 }}>
                 {g.label && (
                   <div className="lb-group-head" style={{ color: g.color }}>
@@ -1241,10 +1196,6 @@ export default function LeadBoard() {
                           {lead.contact_person && <span className="text-muted" style={{ fontWeight: 400 }}> · {lead.contact_person}</span>}
                         </div>
                         <div className="text-muted" style={{ fontSize: '0.8rem', display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-                          {lead.phone && <span><Phone size={12} style={{ verticalAlign: -2 }} /> {lead.phone}</span>}
-                          {place && <span><MapPin size={12} style={{ verticalAlign: -2 }} /> {place}</span>}
-                          {listIds.length > 1 && listNames[lead.lead_list_id] && <span><List size={12} style={{ verticalAlign: -2 }} /> {listNames[lead.lead_list_id]}</span>}
-                          {(lead.contact_attempts || 0) > 0 && <span>{lead.contact_attempts}x gebeld</span>}
                           {/* v130: wanneer moet er iets gebeuren */}
                           {lead.status === 'afspraak_gemaakt' && lead.appointment_at ? (
                             <span style={{ color: 'var(--secondary)', fontWeight: 700 }}><CalendarDays size={12} style={{ verticalAlign: -2 }} /> {appointmentLabel(lead)} {dateShort(lead.appointment_at)}</span>
@@ -1253,6 +1204,10 @@ export default function LeadBoard() {
                               <Clock size={12} style={{ verticalAlign: -2 }} /> {lead.status === 'terugbelafspraak' ? 'Terugbellen' : 'Opvolgen'} {dateShort(lead.next_contact_date)}
                             </span>
                           ) : null}
+                          {lead.phone && <span><Phone size={12} style={{ verticalAlign: -2 }} /> {lead.phone}</span>}
+                          {place && <span><MapPin size={12} style={{ verticalAlign: -2 }} /> {place}</span>}
+                          {listIds.length > 1 && listNames[lead.lead_list_id] && <span><List size={12} style={{ verticalAlign: -2 }} /> {listNames[lead.lead_list_id]}</span>}
+                          {(lead.contact_attempts || 0) > 0 && <span>{lead.contact_attempts}x gebeld</span>}
                           {isHidden(lead.id) && userState[lead.id]?.hidden_until && <span><EyeOff size={12} style={{ verticalAlign: -2 }} /> verborgen tot {dateShort(userState[lead.id].hidden_until)}</span>}
                           {sigs.map(s => <Chip key={s.label} label={s.label} color={s.color} bg={s.bg} />)}
                         </div>
