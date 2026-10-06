@@ -216,17 +216,19 @@ export default function LeadBoard() {
     if (!silent) setLoading(true)
     // v103: in blokken van 1000 ophalen. Supabase geeft er max 1000 per
     // keer, dus bij een groot project (PROSELL) vielen leads stil weg.
-    const haalAlleLeads = async () => {
+    // v131: kolom geen_gehoor_reeks bestaat pas na migratie v131; tot dan zonder.
+    const haalAlleLeads = async (zonderReeks = false) => {
       const PAGE = 1000
       const alle = []
       for (let from = 0; from < 50000; from += PAGE) {
         const { data, error } = await supabase.from('leads')
-          .select('id, lead_list_id, name, phone, email, website, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, updated_at, lat, lng, rechtsvorm, rechtsvorm_bron, opt_in_at, opt_in_bewijs, afgemeld_at, afgemeld_bron, mail_pauze_tot, appointment_at, appointment_type, geen_gehoor_reeks')
+          .select('id, lead_list_id, name, phone, email, website, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, updated_at, lat, lng, rechtsvorm, rechtsvorm_bron, opt_in_at, opt_in_bewijs, afgemeld_at, afgemeld_bron, mail_pauze_tot, appointment_at, appointment_type' + (zonderReeks ? '' : ', geen_gehoor_reeks'))
           .in('lead_list_id', listIds)
           .is('deleted_at', null)
           .order('created_at', { ascending: true })
           .order('id', { ascending: true })
           .range(from, from + PAGE - 1)
+        if (error && !zonderReeks && /geen_gehoor_reeks/.test(error.message || '')) return haalAlleLeads(true)
         if (error) return { data: from === 0 ? null : alle, error }
         alle.push(...(data || []))
         if (!data || data.length < PAGE) break

@@ -413,7 +413,8 @@ export function useLeads() {
     if (dispositionType === 'geen_gehoor') {
       const nextAttempt = (currentLead.contact_attempts || 0) + 1
       updates.contact_attempts = nextAttempt
-      geenGehoorBord = await isBordLijst(currentLead.lead_list_id)
+      // Alleen als de kolom bestaat (migratie v131 gedraaid); anders oude regel.
+      geenGehoorBord = ('geen_gehoor_reeks' in currentLead) && await isBordLijst(currentLead.lead_list_id)
       if (geenGehoorBord) {
         const reeks = (currentLead.geen_gehoor_reeks || 0) + 1
         updates.geen_gehoor_reeks = reeks
