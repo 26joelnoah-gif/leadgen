@@ -9,7 +9,7 @@ import { useToast } from '../components/Toast'
 import { getStatusDetails } from '../utils/statusUtils'
 import { distanceM, formatDistance, distanceBand } from '../utils/geoUtils'
 import { nextContactOnOtherDaypart, isFollowUpDue, daysSince } from '../utils/followUpUtils'
-import { SALES_BOARD_COLUMNS, BOARD_CLOSED_STATUSES, boardColumnFor } from '../lib/leadBoard'
+import { SALES_BOARD_COLUMNS, BOARD_CLOSED_STATUSES, boardColumnFor, isNietBereikbaar, GEEN_GEHOOR_STATUSES } from '../lib/leadBoard'
 import { APPOINTMENT_TYPES, DEFAULT_APPOINTMENT_TYPE, appointmentMinutes, appointmentLabel, duurTekst } from '../lib/appointmentConfig'
 import { SENTIMENTS } from '../lib/appointments'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
@@ -221,7 +221,7 @@ export default function LeadBoard() {
       const alle = []
       for (let from = 0; from < 50000; from += PAGE) {
         const { data, error } = await supabase.from('leads')
-          .select('id, lead_list_id, name, phone, email, website, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, updated_at, lat, lng, rechtsvorm, rechtsvorm_bron, opt_in_at, opt_in_bewijs, afgemeld_at, afgemeld_bron, mail_pauze_tot, appointment_at, appointment_type')
+          .select('id, lead_list_id, name, phone, email, website, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, updated_at, lat, lng, rechtsvorm, rechtsvorm_bron, opt_in_at, opt_in_bewijs, afgemeld_at, afgemeld_bron, mail_pauze_tot, appointment_at, appointment_type, geen_gehoor_reeks')
           .in('lead_list_id', listIds)
           .is('deleted_at', null)
           .order('created_at', { ascending: true })
@@ -463,6 +463,8 @@ export default function LeadBoard() {
     setMoving(true)
     const updates = { status, ...extra, updated_at: new Date().toISOString() }
     if (boardEnabled && user?.id) updates.assigned_to = user.id // v79: wie een status geeft is eigenaar
+    // v131: terug naar Nieuw of naar Niet bereikbaar = van niemand
+    if (boardEnabled && (status === 'new' || GEEN_GEHOOR_STATUSES.includes(status))) updates.assigned_to = null
     if (status === 'later_bellen' && !('next_contact_date' in extra)) {
       updates.next_contact_date = nextContactOnOtherDaypart(1)
     }
@@ -504,7 +506,7 @@ export default function LeadBoard() {
       })
       return
     }
-    moveLead(lead, column.dropStatus)
+    moveLead(lead, column.dropStatus, column.dropExtra || {})
   }
 
   async function confirmDatePrompt() {
@@ -709,6 +711,12 @@ export default function LeadBoard() {
         out.push({ label: `${d} dagen niets mee gedaan`, color: 'var(--danger)', bg: 'var(--danger-bg)' })
       }
     }
+    // v131: hoe vaak achter elkaar niet opgenomen
+    if (GEEN_GEHOOR_STATUSES.includes(lead.status) && (lead.geen_gehoor_reeks || 0) > 0) {
+      out.push(isNietBereikbaar(lead)
+        ? { label: `Niet bereikbaar (${lead.geen_gehoor_reeks}x geen gehoor)`, color: 'var(--text-secondary)', bg: 'var(--bg-elevated)' }
+        : { label: `${lead.geen_gehoor_reeks}x geen gehoor`, color: 'var(--text-secondary)', bg: 'var(--bg-elevated)' })
+    }
     if (lead.status === 'mail_gepland') {
       out.push({ label: 'Mail staat klaar', color: 'var(--info)', bg: 'var(--info-bg)' })
     } else if (!mail && mailService && !DONE_STATUSES.includes(lead.status) && lead.status !== 'mail_verstuurd') {
@@ -774,10 +782,13 @@ export default function LeadBoard() {
         if (filter === 'verborgen') { if (!isHidden(l.id)) return false }
         else if (isHidden(l.id)) return false
         if (filter === 'vandaag' && !isTodayTask(l)) return false
+        // v131: niet bereikbaar staat apart (eigen kolom / filter)
+        if (filter === 'onbereikbaar' && !isNietBereikbaar(l)) return false
+        if (view !== 'board' && filter === 'open' && isNietBereikbaar(l)) return false
         if (view !== 'board') {
           // v130: een afspraak die nog komt blijft zichtbaar onder Open
           if (filter === 'open' && DONE_STATUSES.includes(l.status) && planningGroup(l, DONE_STATUSES) !== 'appointments') return false
-          if (filter === 'done' && !DONE_STATUSES.includes(l.status)) return false
+          if (filter === 'done' && !DONE_STATUSES.includes(l.status) && !isNietBereikbaar(l)) return false
         }
         if (filter === 'warm' && !isWarm(l)) return false
         if (filter === 'afgemeld' && belstatusVan(l) !== 'afgemeld') return false
@@ -801,7 +812,7 @@ export default function LeadBoard() {
     // hun vlammetje en de filter Warm, maar springen niet meer voor.
     return rows
   }, [pool, filter, q, pos, sortBy, wie, vanPersoon, user?.id, isWarm, mailRows, view, belstatusVan, isHidden, isTodayTask, userState])
-  const openCount = pool.filter(l => !DONE_STATUSES.includes(l.status)).length
+  const openCount = pool.filter(l => !DONE_STATUSES.includes(l.status) && !isNietBereikbaar(l)).length
   const warmCount = useMemo(() => pool.filter(isWarm).length, [pool, isWarm])
   const afgemeldeLeads = useMemo(() => pool.filter(l => belstatusVan(l) === 'afgemeld'), [pool, belstatusVan])
   const laterMailenCount = useMemo(() => pool.filter(isMailPauze).length, [pool])
@@ -818,6 +829,7 @@ export default function LeadBoard() {
     toast(`${data || 0} afgemelde lead${data === 1 ? '' : 's'} verwijderd`, 'success')
     load(true)
   }
+  const onbereikbaarCount = useMemo(() => pool.filter(isNietBereikbaar).length, [pool])
   const hiddenCount = useMemo(() => pool.filter(l => isHidden(l.id)).length, [pool, isHidden, userState]) // eslint-disable-line react-hooks/exhaustive-deps
   const todayCount = useMemo(() => pool.filter(isTodayTask).length, [pool, isTodayTask])
   const busyCount = pool.filter(isLockedByOther).length
@@ -1027,7 +1039,8 @@ export default function LeadBoard() {
                     ...(toestemmingCount > 0 ? [['toestemming', `Toestemming nodig (${toestemmingCount})`]] : []),
                     ...(afgemeldeLeads.length > 0 || filter === 'afgemeld' ? [['afgemeld', `Afgemeld (${afgemeldeLeads.length})`]] : []),
                     ...(laterMailenCount > 0 || filter === 'later_mailen' ? [['later_mailen', `Later mailen (${laterMailenCount})`]] : []),
-                    ...(hiddenCount > 0 || filter === 'verborgen' ? [['verborgen', `Verborgen (${hiddenCount})`]] : [])
+                    ...(hiddenCount > 0 || filter === 'verborgen' ? [['verborgen', `Verborgen (${hiddenCount})`]] : []),
+                    ...(onbereikbaarCount > 0 || filter === 'onbereikbaar' ? [['onbereikbaar', `Niet bereikbaar (${onbereikbaarCount})`]] : [])
                   ].map(([k, label]) => (
                     <button
                       key={k}

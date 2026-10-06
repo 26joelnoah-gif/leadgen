@@ -198,6 +198,7 @@ export default function WorkInterface() {
         l.lead_list_id === workingListId &&
         (isBackofficeMode ? l.status === 'bruto_deal' : !DONE_STATUSES.includes(l.status)) &&
         (!l.next_contact_date || new Date(l.next_contact_date) <= new Date()) &&
+        (l.geen_gehoor_reeks || 0) < 5 && // v131: 5x geen gehoor = niet bereikbaar
         (!l.locked_by || l.locked_by === user?.id)
       )
     : []

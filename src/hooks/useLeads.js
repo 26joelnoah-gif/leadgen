@@ -9,6 +9,19 @@ import { logAppError } from '../lib/errorLog'
 import { nextContactOnOtherDaypart } from '../utils/followUpUtils'
 import { stopMailsVoorLead } from '../lib/mailStop'
 
+// v131: is deze lijst van een bordproject? (gecached per lijst)
+export const GEEN_GEHOOR_MAX = 5
+const bordCache = new Map()
+async function isBordLijst(listId) {
+  if (!listId) return false
+  if (bordCache.has(listId)) return bordCache.get(listId)
+  const { data, error } = await supabase.from('lead_lists').select('campaigns(board_view_enabled)').eq('id', listId).maybeSingle()
+  if (error) return false
+  const bord = data?.campaigns?.board_view_enabled === true
+  bordCache.set(listId, bord)
+  return bord
+}
+
 export function useLeads() {
   const { user, profile, isDemoMode } = useAuth()
   const [leads, setLeads] = useState([])
@@ -392,10 +405,20 @@ export function useLeads() {
     if (dispositionType === 'later_bellen' && !nextDate) {
       updates.next_contact_date = nextContactOnOtherDaypart(1)
     }
+    // v131: in bordprojecten gaat geen gehoor terug in de leadlijst (kolom
+    // Nieuw, van niemand) en telt geen_gehoor_reeks hoe vaak achter elkaar.
+    // Vanaf 5 op een rij: kolom "Niet bereikbaar", niet meer in de wachtrij
+    // (claim_next_lead). Andere projecten houden de oude regel.
+    let geenGehoorBord = false
     if (dispositionType === 'geen_gehoor') {
       const nextAttempt = (currentLead.contact_attempts || 0) + 1
       updates.contact_attempts = nextAttempt
-      if (nextAttempt >= 2) {
+      geenGehoorBord = await isBordLijst(currentLead.lead_list_id)
+      if (geenGehoorBord) {
+        const reeks = (currentLead.geen_gehoor_reeks || 0) + 1
+        updates.geen_gehoor_reeks = reeks
+        updates.next_contact_date = reeks >= GEEN_GEHOOR_MAX ? null : (nextDate || nextContactOnOtherDaypart(1))
+      } else if (nextAttempt >= 2) {
         updates.status = 'cold'
         updates.next_contact_date = null
       } else if (!nextDate) {
@@ -434,6 +457,8 @@ export function useLeads() {
       else if (rule.auto_assign_to === 'none') updates.assigned_to = null
       if (rule.append_agent_note) updates.notes = `${updates.notes}\n— Afgeboekt door ${agentName}`
     }
+    // v131: geen gehoor in een bordproject = van niemand, terug in de leadlijst
+    if (geenGehoorBord) updates.assigned_to = null
 
     // v27: onjuiste timing krijgt een instelbare cooldown; daarna komt de
     // lead automatisch terug in de belwachtrij
