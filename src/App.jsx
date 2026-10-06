@@ -34,6 +34,7 @@ import AccountManagement from './pages/AccountManagement'
 import BriefingScript from './pages/BriefingScript'
 import { useToolAccess } from './hooks/useToolAccess'
 import WorkInterface from './components/WorkInterface'
+import FollowUpReminders from './components/FollowUpReminders' // v130
 import ErrorBoundary from './components/ErrorBoundary'
 import OfflineBanner from './components/OfflineBanner'
 import { OnderhoudScherm, OnderhoudBanner } from './components/Onderhoud' // v117
@@ -219,6 +220,12 @@ function AppRoutes() {
       {user && !location.pathname.startsWith('/tekenen') && !location.pathname.startsWith('/aanmelden') && (
         <ErrorBoundary naam="teamchat" variant="stil">
           <Chat />
+        </ErrorBoundary>
+      )}
+      {/* v130: Te doen-paneel met opvolgingen/terugbelafspraken die nu aan de beurt zijn */}
+      {user && (
+        <ErrorBoundary naam="tedoen" variant="stil">
+          <FollowUpReminders />
         </ErrorBoundary>
       )}
       {/* Per pagina een grens: crasht er een, dan blijft de rest bruikbaar en
