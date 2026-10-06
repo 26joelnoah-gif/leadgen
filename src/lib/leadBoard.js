@@ -7,21 +7,25 @@
 //  needsDate  = vraagt eerst om een datum (terugbelmoment)
 //  mail       = deze kolom stuurt geen status maar opent de Mailingservice;
 //               de lead komt pas op "Mail verstuurd" als de mail echt weg is
-// v131: geen gehoor hoort weer in Nieuw (terug in de leadlijst); vanaf
-// GEEN_GEHOOR_MAX keer op een rij in "Niet bereikbaar".
+// v131: geen gehoor op een lead van niemand = Nieuw (terug in de leadlijst);
+// op een lead die al van iemand is = Opvolgen (blijft van die beller).
+// Vanaf GEEN_GEHOOR_MAX keer op een rij in "Niet bereikbaar".
 export const GEEN_GEHOOR_STATUSES = ['geen_gehoor', 'voicemail']
 export const GEEN_GEHOOR_MAX = 5
 export const isNietBereikbaar = (lead) =>
   GEEN_GEHOOR_STATUSES.includes(lead?.status) && (lead?.geen_gehoor_reeks || 0) >= GEEN_GEHOOR_MAX
 
+const FOLLOWUP_STATUSES = ['later_bellen', 'mailen', 'onjuiste_timing', 'ptfu', 'gebeld', 'goed_op_weg', 'verbetering_nodig']
+
 export const SALES_BOARD_COLUMNS = [
   {
     id: 'new', label: 'Nieuw', statuses: ['new', 'geen_gehoor', 'voicemail'], dropStatus: 'new', color: 'var(--primary)',
-    match: (l) => l.status === 'new' || (GEEN_GEHOOR_STATUSES.includes(l.status) && !isNietBereikbaar(l))
+    match: (l) => l.status === 'new' || (GEEN_GEHOOR_STATUSES.includes(l.status) && !l.assigned_to && !isNietBereikbaar(l))
   },
   {
     id: 'followup', label: 'Opvolgen',
-    statuses: ['later_bellen', 'mailen', 'onjuiste_timing', 'ptfu', 'gebeld', 'goed_op_weg', 'verbetering_nodig'],
+    match: (l) => FOLLOWUP_STATUSES.includes(l.status) || (GEEN_GEHOOR_STATUSES.includes(l.status) && !!l.assigned_to && !isNietBereikbaar(l)),
+    statuses: ['later_bellen', 'geen_gehoor', 'voicemail', 'mailen', 'onjuiste_timing', 'ptfu', 'gebeld', 'goed_op_weg', 'verbetering_nodig'],
     dropStatus: 'later_bellen', color: 'var(--warning)'
   },
   {

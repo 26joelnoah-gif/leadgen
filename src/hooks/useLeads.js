@@ -405,8 +405,8 @@ export function useLeads() {
     if (dispositionType === 'later_bellen' && !nextDate) {
       updates.next_contact_date = nextContactOnOtherDaypart(1)
     }
-    // v131: in bordprojecten gaat geen gehoor terug in de leadlijst (kolom
-    // Nieuw, van niemand) en telt geen_gehoor_reeks hoe vaak achter elkaar.
+    // v131: in bordprojecten blijft een vrije lead bij geen gehoor vrij (kolom
+    // Nieuw), een eigen lead blijft van de beller (kolom Opvolgen), en telt geen_gehoor_reeks hoe vaak achter elkaar.
     // Vanaf 5 op een rij: kolom "Niet bereikbaar", niet meer in de wachtrij
     // (claim_next_lead). Andere projecten houden de oude regel.
     let geenGehoorBord = false
@@ -458,8 +458,10 @@ export function useLeads() {
       else if (rule.auto_assign_to === 'none') updates.assigned_to = null
       if (rule.append_agent_note) updates.notes = `${updates.notes}\n— Afgeboekt door ${agentName}`
     }
-    // v131: geen gehoor in een bordproject = van niemand, terug in de leadlijst
-    if (geenGehoorBord) updates.assigned_to = null
+    // v131b: geen gehoor verandert NOOIT de eigenaar. Een vrije lead blijft
+    // vrij (de DB-trigger maakt je er geen eigenaar meer van), een lead die
+    // al van jou is (eerder contact gehad) blijft van jou.
+    if (geenGehoorBord && 'assigned_to' in updates) updates.assigned_to = currentLead.assigned_to ?? null
 
     // v27: onjuiste timing krijgt een instelbare cooldown; daarna komt de
     // lead automatisch terug in de belwachtrij

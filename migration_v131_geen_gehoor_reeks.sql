@@ -1,5 +1,8 @@
 -- v131 (06-10-2026): geen gehoor in bordprojecten
--- * Geen gehoor = lead terug in de leadlijst (kolom Nieuw), van niemand.
+-- * Geen gehoor verandert NOOIT de eigenaar (v131b, wens Noah: wie al contact
+--   had, raakt zijn lead niet kwijt bij een volgend geen gehoor).
+--   Vrije lead + geen gehoor = blijft vrij, kolom Nieuw.
+--   Eigen lead + geen gehoor = blijft van de beller, kolom Opvolgen.
 -- * leads.geen_gehoor_reeks telt hoe vaak achter elkaar geen gehoor.
 --   De app verhoogt hem bij elke geen-gehoor-afboeking in een bordproject;
 --   elke andere status zet hem via de trigger terug op 0.
@@ -136,10 +139,17 @@ begin
   where ll.id = l.lead_list_id and c.id = ll.campaign_id and c.board_view_enabled
     and l.deleted_at is null and l.status = 'cold' and l.geen_gehoor_reeks > 0;
 
-  -- geen gehoor is van niemand (niet als iemand hem nu open heeft)
+  -- De oude eigenaar-trigger maakte je eigenaar bij ELK geen gehoor. Leads
+  -- waarmee nog nooit echt contact is geweest (alleen geen gehoor/voicemail
+  -- in call_logs) gaan terug naar niemand. Was er wel ooit contact, dan
+  -- blijft de lead van zijn beller. Niet als iemand hem nu open heeft.
   update public.leads l set assigned_to = null
   from public.lead_lists ll, public.campaigns c
   where ll.id = l.lead_list_id and c.id = ll.campaign_id and c.board_view_enabled
     and l.deleted_at is null and l.status in ('geen_gehoor', 'voicemail')
-    and l.assigned_to is not null and l.locked_by is null;
+    and l.assigned_to is not null and l.locked_by is null
+    and not exists (
+      select 1 from public.call_logs cl
+      where cl.lead_id = l.id and cl.disposition not in ('geen_gehoor', 'voicemail', 'new', 'teruggezet')
+    );
 end $$;

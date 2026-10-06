@@ -3,13 +3,14 @@
 // (kopjes Achterstallig / Vandaag / ...) en het bord (eerstvolgende bovenaan).
 
 // Statussen waarvoor een beller een melding krijgt als de opvolgdatum bereikt
-// is. Bewust ZONDER geen_gehoor/voicemail: dat zijn automatische nieuwe
-// pogingen en die zouden het paneel overspoelen. Die staan wel in de lijst.
-export const REMINDER_STATUSES = ['terugbelafspraak', 'later_bellen', 'onjuiste_timing', 'mail_verstuurd']
+// is. v131b: geen gehoor/voicemail alleen als de lead van JOU is (eerder
+// contact gehad); vrije geen-gehoor-leads zijn van niemand en komen hier niet.
+export const REMINDER_STATUSES = ['terugbelafspraak', 'later_bellen', 'onjuiste_timing', 'mail_verstuurd', 'geen_gehoor', 'voicemail']
 
 export function reminderLabel(status) {
   if (status === 'terugbelafspraak') return 'Terugbelafspraak'
   if (status === 'mail_verstuurd') return 'Opvolgen na mail'
+  if (status === 'geen_gehoor' || status === 'voicemail') return 'Opnieuw proberen'
   return 'Opvolgen'
 }
 

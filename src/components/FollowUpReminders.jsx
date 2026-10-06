@@ -46,7 +46,7 @@ export default function FollowUpReminders() {
     if (!user?.id) return
     const { data, error } = await supabase
       .from('leads')
-      .select('id, name, contact_person, phone, city, status, next_contact_date, lead_list_id, assigned_to, locked_by, lead_lists!inner(name, deleted_at, campaigns(type))')
+      .select('*, lead_lists!inner(name, deleted_at, campaigns(type))')
       .or(`assigned_to.eq.${user.id},locked_by.eq.${user.id}`)
       .in('status', REMINDER_STATUSES)
       .is('deleted_at', null)
@@ -55,7 +55,9 @@ export default function FollowUpReminders() {
       .order('next_contact_date', { ascending: true })
       .limit(100)
     if (error) { console.warn('Te doen laden:', error.message); return }
-    setLeads((data || []).filter(l => l.lead_lists?.campaigns?.type !== 'recruitment'))
+    setLeads((data || []).filter(l => l.lead_lists?.campaigns?.type !== 'recruitment'
+      // geen gehoor: alleen eigen leads (assigned_to), en niet als hij al 5x niet opnam
+      && (!['geen_gehoor', 'voicemail'].includes(l.status) || ('geen_gehoor_reeks' in l && l.assigned_to === user.id && l.geen_gehoor_reeks < 5))))
     setNow(Date.now())
   }, [user?.id])
 

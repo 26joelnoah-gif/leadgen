@@ -465,8 +465,9 @@ export default function LeadBoard() {
     setMoving(true)
     const updates = { status, ...extra, updated_at: new Date().toISOString() }
     if (boardEnabled && user?.id) updates.assigned_to = user.id // v79: wie een status geeft is eigenaar
-    // v131: terug naar Nieuw of naar Niet bereikbaar = van niemand
-    if (boardEnabled && (status === 'new' || GEEN_GEHOOR_STATUSES.includes(status))) updates.assigned_to = null
+    // v131: terug naar Nieuw = van niemand. Niet bereikbaar houdt de eigenaar.
+    if (boardEnabled && status === 'new') updates.assigned_to = null
+    if (boardEnabled && GEEN_GEHOOR_STATUSES.includes(status)) updates.assigned_to = lead.assigned_to ?? null
     if (status === 'later_bellen' && !('next_contact_date' in extra)) {
       updates.next_contact_date = nextContactOnOtherDaypart(1)
     }
