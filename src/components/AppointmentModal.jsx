@@ -6,6 +6,8 @@
 // v110: blok "Uitbetaling beller" - wie de afspraak inplande en wat hij ervoor
 //   krijgt. Alleen admin/manager kan het bedrag zetten (DB-trigger bewaakt dat);
 //   de beller ziet het terug op zijn pagina "Mijn afspraken" en krijgt een melding.
+// v129: admin/manager kan "Ingepland door" op een andere medewerker zetten
+//   (bijv. een afspraak die op Noah staat maar door een beller is gemaakt).
 import { useState, useEffect } from 'react'
 import { X, MapPin, Phone, Mail, User, Navigation, Trash2, CalendarClock, FileText, Euro } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -39,6 +41,9 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
   const [commissie, setCommissie] = useState('')
   const [tariefTip, setTariefTip] = useState(null)
   const [commissieOpgeslagen, setCommissieOpgeslagen] = useState(false)
+  // v129: ingepland door een andere medewerker zetten
+  const [mensen, setMensen] = useState([])
+  const [nieuweBeller, setNieuweBeller] = useState('')
 
   useEffect(() => {
     if (!lead) return
@@ -48,7 +53,20 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
     setConfirmDelete(false)
     setCommissie(lead.appointment_commission != null ? String(lead.appointment_commission) : '')
     setCommissieOpgeslagen(false)
+    setNieuweBeller(lead.appointment_by || '')
   }, [lead])
+
+  // v129: medewerkers om "Ingepland door" mee te wijzigen (alleen admin/manager)
+  useEffect(() => {
+    if (!canManage) return
+    let weg = false
+    supabase.from('profiles')
+      .select('id, full_name, email, role')
+      .is('deleted_at', null)
+      .order('full_name')
+      .then(({ data }) => { if (!weg) setMensen(data || []) })
+    return () => { weg = true }
+  }, [canManage])
 
   // v110: naam van de beller die de afspraak inplande + het afspraaktarief van
   // de lijst als voorstel voor het bedrag.
@@ -117,6 +135,21 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
     setCommissieOpgeslagen(true)
     logAct('afspraak_commissie', bedrag === null ? 'Uitbetaling beller leeggemaakt' : `Uitbetaling beller gezet op EUR ${bedrag}`)
     toast(bedrag === null ? 'Uitbetaling leeggemaakt' : `Uitbetaling van EUR ${bedrag} opgeslagen`, 'success')
+    onChanged?.(lead.id, updates)
+  }
+
+  // v129: afspraak op naam van een andere beller zetten
+  async function bellerWijzigen() {
+    if (busy || !nieuweBeller || nieuweBeller === lead.appointment_by) return
+    setBusy(true)
+    const updates = { appointment_by: nieuweBeller, updated_at: new Date().toISOString() }
+    const { error } = await supabase.from('leads').update(updates).eq('id', lead.id)
+    setBusy(false)
+    if (error) { toast(error.message || 'Wijzigen mislukt', 'error'); return }
+    const oud = bellerNaam || 'onbekend'
+    const nieuw = mensen.find(m => m.id === nieuweBeller)?.full_name || 'onbekend'
+    logAct('afspraak_beller', `Ingepland door gewijzigd van ${oud} naar ${nieuw}`)
+    toast(`Afspraak staat nu op naam van ${nieuw}`, 'success')
     onChanged?.(lead.id, updates)
   }
 
@@ -254,14 +287,24 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
           </>
         )}
 
-        {lead.appointment_by && (
+        {(lead.appointment_by || canManage) && (
           <>
             <div style={sectionTitle}>Uitbetaling beller</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ ...row, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                <User size={15} style={{ flexShrink: 0, marginTop: 2 }} /> Ingepland door <strong style={{ color: 'var(--text-primary)' }}>{bellerNaam || '...'}</strong>
+                <User size={15} style={{ flexShrink: 0, marginTop: 2 }} /> Ingepland door <strong style={{ color: 'var(--text-primary)' }}>{lead.appointment_by ? (bellerNaam || '...') : 'niemand'}</strong>
               </div>
-              {canManage ? (
+              {canManage && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <PersonSelect people={mensen} value={nieuweBeller} onChange={id => setNieuweBeller(id)} placeholder="Kies wie het inplande" showRole className="form-control" style={{ width: '100%' }} />
+                  </div>
+                  <button type="button" className="btn btn-secondary" disabled={busy || !nieuweBeller || nieuweBeller === lead.appointment_by} onClick={bellerWijzigen}>
+                    Wijzig
+                  </button>
+                </div>
+              )}
+              {!lead.appointment_by ? null : canManage ? (
                 <>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span style={{ fontWeight: 800, color: 'var(--text-muted)' }}>&euro;</span>
