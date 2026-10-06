@@ -139,15 +139,18 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
   }
 
   // v129: afspraak op naam van een andere beller zetten
-  async function bellerWijzigen() {
-    if (busy || !nieuweBeller || nieuweBeller === lead.appointment_by) return
+  // v132: slaat direct op zodra je iemand kiest (er was een losse "Wijzig"-knop
+  // die naast de groene Opslaan-knop van het bedrag makkelijk gemist werd).
+  async function bellerWijzigen(id) {
+    if (busy || !id || id === lead.appointment_by) return
+    setNieuweBeller(id)
     setBusy(true)
-    const updates = { appointment_by: nieuweBeller, updated_at: new Date().toISOString() }
+    const updates = { appointment_by: id, updated_at: new Date().toISOString() }
     const { error } = await supabase.from('leads').update(updates).eq('id', lead.id)
     setBusy(false)
-    if (error) { toast(error.message || 'Wijzigen mislukt', 'error'); return }
+    if (error) { setNieuweBeller(lead.appointment_by || ''); toast(error.message || 'Wijzigen mislukt', 'error'); return }
     const oud = bellerNaam || 'onbekend'
-    const nieuw = mensen.find(m => m.id === nieuweBeller)?.full_name || 'onbekend'
+    const nieuw = mensen.find(m => m.id === id)?.full_name || 'onbekend'
     logAct('afspraak_beller', `Ingepland door gewijzigd van ${oud} naar ${nieuw}`)
     toast(`Afspraak staat nu op naam van ${nieuw}`, 'success')
     onChanged?.(lead.id, updates)
@@ -295,13 +298,9 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
                 <User size={15} style={{ flexShrink: 0, marginTop: 2 }} /> Ingepland door <strong style={{ color: 'var(--text-primary)' }}>{lead.appointment_by ? (bellerNaam || '...') : 'niemand'}</strong>
               </div>
               {canManage && (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <PersonSelect people={mensen} value={nieuweBeller} onChange={id => setNieuweBeller(id)} placeholder="Kies wie het inplande" showRole className="form-control" style={{ width: '100%' }} />
-                  </div>
-                  <button type="button" className="btn btn-secondary" disabled={busy || !nieuweBeller || nieuweBeller === lead.appointment_by} onClick={bellerWijzigen}>
-                    Wijzig
-                  </button>
+                <div>
+                  <PersonSelect people={mensen} value={nieuweBeller} onChange={id => bellerWijzigen(id)} placeholder="Kies wie het inplande" showRole className="form-control" style={{ width: '100%' }} />
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4 }}>Kies iemand en het staat meteen op zijn of haar naam.</div>
                 </div>
               )}
               {!lead.appointment_by ? null : canManage ? (
