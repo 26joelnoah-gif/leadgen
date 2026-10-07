@@ -80,6 +80,56 @@
   .lock{pointer-events:none;opacity:.6}
   .hidden{display:none!important}
   body.klant .vk-only,body.klant #backLink,body.klant #dbState{display:none!important}
+  /* ===== v133: klantweergave in de huisstijl van het merk ===== */
+  :root{--hero:color-mix(in srgb, var(--acc) 42%, #07090A);--tint:color-mix(in srgb, var(--acc) 6%, #F7F7F3)}
+  #kvBg,#klantview{display:none}
+  body.klant{background:var(--tint)}
+  body.klant main > section.card:not(#akkoord){display:none}
+  body.klant #kvBg{display:block;position:absolute;left:0;right:0;top:0;height:430px;z-index:0;overflow:hidden;
+    background:
+      radial-gradient(520px 320px at 85% 20%, color-mix(in srgb, var(--acc) 55%, transparent), transparent 70%),
+      radial-gradient(460px 300px at 5% 90%, color-mix(in srgb, var(--acc) 35%, transparent), transparent 70%),
+      var(--hero)}
+  body.klant #kvBg::before{content:"";position:absolute;inset:0;background-image:radial-gradient(rgba(255,255,255,.10) 1px, transparent 1.2px);background-size:22px 22px;
+    -webkit-mask-image:linear-gradient(180deg,#000 30%,transparent);mask-image:linear-gradient(180deg,#000 30%,transparent)}
+  body.klant #kvBg::after{content:"";position:absolute;left:0;right:0;bottom:0;height:120px;background:linear-gradient(180deg,transparent,var(--tint))}
+  body.klant main{position:relative;z-index:1}
+  body.klant header{background:color-mix(in srgb, var(--hero) 88%, transparent);border-bottom-color:rgba(255,255,255,.08);color:#fff}
+  body.klant header .logo{color:#fff}
+  body.klant header .logo img{background:#fff;border-radius:8px;padding:3px 6px}
+  body.klant header .chip{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.22);color:#fff}
+  body.klant #modeBtn{background:#fff;color:#0B0B0C;border-color:#fff;font-weight:600;cursor:pointer}
+  body.klant #klantview{display:block}
+  .kv-kort{display:none}
+  @media(max-width:560px){body.klant #h_nr{display:none}.kv-lang{display:none}.kv-kort{display:inline}}
+  .kv-hero{color:#fff;padding:26px 4px 26px}
+  .kv-eyebrow{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;opacity:.75}
+  .kv-hero h1{font-size:clamp(26px,5.5vw,38px);font-weight:800;letter-spacing:-0.025em;margin-top:8px;line-height:1.12;overflow-wrap:anywhere}
+  .kv-hero p{margin:10px 0 0;opacity:.82;font-size:15px}
+  .kv-paper{background:#fff;border-radius:20px;box-shadow:0 1px 2px rgba(0,0,0,.05),0 24px 60px -24px rgba(0,0,0,.35);padding:22px;margin-bottom:14px}
+  .kv-meta{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding-bottom:16px;border-bottom:1px solid var(--line)}
+  @media(max-width:620px){.kv-meta{grid-template-columns:1fr 1fr}}
+  .kv-meta .k{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600}
+  .kv-meta .v{font-weight:600;font-size:14px;margin-top:2px;overflow-wrap:anywhere}
+  .kv-sec{margin-top:20px}
+  .kv-sec h3{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700;margin-bottom:6px}
+  .kv-item{display:flex;gap:12px;justify-content:space-between;align-items:flex-start;padding:12px 0;border-bottom:1px solid var(--line)}
+  .kv-item:last-child{border-bottom:0}
+  .kv-item .nm{font-weight:600;min-width:0;overflow-wrap:anywhere}
+  .kv-item .sb{font-size:13px;color:var(--muted);margin-top:2px}
+  .kv-item .pr{text-align:right;white-space:nowrap;font-weight:600}
+  .kv-item .pr small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+  .kv-tot{margin-top:20px;border-radius:14px;padding:16px 18px;background:color-mix(in srgb, var(--acc) 9%, #fff);border:1px solid color-mix(in srgb, var(--acc) 25%, #fff)}
+  .kv-tot .r{display:flex;justify-content:space-between;gap:12px;padding:4px 0;font-size:14px;color:var(--muted)}
+  .kv-tot .r.big{color:var(--txt);font-size:20px;font-weight:800;letter-spacing:-0.01em}
+  .kv-tot .r.big + .r.big{border-top:1px solid color-mix(in srgb, var(--acc) 22%, #fff);margin-top:6px;padding-top:10px}
+  .kv-note{background:var(--panel2);border-radius:12px;padding:12px 14px;font-size:14px;white-space:pre-wrap}
+  .kv-from{display:flex;align-items:center;gap:12px;margin-top:20px;padding-top:16px;border-top:1px solid var(--line);font-size:14px}
+  .kv-from .av{width:40px;height:40px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;background:var(--acc);color:var(--acc-ink);font-weight:700}
+  .kv-signed{display:inline-flex;align-items:center;gap:6px;margin-top:14px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:5px 12px;font-size:13px;font-weight:600}
+  .kv-leeg{color:var(--muted);font-size:14px;padding:8px 0}
+  body.klant #akkoord{border:0;border-radius:20px;box-shadow:0 1px 2px rgba(0,0,0,.05),0 18px 50px -28px rgba(0,0,0,.3)}
+  body.klant .bar{background:color-mix(in srgb, #fff 92%, transparent);backdrop-filter:blur(8px)}
   /* bevestig-venster */
   .modal{position:fixed;inset:0;z-index:60;background:rgba(11,11,12,.45);display:flex;align-items:center;justify-content:center;padding:16px}
   .modal .box{background:var(--panel);border-radius:16px;max-width:420px;width:100%;padding:22px;border:1px solid var(--line)}
@@ -91,7 +141,7 @@
   @media print{
     @page{margin:14mm}
     body{background:#fff;color:#111;font-size:12px}
-    header,main,.bar,.modal{display:none!important}
+    header,main,.bar,.modal,#kvBg{display:none!important}
     #doc{display:block;font-family:Inter,Arial,sans-serif;color:#111}
     #doc .dh{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid var(--acc);padding-bottom:10px;margin-bottom:16px}
     #doc .dh .logo{font-size:22px;color:#111;font-weight:800}
@@ -124,7 +174,9 @@
   </div>
 </header>
 
+<div id="kvBg" aria-hidden="true"></div>
 <main id="mainview">
+  <div id="klantview"></div>
   <section class="card">
     <h2><span class="n">1</span>Klant</h2>
     <div class="grid" style="margin-top:12px">
@@ -216,7 +268,7 @@
       <button class="btn" onclick="showDoc()">Bekijk / download offerte (PDF)</button>
       <button class="btn vk-only" onclick="nieuw()">Nieuwe offerte</button>
     </div>
-    <div class="note vk-only">Tekent de klant nu niet? Vul het e-mailadres in en kies "Verstuur ter ondertekening": de klant krijgt een link om zelf te ondertekenen en je ziet de status (verzonden, geopend, getekend) terug bij de lead en op de pagina Offertes.</div>
+    <div class="note vk-only">Tekent de klant nu niet? Vul het e-mailadres in en kies "Verstuur ter ondertekening": de klant krijgt een link waarmee hij de offerte op zijn eigen telefoon kan ondertekenen en als pdf kan downloaden. Daarna kun je de link ook via WhatsApp sturen. Je ziet de status (verzonden, geopend, getekend) terug bij de lead en op de pagina Offertes.</div>
   </section>
 </main>
 
@@ -429,6 +481,7 @@ function calc(){
   const tb = el('t_betaal'); if(tb) tb.textContent = betaalLabel();
   el('leegwarn').classList.toggle('hidden', !t.leeg);
   chkKlaar();
+  renderKlantView();
 }
 
 /* ===== akkoordtekst & voorwaarden ===== */
@@ -438,10 +491,12 @@ function betaalZin(){
     ? 'Het eenmalige bedrag wordt bij akkoord gefactureerd en is betaalbaar binnen 24 uur na ondertekening.'
     : `Het eenmalige bedrag wordt bij akkoord gefactureerd en is betaalbaar binnen ${d} dagen.`;
 }
+/* v133: best effort SLA, staat altijd in de akkoordtekst (ook bij een eigen tekst van het merk). */
+const SLA_ZIN = 'Voor onze diensten geldt een best effort SLA: wij doen ons best om alles goed werkend en bereikbaar te houden en storingen snel op te lossen, maar garanderen geen vaste beschikbaarheid of reactietijd.';
 function akkoordTekst(){
-  if(MERK.offerte_akkoord_tekst && MERK.offerte_akkoord_tekst.trim()) return MERK.offerte_akkoord_tekst.trim() + ' ' + betaalZin();
+  if(MERK.offerte_akkoord_tekst && MERK.offerte_akkoord_tekst.trim()) return MERK.offerte_akkoord_tekst.trim() + ' ' + betaalZin() + ' ' + SLA_ZIN;
   const dagen = MERK.offerte_geldigheid_dagen || 14;
-  return `Door te ondertekenen gaat de klant akkoord met deze offerte van ${merkNaam()}, zoals hierboven gespecificeerd. Alle prijzen zijn exclusief btw. ${betaalZin()} Maandelijkse diensten gaan in bij de start van de werkzaamheden en worden maandelijks vooraf gefactureerd; de looptijd staat per regel vermeld en na afloop van een looptijd is de dienst maandelijks opzegbaar met een opzegtermijn van een kalendermaand. Marketing- en vindbaarheidsdiensten zijn inspanningsverplichtingen: er wordt geen bepaald resultaat, bereik of omzet gegarandeerd. Advertentiebudget bij campagnes is niet inbegrepen, tenzij dat er als regel op staat. Werk buiten deze offerte wordt vooraf afgestemd en apart geoffreerd. Deze offerte is ${dagen} dagen geldig. De klant ontvangt een bevestiging per e-mail met deze offerte, de naam van de ondertekenaar en het tijdstip van ondertekening.`;
+  return `Door te ondertekenen gaat de klant akkoord met deze offerte van ${merkNaam()}, zoals hierboven gespecificeerd. Alle prijzen zijn exclusief btw. ${betaalZin()} Maandelijkse diensten gaan in bij de start van de werkzaamheden en worden maandelijks vooraf gefactureerd; de looptijd staat per regel vermeld en na afloop van een looptijd is de dienst maandelijks opzegbaar met een opzegtermijn van een kalendermaand. Marketing- en vindbaarheidsdiensten zijn inspanningsverplichtingen: er wordt geen bepaald resultaat, bereik of omzet gegarandeerd. Advertentiebudget bij campagnes is niet inbegrepen, tenzij dat er als regel op staat. Werk buiten deze offerte wordt vooraf afgestemd en apart geoffreerd. ${SLA_ZIN} Deze offerte is ${dagen} dagen geldig. De klant ontvangt een bevestiging per e-mail met deze offerte, de naam van de ondertekenaar en het tijdstip van ondertekening.`;
 }
 function voorwaarden(){ return Array.isArray(MERK.offerte_voorwaarden) ? MERK.offerte_voorwaarden : []; }
 function renderAkkoord(){
@@ -564,8 +619,59 @@ function barAction(){ if(S.signed) showDoc(); else el('akkoord').scrollIntoView(
 function toggleMode(){ S.klantmodus = !S.klantmodus; applyMode(); save(); }
 function applyMode(){
   document.body.classList.toggle('klant', S.klantmodus);
-  el('modeBtn').textContent = S.klantmodus ? 'Accountmanager' : 'Klantweergave';
+  el('modeBtn').innerHTML = S.klantmodus ? '&#9998; <span class="kv-lang">Terug naar bewerken</span><span class="kv-kort">Bewerken</span>' : 'Klantweergave';
   el('modeBtn').classList.toggle('on', S.klantmodus);
+  if(S.klantmodus){ renderKlantView(); window.scrollTo({top:0}); }
+}
+
+/* ===== v133: klantweergave ===== */
+function renderKlantView(){
+  const kv = el('klantview'); if(!kv || !S.klantmodus) return;
+  const t = totals();
+  const een = REGELS.filter(r=>r.periode!=='maand' && r.naam.trim());
+  const mnd = REGELS.filter(r=>r.periode==='maand' && r.naam.trim());
+  const dagen = MERK.offerte_geldigheid_dagen || 14;
+  const vandaag = new Date();
+  const geldig = new Date(vandaag.getTime() + dagen*864e5);
+  const dfmt = d => d.toLocaleDateString('nl-NL',{day:'numeric',month:'long',year:'numeric'});
+  const zaak = val('k_zaak').trim();
+  const contact = val('k_naam').trim();
+  const am = val('v_naam').trim();
+  const item = (r, maand) => `<div class="kv-item"><div style="min-width:0"><div class="nm">${esc(r.naam)}</div>`
+    + `${r.sub?`<div class="sb">${esc(r.sub)}</div>`:''}`
+    + `<div class="sb">${Number(r.aantal)||1} &times; ${eur2(r.prijs||0)}${maand?' &middot; '+esc(looptijdLabel(r.looptijd)):''}</div></div>`
+    + `<div class="pr">${eur2(regelTotaal(r))}${maand?'<small>per maand</small>':''}</div></div>`;
+  let h = `<div class="kv-hero">
+      <div class="kv-eyebrow">Offerte ${esc(S.nummer||'')}</div>
+      <h1>${zaak ? 'Voorstel voor '+esc(zaak) : 'Jouw voorstel'}</h1>
+      <p>${contact ? 'Voor '+esc(contact)+' &middot; ' : ''}van ${esc(merkNaam())}</p>
+      ${S.signed ? `<div class="kv-signed">&#10003; Ondertekend door ${esc(S.signed.door)}</div>` : ''}
+    </div>
+    <div class="kv-paper">
+      <div class="kv-meta">
+        <div><div class="k">Datum</div><div class="v">${dfmt(vandaag)}</div></div>
+        <div><div class="k">Geldig tot</div><div class="v">${dfmt(geldig)}</div></div>
+        <div><div class="k">Betaling</div><div class="v">${esc(betaalLabel())}</div></div>
+        <div><div class="k">Nummer</div><div class="v">${esc(S.nummer||'-')}</div></div>
+      </div>`;
+  if(een.length) h += `<div class="kv-sec"><h3>Eenmalig</h3>${een.map(r=>item(r,false)).join('')}</div>`;
+  if(mnd.length) h += `<div class="kv-sec"><h3>Per maand</h3>${mnd.map(r=>item(r,true)).join('')}</div>`;
+  if(!een.length && !mnd.length) h += `<div class="kv-leeg">Er staan nog geen onderdelen op dit voorstel.</div>`;
+  if(!t.leeg){
+    h += `<div class="kv-tot">`;
+    if(een.length || t.korting>0){
+      h += `<div class="r"><span>Eenmalig excl. btw</span><span>${eur2(t.een)}</span></div>`;
+      if(t.korting>0) h += `<div class="r"><span>Korting</span><span>&minus; ${eur2(t.korting)}</span></div>`;
+      h += `<div class="r"><span>Btw ${btwPct()}%</span><span>${eur2(t.btw)}</span></div>
+            <div class="r big"><span>Eenmalig</span><span>${eur2(t.incl)}</span></div>`;
+    }
+    if(mnd.length) h += `<div class="r big"><span>Per maand <small style="font-size:12px;font-weight:500;color:var(--muted)">excl. btw</small></span><span>${eur2(t.mnd)}</span></div>`;
+    h += `</div>`;
+  }
+  if(val('v_notitie').trim()) h += `<div class="kv-sec"><h3>Afspraken</h3><div class="kv-note">${esc(val('v_notitie'))}</div></div>`;
+  if(am) h += `<div class="kv-from"><div class="av">${esc(am.charAt(0).toUpperCase())}</div><div><b>${esc(am)}</b><br><span style="color:var(--muted)">Jouw contactpersoon bij ${esc(merkNaam())}</span></div></div>`;
+  h += `</div>`;
+  kv.innerHTML = h;
 }
 
 /* ===== document / print ===== */
@@ -731,8 +837,17 @@ function renderSent(){
   el('sentbox').innerHTML = `<b>Verstuurd ter ondertekening</b> naar ${esc(v.naar)} op ${d.toLocaleDateString('nl-NL')} om ${d.toLocaleTimeString('nl-NL',{hour:'2-digit',minute:'2-digit'})} · geldig tot ${esc(v.geldigTot||'-')}.`
     + (v.mailError ? `<br><span style="color:var(--err)">De mail kon niet verstuurd worden (${esc(v.mailError)}). Stuur de link zelf door.</span>` : '')
     + `<br><span class="note">De status (geopend, getekend) zie je bij de lead en op de pagina Offertes.</span>`
-    + `<div class="btns" style="margin-top:8px"><button class="btn sm" onclick="kopieerLink()">Link kopiëren</button><a class="btn sm" href="${esc(v.url)}" target="_blank" rel="noopener">Open ondertekenpagina</a></div>`;
+    + `<div class="btns" style="margin-top:8px"><button class="btn sm" onclick="kopieerLink()">Link kopiëren</button><button class="btn sm" onclick="deelWhatsApp()">Via WhatsApp sturen</button><a class="btn sm" href="${esc(v.url)}" target="_blank" rel="noopener">Open ondertekenpagina</a></div>`;
   el('sendBtn').textContent = 'Verstuurd'; el('sendBtn').disabled = true; el('signBtn').disabled = true;
+}
+/* v133: link naar de mobiel van de klant via WhatsApp (telefoonnummer uit het formulier als dat er is). */
+function deelWhatsApp(){
+  const u = S.verzonden && S.verzonden.url; if(!u) return;
+  const naam = val('k_naam').trim();
+  const tekst = `Hoi${naam ? ' '+naam.split(' ')[0] : ''}, hierbij de offerte van ${merkNaam()}. Je kunt hem op je telefoon bekijken, ondertekenen en als pdf downloaden: ${u}`;
+  let tel = val('k_tel').replace(/[^0-9+]/g,'');
+  if(tel.startsWith('+')) tel = tel.slice(1); else if(tel.startsWith('00')) tel = tel.slice(2); else if(tel.startsWith('0')) tel = '31' + tel.slice(1);
+  window.open('https://wa.me/' + (tel.length >= 10 ? tel : '') + '?text=' + encodeURIComponent(tekst), '_blank', 'noopener');
 }
 function kopieerLink(){
   const u = S.verzonden && S.verzonden.url; if(!u) return;

@@ -986,3 +986,21 @@ Twee-zijdig platform:
      AgendaPickerModal met nieuwe props loadBusy (bron van bezette tijden) en
      anoniem (labels "Bezet"). mijn_aanbrengingen geeft nu ook afspraak_op en
      afspraak_soort terug, zichtbaar in de lijst.
+
+- **KLANTWEERGAVE OFFERTE OP MAAT + BEST EFFORT SLA + DELEN VIA WHATSAPP
+  (v133, 2026-10-07, geen migratie):**
+  1. public/tools/offerte-vrij.html: de knop "Klantweergave" verbergt nu het
+     hele bewerkformulier (stap 1-3) en toont #klantview: een nette offerte
+     (titel "Voorstel voor <bedrijf>", datum, geldig tot, betaling, regels,
+     totalen, afspraken, contactpersoon) op een achtergrond in de kleur van het
+     merk (--hero/--tint afgeleid van --acc, dus per merk anders). Stap 4
+     Akkoord blijft eronder staan zodat de klant meteen kan tekenen. De knop
+     in de kopbalk heet dan "Terug naar bewerken". renderKlantView() draait
+     mee in calc() en applyMode(). Print/PDF (#doc) is ongewijzigd.
+  2. Akkoordtekst (akkoordTekst()) bevat altijd SLA_ZIN: best effort SLA,
+     geen vaste beschikbaarheid of reactietijd. Ook bij een eigen akkoordtekst
+     van het merk wordt hij erachter geplakt.
+  3. Na "Verstuur ter ondertekening": extra knop "Via WhatsApp sturen"
+     (deelWhatsApp, wa.me met het telefoonnummer van de klant).
+     Tekenen.jsx: knop "Download offerte (pdf)" ook al vóór het tekenen.
+

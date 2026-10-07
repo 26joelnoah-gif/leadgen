@@ -368,6 +368,9 @@ export default function Tekenen() {
               {o.contact_naam && <div>T.a.v. {o.contact_naam}</div>}
               {o.adres && <div>{o.adres}</div>}
             </div>
+            <div className="row geen-print" style={{ justifyContent: 'flex-start' }}>
+              <button type="button" className="btn" style={{ width: 'auto' }} onClick={() => window.print()}>Download offerte (pdf)</button>
+            </div>
           </div>
         )}
 
