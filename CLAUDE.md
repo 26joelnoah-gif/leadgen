@@ -1004,3 +1004,18 @@ Twee-zijdig platform:
      (deelWhatsApp, wa.me met het telefoonnummer van de klant).
      Tekenen.jsx: knop "Download offerte (pdf)" ook al vóór het tekenen.
 
+
+- **GOOGLE AGENDA: VERLOPEN KOPPELING (v134, 2026-10-07, kolom + RPC
+  toegepast, google-agenda-busy v8 / -push v9 / -oauth v8 live):** de
+  koppeling van Noah stopte precies 7 dagen na koppelen met "Token has been
+  expired or revoked": het Google Cloud-project stond op "Testen", dan laat
+  Google refresh tokens na 7 dagen vervallen. Oplossing: app op "In productie"
+  zetten (Google Auth Platform > Doelgroep) en opnieuw koppelen.
+  In de code: `google_agenda_accounts.opnieuw_koppelen` wordt true als Google
+  `invalid_grant` geeft (accessToken() in google.ts, gooit KoppelingVerlopen).
+  busy slaat die accounts over, push doet niets, oauth zet hem weer op false.
+  Andere tokenfouten zijn tijdelijk en worden de volgende ronde opnieuw
+  geprobeerd. Frontend leest de stand via NIEUWE RPC
+  `google_agenda_status_v2()` (de oude google_agenda_status() bestaat nog,
+  want een DROP liep vast via de MCP-tool) en toont dan een knop
+  "Opnieuw koppelen". Migratie: supabase/migrations/migration_v134_google_opnieuw_koppelen.sql.

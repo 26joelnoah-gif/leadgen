@@ -11,7 +11,7 @@
 //
 // header: x-google-agenda-key   body: { bron }  of  { user_id } voor één persoon
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { TIJDZONE, accessToken, adminClient, corsHeaders } from "./google.ts";
+import { KoppelingVerlopen, TIJDZONE, accessToken, adminClient, corsHeaders } from "./google.ts";
 
 const DAGEN_VOORUIT = 28;
 const MAX_BLOKKADES = 400;
@@ -31,7 +31,7 @@ Deno.serve(async (req: Request) => {
   let body: Record<string, unknown> = {};
   try { body = await req.json(); } catch { /* leeg */ }
 
-  let q = admin.from("google_agenda_accounts").select("*").eq("busy_import_enabled", true);
+  let q = admin.from("google_agenda_accounts").select("*").eq("busy_import_enabled", true).eq("opnieuw_koppelen", false);
   if (body.user_id) q = q.eq("user_id", String(body.user_id));
   const { data: accounts } = await q;
   if (!accounts || accounts.length === 0) return json({ ok: true, accounts: 0 });
@@ -94,6 +94,8 @@ Deno.serve(async (req: Request) => {
       uitslag.push({ user_id: account.user_id, blokkades: bezet.length });
     } catch (e) {
       console.error("google-agenda-busy", account.user_id, String(e));
+      // Verlopen koppeling: accessToken() heeft de melding al netjes gezet.
+      if (e instanceof KoppelingVerlopen) { uitslag.push({ user_id: account.user_id, fout: "opnieuw koppelen" }); continue; }
       await admin.from("google_agenda_accounts")
         .update({ last_error: `Bezette tijd ophalen mislukt: ${String(e)}`, last_error_at: new Date().toISOString() })
         .eq("user_id", account.user_id);

@@ -9,7 +9,7 @@
 //    bellers er geen afspraak overheen kunnen plannen.
 //
 // De tokens staan alleen in de database achter service_role; de browser
-// leest zijn status via de RPC google_agenda_status().
+// leest zijn status via de RPC google_agenda_status_v2() (v134, met opnieuw_koppelen).
 import { useState, useEffect, useCallback } from 'react'
 import { Calendar, Link2, Unlink, RefreshCw, AlertTriangle, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -36,11 +36,13 @@ export default function GoogleAgendaKoppeling({ onVeranderd }) {
   const haalStatus = useCallback(async () => {
     setLaden(true)
     try {
-      const { data, error } = await supabase.rpc('google_agenda_status')
+      const { data, error } = await supabase.rpc('google_agenda_status_v2')
       if (error) throw error
-      setStatus(Array.isArray(data) ? (data[0] || false) : (data || false))
+      const rij = Array.isArray(data) ? (data[0] || false) : (data || false)
+      setStatus(rij)
+      if (rij && rij.opnieuw_koppelen) setOpen(true) // verlopen: meteen de knop laten zien
     } catch (err) {
-      console.error('google_agenda_status', err)
+      console.error('google_agenda_status_v2', err)
       setStatus(false)
     } finally {
       setLaden(false)
@@ -125,6 +127,8 @@ export default function GoogleAgendaKoppeling({ onVeranderd }) {
   }
 
   const gekoppeld = !!status && !!status.connected_at
+  // v134: Google accepteert de toegang niet meer (verlopen of ingetrokken).
+  const verlopen = gekoppeld && !!status.opnieuw_koppelen
 
   if (laden) return null
 
@@ -144,7 +148,11 @@ export default function GoogleAgendaKoppeling({ onVeranderd }) {
         >
           {gekoppeld ? `gekoppeld${status.google_email ? ` (${status.google_email})` : ''}` : 'niet gekoppeld'}
         </span>
-        {gekoppeld && status.last_error && (
+        {verlopen ? (
+          <span className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--danger)' }}>
+            <AlertTriangle size={13} /> verlopen, opnieuw koppelen
+          </span>
+        ) : gekoppeld && status.last_error && (
           <span className="text-xs font-semibold flex items-center gap-1" style={{ color: 'var(--danger)' }}>
             <AlertTriangle size={13} /> let op
           </span>
@@ -168,7 +176,20 @@ export default function GoogleAgendaKoppeling({ onVeranderd }) {
             </>
           ) : (
             <>
-              {status.last_error && (
+              {verlopen ? (
+                <div
+                  className="text-xs p-2 mb-3"
+                  style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: 'var(--danger)', lineHeight: 1.5 }}
+                >
+                  <strong>Je koppeling met Google is verlopen.</strong> Je afspraken gaan nu niet naar je
+                  Google Agenda en je bezette tijd wordt niet opgehaald. Koppel opnieuw om het weer aan te zetten.
+                  <div className="mt-2">
+                    <button type="button" onClick={koppel} disabled={bezig} className="btn btn-primary btn-sm" style={{ fontWeight: 800 }}>
+                      <Link2 size={14} /> {bezig ? 'Bezig...' : 'Opnieuw koppelen'}
+                    </button>
+                  </div>
+                </div>
+              ) : status.last_error && (
                 <div
                   className="text-xs p-2 mb-3"
                   style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 8, color: 'var(--danger)' }}

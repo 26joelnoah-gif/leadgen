@@ -53,7 +53,16 @@ export async function sha256Hex(input: string): Promise<string> {
 
 // Vers toegangstoken voor deze medewerker. Google geeft een refresh_token dat
 // blijft werken; het toegangstoken is een uur geldig en bewaren we erbij.
+// Fout als Google de blijvende toegang niet meer accepteert (verlopen of
+// ingetrokken). Dan moet de medewerker opnieuw koppelen; opnieuw proberen heeft
+// geen zin, dus we zetten de vlag opnieuw_koppelen en slaan hem verder over.
+export class KoppelingVerlopen extends Error {
+  constructor(melding: string) { super(melding); this.name = "KoppelingVerlopen"; }
+}
+export const VERLOPEN_MELDING = "Je koppeling met Google is verlopen. Klik op Opnieuw koppelen om hem weer aan te zetten.";
+
 export async function accessToken(admin: SupabaseClient, account: Record<string, unknown>): Promise<string> {
+  if (account.opnieuw_koppelen) throw new KoppelingVerlopen(VERLOPEN_MELDING);
   const nu = Date.now();
   const verloopt = account.access_token_expires_at ? new Date(String(account.access_token_expires_at)).getTime() : 0;
   if (account.access_token && verloopt > nu + 120000) return String(account.access_token);
@@ -71,10 +80,15 @@ export async function accessToken(admin: SupabaseClient, account: Record<string,
   const body = await res.json().catch(() => ({}));
   if (!res.ok || !body.access_token) {
     const melding = body?.error_description || body?.error || `HTTP ${res.status}`;
-    await admin.from("google_agenda_accounts")
-      .update({ last_error: `Toegang tot Google verlopen of ingetrokken (${melding}). Koppel opnieuw.`, last_error_at: new Date().toISOString() })
-      .eq("user_id", account.user_id);
-    throw new Error(`token-verversen mislukt: ${melding}`);
+    // invalid_grant = token verlopen of ingetrokken. Andere fouten (Google even
+    // onbereikbaar) zijn tijdelijk: dan gewoon de volgende ronde opnieuw.
+    if (body?.error === "invalid_grant") {
+      await admin.from("google_agenda_accounts")
+        .update({ opnieuw_koppelen: true, last_error: VERLOPEN_MELDING, last_error_at: new Date().toISOString() })
+        .eq("user_id", account.user_id);
+      throw new KoppelingVerlopen(VERLOPEN_MELDING);
+    }
+    throw new Error(`Google gaf geen toegang (${melding}). Wordt straks opnieuw geprobeerd.`);
   }
   const geldigTot = new Date(nu + (Number(body.expires_in || 3600) * 1000)).toISOString();
   await admin.from("google_agenda_accounts")

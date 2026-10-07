@@ -127,6 +127,7 @@ Deno.serve(async (req: Request) => {
       access_token_expires_at: new Date(Date.now() + Number(tok.expires_in || 3600) * 1000).toISOString(),
       calendar_id: calendarId,
       connected_at: new Date().toISOString(),
+      opnieuw_koppelen: false,
       last_error: null,
       last_error_at: null,
     }, { onConflict: "user_id" });

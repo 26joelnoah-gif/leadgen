@@ -95,7 +95,7 @@ Deno.serve(async (req: Request) => {
   // 2. Heeft deze accountmanager een gekoppelde agenda die aan staat?
   const { data: account } = await admin
     .from("google_agenda_accounts").select("*").eq("user_id", doelUser).maybeSingle();
-  if (!account || !account.push_enabled || !account.calendar_id) {
+  if (!account || !account.push_enabled || !account.calendar_id || account.opnieuw_koppelen) {
     return json({ ok: true, actie: "geen koppeling voor deze accountmanager" });
   }
 
