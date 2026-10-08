@@ -21,10 +21,16 @@ export const RECHTSVORMEN = [
   { key: 'cv', label: 'CV', mag: false },
   { key: 'maatschap', label: 'Maatschap', mag: false },
 ]
-export const rechtsvormLabel = (key) => RECHTSVORMEN.find(r => r.key === key)?.label || (key === 'particulier' ? 'Particulier' : 'Onbekend')
+// v135: de beller kiest alleen nog vinkje (mag bellen) of kruisje (niet bellen).
+export const KVK_KEUZES = [
+  { key: 'rechtspersoon', label: 'Mag bellen', uitleg: 'BV, NV, stichting, vereniging of cooperatie', mag: true },
+  { key: 'geen_rechtspersoon', label: 'Niet bellen', uitleg: 'Eenmanszaak, zzp, VOF, CV of maatschap', mag: false },
+]
+export const rechtsvormLabel = (key) => RECHTSVORMEN.find(r => r.key === key)?.label
+  || (key === 'rechtspersoon' ? 'Rechtspersoon' : key === 'geen_rechtspersoon' ? 'Geen rechtspersoon' : key === 'particulier' ? 'Particulier' : 'Onbekend')
 
-const MAG_ZONDER_TOESTEMMING = ['bv', 'nv', 'stichting', 'vereniging', 'cooperatie']
-const OPT_IN_NODIG = ['eenmanszaak', 'vof', 'cv', 'maatschap', 'particulier']
+const MAG_ZONDER_TOESTEMMING = ['bv', 'nv', 'stichting', 'vereniging', 'cooperatie', 'rechtspersoon']
+const OPT_IN_NODIG = ['eenmanszaak', 'vof', 'cv', 'maatschap', 'particulier', 'geen_rechtspersoon']
 
 /** 'ok' | 'kvk_check' | 'toestemming_nodig' | 'afgemeld' */
 export function leadBelstatus(lead, project) {

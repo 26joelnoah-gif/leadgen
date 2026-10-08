@@ -4,12 +4,12 @@
 //   <ComplianceMeldingModal lead onClose onSaved />  klacht / bezwaar / AVG / ACM
 //   <ComplianceMeldingenLijst leadId />              meldingen bij een lead
 import { useEffect, useState } from 'react'
-import { ShieldAlert, ShieldCheck, ExternalLink, FileWarning, X } from 'lucide-react'
+import { ShieldAlert, ShieldCheck, ExternalLink, FileWarning, X, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './Toast'
 import {
-  RECHTSVORMEN, rechtsvormLabel, leadBelstatus, BELSTATUS, MELDING_SOORTEN, meldingSoortLabel,
+  RECHTSVORMEN, KVK_KEUZES, rechtsvormLabel, leadBelstatus, BELSTATUS, MELDING_SOORTEN, meldingSoortLabel,
   kvkZoekUrl, urenTotWissen,
 } from '../lib/compliance'
 
@@ -51,7 +51,7 @@ export function ComplianceLeadBlok({ lead, project, onChanged, compact = false, 
     if (error) { toast(error.message || 'Opslaan mislukt', 'error'); return }
     await supabase.from('activities').insert({ lead_id: lead.id, user_id: user?.id, action: 'note', notes: `Rechtsvorm: ${rechtsvormLabel(key)} (KvK gecheckt)` })
     setWijzigRv(false)
-    toast(RECHTSVORMEN.find(r => r.key === key)?.mag ? 'Rechtsvorm opgeslagen. Je mag bellen.' : 'Opgeslagen. Deze lead mag je alleen met toestemming bellen.', 'success')
+    toast([...RECHTSVORMEN, ...KVK_KEUZES].find(r => r.key === key)?.mag ? 'Opgeslagen. Je mag bellen.' : 'Opgeslagen. Deze lead mag je alleen met toestemming bellen.', 'success')
     onChanged?.(data || { ...lead, ...patch })
   }
 
@@ -83,12 +83,12 @@ export function ComplianceLeadBlok({ lead, project, onChanged, compact = false, 
   )
 
   const rvKnoppen = (
-    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-      {RECHTSVORMEN.map(r => (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+      {KVK_KEUZES.map(r => (
         <button key={r.key} type="button" disabled={bezig} onClick={() => zetRechtsvorm(r.key)}
-          className="btn btn-sm btn-outline"
-          style={{ borderColor: r.mag ? 'var(--success)' : 'var(--danger)', color: r.mag ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
-          {r.label}
+          className="btn btn-sm btn-outline" title={r.uitleg}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderColor: r.mag ? 'var(--success)' : 'var(--danger)', color: r.mag ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
+          {r.mag ? <Check size={16} strokeWidth={3} /> : <X size={16} strokeWidth={3} />} {r.label}
         </button>
       ))}
     </div>
@@ -114,7 +114,7 @@ export function ComplianceLeadBlok({ lead, project, onChanged, compact = false, 
         <ShieldCheck size={15} color="var(--success)" />
         <span className="text-muted" style={{ flex: 1, minWidth: 160 }}>{reden}</span>
         {zakelijk && magRvKiezen && !lead.opt_in_at && (
-          <button type="button" className="btn btn-sm btn-outline" onClick={() => setWijzigRv(v => !v)}>Rechtsvorm wijzigen</button>
+          <button type="button" className="btn btn-sm btn-outline" onClick={() => setWijzigRv(v => !v)}>KvK-check wijzigen</button>
         )}
         {losseKnop && meldingKnop}
         {wijzigRv && <div style={{ width: '100%' }}>{rvKnoppen}</div>}
@@ -134,8 +134,8 @@ export function ComplianceLeadBlok({ lead, project, onChanged, compact = false, 
       {status === 'kvk_check' && (
         <>
           <p style={{ margin: '6px 0 0' }}>
-            We weten nog niet wat voor bedrijf dit is. Zoek het op bij de KvK en kies de rechtsvorm.
-            Bv, nv, stichting en vereniging mag je bellen. Eenmanszaak, vof, cv en maatschap niet.
+            Zoek het bedrijf op bij de KvK. BV, NV, stichting of vereniging? Vinkje.
+            Eenmanszaak, zzp, VOF, CV of maatschap? Kruisje.
           </p>
           <a href={kvkZoekUrl(lead.name)} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 8, textDecoration: 'none' }}>
@@ -157,7 +157,7 @@ export function ComplianceLeadBlok({ lead, project, onChanged, compact = false, 
           {zakelijk && magRvKiezen && (
             <>
               <button type="button" className="btn btn-sm btn-outline" style={{ marginTop: 8 }} onClick={() => setWijzigRv(v => !v)}>
-                {lead.rechtsvorm && lead.rechtsvorm !== 'onbekend' ? 'Rechtsvorm klopt niet?' : 'Rechtsvorm invullen'}
+                {lead.rechtsvorm && lead.rechtsvorm !== 'onbekend' ? 'KvK-check klopt niet?' : 'KvK checken'}
               </button>
               {wijzigRv && (
                 <>
