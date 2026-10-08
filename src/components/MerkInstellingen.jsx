@@ -36,6 +36,7 @@ const GETALLEN = [
 
 const LOOPTIJDEN = [
   { v: 0, label: 'Maandelijks opzegbaar' },
+  { v: 3, label: '3 maanden' },
   { v: 12, label: '12 maanden' },
   { v: 24, label: '24 maanden' },
 ]
