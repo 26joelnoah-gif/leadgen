@@ -86,9 +86,9 @@ export function ComplianceLeadBlok({ lead, project, onChanged, compact = false, 
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
       {KVK_KEUZES.map(r => (
         <button key={r.key} type="button" disabled={bezig} onClick={() => zetRechtsvorm(r.key)}
-          className="btn btn-sm btn-outline" title={r.uitleg}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderColor: r.mag ? 'var(--success)' : 'var(--danger)', color: r.mag ? 'var(--success)' : 'var(--danger)', fontWeight: 700 }}>
-          {r.mag ? <Check size={16} strokeWidth={3} /> : <X size={16} strokeWidth={3} />} {r.label}
+          className="btn btn-sm btn-outline" title={`${r.label}: ${r.uitleg}`} aria-label={r.label}
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 36, padding: 0, borderColor: r.mag ? 'var(--success)' : 'var(--danger)', color: r.mag ? 'var(--success)' : 'var(--danger)' }}>
+          {r.mag ? <Check size={20} strokeWidth={3} /> : <X size={20} strokeWidth={3} />}
         </button>
       ))}
     </div>
@@ -134,8 +134,7 @@ export function ComplianceLeadBlok({ lead, project, onChanged, compact = false, 
       {status === 'kvk_check' && (
         <>
           <p style={{ margin: '6px 0 0' }}>
-            Zoek het bedrijf op bij de KvK. BV, NV, stichting of vereniging? Vinkje.
-            Eenmanszaak, zzp, VOF, CV of maatschap? Kruisje.
+            BV, NV, stichting of vereniging: vinkje. Anders: kruisje.
           </p>
           <a href={kvkZoekUrl(lead.name)} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline"
             style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 8, textDecoration: 'none' }}>
