@@ -93,6 +93,8 @@ export default function Header({ onOpenSettings }) {
         { path: '/recruitment?view=referrals', label: 'Referrals' },
         // v125: planning-accounts een functie geven (alleen met het recht "Accounts aanmaken")
         ...(profile?.can_create_users === true ? [{ path: '/recruitment?view=accounts', label: 'Accounts' }] : []),
+        // v136: verklaringen versturen (alleen met het vinkje "Overeenkomsten versturen")
+        ...(profile?.can_send_overeenkomsten === true ? [{ path: '/overeenkomsten', label: 'Verklaringen' }] : []),
         { path: '/tba', label: 'TBA\'s' },
         { path: '/roosters', label: 'Roosters' },
         ...(hasLeadBoard ? [{ path: '/leads', label: 'Leads' }] : []),
@@ -125,6 +127,7 @@ export default function Header({ onOpenSettings }) {
         // v112: status van de offertes (verstuurd, geopend, getekend)
         ...(hasTools ? [{ path: '/offertes', label: 'Offertes' }] : []),
         ...(hasTools ? [{ path: '/tools', label: 'Tools' }] : []),
+        ...(profile?.can_send_overeenkomsten === true ? [{ path: '/overeenkomsten', label: 'Verklaringen' }] : []), // v136
         ...(isManager ? [
           { path: '/manager', label: 'Mijn Projecten' },
           { path: '/admin/reports', label: 'Rapportage' }
@@ -139,6 +142,7 @@ export default function Header({ onOpenSettings }) {
     { path: '/recruitment', label: 'Sollicitanten' },
     { path: '/admin/reports', label: 'Rapportage' },
     { path: '/admin/payouts', label: 'Payouts' },
+    { path: '/overeenkomsten', label: 'Verklaringen' }, // v136
     { path: '/admin/telemetry', label: 'Telemetrie' },
     { path: '/admin/fouten', label: 'Foutlogboek' },
     { path: '/kanban', label: 'Kanban' },

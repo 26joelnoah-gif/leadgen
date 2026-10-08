@@ -1,0 +1,77 @@
+// v136: verklaring zelfstandig appointment setter.
+// De tekst staat in public.overeenkomst_sjabloon (een rij) met simpele opmaak:
+//   "## Kopje"   -> kopje
+//   "- punt"     -> opsomming
+//   {{tarieven}} -> tabel met bedragen per project
+// Bij versturen maakt de database een vaste kopie (public.overeenkomsten), zodat
+// een latere wijziging van het sjabloon een getekende verklaring nooit verandert.
+import { supabase } from './supabase'
+
+export const VERKLARING_STATUS = {
+  verstuurd: { label: 'Wacht op tekenen', color: 'var(--warning)', bg: 'var(--warning-bg)' },
+  getekend: { label: 'Getekend', color: 'var(--success)', bg: 'var(--success-bg)' },
+  ingetrokken: { label: 'Ingetrokken', color: 'var(--text-muted)', bg: 'var(--bg-elevated)' },
+}
+
+// Wie kan een verklaring krijgen (zelfde regel als overeenkomst_versturen in de DB)
+export const VERKLARING_ROLLEN = ['employee', 'backoffice']
+
+export function euro(n) {
+  if (n === null || n === undefined || n === '') return '-'
+  const getal = Number(n)
+  if (Number.isNaN(getal)) return '-'
+  return '€ ' + getal.toLocaleString('nl-NL', { minimumFractionDigits: getal % 1 ? 2 : 0, maximumFractionDigits: 2 })
+}
+
+export function datumTijd(iso) {
+  if (!iso) return null
+  return new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+}
+
+// Tekst -> blokken. Opeenvolgende "- " regels worden een lijst.
+export function blokkenVanTekst(tekst = '') {
+  const blokken = []
+  let lijst = null
+  for (const ruw of String(tekst).split('\n')) {
+    const regel = ruw.trimEnd()
+    if (regel.trim().startsWith('- ')) {
+      if (!lijst) { lijst = { type: 'lijst', items: [] }; blokken.push(lijst) }
+      lijst.items.push(regel.trim().slice(2))
+      continue
+    }
+    lijst = null
+    if (!regel.trim()) continue
+    if (regel.trim() === '{{tarieven}}') blokken.push({ type: 'tarieven' })
+    else if (regel.startsWith('## ')) blokken.push({ type: 'kop', tekst: regel.slice(3) })
+    else blokken.push({ type: 'p', tekst: regel })
+  }
+  return blokken
+}
+
+const TEKEN_FOUTEN = {
+  naam_ontbreekt: 'Vul je voor- en achternaam in.',
+  handelsnaam_ontbreekt: 'Vul de naam van je onderneming in.',
+  kvk_ongeldig: 'Een KvK-nummer heeft 8 cijfers.',
+  akkoord_ontbreekt: 'Vink aan dat je de verklaring gelezen hebt en akkoord gaat.',
+  zelfstandig_ontbreekt: 'Vink aan dat je als zelfstandig ondernemer werkt.',
+  verzekering_ontbreekt: 'Vink aan dat je een bedrijfsaansprakelijkheidsverzekering hebt.',
+  elektronisch_ontbreekt: 'Vink aan dat je akkoord gaat met elektronisch ondertekenen.',
+}
+export function tekenFout(err) {
+  const msg = err?.message || String(err || '')
+  const sleutel = Object.keys(TEKEN_FOUTEN).find(k => msg.includes(k))
+  return sleutel ? TEKEN_FOUTEN[sleutel] : msg || 'Ondertekenen is niet gelukt. Probeer het opnieuw.'
+}
+
+export async function laadOpenVerklaring(profileId) {
+  const { data, error } = await supabase
+    .from('overeenkomsten')
+    .select('*')
+    .eq('profile_id', profileId)
+    .eq('status', 'verstuurd')
+    .order('verstuurd_op', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}

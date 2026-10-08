@@ -25,6 +25,8 @@ import Tekenen from './pages/Tekenen'
 import Agenda from './pages/Agenda'
 import MijnAfspraken from './pages/MijnAfspraken' // v110
 import Offertes from './pages/Offertes' // v112
+import Overeenkomsten from './pages/Overeenkomsten' // v136
+import OvereenkomstGate from './components/OvereenkomstGate' // v136
 import Aanbrengen from './pages/Aanbrengen' // v127
 import Home from './pages/Home'
 import Aanmelden from './pages/Aanmelden'
@@ -214,6 +216,12 @@ function AppRoutes() {
           <FeatureAwareness />
         </ErrorBoundary>
       )}
+      {/* v136: beller met een open verklaring moet eerst tekenen (ligt over alles heen) */}
+      {user && !location.pathname.startsWith('/tekenen') && (
+        <ErrorBoundary naam="verklaring" variant="stil">
+          <OvereenkomstGate />
+        </ErrorBoundary>
+      )}
       {/* v85: teamchat is overal beschikbaar (was alleen op het dashboard),
           behalve op de publieke tekenpagina. Eigen grens: gaat de chat stuk,
           dan blijft de rest gewoon werken. */}
@@ -308,6 +316,23 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Offertes />
+          </ProtectedRoute>
+        }
+      />
+      {/* v136: verklaringen zelfstandig appointment setter */}
+      <Route
+        path="/overeenkomsten"
+        element={
+          <ProtectedRoute>
+            <Overeenkomsten />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/overeenkomsten/:id"
+        element={
+          <ProtectedRoute>
+            <Overeenkomsten />
           </ProtectedRoute>
         }
       />

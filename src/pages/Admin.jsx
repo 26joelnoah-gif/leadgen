@@ -1064,6 +1064,18 @@ export default function Admin() {
                           <span className="text-muted font-bold uppercase tracking-widest text-[10px]">Accounts aanmaken</span>
                        </label>
                      )}
+                     {u.id !== user.id && u.role !== 'admin' && (
+                       // v136: deze medewerker mag verklaringen versturen aan
+                       // bellers (menu Verklaringen). Bedoeld voor de recruiter.
+                       <label className="mt-2 flex items-center gap-2 cursor-pointer select-none" style={{ fontSize: '0.72rem' }}>
+                          <input
+                             type="checkbox"
+                             checked={u.can_send_overeenkomsten === true}
+                             onChange={e => handleUpdateFlow(u.id, { can_send_overeenkomsten: e.target.checked })}
+                          />
+                          <span className="text-muted font-bold uppercase tracking-widest text-[10px]">Overeenkomsten versturen</span>
+                       </label>
+                     )}
                      {u.id !== user.id && orgs.length > 0 && (
                        <div className="mt-2 flex items-center gap-2">
                           <span className="text-[10px] text-muted font-black uppercase tracking-widest">Org</span>
