@@ -75,7 +75,7 @@ export default function OvereenkomstTekst({ overeenkomst, bellerNaam }) {
           <div style={{ fontSize: '0.85rem', display: 'grid', gap: 2 }}>
             <div>Kenmerk: <strong>{o.ondertekening_id}</strong></div>
             <div>Getekend door {ak.naam}, namens {ak.handelsnaam} (KvK {ak.kvk})</div>
-            <div>Op {ak.tijdstip_nl} (Nederlandse tijd), in ReachConnect met het eigen account</div>
+            <div>Op {ak.tijdstip_nl} (Nederlandse tijd), {ak.methode === 'link' ? `via een persoonlijke link${ak.email ? ` (verstuurd aan ${ak.email})` : ''}` : 'in ReachConnect met het eigen account'}</div>
             <div>Verklaard: akkoord met de verklaring, werkt als zelfstandig ondernemer, heeft een bedrijfsaansprakelijkheidsverzekering, akkoord met elektronisch ondertekenen</div>
             {ak.ip && <div>IP-adres: {ak.ip}</div>}
             <div style={{ wordBreak: 'break-all' }} className="text-muted">Controlecode tekst: {ak.inhoud_hash}</div>

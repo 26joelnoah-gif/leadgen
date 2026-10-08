@@ -75,3 +75,44 @@ export async function laadOpenVerklaring(profileId) {
   if (error) throw error
   return data
 }
+
+// v137: verklaring via link, voor iemand die nog geen account heeft.
+export function verklaringLink(token) {
+  if (!token) return ''
+  return `${window.location.origin}/verklaring/${token}`
+}
+
+export async function kopieerTekst(tekst) {
+  try {
+    await navigator.clipboard.writeText(tekst)
+    return true
+  } catch {
+    // oudere browsers / geen https: via een tijdelijk tekstveld
+    try {
+      const el = document.createElement('textarea')
+      el.value = tekst
+      el.style.position = 'fixed'; el.style.opacity = '0'
+      document.body.appendChild(el); el.select()
+      const ok = document.execCommand('copy')
+      document.body.removeChild(el)
+      return ok
+    } catch { return false }
+  }
+}
+
+// Bedragen uit het scherm -> zoals de database ze wil (lege vakken = null)
+export function tarievenVoorOpslaan(rijen = []) {
+  return rijen
+    .filter(t => String(t.project || '').trim() && (t.afspraak !== '' || t.sale !== ''))
+    .map(t => ({
+      project: String(t.project).trim(),
+      afspraak: t.afspraak === '' || t.afspraak === null || t.afspraak === undefined ? null : Number(t.afspraak),
+      sale: t.sale === '' || t.sale === null || t.sale === undefined ? null : Number(t.sale),
+    }))
+}
+
+// Bedragen uit de database -> invulregels voor het scherm
+export function tarievenVoorScherm(tarieven = []) {
+  const rijen = (Array.isArray(tarieven) ? tarieven : []).map(t => ({ project: t.project || '', afspraak: t.afspraak ?? '', sale: t.sale ?? '' }))
+  return rijen.length ? rijen : [{ project: '', afspraak: '', sale: '' }]
+}

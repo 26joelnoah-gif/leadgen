@@ -51,36 +51,11 @@ export default function OvereenkomstGate() {
 }
 
 function Tekenen({ o, profile, signOut, onGetekend }) {
-  const [naam, setNaam] = useState(profile?.full_name || '')
-  const [handelsnaam, setHandelsnaam] = useState('')
-  const [kvk, setKvk] = useState('')
-  const [vink, setVink] = useState({ akkoord: false, zelfstandig: false, verzekering: false, elektronisch: false })
-  const [bezig, setBezig] = useState(false)
-  const [fout, setFout] = useState(null)
-
-  const kvkCijfers = kvk.replace(/\D/g, '')
-  const kan = naam.trim().length >= 3 && handelsnaam.trim().length >= 2 && kvkCijfers.length === 8 && Object.values(vink).every(Boolean)
-
-  async function teken(e) {
-    e.preventDefault()
-    if (!kan || bezig) return
-    setBezig(true); setFout(null)
-    const { data, error } = await supabase.rpc('overeenkomst_tekenen', {
-      p_id: o.id, p_naam: naam.trim(), p_handelsnaam: handelsnaam.trim(), p_kvk: kvkCijfers,
-      p_akkoord: vink.akkoord, p_zelfstandig: vink.zelfstandig, p_verzekering: vink.verzekering, p_elektronisch: vink.elektronisch,
-      p_browser: navigator.userAgent,
-    })
-    setBezig(false)
-    if (error) { setFout(tekenFout(error)); return }
+  async function teken(velden) {
+    const { data, error } = await supabase.rpc('overeenkomst_tekenen', { p_id: o.id, ...velden })
+    if (error) throw error
     onGetekend(data)
   }
-
-  const vinkjes = [
-    ['akkoord', 'Ik heb deze verklaring gelezen en ga akkoord.'],
-    ['zelfstandig', 'Ik werk als zelfstandig ondernemer en mijn KvK-gegevens kloppen.'],
-    ['verzekering', 'Ik heb een bedrijfsaansprakelijkheidsverzekering.'],
-    ['elektronisch', 'Ik ga akkoord met elektronisch ondertekenen.'],
-  ]
 
   return (
     <>
@@ -102,39 +77,81 @@ function Tekenen({ o, profile, signOut, onGetekend }) {
         <OvereenkomstTekst overeenkomst={o} bellerNaam={profile?.full_name} />
       </div>
 
-      <form onSubmit={teken} className="glass-panel" style={{ padding: 20, borderRadius: 16 }} autoComplete="off">
-        <h3 style={{ margin: '0 0 12px', fontWeight: 800 }}>Ondertekenen</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
-          <div className="form-group">
-            <label>Voor- en achternaam</label>
-            <input className="form-dark" style={{ width: '100%' }} value={naam} onChange={e => setNaam(e.target.value)} maxLength={120} />
-          </div>
-          <div className="form-group">
-            <label>Naam van je onderneming</label>
-            <input className="form-dark" style={{ width: '100%' }} value={handelsnaam} onChange={e => setHandelsnaam(e.target.value)} maxLength={120} placeholder="Zoals bij de KvK" />
-          </div>
-          <div className="form-group">
-            <label>KvK-nummer</label>
-            <input className="form-dark" style={{ width: '100%' }} value={kvk} onChange={e => setKvk(e.target.value)} inputMode="numeric" maxLength={12} placeholder="8 cijfers" />
-          </div>
-        </div>
-        <div style={{ display: 'grid', gap: 8, margin: '6px 0 14px' }}>
-          {vinkjes.map(([k, tekst]) => (
-            <label key={k} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', fontSize: '0.9rem', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 10, background: vink[k] ? 'var(--accent-soft)' : 'transparent' }}>
-              <input type="checkbox" checked={vink[k]} onChange={e => setVink(v => ({ ...v, [k]: e.target.checked }))} style={{ marginTop: 3 }} />
-              <span>{tekst}</span>
-            </label>
-          ))}
-        </div>
-        {fout && <div style={{ background: 'var(--danger-bg)', color: 'var(--danger)', padding: '10px 12px', borderRadius: 10, marginBottom: 12, fontSize: '0.88rem' }}>{fout}</div>}
-        <button type="submit" className="btn btn-primary" disabled={!kan || bezig} style={{ width: '100%' }}>
-          {bezig ? 'Bezig...' : 'Onderteken verklaring'}
-        </button>
-        <p className="text-muted" style={{ fontSize: '0.75rem', margin: '10px 0 0', lineHeight: 1.5 }}>
-          We leggen vast wie er tekent, wanneer en vanaf welk apparaat. Je kunt de getekende verklaring daarna altijd terugzien en downloaden.
-        </p>
-      </form>
+      <TekenFormulier startNaam={profile?.full_name || ''} onTeken={teken} />
     </>
+  )
+}
+
+// v137: zelfde formulier voor tekenen in de app en via een link (/verklaring/:token).
+// onTeken krijgt de RPC-velden (p_naam, p_handelsnaam, ...) en gooit bij een fout.
+export function TekenFormulier({ startNaam = '', onTeken }) {
+  const [naam, setNaam] = useState(startNaam)
+  const [handelsnaam, setHandelsnaam] = useState('')
+  const [kvk, setKvk] = useState('')
+  const [vink, setVink] = useState({ akkoord: false, zelfstandig: false, verzekering: false, elektronisch: false })
+  const [bezig, setBezig] = useState(false)
+  const [fout, setFout] = useState(null)
+
+  const kvkCijfers = kvk.replace(/\D/g, '')
+  const kan = naam.trim().length >= 3 && handelsnaam.trim().length >= 2 && kvkCijfers.length === 8 && Object.values(vink).every(Boolean)
+
+  async function teken(e) {
+    e.preventDefault()
+    if (!kan || bezig) return
+    setBezig(true); setFout(null)
+    try {
+      await onTeken({
+        p_naam: naam.trim(), p_handelsnaam: handelsnaam.trim(), p_kvk: kvkCijfers,
+        p_akkoord: vink.akkoord, p_zelfstandig: vink.zelfstandig, p_verzekering: vink.verzekering, p_elektronisch: vink.elektronisch,
+        p_browser: navigator.userAgent,
+      })
+    } catch (err) {
+      setFout(tekenFout(err))
+    } finally {
+      setBezig(false)
+    }
+  }
+
+  const vinkjes = [
+    ['akkoord', 'Ik heb deze verklaring gelezen en ga akkoord.'],
+    ['zelfstandig', 'Ik werk als zelfstandig ondernemer en mijn KvK-gegevens kloppen.'],
+    ['verzekering', 'Ik heb een bedrijfsaansprakelijkheidsverzekering.'],
+    ['elektronisch', 'Ik ga akkoord met elektronisch ondertekenen.'],
+  ]
+
+  return (
+    <form onSubmit={teken} className="glass-panel" style={{ padding: 20, borderRadius: 16 }} autoComplete="off">
+      <h3 style={{ margin: '0 0 12px', fontWeight: 800 }}>Ondertekenen</h3>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10 }}>
+        <div className="form-group">
+          <label>Voor- en achternaam</label>
+          <input className="form-dark" style={{ width: '100%' }} value={naam} onChange={e => setNaam(e.target.value)} maxLength={120} />
+        </div>
+        <div className="form-group">
+          <label>Naam van je onderneming</label>
+          <input className="form-dark" style={{ width: '100%' }} value={handelsnaam} onChange={e => setHandelsnaam(e.target.value)} maxLength={120} placeholder="Zoals bij de KvK" />
+        </div>
+        <div className="form-group">
+          <label>KvK-nummer</label>
+          <input className="form-dark" style={{ width: '100%' }} value={kvk} onChange={e => setKvk(e.target.value)} inputMode="numeric" maxLength={12} placeholder="8 cijfers" />
+        </div>
+      </div>
+      <div style={{ display: 'grid', gap: 8, margin: '6px 0 14px' }}>
+        {vinkjes.map(([k, tekst]) => (
+          <label key={k} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', cursor: 'pointer', fontSize: '0.9rem', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 10, background: vink[k] ? 'var(--accent-soft)' : 'transparent' }}>
+            <input type="checkbox" checked={vink[k]} onChange={e => setVink(v => ({ ...v, [k]: e.target.checked }))} style={{ marginTop: 3 }} />
+            <span>{tekst}</span>
+          </label>
+        ))}
+      </div>
+      {fout && <div style={{ background: 'var(--danger-bg)', color: 'var(--danger)', padding: '10px 12px', borderRadius: 10, marginBottom: 12, fontSize: '0.88rem' }}>{fout}</div>}
+      <button type="submit" className="btn btn-primary" disabled={!kan || bezig} style={{ width: '100%' }}>
+        {bezig ? 'Bezig...' : 'Onderteken verklaring'}
+      </button>
+      <p className="text-muted" style={{ fontSize: '0.75rem', margin: '10px 0 0', lineHeight: 1.5 }}>
+        We leggen vast wie er tekent, wanneer en vanaf welk apparaat. Je kunt de getekende verklaring daarna altijd terugzien en downloaden.
+      </p>
+    </form>
   )
 }
 

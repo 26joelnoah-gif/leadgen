@@ -27,6 +27,7 @@ import MijnAfspraken from './pages/MijnAfspraken' // v110
 import Offertes from './pages/Offertes' // v112
 import Overeenkomsten from './pages/Overeenkomsten' // v136
 import OvereenkomstGate from './components/OvereenkomstGate' // v136
+import VerklaringLink from './pages/VerklaringLink' // v137
 import Aanbrengen from './pages/Aanbrengen' // v127
 import Home from './pages/Home'
 import Aanmelden from './pages/Aanmelden'
@@ -191,7 +192,7 @@ function AppRoutes() {
   // Bewust buiten de grens gehouden: de tekenpagina (klanten moeten hun
   // offerte kunnen blijven ondertekenen), de juridische pagina's en /login
   // (anders kan de admin zelf niet meer inloggen om het weer uit te zetten).
-  const onderhoudVrijPad = ['/tekenen', '/privacy', '/voorwaarden', '/login']
+  const onderhoudVrijPad = ['/tekenen', '/verklaring/', '/privacy', '/voorwaarden', '/login']
     .some(p => location.pathname.startsWith(p))
 
   if (onderhoud && !onderhoudLaadt && !onderhoudVrijPad) {
@@ -217,7 +218,7 @@ function AppRoutes() {
         </ErrorBoundary>
       )}
       {/* v136: beller met een open verklaring moet eerst tekenen (ligt over alles heen) */}
-      {user && !location.pathname.startsWith('/tekenen') && (
+      {user && !location.pathname.startsWith('/tekenen') && !location.pathname.startsWith('/verklaring/') && (
         <ErrorBoundary naam="verklaring" variant="stil">
           <OvereenkomstGate />
         </ErrorBoundary>
@@ -225,7 +226,7 @@ function AppRoutes() {
       {/* v85: teamchat is overal beschikbaar (was alleen op het dashboard),
           behalve op de publieke tekenpagina. Eigen grens: gaat de chat stuk,
           dan blijft de rest gewoon werken. */}
-      {user && !location.pathname.startsWith('/tekenen') && !location.pathname.startsWith('/aanmelden') && (
+      {user && !location.pathname.startsWith('/tekenen') && !location.pathname.startsWith('/verklaring/') && !location.pathname.startsWith('/aanmelden') && (
         <ErrorBoundary naam="teamchat" variant="stil">
           <Chat />
         </ErrorBoundary>
@@ -242,6 +243,8 @@ function AppRoutes() {
       <Routes>
       {/* v65: publieke tekenpagina voor klanten, bewust buiten ProtectedRoute */}
       <Route path="/tekenen/:token" element={<Tekenen />} />
+      {/* v137: publieke pagina om een verklaring te tekenen zonder account */}
+      <Route path="/verklaring/:token" element={<VerklaringLink />} />
       {/* v88: publieke aanmeldpagina voor bellers die zelf een account willen, bewust buiten ProtectedRoute */}
       {/* Publiek: privacybeleid en voorwaarden. Nodig voor het Google-toestemmingsscherm. */}
       <Route path="/privacy" element={<Privacy />} />

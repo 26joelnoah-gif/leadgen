@@ -1019,3 +1019,31 @@ Twee-zijdig platform:
   `google_agenda_status_v2()` (de oude google_agenda_status() bestaat nog,
   want een DROP liep vast via de MCP-tool) en toont dan een knop
   "Opnieuw koppelen". Migratie: supabase/migrations/migration_v134_google_opnieuw_koppelen.sql.
+
+- **VERKLARINGEN: SJABLONEN, BEDRAGEN AANPASSEN, LINK ZONDER ACCOUNT (v137,
+  2026-10-09, migratie toegepast):** uitbreiding op v136.
+  1. `public.overeenkomst_sjablonen` (meerdere sjablonen, elk met naam, tekst,
+     opdrachtgever en standaardbedragen in `tarieven`; precies een
+     `is_standaard`). Het oude `overeenkomst_sjabloon` (id=1) is gekopieerd als
+     "Standaard" en wordt niet meer gebruikt. RLS: lezen wie mag versturen,
+     schrijven alleen admin, standaard niet te verwijderen. Tabblad
+     "Sjablonen" op /overeenkomsten; in de verstuur-popup kies je een
+     sjabloon (vult de bedragen) en kan admin de bedragen opslaan in het
+     sjabloon of als nieuw sjabloon.
+  2. Bedragen van een verklaring die nog niet getekend is aanpassen: knop
+     "Bedragen" in het overzicht -> RPC `overeenkomst_tarieven_wijzigen`
+     (zelfde rechten als intrekken), zet tarieven + inhoud_hash opnieuw.
+  3. Via link: `overeenkomsten.profile_id` mag leeg, met `ontvanger_naam`,
+     `ontvanger_email` (optioneel) en `token` (48 hex). `overeenkomst_versturen`
+     heeft nu 5 parameters (p_profile, p_tarieven, p_sjabloon, p_naam,
+     p_email) en geeft `{id, token}` terug; p_profile leeg = link (rem 50/uur).
+     Publieke pagina `/verklaring/:token` (src/pages/VerklaringLink.jsx,
+     buiten ProtectedRoute, vrij van onderhoudsmodus en OvereenkomstGate) via
+     RPC's `overeenkomst_via_link` en `overeenkomst_tekenen_link` (anon mag
+     uitvoeren; rem 30 per 10 min per IP; akkoord.methode = 'link'). Na tekenen
+     krijgt de verstuurder een melding. Het tekenformulier is
+     `TekenFormulier` uit OvereenkomstGate.jsx, gedeeld door app en link.
+     ReachConnect mailt de link niet zelf: Noah kopieert hem.
+  Een link-verklaring met hetzelfde e-mailadres als een beller telt in
+  "Nog geen verklaring" als gedekt. Koppelen aan een account later gebeurt
+  niet automatisch. Migratie: migration_v137_verklaring_sjablonen_link.sql.
