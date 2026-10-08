@@ -11,7 +11,7 @@ import { DOELGROEPEN } from '../lib/compliance'
 const VINKJES = [
   { key: 'script_noemt_naam', label: 'Het belscript noemt je naam, de bedrijfsnaam en waarom je belt.' },
   { key: 'bezwaar_instructie', label: 'Bellers weten: zegt iemand "bel me niet meer", dan boeken ze af op Niet meer benaderen. Dat stopt ook de mails.' },
-  { key: 'kvk_instructie', label: 'Bellers weten: staat er "Eerst KvK checken", dan zoeken ze het bedrijf op bij kvk.nl en kiezen de rechtsvorm voordat ze bellen.', alleen: 'zakelijk' },
+  { key: 'kvk_instructie', label: 'Bellers weten: check eerst even het bedrijf op internet (rechtsvorm, website).', alleen: 'zakelijk' },
   { key: 'toestemming_instructie', label: 'Toestemming wordt vastgelegd door een admin of manager, met wie, wanneer en hoe.', alleen: 'particulier' },
   { key: 'mail_afmeldlink', label: 'De mails hebben een afmeldlink die terugmeldt aan ReachConnect (MarketingKiezer: /mailvoorkeur).', alleenMail: true },
 ]
