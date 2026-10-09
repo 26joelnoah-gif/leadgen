@@ -1,7 +1,7 @@
 // v136: toont een verklaring (verstuurd, getekend of als voorbeeld) op dezelfde
 // manier in het tekenscherm, het overzicht en de pdf.
 import { ShieldCheck } from 'lucide-react'
-import { blokkenVanTekst, euro } from '../lib/overeenkomsten'
+import { blokkenVanTekst, euro, bedragInWoorden } from '../lib/overeenkomsten'
 
 export default function OvereenkomstTekst({ overeenkomst, bellerNaam }) {
   const o = overeenkomst || {}
@@ -56,8 +56,8 @@ export default function OvereenkomstTekst({ overeenkomst, bellerNaam }) {
                 {tarieven.map((t, j) => (
                   <tr key={j}>
                     <td style={td}>{t.project}</td>
-                    {heeftAfspraak && <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{euro(t.afspraak)}</td>}
-                    {heeftSale && <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>{euro(t.sale)}</td>}
+                    {heeftAfspraak && <td style={{ ...td, textAlign: 'right' }}><Bedrag waarde={t.afspraak} /></td>}
+                    {heeftSale && <td style={{ ...td, textAlign: 'right' }}><Bedrag waarde={t.sale} /></td>}
                   </tr>
                 ))}
               </tbody>
@@ -83,6 +83,17 @@ export default function OvereenkomstTekst({ overeenkomst, bellerNaam }) {
         </div>
       )}
     </div>
+  )
+}
+
+// v138: bedrag met daaronder "zegge" in woorden, zodat er geen twijfel is over het bedrag.
+function Bedrag({ waarde }) {
+  const woorden = bedragInWoorden(waarde)
+  return (
+    <>
+      <div style={{ fontWeight: 700 }}>{euro(waarde)}</div>
+      {woorden && <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>zegge: {woorden}</div>}
+    </>
   )
 }
 

@@ -1047,3 +1047,13 @@ Twee-zijdig platform:
   Een link-verklaring met hetzelfde e-mailadres als een beller telt in
   "Nog geen verklaring" als gedekt. Koppelen aan een account later gebeurt
   niet automatisch. Migratie: migration_v137_verklaring_sjablonen_link.sql.
+
+- **ZEGGE + NEDERLANDS RECHT IN DE VERKLARING (v138, 2026-10-09, geen
+  migratie):** in de tarieventabel van een verklaring (OvereenkomstTekst.jsx,
+  dus ook tekenscherm, linkpagina en pdf) staat onder elk bedrag "zegge: ..."
+  in woorden, via bedragInWoorden() in src/lib/overeenkomsten.js (tot
+  miljoenen, met centen, tweeëntwintig met trema). Wordt live uit de bedragen
+  berekend, dus niet in inhoud_hash. Sjabloon "Standaard" kreeg artikel 9
+  "Welk recht geldt" (Nederlands recht, bevoegde rechter in Nederland), versie 3.
+  De oude overload overeenkomst_versturen(uuid, jsonb) staat nog in de database
+  (drop vraagt bevestiging in de MCP-tool); onschuldig.

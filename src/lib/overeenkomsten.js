@@ -116,3 +116,46 @@ export function tarievenVoorScherm(tarieven = []) {
   const rijen = (Array.isArray(tarieven) ? tarieven : []).map(t => ({ project: t.project || '', afspraak: t.afspraak ?? '', sale: t.sale ?? '' }))
   return rijen.length ? rijen : [{ project: '', afspraak: '', sale: '' }]
 }
+
+// v138: bedrag in woorden voor de verklaring ("zegge: vijfentwintig euro").
+const EENHEDEN = ['nul', 'een', 'twee', 'drie', 'vier', 'vijf', 'zes', 'zeven', 'acht', 'negen', 'tien',
+  'elf', 'twaalf', 'dertien', 'veertien', 'vijftien', 'zestien', 'zeventien', 'achttien', 'negentien']
+const TIENTALLEN = ['', '', 'twintig', 'dertig', 'veertig', 'vijftig', 'zestig', 'zeventig', 'tachtig', 'negentig']
+
+function onder100(n) {
+  if (n < 20) return EENHEDEN[n]
+  const t = Math.floor(n / 10), e = n % 10
+  if (!e) return TIENTALLEN[t]
+  const een = EENHEDEN[e]
+  // tweeëntwintig, drieëndertig (trema als het eerste woord op een e eindigt)
+  return een + (een.endsWith('e') ? 'ën' : 'en') + TIENTALLEN[t]
+}
+
+function onder1000(n) {
+  const h = Math.floor(n / 100), rest = n % 100
+  const honderd = h === 0 ? '' : (h === 1 ? 'honderd' : EENHEDEN[h] + 'honderd')
+  if (!rest) return honderd || 'nul'
+  return honderd + onder100(rest)
+}
+
+export function getalInWoorden(n) {
+  n = Math.floor(Math.abs(Number(n) || 0))
+  if (n === 0) return 'nul'
+  const miljoen = Math.floor(n / 1e6), duizend = Math.floor((n % 1e6) / 1000), rest = n % 1000
+  const delen = []
+  if (miljoen) delen.push((miljoen === 1 ? 'een' : getalInWoorden(miljoen)) + ' miljoen')
+  if (duizend) delen.push(duizend === 1 ? 'duizend' : onder1000(duizend) + 'duizend')
+  if (rest) delen.push(onder1000(rest))
+  return delen.join(' ')
+}
+
+export function bedragInWoorden(bedrag) {
+  if (bedrag === null || bedrag === undefined || bedrag === '') return ''
+  const getal = Number(bedrag)
+  if (Number.isNaN(getal)) return ''
+  const centen = Math.round(Math.abs(getal) * 100)
+  const euro = Math.floor(centen / 100), cent = centen % 100
+  if (!euro && cent) return `${getalInWoorden(cent)} cent`
+  const deel = `${getalInWoorden(euro)} euro`
+  return cent ? `${deel} en ${getalInWoorden(cent)} cent` : deel
+}
