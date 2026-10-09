@@ -1057,3 +1057,16 @@ Twee-zijdig platform:
   "Welk recht geldt" (Nederlands recht, bevoegde rechter in Nederland), versie 3.
   De oude overload overeenkomst_versturen(uuid, jsonb) staat nog in de database
   (drop vraagt bevestiging in de MCP-tool); onschuldig.
+
+- **VERKLARING MET % VAN DE ORDERWAARDE + ACCOUNTMANAGERS (v139, 2026-10-09,
+  migratie toegepast):** een tariefregel kent naast `afspraak` en `sale` (euro)
+  nu ook `sale_procent` (0-100, % van de orderwaarde); de tabel in de
+  verklaring toont "10% van de orderwaarde" met "zegge: tien procent"
+  (procentInWoorden in src/lib/overeenkomsten.js). Nieuwe kolom
+  `overeenkomst_sjablonen.ontvanger_rol` (label "Appointment setter" /
+  "Accountmanager"), bij versturen meegekopieerd in
+  `overeenkomsten.opdrachtgever->>'ontvanger_rol'`. overeenkomst_versturen
+  staat nu ook rol accountmanager toe; VERKLARING_ROLLEN dus ook, en de
+  OvereenkomstGate geldt dan ook voor hen. Sjablonen "ProSell setter" (10%)
+  en "ProSell accountmanager" (20%) aangemaakt.
+  Migratie: migration_v139_verklaring_procent_accountmanager.sql.
