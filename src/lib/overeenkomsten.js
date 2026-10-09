@@ -14,7 +14,8 @@ export const VERKLARING_STATUS = {
 }
 
 // Wie kan een verklaring krijgen (zelfde regel als overeenkomst_versturen in de DB)
-export const VERKLARING_ROLLEN = ['employee', 'backoffice']
+// v139: ook accountmanagers (bijv. ProSell, % van de orderwaarde)
+export const VERKLARING_ROLLEN = ['employee', 'backoffice', 'accountmanager']
 
 export function euro(n) {
   if (n === null || n === undefined || n === '') return '-'
@@ -100,21 +101,25 @@ export async function kopieerTekst(tekst) {
   }
 }
 
+const leegNaarNull = (v) => (v === '' || v === null || v === undefined ? null : Number(v))
+
 // Bedragen uit het scherm -> zoals de database ze wil (lege vakken = null)
 export function tarievenVoorOpslaan(rijen = []) {
   return rijen
-    .filter(t => String(t.project || '').trim() && (t.afspraak !== '' || t.sale !== ''))
+    .filter(t => String(t.project || '').trim() && [t.afspraak, t.sale, t.sale_procent].some(v => v !== '' && v !== null && v !== undefined))
     .map(t => ({
       project: String(t.project).trim(),
-      afspraak: t.afspraak === '' || t.afspraak === null || t.afspraak === undefined ? null : Number(t.afspraak),
-      sale: t.sale === '' || t.sale === null || t.sale === undefined ? null : Number(t.sale),
+      afspraak: leegNaarNull(t.afspraak),
+      sale: leegNaarNull(t.sale),
+      // v139: percentage van de orderwaarde (0-100)
+      sale_procent: leegNaarNull(t.sale_procent),
     }))
 }
 
 // Bedragen uit de database -> invulregels voor het scherm
 export function tarievenVoorScherm(tarieven = []) {
-  const rijen = (Array.isArray(tarieven) ? tarieven : []).map(t => ({ project: t.project || '', afspraak: t.afspraak ?? '', sale: t.sale ?? '' }))
-  return rijen.length ? rijen : [{ project: '', afspraak: '', sale: '' }]
+  const rijen = (Array.isArray(tarieven) ? tarieven : []).map(t => ({ project: t.project || '', afspraak: t.afspraak ?? '', sale: t.sale ?? '', sale_procent: t.sale_procent ?? '' }))
+  return rijen.length ? rijen : [{ project: '', afspraak: '', sale: '', sale_procent: '' }]
 }
 
 // v138: bedrag in woorden voor de verklaring ("zegge: vijfentwintig euro").
@@ -158,4 +163,24 @@ export function bedragInWoorden(bedrag) {
   if (!euro && cent) return `${getalInWoorden(cent)} cent`
   const deel = `${getalInWoorden(euro)} euro`
   return cent ? `${deel} en ${getalInWoorden(cent)} cent` : deel
+}
+
+// v139: percentage in woorden ("tien procent", "twaalf komma vijf procent").
+export function procentInWoorden(p) {
+  if (p === null || p === undefined || p === '') return ''
+  const getal = Number(p)
+  if (Number.isNaN(getal)) return ''
+  const [heel, deel] = String(Math.round(getal * 100) / 100).split('.')
+  const woorden = getalInWoorden(Number(heel)) + (deel ? ' komma ' + deel.split('').map(c => getalInWoorden(Number(c))).join(' ') : '')
+  return `${woorden} procent`
+}
+
+export function procentTekst(p) {
+  if (p === null || p === undefined || p === '') return '-'
+  return Number(p).toLocaleString('nl-NL', { maximumFractionDigits: 2 }) + '%'
+}
+
+// v139: label van de ontvanger in de verklaring (staat in opdrachtgever.ontvanger_rol)
+export function ontvangerRol(overeenkomst) {
+  return overeenkomst?.opdrachtgever?.ontvanger_rol || 'Appointment setter'
 }

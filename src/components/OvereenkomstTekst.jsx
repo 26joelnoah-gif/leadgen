@@ -1,7 +1,7 @@
 // v136: toont een verklaring (verstuurd, getekend of als voorbeeld) op dezelfde
 // manier in het tekenscherm, het overzicht en de pdf.
 import { ShieldCheck } from 'lucide-react'
-import { blokkenVanTekst, euro, bedragInWoorden } from '../lib/overeenkomsten'
+import { blokkenVanTekst, euro, bedragInWoorden, procentInWoorden, procentTekst, ontvangerRol } from '../lib/overeenkomsten'
 
 export default function OvereenkomstTekst({ overeenkomst, bellerNaam }) {
   const o = overeenkomst || {}
@@ -9,7 +9,9 @@ export default function OvereenkomstTekst({ overeenkomst, bellerNaam }) {
   const ak = o.akkoord || null
   const tarieven = Array.isArray(o.tarieven) ? o.tarieven : []
   const heeftAfspraak = tarieven.some(t => t.afspraak !== null && t.afspraak !== undefined && t.afspraak !== '')
-  const heeftSale = tarieven.some(t => t.sale !== null && t.sale !== undefined && t.sale !== '')
+  const gevuld = (v) => v !== null && v !== undefined && v !== ''
+  const heeftSale = tarieven.some(t => gevuld(t.sale) || gevuld(t.sale_procent))
+  const alleenProcent = heeftSale && tarieven.every(t => !gevuld(t.sale))
 
   return (
     <div className="verklaring-tekst" style={{ fontSize: '0.92rem', lineHeight: 1.65, color: 'var(--text-primary)' }}>
@@ -24,7 +26,7 @@ export default function OvereenkomstTekst({ overeenkomst, bellerNaam }) {
           <div className="text-muted" style={{ fontSize: '0.8rem' }}>hierna "wij"</div>
         </div>
         <div style={kaart}>
-          <div style={label}>Appointment setter</div>
+          <div style={label}>{ontvangerRol(o)}</div>
           <div style={{ fontWeight: 700 }}>{ak?.naam || bellerNaam || '-'}</div>
           {ak ? (
             <>
@@ -48,7 +50,7 @@ export default function OvereenkomstTekst({ overeenkomst, bellerNaam }) {
                 <tr>
                   <th style={th}>Project</th>
                   {heeftAfspraak && <th style={{ ...th, textAlign: 'right' }}>Per afspraak</th>}
-                  {heeftSale && <th style={{ ...th, textAlign: 'right' }}>Per netto sale</th>}
+                  {heeftSale && <th style={{ ...th, textAlign: 'right' }}>{alleenProcent ? 'Per netto order' : 'Per netto sale'}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -57,7 +59,7 @@ export default function OvereenkomstTekst({ overeenkomst, bellerNaam }) {
                   <tr key={j}>
                     <td style={td}>{t.project}</td>
                     {heeftAfspraak && <td style={{ ...td, textAlign: 'right' }}><Bedrag waarde={t.afspraak} /></td>}
-                    {heeftSale && <td style={{ ...td, textAlign: 'right' }}><Bedrag waarde={t.sale} /></td>}
+                    {heeftSale && <td style={{ ...td, textAlign: 'right' }}>{gevuld(t.sale) && <Bedrag waarde={t.sale} />}{gevuld(t.sale_procent) && <Procent waarde={t.sale_procent} />}{!gevuld(t.sale) && !gevuld(t.sale_procent) && '-'}</td>}
                   </tr>
                 ))}
               </tbody>
@@ -83,6 +85,16 @@ export default function OvereenkomstTekst({ overeenkomst, bellerNaam }) {
         </div>
       )}
     </div>
+  )
+}
+
+// v139: percentage van de orderwaarde, met "zegge" in woorden.
+function Procent({ waarde }) {
+  return (
+    <>
+      <div style={{ fontWeight: 700 }}>{procentTekst(waarde)} van de orderwaarde</div>
+      <div style={{ fontSize: '0.74rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>zegge: {procentInWoorden(waarde)}</div>
+    </>
   )
 }
 

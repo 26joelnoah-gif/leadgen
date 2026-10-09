@@ -1,6 +1,6 @@
 // v136: staat er voor deze beller een verklaring klaar die nog niet getekend
 // is, dan ligt dit scherm over de hele app (ook over het belscherm). Bellen
-// kan dus pas na ondertekenen. Alleen voor de echte rol beller/backoffice.
+// kan dus pas na ondertekenen. Voor de echte rol beller/backoffice/accountmanager (v139).
 // Faalt open: lukt het laden niet, dan blokkeren we niemand.
 import { useEffect, useRef, useState } from 'react'
 import { FileSignature, CheckCircle2, LogOut } from 'lucide-react'

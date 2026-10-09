@@ -150,7 +150,7 @@ function Overzicht() {
               <FileSignature size={26} className="text-primary" /> Verklaringen
             </h1>
             <p className="page-subtitle text-xs" style={{ margin: '4px 0 0' }}>
-              Verklaring zelfstandig appointment setter. Een beller kan pas bellen als hij zijn verklaring getekend heeft.
+              Verklaringen voor zelfstandige setters en accountmanagers. Wie een open verklaring heeft, kan pas verder werken als hij getekend heeft.
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -275,7 +275,7 @@ function Overzicht() {
 
 const cel = { padding: '10px 12px', verticalAlign: 'top' }
 
-// Invulregels: project + bedrag per afspraak + bedrag per netto sale.
+// Invulregels: project + bedrag per afspraak + bedrag per netto sale + (v139) % van de orderwaarde.
 function TarievenEditor({ rijen, setRijen, projecten }) {
   // Tarieven uit de lijsten van dat project als voorstel (hoogste per soort), alleen in lege vakken.
   async function vulTarieven(i, naam) {
@@ -283,7 +283,7 @@ function TarievenEditor({ rijen, setRijen, projecten }) {
     if (!p) return
     const { data } = await supabase.from('lead_lists').select('rate_per_appointment, rate_per_deal').eq('campaign_id', p.id)
     const max = (k) => { const w = (data || []).map(l => Number(l[k] || 0)).filter(n => n > 0); return w.length ? Math.max(...w) : '' }
-    setRijen(t => t.map((r, j) => j !== i ? r : { ...r, afspraak: r.afspraak === '' ? max('rate_per_appointment') : r.afspraak, sale: r.sale === '' ? max('rate_per_deal') : r.sale }))
+    setRijen(t => t.map((r, j) => j !== i ? r : { ...r, afspraak: r.afspraak === '' ? max('rate_per_appointment') : r.afspraak, sale: r.sale === '' && (r.sale_procent ?? '') === '' ? max('rate_per_deal') : r.sale }))
   }
   const zet = (i, k, v) => setRijen(t => t.map((r, j) => j === i ? { ...r, [k]: v } : r))
 
@@ -291,21 +291,22 @@ function TarievenEditor({ rijen, setRijen, projecten }) {
     <>
       <datalist id="verklaring-projecten">{projecten.map(p => <option key={p.id} value={p.name} />)}</datalist>
       <div style={{ display: 'grid', gap: 6 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 100px 100px 34px', gap: 6, fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', fontWeight: 700 }}>
-          <span>Project</span><span>Per afspraak €</span><span>Per netto sale €</span><span />
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 88px 88px 78px 34px', gap: 6, fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', fontWeight: 700 }}>
+          <span>Project</span><span>Afspraak €</span><span>Sale €</span><span>% order</span><span />
         </div>
         {rijen.map((t, i) => (
-          <div key={i} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 100px 100px 34px', gap: 6 }}>
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 88px 88px 78px 34px', gap: 6 }}>
             <input className="form-dark" list="verklaring-projecten" value={t.project} placeholder="Projectnaam"
               onChange={e => zet(i, 'project', e.target.value)} onBlur={e => vulTarieven(i, e.target.value)} />
             <input className="form-dark" type="number" min="0" step="0.01" value={t.afspraak} onChange={e => zet(i, 'afspraak', e.target.value)} />
             <input className="form-dark" type="number" min="0" step="0.01" value={t.sale} onChange={e => zet(i, 'sale', e.target.value)} />
+            <input className="form-dark" type="number" min="0" max="100" step="0.5" value={t.sale_procent ?? ''} placeholder="%" title="Percentage van de orderwaarde" onChange={e => zet(i, 'sale_procent', e.target.value)} />
             <button type="button" className="btn btn-outline btn-sm" title="Regel weghalen" disabled={rijen.length === 1}
               onClick={() => setRijen(x => x.filter((_, j) => j !== i))} style={{ padding: 0 }}><Trash2 size={14} /></button>
           </div>
         ))}
       </div>
-      <button type="button" className="btn btn-outline btn-sm mt-2" style={knopTekst} onClick={() => setRijen(t => [...t, { project: '', afspraak: '', sale: '' }])}>
+      <button type="button" className="btn btn-outline btn-sm mt-2" style={knopTekst} onClick={() => setRijen(t => [...t, { project: '', afspraak: '', sale: '', sale_procent: '' }])}>
         <Plus size={13} /> Project toevoegen
       </button>
     </>
@@ -378,7 +379,7 @@ function VersturenModal({ start, bellers, sjablonen, isAdmin, heeftOpen, onSjabl
     const { data, error } = await supabase.from('overeenkomst_sjablonen').insert({
       naam: n, titel: sjabloon.titel, opdrachtgever_naam: sjabloon.opdrachtgever_naam,
       opdrachtgever_plaats: sjabloon.opdrachtgever_plaats, opdrachtgever_kvk: sjabloon.opdrachtgever_kvk,
-      tekst: sjabloon.tekst, tarieven: geldig,
+      ontvanger_rol: sjabloon.ontvanger_rol || 'Appointment setter', tekst: sjabloon.tekst, tarieven: geldig,
     }).select().single()
     if (error) { toast(error.message, 'error'); return }
     onSjablonen(await laadSjablonen())
@@ -389,7 +390,7 @@ function VersturenModal({ start, bellers, sjablonen, isAdmin, heeftOpen, onSjabl
 
   const voorbeeldRij = sjabloon ? {
     titel: sjabloon.titel, tekst: sjabloon.tekst,
-    opdrachtgever: { naam: sjabloon.opdrachtgever_naam, plaats: sjabloon.opdrachtgever_plaats, kvk: sjabloon.opdrachtgever_kvk },
+    opdrachtgever: { naam: sjabloon.opdrachtgever_naam, plaats: sjabloon.opdrachtgever_plaats, kvk: sjabloon.opdrachtgever_kvk, ontvanger_rol: sjabloon.ontvanger_rol },
     tarieven: geldig,
   } : null
 
@@ -557,7 +558,7 @@ function SjablonenBeheer({ sjablonen, onGewijzigd }) {
   const projecten = useProjecten()
   const [kiesId, setKiesId] = useState(sjablonen[0]?.id || null)
   const [sj, setSj] = useState(null)
-  const [tarieven, setTarieven] = useState([{ project: '', afspraak: '', sale: '' }])
+  const [tarieven, setTarieven] = useState([{ project: '', afspraak: '', sale: '', sale_procent: '' }])
   const [gewijzigd, setGewijzigd] = useState(false)
   const [bezig, setBezig] = useState(false)
   const [weg, setWeg] = useState(false)
@@ -584,7 +585,7 @@ function SjablonenBeheer({ sjablonen, onGewijzigd }) {
     if (!sj?.naam?.trim()) { toast('Geef het sjabloon een naam', 'error'); return }
     setBezig(true)
     const { data, error } = await supabase.from('overeenkomst_sjablonen')
-      .update({ naam: sj.naam.trim(), titel: sj.titel, opdrachtgever_naam: sj.opdrachtgever_naam, opdrachtgever_plaats: sj.opdrachtgever_plaats || null, opdrachtgever_kvk: sj.opdrachtgever_kvk || null, tekst: sj.tekst, tarieven: tarievenVoorOpslaan(tarieven) })
+      .update({ naam: sj.naam.trim(), titel: sj.titel, opdrachtgever_naam: sj.opdrachtgever_naam, opdrachtgever_plaats: sj.opdrachtgever_plaats || null, opdrachtgever_kvk: sj.opdrachtgever_kvk || null, ontvanger_rol: (sj.ontvanger_rol || '').trim() || 'Appointment setter', tekst: sj.tekst, tarieven: tarievenVoorOpslaan(tarieven) })
       .eq('id', sj.id).select().single()
     setBezig(false)
     if (error) { toast(error.message, 'error'); return }
@@ -599,7 +600,7 @@ function SjablonenBeheer({ sjablonen, onGewijzigd }) {
     const { data, error } = await supabase.from('overeenkomst_sjablonen').insert({
       naam: kopieVan ? `${bron.naam} (kopie)` : 'Nieuw sjabloon',
       titel: bron.titel, opdrachtgever_naam: bron.opdrachtgever_naam, opdrachtgever_plaats: bron.opdrachtgever_plaats,
-      opdrachtgever_kvk: bron.opdrachtgever_kvk, tekst: bron.tekst, tarieven: kopieVan ? bron.tarieven : [],
+      opdrachtgever_kvk: bron.opdrachtgever_kvk, ontvanger_rol: bron.ontvanger_rol || 'Appointment setter', tekst: bron.tekst, tarieven: kopieVan ? bron.tarieven : [],
     }).select().single()
     if (error) { toast(error.message, 'error'); return }
     toast('Sjabloon gemaakt. Geef hem een naam en bewaar.', 'success')
@@ -635,7 +636,7 @@ function SjablonenBeheer({ sjablonen, onGewijzigd }) {
   const tarievenNu = tarievenVoorOpslaan(tarieven)
   const voorbeeld = {
     titel: sj.titel, tekst: sj.tekst,
-    opdrachtgever: { naam: sj.opdrachtgever_naam, plaats: sj.opdrachtgever_plaats, kvk: sj.opdrachtgever_kvk },
+    opdrachtgever: { naam: sj.opdrachtgever_naam, plaats: sj.opdrachtgever_plaats, kvk: sj.opdrachtgever_kvk, ontvanger_rol: sj.ontvanger_rol },
     tarieven: tarievenNu.length ? tarievenNu : [{ project: 'Voorbeeldproject', afspraak: 25, sale: 50 }],
   }
 
@@ -665,7 +666,10 @@ function SjablonenBeheer({ sjablonen, onGewijzigd }) {
             Versie {sj.versie}{sj.is_standaard ? ', standaardsjabloon' : ''}. Een wijziging geldt voor verklaringen die je hierna verstuurt. Wat al verstuurd of getekend is, blijft zoals het was.
           </p>
           <div className="form-group"><label>Naam van het sjabloon</label><input className="form-dark" style={{ width: '100%' }} value={sj.naam || ''} onChange={e => zet('naam', e.target.value)} placeholder="Alleen voor jezelf, bijv. BeautyInfo setters" /></div>
-          <div className="form-group"><label>Titel boven de verklaring</label><input className="form-dark" style={{ width: '100%' }} value={sj.titel || ''} onChange={e => zet('titel', e.target.value)} /></div>
+          <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8 }}>
+            <div className="form-group"><label>Titel boven de verklaring</label><input className="form-dark" style={{ width: '100%' }} value={sj.titel || ''} onChange={e => zet('titel', e.target.value)} /></div>
+            <div className="form-group"><label>Ontvanger heet</label><input className="form-dark" style={{ width: '100%' }} value={sj.ontvanger_rol || ''} onChange={e => zet('ontvanger_rol', e.target.value)} placeholder="Appointment setter" /></div>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
             <div className="form-group"><label>Opdrachtgever</label><input className="form-dark" style={{ width: '100%' }} value={sj.opdrachtgever_naam || ''} onChange={e => zet('opdrachtgever_naam', e.target.value)} /></div>
             <div className="form-group"><label>Plaats</label><input className="form-dark" style={{ width: '100%' }} value={sj.opdrachtgever_plaats || ''} onChange={e => zet('opdrachtgever_plaats', e.target.value)} /></div>
