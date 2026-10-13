@@ -22,7 +22,7 @@ import CampaignBriefingModal from '../components/CampaignBriefingModal'
 import FlowSettingsEditor from '../components/FlowSettingsEditor'
 import { useToast } from '../components/Toast'
 import { maakAccount } from '../lib/accounts' // v107
-import PersonSelect from '../components/PersonSelect' // v102
+import PersonSelect, { roleLabel } from '../components/PersonSelect' // v102
 
 // Seconden -> "1u 11m 22s"
 function fmtDuration(totalSeconds) {
@@ -235,6 +235,61 @@ export default function Manager() {
     setResultLeads(prev => prev.filter(l => l.id !== lead.id))
   }
 
+  // v143: teams op mijn projecten - manager mag bellers toevoegen/verwijderen
+  // (RLS: i_manage_team + team_lid_toevoegbaar, alleen rol employee)
+  const [myTeams, setMyTeams] = useState([])
+  const [teamPeople, setTeamPeople] = useState({}) // id -> { full_name, role }
+  const [teamBusy, setTeamBusy] = useState(null)
+  async function fetchMyTeams() {
+    if (isDemoMode || !user?.id) { setMyTeams([]); return }
+    try {
+      const { data: cm } = await supabase.from('campaign_managers').select('campaign_id').eq('manager_id', user.id)
+      const campIds = [...new Set((cm || []).map(r => r.campaign_id))]
+      if (campIds.length === 0) { setMyTeams([]); return }
+      const { data: ct } = await supabase.from('campaign_teams').select('campaign_id, team_id').in('campaign_id', campIds)
+      const teamIds = [...new Set((ct || []).map(r => r.team_id))]
+      if (teamIds.length === 0) { setMyTeams([]); return }
+      const [{ data: t }, { data: c }] = await Promise.all([
+        supabase.from('teams').select('id, name, team_members(profile_id)').in('id', teamIds).order('name'),
+        supabase.from('campaigns').select('id, name').in('id', campIds).is('deleted_at', null),
+      ])
+      const campName = Object.fromEntries((c || []).map(x => [x.id, x.name]))
+      const teams = (t || []).map(team => ({
+        id: team.id,
+        name: team.name,
+        projects: (ct || []).filter(r => r.team_id === team.id && campName[r.campaign_id]).map(r => campName[r.campaign_id]),
+        memberIds: (team.team_members || []).map(m => m.profile_id),
+      })).filter(team => team.projects.length > 0)
+      setMyTeams(teams)
+      const ids = [...new Set(teams.flatMap(team => team.memberIds))]
+      if (ids.length) {
+        const { data: ppl } = await supabase.from('profiles').select('id, full_name, role').in('id', ids)
+        setTeamPeople(Object.fromEntries((ppl || []).map(x => [x.id, x])))
+      }
+    } catch (err) {
+      console.error('fetchMyTeams', err)
+    }
+  }
+
+  async function addToTeam(teamId, profileId) {
+    if (!profileId) return
+    setTeamBusy(teamId)
+    const { error } = await supabase.from('team_members').insert({ team_id: teamId, profile_id: profileId })
+    setTeamBusy(null)
+    if (error) { toast(error.code === '23505' ? 'Deze beller zit al in het team' : 'Toevoegen lukt niet: ' + error.message, 'error'); return }
+    toast('Beller toegevoegd aan het team', 'success')
+    fetchMyTeams()
+  }
+
+  async function removeFromTeam(teamId, profileId) {
+    setTeamBusy(teamId)
+    const { data, error } = await supabase.from('team_members').delete().eq('team_id', teamId).eq('profile_id', profileId).select('id')
+    setTeamBusy(null)
+    if (error || !data?.length) { toast('Verwijderen lukt niet' + (error ? ': ' + error.message : ' (geen rechten)'), 'error'); return }
+    toast('Beller uit het team gehaald', 'success')
+    fetchMyTeams()
+  }
+
   async function fetchEmployees() {
     if (isDemoMode) { setEmployees([]); return }
     // v31: inactieve bellers horen niet meer in de toewijzen-lijsten
@@ -280,6 +335,7 @@ export default function Manager() {
       await fetchEmployees()
       await fetchRules()
       await fetchCampaigns()
+      await fetchMyTeams()
       await fetchCallLogs(lists.map(l => l.id))
     }
     init()
@@ -945,6 +1001,61 @@ export default function Manager() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+          {canManageTeam && myTeams.length > 0 && (
+            <div className="card" style={{ marginBottom: '16px' }}>
+              <div className="card-header">
+                <span className="card-title"><Users size={20} /> Teams op mijn projecten</span>
+              </div>
+              <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {myTeams.map(team => {
+                  const candidates = employees.filter(e => !team.memberIds.includes(e.id))
+                  const members = team.memberIds
+                    .map(id => ({ id, ...(teamPeople[id] || {}) }))
+                    .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''))
+                  return (
+                    <div key={team.id} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '12px' }}>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
+                        <strong>{team.name}</strong>
+                        <span className="text-muted" style={{ fontSize: '0.8rem' }}>Project: {team.projects.join(', ')} · {members.length} {members.length === 1 ? 'lid' : 'leden'}</span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '10px' }}>
+                        {members.length === 0 && <span className="text-muted" style={{ fontSize: '0.85rem' }}>Nog niemand in dit team</span>}
+                        {members.map(m => {
+                          const removable = m.role === 'employee'
+                          return (
+                            <span key={m.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '4px 10px', borderRadius: '999px', background: 'var(--bg-elevated)', border: '1px solid var(--border)', fontSize: '0.85rem' }}>
+                              {m.full_name || 'Onbekend'}
+                              {m.role && m.role !== 'employee' && <span className="text-muted" style={{ fontSize: '0.75rem' }}>({roleLabel(m.role)})</span>}
+                              {removable && (
+                                <button type="button" title="Uit dit team halen" disabled={teamBusy === team.id}
+                                  onClick={() => removeFromTeam(team.id, m.id)}
+                                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0, display: 'inline-flex' }}>
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
+                            </span>
+                          )
+                        })}
+                      </div>
+                      <div style={{ maxWidth: '360px' }}>
+                        <PersonSelect
+                          people={candidates}
+                          value=""
+                          onChange={id => addToTeam(team.id, id)}
+                          placeholder="+ Beller toevoegen aan dit team"
+                          disabled={teamBusy === team.id || candidates.length === 0}
+                          className=""
+                          style={{ padding: '8px', borderRadius: '6px', border: '1px solid var(--border)', background: 'var(--bg-elevated)', color: 'var(--text-primary)', width: '100%' }} />
+                      </div>
+                    </div>
+                  )
+                })}
+                <p className="text-muted" style={{ fontSize: '0.8rem', margin: 0 }}>
+                  Een beller die je hier toevoegt, kan meteen bellen in de projecten van dat team.
+                </p>
               </div>
             </div>
           )}
