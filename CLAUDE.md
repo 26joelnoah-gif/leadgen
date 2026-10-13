@@ -1070,3 +1070,17 @@ Twee-zijdig platform:
   OvereenkomstGate geldt dan ook voor hen. Sjablonen "ProSell setter" (10%)
   en "ProSell accountmanager" (20%) aangemaakt.
   Migratie: migration_v139_verklaring_procent_accountmanager.sql.
+
+- **MENU LINKS VOOR IEDEREEN + NIEUW ACCOUNT VOOR MANAGER (v140 + v142,
+  2026-10-13 live gezet, v140-migratie was al toegepast):**
+  1. v140: de linker zijbalk (Header.jsx, .admin-sidebar) staat er nu voor
+     elke rol; het blok "Beheer" alleen voor de echte admin. Agenda en Mijn
+     afspraken staan alleen in het menu met profiles.can_view_agenda (vinkje
+     in Admin > Team; admin en accountmanager altijd), App.jsx AgendaGate.
+     Offertes alleen als een project een offerte-tool heeft. Eigen
+     afboekredenen kunnen per project (custom_dispositions.campaign_id).
+  2. v142: de knop "Nieuw account" op het Dashboard gebruikt alleen
+     magAccountsAanmaken(profile), dus een manager ziet hem altijd (dat mocht
+     in de RPC al). Aanleiding: Lily (manager) zag hem niet; haar vinkje
+     can_create_users stond in de database nog uit.
+
