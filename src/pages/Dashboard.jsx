@@ -210,7 +210,8 @@ export default function Dashboard() {
                 </button>
               </>
             )}
-            {!isAdmin && profile?.can_create_users === true && magAccountsAanmaken(profile) && (
+            {/* v142: manager mag altijd accounts maken (zie magAccountsAanmaken), ook zonder vinkje */}
+            {!isAdmin && magAccountsAanmaken(profile) && (
               <button className="btn btn-outline btn-sm" onClick={() => setShowNewAccount(true)} title="Maak een account aan voor een nieuwe medewerker">
                 <UserPlus size={16} /> Nieuw account
               </button>

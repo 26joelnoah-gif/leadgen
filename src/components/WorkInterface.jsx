@@ -642,7 +642,9 @@ export default function WorkInterface() {
   // v41: eigen afboekredenen worden extra quick-knoppen naast de vaste set -
   // alleen in de sales/recruitment-knoppenset (niet backoffice), en verborgen
   // zodra de onderliggende basisreden zelf is uitgezet.
+  // v140: een reden met campaign_id geldt alleen in dat project.
   const customButtons = isBackofficeMode ? [] : customReasons
+    .filter(c => !c.campaign_id || c.campaign_id === briefingCampaignId)
     .filter(c => !disabledDispositions.includes(c.base_status))
     .map(c => ({
       id: `custom:${c.id}`,

@@ -8,6 +8,8 @@ import { MAIL_SOURCES, mailTypesVanBron } from '../lib/mailSources'
 import ComplianceChecklist, { checklistCompleet } from './ComplianceChecklist'
 import { useChecklistSearch } from './PersonSelect' // v102
 import { SALES_DISPOSITION_KEYS } from '../lib/dispositions' // v104
+import { CUSTOM_BASE_STATUSES } from './FlowSettingsEditor' // v140
+import { getStatusDetails } from '../utils/statusUtils' // v140
 
 // Uitgebreid instellingenpaneel per project (campagne) - vervangt de krappe
 // inline chip-rijtjes op de projectkaart in Projecten & Leads. Hier kan een
@@ -105,6 +107,11 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   // v104: afboekknoppen die in dit project NIET in het belscherm staan
   const [hiddenDisp, setHiddenDisp] = useState([])
   const [customReasons, setCustomReasons] = useState([])
+  // v140: nieuwe afboekreden die alleen in dit project geldt
+  const [nieuweReden, setNieuweReden] = useState('')
+  const [nieuweRedenBasis, setNieuweRedenBasis] = useState('geen_interesse')
+  const [redenBezig, setRedenBezig] = useState(false)
+  const [verwijderRedenId, setVerwijderRedenId] = useState(null)
   // v98: compliance-checklist (doelgroep, rechtsvorm-modus, afspraken met het team)
   const [compliance, setCompliance] = useState({ doelgroep: null, rechtsvorm_modus: 'waarschuwen', checklist: {} })
   const [complianceOrig, setComplianceOrig] = useState(null)
@@ -133,8 +140,7 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
     setOfferteOrgId(campaign.offerte_org_id || '')
     supabase.from('organizations').select('id, name, afzender_naam, afzender_email').order('name')
       .then(({ data }) => setMerken(data || []))
-    supabase.from('custom_dispositions').select('id, label, base_status').eq('is_active', true).order('sort_order').order('created_at')
-      .then(({ data }) => setCustomReasons(data || []))
+    laadRedenen()
     setConfirmDelete(false)
     setLoading(true)
     Promise.all([
@@ -448,6 +454,36 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
     onClose()
   }
 
+  // v140: algemene eigen redenen + de redenen die alleen voor dit project zijn
+  function laadRedenen() {
+    if (!campaign?.id) return
+    supabase.from('custom_dispositions').select('id, label, base_status, campaign_id').eq('is_active', true)
+      .or(`campaign_id.is.null,campaign_id.eq.${campaign.id}`)
+      .order('sort_order').order('created_at')
+      .then(({ data }) => setCustomReasons(data || []))
+  }
+
+  async function voegRedenToe() {
+    const label = nieuweReden.trim()
+    if (!label || redenBezig) return
+    setRedenBezig(true)
+    const { error } = await supabase.from('custom_dispositions').insert({ label, base_status: nieuweRedenBasis, campaign_id: campaign.id })
+    setRedenBezig(false)
+    if (error) { toast(error.message, 'error'); return }
+    setNieuweReden('')
+    toast(`Afboekreden "${label}" toegevoegd aan dit project`, 'success')
+    laadRedenen()
+  }
+
+  async function verwijderReden(id) {
+    if (verwijderRedenId !== id) { setVerwijderRedenId(id); toast('Klik nogmaals om deze reden te verwijderen', 'info'); return }
+    setVerwijderRedenId(null)
+    const { error } = await supabase.from('custom_dispositions').delete().eq('id', id)
+    if (error) { toast(error.message, 'error'); return }
+    setHiddenDisp(prev => prev.filter(k => k !== `custom:${id}`))
+    laadRedenen()
+  }
+
   const labelStyle = 'text-[10px] font-black uppercase text-muted tracking-widest mb-2 block'
 
   return (
@@ -570,7 +606,7 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
                 <label className={labelStyle}>Afboekknoppen in het belscherm</label>
                 <p className="text-muted" style={{ fontSize: '0.72rem', margin: '0 0 8px' }}>Vinkje uit = de beller ziet die knop niet in dit project. Zo blijft het belscherm rustig. Staat alles uit, dan toont het belscherm toch alle knoppen.</p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '6px 12px' }}>
-                  {[...SALES_DISPOSITION_KEYS, ...customReasons.map(c => ({ key: `custom:${c.id}`, label: c.label, note: 'eigen reden' }))]
+                  {[...SALES_DISPOSITION_KEYS, ...customReasons.map(c => ({ key: `custom:${c.id}`, label: c.label, note: 'eigen reden', projectId: c.campaign_id, id: c.id }))]
                     .filter(d => d.key !== 'nieuw_kwartaal' || kwartaalBellen)
                     .map(d => {
                       const aan = !hiddenDisp.includes(d.key)
@@ -581,11 +617,34 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
                             checked={aan}
                             onChange={e => setHiddenDisp(prev => e.target.checked ? prev.filter(k => k !== d.key) : [...new Set([...prev, d.key])])}
                           />
-                          {d.label}{d.note === 'eigen reden' && <span className="text-muted" style={{ fontSize: '0.7rem' }}>(eigen)</span>}
+                          {d.label}{d.note === 'eigen reden' && <span className="text-muted" style={{ fontSize: '0.7rem' }}>{d.projectId ? '(dit project)' : '(eigen)'}</span>}
+                          {d.projectId && (
+                            <button type="button" onClick={e => { e.preventDefault(); verwijderReden(d.id) }}
+                              title={verwijderRedenId === d.id ? 'Klik nogmaals om te verwijderen' : 'Verwijderen'}
+                              style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: verwijderRedenId === d.id ? 'var(--danger)' : 'var(--text-muted)' }}>
+                              <Trash2 size={12} />
+                            </button>
+                          )}
                         </label>
                       )
                     })}
                 </div>
+                {/* v140: eigen afboekreden alleen voor dit project */}
+                <div className="flex items-end gap-2" style={{ flexWrap: 'wrap', marginTop: '10px' }}>
+                  <input
+                    className="text-sm"
+                    style={{ flex: '1 1 200px' }}
+                    placeholder="Nieuwe afboekreden voor dit project, bv. Heeft al een website"
+                    value={nieuweReden}
+                    onChange={e => setNieuweReden(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); voegRedenToe() } }}
+                  />
+                  <select className="text-sm" value={nieuweRedenBasis} onChange={e => setNieuweRedenBasis(e.target.value)} title="Telt in de cijfers als">
+                    {CUSTOM_BASE_STATUSES.map(st => <option key={st} value={st}>telt als {getStatusDetails(st).label}</option>)}
+                  </select>
+                  <button type="button" className="btn btn-sm btn-outline" disabled={!nieuweReden.trim() || redenBezig} onClick={voegRedenToe}>Toevoegen</button>
+                </div>
+                <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>Een reden die je hier toevoegt staat alleen in het belscherm van dit project.</p>
               </div>
             )}
 

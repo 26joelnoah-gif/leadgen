@@ -13,6 +13,9 @@ import { useAccountManagementAccess } from '../hooks/useAccountManagement'
 import { useLeadLists } from '../hooks/useLeadLists'
 import { useToast } from './Toast'
 
+// v140: tools die offertes maken; alleen dan staat Offertes in het menu
+const OFFERTE_TOOL_KEYS = ['offerte_bestelplatform', 'offerte_verduurzaming', 'offerte_vrij']
+
 export default function Header({ onOpenSettings }) {
   const { user, profile, signOut, sessionCallCount, toggleWorkingMode, startWorkingWithList, isWorking, effectiveRole, setEffectiveRole, updateProfileLocal } = useAuth()
   const designToast = useToast() // v105
@@ -28,7 +31,9 @@ export default function Header({ onOpenSettings }) {
   // via het tandwiel, ongeacht of een pagina zelf nog onOpenSettings gebruikt.
   const [showAccount, setShowAccount] = useState(false)
   // v60: tab Tools alleen als er via een project tools aan je hangen (admin altijd)
-  const { hasTools } = useToolAccess()
+  const { hasTools, toolKeys } = useToolAccess()
+  // v140: Offertes alleen als een project van jou echt een offerte-tool heeft
+  const hasOfferteTool = (toolKeys || []).some(k => OFFERTE_TOOL_KEYS.includes(k))
   // v62: tab Leads (gedeelde leadlijst) zodra je minimaal 1 bellijst kunt zien
   const { hasLeadBoard } = useLeadBoardAccess()
   // v68: tab Klanten zodra je in het team van een accountmanagement-project zit
@@ -72,6 +77,9 @@ export default function Header({ onOpenSettings }) {
   // v51: admin kan de Verdiensten-tab per medewerker uitzetten
   // (profiles.can_view_earnings, default true).
   const canViewEarnings = profile?.can_view_earnings !== false
+  // v140: Agenda en Mijn afspraken alleen met het vinkje "Agenda tonen"
+  // (profiles.can_view_agenda, Admin > Team). Admin altijd.
+  const canViewAgenda = isRealAdmin || profile?.can_view_agenda === true
   // v61: planning en recruiter krijgen ook de tab Tools als een project van
   // hen tools heeft (campaign_tools via hun team) - verder blijft hun nav klein.
   const navLinks = isAanbrenger
@@ -108,24 +116,25 @@ export default function Header({ onOpenSettings }) {
         ...(isRealAdmin ? [{ path: '/recruitment', label: 'Sollicitanten' }] : []),
         { path: '/roosters', label: 'Roosters' },
         // v112: status van de offertes (verstuurd, geopend, getekend)
-        ...(hasTools ? [{ path: '/offertes', label: 'Offertes' }] : []),
+        ...(hasOfferteTool ? [{ path: '/offertes', label: 'Offertes' }] : []),
         ...(hasTools ? [{ path: '/tools', label: 'Tools' }] : []),
       ]
     : [
         { path: '/', label: 'Dashboard' },
         ...(hasAccountManagement ? [{ path: '/accountmanagement', label: 'Klanten' }] : []),
         ...(hasLeadBoard ? [{ path: '/leads', label: 'Leads' }] : []),
-        { path: '/agenda', label: 'Agenda' },
+        ...(canViewAgenda ? [{ path: '/agenda', label: 'Agenda' }] : []),
         { path: '/tba', label: 'TBA\'s' },
         ...(isRealAdmin ? [{ path: '/recruitment', label: 'Sollicitanten' }] : []),
         // v110: wat is er gebeurd met de afspraken die ik heb ingepland
-        { path: '/mijn-afspraken', label: 'Mijn afspraken' },
+        // v140: alleen met het vinkje "Agenda tonen"
+        ...(canViewAgenda ? [{ path: '/mijn-afspraken', label: 'Mijn afspraken' }] : []),
         ...(canViewEarnings ? [{ path: '/earnings', label: 'Verdiensten' }] : []),
         { path: '/roosters', label: 'Roosters' },
         // v59: offerte-tool bestelplatform + overzicht eigen offertes
         // v60: alleen zichtbaar als een project van jou tools heeft (campaign_tools)
         // v112: status van de offertes (verstuurd, geopend, getekend)
-        ...(hasTools ? [{ path: '/offertes', label: 'Offertes' }] : []),
+        ...(hasOfferteTool ? [{ path: '/offertes', label: 'Offertes' }] : []),
         ...(hasTools ? [{ path: '/tools', label: 'Tools' }] : []),
         ...(profile?.can_send_overeenkomsten === true ? [{ path: '/overeenkomsten', label: 'Verklaringen' }] : []), // v136
         ...(isManager ? [
@@ -159,19 +168,15 @@ export default function Header({ onOpenSettings }) {
     return !sibling
   }
 
-  // Sidebar-navigatie: alleen voor de echte admin (Noah), ongeacht welke
-  // werkmodus (effectiveRole) actief staat. Andere rollen houden de
-  // bovenste horizontale nav zoals die was. body-class zorgt dat de
+  // Sidebar-navigatie links (v140: voor iedereen, Beheer-blok alleen voor de
+  // echte admin, ongeacht de werkmodus). body-class zorgt dat de
   // paginacontent (elke pagina heeft zijn eigen <main>/wrapper) automatisch
   // opschuift voor de vaste sidebar, zonder dat elke pagina aangepast hoeft.
+  // v140: de sidebar links staat er nu voor iedereen, niet alleen voor admin.
   useEffect(() => {
-    if (isRealAdmin) {
-      document.body.classList.add('has-admin-sidebar')
-    } else {
-      document.body.classList.remove('has-admin-sidebar')
-    }
+    document.body.classList.add('has-admin-sidebar')
     return () => { document.body.classList.remove('has-admin-sidebar') }
-  }, [isRealAdmin])
+  }, [])
 
   return (
     <>
@@ -190,7 +195,7 @@ export default function Header({ onOpenSettings }) {
         </div>
 
         <nav
-          className={`nav ${mobileMenuOpen ? 'mobile-open' : ''} ${isRealAdmin ? 'admin-has-sidebar' : ''}`}
+          className={`nav ${mobileMenuOpen ? 'mobile-open' : ''} admin-has-sidebar`}
           style={{
             marginLeft: '16px',
             flex: 1,
@@ -390,7 +395,7 @@ export default function Header({ onOpenSettings }) {
 
     {/* Linker sidebar met alle navigatieknoppen, alleen voor de echte admin.
         Andere rollen behouden de horizontale nav in de header hierboven. */}
-    {isRealAdmin && (
+    {(
       <aside className="admin-sidebar">
         <div className="admin-sidebar-logo">
           <Logo size="small" />
@@ -405,8 +410,8 @@ export default function Header({ onOpenSettings }) {
               {link.label}
             </Link>
           ))}
-          <div className="admin-sidebar-label">Beheer</div>
-          {adminLinks.map(link => (
+          {isRealAdmin && <div className="admin-sidebar-label">Beheer</div>}
+          {isRealAdmin && adminLinks.map(link => (
             <Link
               key={link.path}
               to={link.path}

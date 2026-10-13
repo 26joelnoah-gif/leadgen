@@ -1037,6 +1037,18 @@ export default function Admin() {
                           <span className="text-muted font-bold uppercase tracking-widest text-[10px]">Verdiensten tonen</span>
                        </label>
                      )}
+                     {u.id !== user.id && u.role !== 'admin' && u.role !== 'accountmanager' && (
+                       // v140: Agenda + Mijn afspraken in het menu (profiles.can_view_agenda,
+                       // standaard uit). Accountmanager en admin zien de agenda altijd.
+                       <label className="mt-2 flex items-center gap-2 cursor-pointer select-none" style={{ fontSize: '0.72rem' }}>
+                          <input
+                             type="checkbox"
+                             checked={u.can_view_agenda === true}
+                             onChange={e => handleUpdateFlow(u.id, { can_view_agenda: e.target.checked })}
+                          />
+                          <span className="text-muted font-bold uppercase tracking-widest text-[10px]">Agenda + Mijn afspraken tonen</span>
+                       </label>
+                     )}
                      {u.id !== user.id && (
                        // v55: teamoverzicht in Roosters ook zichtbaar maken voor dit
                        // account (profiles.can_view_schedules, standaard uit) - bijv.

@@ -66,7 +66,7 @@ export default function FlowSettingsEditor() {
 
   function fetchCustomDispositions() {
     setLoadingCustom(true)
-    supabase.from('custom_dispositions').select('*').order('sort_order').order('created_at').then(({ data, error }) => {
+    supabase.from('custom_dispositions').select('*, campaigns(name)').order('sort_order').order('created_at').then(({ data, error }) => {
       if (error) toast(error.message, 'error')
       setCustomDispositions(data || [])
       setLoadingCustom(false)
@@ -364,6 +364,8 @@ export default function FlowSettingsEditor() {
               </div>
               <div className="text-[11px] text-muted">
                 telt als <strong className="text-body">{getStatusDetails(c.base_status).label}</strong>
+                {/* v140: reden die alleen in 1 project geldt (aangemaakt in de projectinstellingen) */}
+                {c.campaign_id && <span> · alleen in <strong className="text-body">{c.campaigns?.name || 'een project'}</strong></span>}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', justifyContent: 'flex-end' }}>
                 <button

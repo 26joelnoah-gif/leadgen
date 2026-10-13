@@ -108,6 +108,15 @@ function OutsideGate({ children }) {
   return children
 }
 
+// v140: Agenda en Mijn afspraken alleen voor admin, accountmanager of wie het
+// vinkje "Agenda tonen" heeft (profiles.can_view_agenda). Anders naar het dashboard.
+function AgendaGate({ children }) {
+  const { profile } = useAuth()
+  if (!profile) return children
+  const mag = profile.role === 'admin' || profile.role === 'accountmanager' || profile.can_view_agenda === true
+  return mag ? children : <Navigate to="/" replace />
+}
+
 function ProtectedRoute({ children, requireAdmin = false, allowManager = false, allowPlanning = false, allowExtern = false, allowAanbrenger = false }) {
   const { user, profile, loading, isDemoMode } = useAuth()
 
@@ -344,7 +353,7 @@ function AppRoutes() {
         path="/mijn-afspraken"
         element={
           <ProtectedRoute>
-            <MijnAfspraken />
+            <AgendaGate><MijnAfspraken /></AgendaGate>
           </ProtectedRoute>
         }
       />
@@ -458,7 +467,7 @@ function AppRoutes() {
         path="/agenda"
         element={
           <ProtectedRoute>
-            <Agenda />
+            <AgendaGate><Agenda /></AgendaGate>
           </ProtectedRoute>
         }
       />
