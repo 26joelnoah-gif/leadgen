@@ -222,7 +222,7 @@ export default function LeadBoard() {
       const alle = []
       for (let from = 0; from < 50000; from += PAGE) {
         const { data, error } = await supabase.from('leads')
-          .select('id, lead_list_id, name, phone, email, website, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, updated_at, lat, lng, rechtsvorm, rechtsvorm_bron, opt_in_at, opt_in_bewijs, afgemeld_at, afgemeld_bron, mail_pauze_tot, appointment_at, appointment_type' + (zonderReeks ? '' : ', geen_gehoor_reeks'))
+          .select('id, lead_list_id, name, phone, email, website, city, address, house_number, contact_person, lead_source, status, locked_by, locked_at, assigned_to, next_contact_date, contact_attempts, created_at, updated_at, lat, lng, rechtsvorm, rechtsvorm_bron, opt_in_at, opt_in_bewijs, afgemeld_at, afgemeld_bron, mail_pauze_tot, appointment_at, appointment_type, overgenomen_van, overgenomen_op' + (zonderReeks ? '' : ', geen_gehoor_reeks'))
           .in('lead_list_id', listIds)
           .is('deleted_at', null)
           .order('created_at', { ascending: true })
@@ -250,7 +250,11 @@ export default function LeadBoard() {
     setLockNames(map)
     // Naam van de eigenaar op elke kaart: locked_by komt uit lead_lock_names,
     // assigned_to (toegewezen zonder dat iemand hem gepakt heeft) via profiles.
-    const assignedIds = [...new Set((rows || []).filter(l => l.assigned_to && !map[l.id]).map(l => l.assigned_to))]
+    // v145: ook de naam van wie een overgenomen lead eerder had
+    const assignedIds = [...new Set([
+      ...(rows || []).filter(l => l.assigned_to && !map[l.id]).map(l => l.assigned_to),
+      ...(rows || []).filter(l => l.overgenomen_van).map(l => l.overgenomen_van),
+    ])]
     if (assignedIds.length) {
       const { data: profs } = await supabase.from('profiles').select('id, full_name').in('id', assignedIds)
       const byId = {}
@@ -465,6 +469,7 @@ export default function LeadBoard() {
     setMoving(true)
     const updates = { status, ...extra, updated_at: new Date().toISOString() }
     if (boardEnabled && user?.id) updates.assigned_to = user.id // v79: wie een status geeft is eigenaar
+    if (lead.overgenomen_van && status !== lead.status) { updates.overgenomen_van = null; updates.overgenomen_op = null } // v145
     // v131: terug naar Nieuw = van niemand. Niet bereikbaar houdt de eigenaar.
     if (boardEnabled && status === 'new') updates.assigned_to = null
     // v144: geen gehoor = terug in de leadlijst, van niemand
@@ -680,6 +685,10 @@ export default function LeadBoard() {
   const signalsFor = useCallback((lead) => {
     const out = []
     const bs = belstatusVan(lead)
+    // v145: lead van een gestopte collega, er was al contact
+    if (lead.overgenomen_van) {
+      out.push({ label: `Overgenomen van ${assignedNames[lead.overgenomen_van] || 'collega'}`, color: 'var(--info)', bg: 'var(--info-bg)' })
+    }
     if (isMailPauze(lead)) {
       out.push({ label: `Later mailen (tot ${new Date(lead.mail_pauze_tot).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' })})`, color: 'var(--info)', bg: 'var(--info-bg)' })
     }
@@ -727,7 +736,7 @@ export default function LeadBoard() {
       out.push({ label: 'Nog niet gemaild', color: 'var(--text-muted)', bg: 'var(--bg-card)' })
     }
     return out
-  }, [mailRows, mailService, followUpDays, isWarm, belstatusVan])
+  }, [mailRows, mailService, followUpDays, isWarm, belstatusVan, assignedNames])
 
   // v130: vandaag te doen = opvolgdatum vandaag of eerder, of afspraak vandaag
   const isTodayTask = useCallback((l) => {
@@ -795,6 +804,7 @@ export default function LeadBoard() {
           if (filter === 'done' && !DONE_STATUSES.includes(l.status) && !isNietBereikbaar(l)) return false
         }
         if (filter === 'warm' && !isWarm(l)) return false
+        if (filter === 'overgenomen' && !l.overgenomen_van) return false
         if (filter === 'afgemeld' && belstatusVan(l) !== 'afgemeld') return false
         if (filter === 'later_mailen' && !isMailPauze(l)) return false
         if (filter === 'kvk' && belstatusVan(l) !== 'kvk_check') return false
@@ -820,6 +830,7 @@ export default function LeadBoard() {
   const warmCount = useMemo(() => pool.filter(isWarm).length, [pool, isWarm])
   const afgemeldeLeads = useMemo(() => pool.filter(l => belstatusVan(l) === 'afgemeld'), [pool, belstatusVan])
   const laterMailenCount = useMemo(() => pool.filter(isMailPauze).length, [pool])
+  const overgenomenCount = useMemo(() => pool.filter(l => !!l.overgenomen_van).length, [pool]) // v145
   const kvkCount = useMemo(() => pool.filter(l => !DONE_STATUSES.includes(l.status) && belstatusVan(l) === 'kvk_check').length, [pool, belstatusVan])
   const toestemmingCount = useMemo(() => pool.filter(l => !DONE_STATUSES.includes(l.status) && belstatusVan(l) === 'toestemming_nodig').length, [pool, belstatusVan])
 
@@ -1034,6 +1045,8 @@ export default function LeadBoard() {
                     // v130: alles wat vandaag (of eerder) opgevolgd moet worden
                     ['vandaag', `Vandaag te doen (${todayCount})`],
                     ...(mailService ? [['warm', `Warm (${warmCount})`]] : []),
+                    // v145: leads van gestopte collega's, er was al contact
+                    ...(overgenomenCount > 0 || filter === 'overgenomen' ? [['overgenomen', `Overgenomen (${overgenomenCount})`]] : []),
                     // v87/v93: Open/Afgerond/Alles hebben op het bord geen effect
                     // (elke status staat daar al in zijn eigen kolom), maar blijven
                     // zichtbaar zodat het bord er hetzelfde uitziet als lijst/kaart.

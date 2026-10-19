@@ -1115,3 +1115,30 @@ Twee-zijdig platform:
   Eenmalig: 15 open leads van Wiam, Mehmet en Sened op new gezet; eerste run
   van de vrijgeef-functie zette 109 leads terug in de lijst.
   Migratie: supabase/migrations/migration_v144_opvolging.sql.
+
+- **BELLER GESTOPT = LEADS "OVERGENOMEN" (v145, 2026-10-19, migratie deels
+  toegepast):** zet een admin iemand op inactief of in de prullenbak (Admin.jsx
+  handleToggleActive / handleDeleteEmployee), dan roept de app RPC
+  public.leads_vrijgeven_van(p_profile) aan: alle open leads (niet recruitment,
+  geen eindstatus, geen afspraak) worden van niemand, status en opvolgmoment
+  BLIJVEN staan (er was al contact), leads.overgenomen_van/_op worden gezet, de
+  notitie krijgt "[Overgenomen van X (gestopt) op dd-mm-jjjj]" en de managers van
+  het project krijgen een melding. Zichtbaar als chip "Overgenomen van X" op het
+  bord, filter "Overgenomen" op /leads en de banner OvergenomenBanner.jsx in het
+  belscherm. Het label gaat weg zodra iemand de lead een nieuwe status geeft
+  (useLeads.handleLeadDisposition en LeadBoard.moveLead zetten overgenomen_van
+  null). De DB-triggers uit het migratiebestand staan er NIET in (MCP liep vast
+  op create trigger); de app doet het werk. Eenmalig gedraaid voor Houda (2 leads).
+  Migratie: supabase/migrations/migration_v145_overgenomen.sql.
+
+- **AGENDAKEUZE: WERKTIJDEN + EERSTVOLGENDE VRIJE MOMENTEN (v146, 2026-10-19,
+  geen migratie):** AgendaPickerModal (belscherm "Zet in agenda" en
+  /aanbrengen) toont bovenaan de eerstvolgende 8 vrije momenten van de gekozen
+  accountmanager in de komende 14 dagen (max 2 per dag, met de duur van de
+  gekozen soort), met 1 klik te kiezen. Tijd buiten WERKTIJDEN
+  (src/lib/appointmentConfig.js, nu ma-vr 09:00-18:00) en tijd die minder dan
+  MIN_VOORUIT_MIN (60) minuten vooruit ligt is grijs en niet aanklikbaar. Per dag
+  staat in de kop hoeveel werktijd nog vrij is. Bezette tijd komt zoals voorheen
+  uit afspraken + agenda_blocks (ook Google-blokkades, v114). Een gekozen moment
+  onthoudt zijn eigen week (pickedSlot.weekKey). Andere werktijden = alleen
+  WERKTIJDEN aanpassen.

@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
-import { X, ChevronLeft, ChevronRight, Lock, CalendarClock, Check } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Lock, CalendarClock, Check, Sparkles } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import { appointmentMinutes, appointmentLabel, duurTekst } from '../lib/appointmentConfig'
+import { appointmentMinutes, appointmentLabel, duurTekst, WERKTIJDEN, MIN_VOORUIT_MIN } from '../lib/appointmentConfig'
 import PersonSelect from './PersonSelect' // v102
 
 // v96: visuele agendakeuze bij "Afspraak gemaakt" in het belscherm. Vroeger
@@ -72,50 +72,93 @@ export default function AgendaPickerModal({ accountmanagers, defaultAmId, exclud
   const [pickedSlot, setPickedSlot] = useState(null) // { dayIdx, startMin }
   const gridBodyRef = useRef(null)
 
+  // v146: een plek die de bezette tijden ophaalt, voor de week EN voor de
+  // vrije-momenten-rij (komende 14 dagen).
+  const haalBezet = useCallback(async (amId, rangeStart, rangeEnd) => {
+    if (loadBusy) {
+      const r = await loadBusy(amId, rangeStart, rangeEnd)
+      return { appointments: r?.appointments || [], blocks: r?.blocks || [] }
+    }
+    const [{ data: leadsData }, { data: blocksData }] = await Promise.all([
+      supabase
+        .from('leads')
+        .select('id, name, appointment_at, appointment_type, lead_lists!inner(id, campaign_id, campaigns!inner(id, appointment_scheduling_enabled))')
+        .eq('status', 'afspraak_gemaakt')
+        .eq('lead_lists.campaigns.appointment_scheduling_enabled', true)
+        .eq('assigned_to', amId)
+        .neq('id', excludeLeadId || '')
+        .gte('appointment_at', rangeStart)
+        .lte('appointment_at', rangeEnd)
+        .is('deleted_at', null),
+      supabase
+        .from('agenda_blocks')
+        .select('*')
+        .eq('user_id', amId)
+        .lte('start_at', rangeEnd)
+        .gte('end_at', rangeStart),
+    ])
+    return { appointments: leadsData || [], blocks: blocksData || [] }
+  }, [loadBusy, excludeLeadId])
+
   const fetchData = useCallback(async () => {
     if (!selectedAmId) { setAppointments([]); setBlockedSlots([]); setLoading(false); return }
     setLoading(true)
     const rangeStart = addDays(currentWeekStart, -1).toISOString()
     const rangeEnd = addDays(currentWeekStart, 8).toISOString()
     try {
-      if (loadBusy) {
-        const r = await loadBusy(selectedAmId, rangeStart, rangeEnd)
-        setAppointments(r?.appointments || [])
-        setBlockedSlots(r?.blocks || [])
-        return
-      }
-      const { data: leadsData } = await supabase
-        .from('leads')
-        .select(`
-          id, name, appointment_at, appointment_type,
-          lead_lists!inner(id, campaign_id, campaigns!inner(id, appointment_scheduling_enabled))
-        `)
-        .eq('status', 'afspraak_gemaakt')
-        .eq('lead_lists.campaigns.appointment_scheduling_enabled', true)
-        .eq('assigned_to', selectedAmId)
-        .neq('id', excludeLeadId || '')
-        .gte('appointment_at', rangeStart)
-        .lte('appointment_at', rangeEnd)
-        .is('deleted_at', null)
-
-      const { data: blocksData } = await supabase
-        .from('agenda_blocks')
-        .select('*')
-        .eq('user_id', selectedAmId)
-        .gte('start_at', rangeStart)
-        .lte('start_at', rangeEnd)
-
-      setAppointments(leadsData || [])
-      setBlockedSlots(blocksData || [])
+      const r = await haalBezet(selectedAmId, rangeStart, rangeEnd)
+      setAppointments(r.appointments)
+      setBlockedSlots(r.blocks)
     } catch (err) {
       console.error('Fout bij ophalen agenda:', err)
     } finally {
       setLoading(false)
     }
-  }, [selectedAmId, currentWeekStart, excludeLeadId, loadBusy])
+  }, [selectedAmId, currentWeekStart, haalBezet])
 
   useEffect(() => { fetchData() }, [fetchData])
-  useEffect(() => { setPickedSlot(null) }, [selectedAmId, currentWeekStart])
+  // v146: een gekozen moment onthoudt zijn eigen week, dus bladeren wist hem niet meer
+  useEffect(() => { setPickedSlot(null) }, [selectedAmId])
+
+  // v146: de eerstvolgende vrije momenten (komende 14 dagen), met 1 klik te kiezen
+  const [voorstellen, setVoorstellen] = useState([])
+  useEffect(() => {
+    if (!selectedAmId) { setVoorstellen([]); return }
+    let alive = true
+    const start = new Date()
+    const eind = addDays(start, 15)
+    haalBezet(selectedAmId, addDays(start, -1).toISOString(), eind.toISOString()).then(({ appointments: ap, blocks: bl }) => {
+      if (!alive) return
+      const bezet = [
+        ...ap.filter(l => l.appointment_at).map(l => { const s = new Date(l.appointment_at).getTime(); return [s, s + appointmentMinutes(l) * 60000] }),
+        ...bl.map(b => [new Date(b.start_at).getTime(), new Date(b.end_at).getTime()]),
+      ]
+      const vroegst = Date.now() + MIN_VOORUIT_MIN * 60000
+      const uit = []
+      for (let i = 0; i < 15 && uit.length < 8; i++) {
+        const dag = addDays(start, i); dag.setHours(0, 0, 0, 0)
+        if (!WERKTIJDEN.dagen.includes(dag.getDay())) continue
+        let perDag = 0
+        for (let m = WERKTIJDEN.startMin; m + nieuwMin <= WERKTIJDEN.eindMin && perDag < 2 && uit.length < 8; m += 30) {
+          const s = dag.getTime() + m * 60000
+          const e = s + nieuwMin * 60000
+          if (s < vroegst) continue
+          if (bezet.some(([bs, be]) => bs < e && be > s)) continue
+          uit.push(new Date(s)); perDag++
+          m += Math.max(0, nieuwMin - 30) // volgende voorstel na dit blok
+        }
+      }
+      setVoorstellen(uit)
+    }).catch(() => { if (alive) setVoorstellen([]) })
+    return () => { alive = false }
+  }, [selectedAmId, haalBezet, nieuwMin])
+
+  function kiesVoorstel(d) {
+    const week = startOfWeek(d)
+    const dayIdx = Math.round((new Date(d).setHours(0, 0, 0, 0) - week.getTime()) / 86400000)
+    setCurrentWeekStart(week)
+    setPickedSlot({ weekKey: week.getTime(), dayIdx, startMin: minutesSinceMidnight(d) })
+  }
 
   const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(currentWeekStart, i)), [currentWeekStart])
 
@@ -144,10 +187,34 @@ export default function AgendaPickerModal({ accountmanagers, defaultAmId, exclud
     return map
   }, [weekDays, appointments, blockedSlots, anoniem])
 
+  // v146: alleen binnen werktijden en niet in het verleden
+  function binnenWerktijd(dayIdx, startMin) {
+    const dag = weekDays[dayIdx]
+    if (!WERKTIJDEN.dagen.includes(dag.getDay())) return false
+    if (startMin < WERKTIJDEN.startMin || startMin + nieuwMin > WERKTIJDEN.eindMin) return false
+    const d = new Date(dag); d.setHours(0, startMin, 0, 0)
+    return d.getTime() >= Date.now() + MIN_VOORUIT_MIN * 60000
+  }
+
   function slotIsFree(dayIdx, startMin) {
+    if (!binnenWerktijd(dayIdx, startMin)) return false
     const endMin = startMin + nieuwMin
     return !busyByDay[dayIdx].some(b => b.startMin < endMin && b.endMin > startMin)
   }
+
+  // v146: hoeveel werktijd is er per dag nog vrij (voor de dagkop)
+  const vrijPerDag = useMemo(() => weekDays.map((dag, i) => {
+    if (!WERKTIJDEN.dagen.includes(dag.getDay())) return null
+    const dagStart = new Date(dag); dagStart.setHours(0, 0, 0, 0)
+    const vanaf = Math.max(WERKTIJDEN.startMin, Math.ceil((Date.now() - dagStart.getTime()) / 60000))
+    if (vanaf >= WERKTIJDEN.eindMin) return 0
+    const stukken = busyByDay[i]
+      .map(b => [Math.max(b.startMin, vanaf), Math.min(b.endMin, WERKTIJDEN.eindMin)])
+      .filter(([a, b]) => b > a).sort((a, b) => a[0] - b[0])
+    let bezet = 0, tot = vanaf
+    stukken.forEach(([a, b]) => { if (b > tot) { bezet += b - Math.max(a, tot); tot = b } })
+    return WERKTIJDEN.eindMin - vanaf - bezet
+  }), [weekDays, busyByDay])
 
   function handleGridClick(e, dayIdx) {
     const gridEl = gridBodyRef.current
@@ -157,15 +224,16 @@ export default function AgendaPickerModal({ accountmanagers, defaultAmId, exclud
     const snapped = clamp(Math.round(rawMin / SNAP_MIN) * SNAP_MIN, 0, GRID_TOTAL_MIN - SNAP_MIN)
     const startMin = GRID_START_MIN + snapped
     if (!slotIsFree(dayIdx, startMin)) return
-    setPickedSlot({ dayIdx, startMin })
+    setPickedSlot({ weekKey: currentWeekStart.getTime(), dayIdx, startMin })
   }
 
   const pickedDate = useMemo(() => {
     if (!pickedSlot) return null
-    const d = addDays(currentWeekStart, pickedSlot.dayIdx)
+    const d = addDays(new Date(pickedSlot.weekKey), pickedSlot.dayIdx)
     d.setHours(0, pickedSlot.startMin, 0, 0)
     return d
-  }, [pickedSlot, currentWeekStart])
+  }, [pickedSlot])
+  const pickedInDezeWeek = !!pickedSlot && pickedSlot.weekKey === currentWeekStart.getTime()
 
   function handleConfirm() {
     if (!pickedDate || !selectedAmId) return
@@ -212,7 +280,37 @@ export default function AgendaPickerModal({ accountmanagers, defaultAmId, exclud
           <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: 'var(--primary)', marginRight: 6, verticalAlign: 'middle' }} />Klik een vrij moment aan</span>
           <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: 'rgba(239,68,68,0.55)', marginRight: 6, verticalAlign: 'middle' }} />Bezet / afspraak</span>
           <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: 'rgba(148,163,184,0.4)', marginRight: 6, verticalAlign: 'middle' }} />Geblokkeerd</span>
+          <span><span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 3, background: 'var(--bg-elevated)', border: '1px solid var(--border)', marginRight: 6, verticalAlign: 'middle' }} />Buiten werktijd (ma-vr {formatTime(new Date(0, 0, 0, 0, WERKTIJDEN.startMin))} tot {formatTime(new Date(0, 0, 0, 0, WERKTIJDEN.eindMin))})</span>
         </div>
+
+        {/* v146: eerstvolgende vrije momenten */}
+        {selectedAmId && (
+          <div style={{ padding: '12px 22px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 8 }}>
+              <Sparkles size={14} color="var(--primary)" /> Eerstvolgende vrije momenten ({duurTekst(nieuwMin)})
+            </div>
+            {voorstellen.length === 0 ? (
+              <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Geen vrij moment in de komende 2 weken binnen de werktijden.</div>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                {voorstellen.map(d => {
+                  const gekozen = pickedDate && pickedDate.getTime() === d.getTime()
+                  return (
+                    <button key={d.getTime()} type="button" onClick={() => kiesVoorstel(d)}
+                      style={{
+                        padding: '8px 12px', borderRadius: 10, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 700,
+                        border: `1px solid ${gekozen ? 'var(--primary)' : 'var(--border)'}`,
+                        background: gekozen ? 'var(--primary)' : 'var(--bg-elevated)',
+                        color: gekozen ? 'var(--text-on-accent)' : 'var(--text-primary)'
+                      }}>
+                      <span style={{ textTransform: 'capitalize' }}>{d.toLocaleDateString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' })}</span> {formatTime(d)}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ flex: 1, overflow: 'auto', padding: '12px 22px 0' }}>
           {!selectedAmId ? (
@@ -236,6 +334,9 @@ export default function AgendaPickerModal({ accountmanagers, defaultAmId, exclud
                         color: isToday ? 'var(--text-on-accent)' : 'var(--text-primary)',
                         background: isToday ? 'var(--primary)' : 'transparent'
                       }}>{d.getDate()}</div>
+                      <div style={{ fontSize: '0.66rem', marginTop: 2, fontWeight: 700, color: vrijPerDag[i] ? 'var(--success)' : 'var(--text-muted)' }}>
+                        {vrijPerDag[i] == null ? 'vrij weekend' : vrijPerDag[i] === 0 ? 'vol' : `${Math.floor(vrijPerDag[i] / 60)}u${vrijPerDag[i] % 60 ? ` ${vrijPerDag[i] % 60}m` : ''} vrij`}
+                      </div>
                     </div>
                   )
                 })}
@@ -266,6 +367,22 @@ export default function AgendaPickerModal({ accountmanagers, defaultAmId, exclud
                       onClick={e => handleGridClick(e, dayIdx)}
                       style={{ position: 'relative', borderRight: '1px solid var(--border)', cursor: 'crosshair' }}
                     >
+                      {/* v146: buiten werktijd en verleden grijs, niet aanklikbaar */}
+                      {(() => {
+                        const px = HOUR_PX / 60
+                        const isWerkdag = WERKTIJDEN.dagen.includes(d.getDay())
+                        const dagStart = new Date(d); dagStart.setHours(0, 0, 0, 0)
+                        const nuMin = Math.ceil((Date.now() - dagStart.getTime()) / 60000)
+                        const grijs = { position: 'absolute', left: 0, right: 0, background: 'var(--bg-elevated)', opacity: 0.75, pointerEvents: 'none' }
+                        if (!isWerkdag) return <div style={{ ...grijs, top: 0, height: GRID_HEIGHT }} />
+                        const bovenTot = clamp(Math.max(WERKTIJDEN.startMin, nuMin), GRID_START_MIN, GRID_END_MIN)
+                        return (
+                          <>
+                            <div style={{ ...grijs, top: 0, height: (bovenTot - GRID_START_MIN) * px }} />
+                            <div style={{ ...grijs, top: (WERKTIJDEN.eindMin - GRID_START_MIN) * px, height: (GRID_END_MIN - WERKTIJDEN.eindMin) * px }} />
+                          </>
+                        )
+                      })()}
                       {busyByDay[dayIdx].map(item => {
                         const top = (item.startMin - GRID_START_MIN) * (HOUR_PX / 60)
                         const height = Math.max(16, (item.endMin - item.startMin) * (HOUR_PX / 60))
@@ -284,7 +401,7 @@ export default function AgendaPickerModal({ accountmanagers, defaultAmId, exclud
                         )
                       })}
 
-                      {pickedSlot && pickedSlot.dayIdx === dayIdx && (() => {
+                      {pickedInDezeWeek && pickedSlot.dayIdx === dayIdx && (() => {
                         const top = (pickedSlot.startMin - GRID_START_MIN) * (HOUR_PX / 60)
                         const height = nieuwMin * (HOUR_PX / 60)
                         return (

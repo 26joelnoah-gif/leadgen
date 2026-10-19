@@ -419,6 +419,19 @@ export default function Admin() {
     }
   }
 
+  // v145: medewerker gestopt -> zijn open leads terug naar de lijst, met het
+  // label "Overgenomen van ..." zodat collega's zien dat er al contact was.
+  // Status en afgesproken moment blijven staan. RPC leads_vrijgeven_van.
+  async function geefLeadsVrij(u) {
+    try {
+      const { data, error } = await supabase.rpc('leads_vrijgeven_van', { p_profile: u.id })
+      if (error) throw error
+      if (data > 0) toast(`${data} open lead${data === 1 ? '' : 's'} van ${u.full_name || 'deze medewerker'} terug in de leadlijst (filter Overgenomen)`, 'success')
+    } catch (err) {
+      toast(`Leads vrijgeven mislukt: ${err.message}`, 'error')
+    }
+  }
+
   // v86: "Verwijderen" zet een medewerker in de PRULLENBAK. Niets gaat echt weg:
   // rechten, teams, roosterdagen en gekoppelde leads blijven staan. De medewerker
   // kan niet meer inloggen (is_active false) en staat nergens meer in lijsten.
@@ -435,6 +448,7 @@ export default function Admin() {
       if (error) throw error
       if (!data || data.length === 0) throw new Error('Verwijderen is geweigerd door de database. Ververs de pagina en probeer opnieuw.')
       setUsers(prev => prev.filter(x => x.id !== userId))
+      if (u) await geefLeadsVrij(u) // v145
       setTrashedUsers(prev => [data[0], ...prev.filter(x => x.id !== userId)])
       toast(`${u?.full_name || 'Medewerker'} staat in de prullenbak. Terugzetten kan nog 30 dagen.`, 'success')
     } catch (err) {
@@ -489,6 +503,7 @@ export default function Admin() {
       const { error } = await supabase.from('profiles').update({ is_active: !nowActive }).eq('id', u.id)
       if (error) throw error
       setUsers(prev => prev.map(x => x.id === u.id ? { ...x, is_active: !nowActive } : x))
+      if (nowActive) await geefLeadsVrij(u) // v145: net inactief gezet
       // v89: bij inactief zetten van een zelfregistratie-account (EUR 50/maand
       // via Mollie) ook meteen de subscription opzeggen, anders blijft Mollie
       // gewoon maandelijks afschrijven terwijl diegene geen toegang meer heeft.

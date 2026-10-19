@@ -35,3 +35,10 @@ export function duurTekst(minutes) {
   const uren = minutes / 60
   return `${uren.toLocaleString('nl-NL', { maximumFractionDigits: 1 })} uur`
 }
+
+// v146: werktijden waarin een beller (of aanbrenger) een afspraak mag inplannen
+// in de agenda van een accountmanager. Buiten deze tijden is de agendakeuze grijs.
+// dagen: 1 = maandag ... 5 = vrijdag (Date.getDay()), tijden in minuten na middernacht.
+export const WERKTIJDEN = { dagen: [1, 2, 3, 4, 5], startMin: 9 * 60, eindMin: 18 * 60 }
+// Zo ver vooruit moet een afspraak minimaal liggen (minuten)
+export const MIN_VOORUIT_MIN = 60

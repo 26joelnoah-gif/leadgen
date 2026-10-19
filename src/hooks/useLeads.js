@@ -377,6 +377,8 @@ export function useLeads() {
     const updates = {
       status: dispositionType,
       notes: newNotes,
+      // v145: een collega heeft hem opgepakt, het label 'overgenomen' mag weg
+      ...(currentLead.overgenomen_van ? { overgenomen_van: null, overgenomen_op: null } : {}),
       next_contact_date: nextDate,
       locked_by: null,
       locked_at: null,

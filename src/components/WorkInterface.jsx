@@ -14,6 +14,7 @@ import { normalizeWebsite, displayWebsite } from '../utils/urlUtils'
 import { getStatusDetails, RECRUITMENT_LABELS } from '../utils/statusUtils'
 import { OfferteBriefing } from './OfferteStatus'
 import { MailStatusBriefing } from './MailStatus'
+import OvergenomenBanner from './OvergenomenBanner' // v145
 import { useProjectTools, offerteHrefForLead, verduurzamingHrefForLead, vrijeOfferteHrefForLead } from '../hooks/useProjectTools'
 import { useProjectMailService } from '../hooks/useProjectMailService'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
@@ -1119,6 +1120,7 @@ export default function WorkInterface() {
                   )}
                 </div>
               )}
+              <OvergenomenBanner lead={currentLead} />
               <OfferteBriefing leadId={currentLead.id} />
               <MailStatusBriefing leadId={currentLead.id} compact={!isMobile} />
             </div>
