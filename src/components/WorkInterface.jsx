@@ -16,6 +16,10 @@ import { OfferteBriefing } from './OfferteStatus'
 import { MailStatusBriefing } from './MailStatus'
 import OvergenomenBanner from './OvergenomenBanner' // v145
 import { designVoor } from '../lib/design' // v148
+import BelHero from './belscherm/BelHero' // v149
+
+// v149: afboekingen zonder gesprek (eigen groep in het nieuwe belscherm)
+const NIET_GESPROKEN = ['geen_gehoor', 'voicemail', 'verkeerd_nummer', 'later_bellen']
 import { useProjectTools, offerteHrefForLead, verduurzamingHrefForLead, vrijeOfferteHrefForLead } from '../hooks/useProjectTools'
 import { useProjectMailService } from '../hooks/useProjectMailService'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
@@ -941,6 +945,48 @@ export default function WorkInterface() {
   }
 
   // v29: vorige gesprekken op deze lead (ook van collega's) - compacte lijst
+  // v149: offerte-knoppen, compliance-melding en lijstnaam; gedeeld door de oude
+  // subkop (v1) en de nieuwe belscherm-kop (BelHero, v2).
+  const renderSubActies = () => (
+    <>
+              {canMakeOfferte && !isRecruitmentCampaign && (
+                <a href={offerteHrefForLead(currentLead.id)} target="_blank" rel="noopener" className="btn btn-outline btn-sm"
+                   title="Opent de offerte-tool, voorgevuld met de gegevens van deze lead"
+                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                  <FileSignature size={14} /> {canMakeVerduurzaming ? 'Offerte bestelplatform' : 'Offerte maken'}
+                </a>
+              )}
+              {canMakeVerduurzaming && !isRecruitmentCampaign && (
+                <a href={verduurzamingHrefForLead(currentLead.id)} target="_blank" rel="noopener" className="btn btn-outline btn-sm"
+                   title="Opent de verduurzaming-offerte, voorgevuld met de gegevens van deze lead"
+                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                  <FileSignature size={14} /> {canMakeOfferte ? 'Offerte verduurzaming' : 'Offerte maken'}
+                </a>
+              )}
+              {canMakeVrij && !isRecruitmentCampaign && (
+                <a href={vrijeOfferteHrefForLead(currentLead.id)} target="_blank" rel="noopener" className="btn btn-outline btn-sm"
+                   title="Opent de offerte op maat, voorgevuld met de gegevens van deze lead"
+                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                  <FileSignature size={14} /> {(canMakeOfferte || canMakeVerduurzaming) ? 'Offerte op maat' : 'Offerte maken'}
+                </a>
+              )}
+              {!isRecruitmentCampaign && !isBackofficeMode && (
+                <button type="button" className="btn btn-outline btn-sm" onClick={() => setMeldingOpen(true)}
+                  title="Klacht, bezwaar, AVG-verzoek of ACM-melding bij deze lead vastleggen"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
+                  <FileWarning size={14} /> Compliance-melding
+                </button>
+              )}
+              <div title="Lijst" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                 {listName}
+              </div>
+              {meldingOpen && (
+                <ComplianceMeldingModal lead={currentLead} onClose={() => setMeldingOpen(false)}
+                  onSaved={(nieuw) => { setMeldingOpen(false); if (nieuw) setLiveLead(nieuw) }} />
+              )}
+    </>
+  )
+
   const renderCallHistory = () => {
     if (callHistory.length === 0) return null
     return (
@@ -1043,6 +1089,15 @@ export default function WorkInterface() {
           </header>
 
           {/* Sub Header */}
+          {isV2 ? (
+            <BelHero
+              lead={{ ...currentLead, ...editableLead, status: currentLead.status, next_contact_date: currentLead.next_contact_date, geen_gehoor_reeks: currentLead.geen_gehoor_reeks }}
+              magBellen={magBellen}
+              isMobile={isMobile}
+              kopieKnop={<CopyButton text={currentLead.phone} label="Telefoonnummer Kopiëren" />}
+              acties={renderSubActies()}
+            />
+          ) : (
           <div style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)', padding: isMobile ? '10px 14px' : '10px 24px', display: 'flex', gap: '10px', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', minWidth: 0 }}>
                <h1 style={{ margin: 0, fontSize: isMobile ? '1.05rem' : '1.2rem', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currentLead.name}</h1>
@@ -1063,43 +1118,10 @@ export default function WorkInterface() {
                   <Phone size={16} /> Bellen
                 </a>
               )}
-              {canMakeOfferte && !isRecruitmentCampaign && (
-                <a href={offerteHrefForLead(currentLead.id)} target="_blank" rel="noopener" className="btn btn-outline btn-sm"
-                   title="Opent de offerte-tool, voorgevuld met de gegevens van deze lead"
-                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                  <FileSignature size={14} /> {canMakeVerduurzaming ? 'Offerte bestelplatform' : 'Offerte maken'}
-                </a>
-              )}
-              {canMakeVerduurzaming && !isRecruitmentCampaign && (
-                <a href={verduurzamingHrefForLead(currentLead.id)} target="_blank" rel="noopener" className="btn btn-outline btn-sm"
-                   title="Opent de verduurzaming-offerte, voorgevuld met de gegevens van deze lead"
-                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                  <FileSignature size={14} /> {canMakeOfferte ? 'Offerte verduurzaming' : 'Offerte maken'}
-                </a>
-              )}
-              {canMakeVrij && !isRecruitmentCampaign && (
-                <a href={vrijeOfferteHrefForLead(currentLead.id)} target="_blank" rel="noopener" className="btn btn-outline btn-sm"
-                   title="Opent de offerte op maat, voorgevuld met de gegevens van deze lead"
-                   style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                  <FileSignature size={14} /> {(canMakeOfferte || canMakeVerduurzaming) ? 'Offerte op maat' : 'Offerte maken'}
-                </a>
-              )}
-              {!isRecruitmentCampaign && !isBackofficeMode && (
-                <button type="button" className="btn btn-outline btn-sm" onClick={() => setMeldingOpen(true)}
-                  title="Klacht, bezwaar, AVG-verzoek of ACM-melding bij deze lead vastleggen"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap' }}>
-                  <FileWarning size={14} /> Compliance-melding
-                </button>
-              )}
-              <div title="Lijst" style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-muted)', whiteSpace: 'nowrap', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                 {listName}
-              </div>
-              {meldingOpen && (
-                <ComplianceMeldingModal lead={currentLead} onClose={() => setMeldingOpen(false)}
-                  onSaved={(nieuw) => { setMeldingOpen(false); if (nieuw) setLiveLead(nieuw) }} />
-              )}
+              {renderSubActies()}
             </div>
           </div>
+          )}
 
           {/* v65: open of getekende offerte van deze lead, live uit public.offertes
               v70: en hoe ver de bron komt met een verstuurde mail (lead_mail_status) */}
@@ -1416,21 +1438,33 @@ export default function WorkInterface() {
             maxHeight: isMobile ? '30vh' : 'auto',
             overflowY: isMobile ? 'auto' : 'visible'
           }}>
-            {directDispositions.map(d => (
-              <button
-                key={d.id}
-                disabled={isSubmitting}
-                onClick={() => kiesAfboeking(d)}
-                className="wi-dispo"
-                style={{
-                  '--c': d.color,
-                  minWidth: isMobile ? '110px' : undefined,
-                  flex: isMobile ? '1 1 120px' : '0 1 auto'
-                }}
-              >
-                {d.icon} {d.label}
-              </button>
-            ))}
+            {(() => {
+              const knop = d => (
+                <button
+                  key={d.id}
+                  disabled={isSubmitting}
+                  onClick={() => kiesAfboeking(d)}
+                  className="wi-dispo"
+                  style={{
+                    '--c': d.color,
+                    minWidth: isMobile ? '110px' : undefined,
+                    flex: isMobile ? '1 1 120px' : '0 1 auto'
+                  }}
+                >
+                  {d.icon} {d.label}
+                </button>
+              )
+              // v149: nieuw design op desktop: "Gesprek gehad" en "Niet gesproken" apart
+              if (!isV2 || isMobile) return directDispositions.map(knop)
+              const nietGesproken = directDispositions.filter(d => NIET_GESPROKEN.includes(d.id))
+              const gesproken = directDispositions.filter(d => !NIET_GESPROKEN.includes(d.id))
+              return (
+                <>
+                  {gesproken.length > 0 && <div className="wi-dgroep"><span className="wi-dgroep-label">Gesprek gehad</span>{gesproken.map(knop)}</div>}
+                  {nietGesproken.length > 0 && <div className="wi-dgroep"><span className="wi-dgroep-label">Niet gesproken</span>{nietGesproken.map(knop)}</div>}
+                </>
+              )
+            })()}
             {/* v105: nieuw design - de rest onder "Meer ..." */}
             {meerDispositions.length > 0 && (
               <div style={{ position: 'relative', flex: isMobile ? '1 1 120px' : '0 1 auto', display: 'flex' }}>

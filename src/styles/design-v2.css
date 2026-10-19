@@ -274,3 +274,38 @@
 /* v1-kleuren van Geen interesse / Blacklist waren te donker op donker */
 [data-design="v2"] .wi-dispo[style*="#334155"] { --c: var(--danger) !important; }
 [data-design="v2"] .wi-dispo[style*="#991B1B"] { --c: var(--danger) !important; opacity: 0.85; }
+
+/* ---------- v149: belscherm-kop (BelHero) en gegroepeerde afboekknoppen ---------- */
+.bh { padding: 14px 24px 0; display: flex; flex-direction: column; gap: 10px; }
+.bh-reden { display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 12px; font-size: 0.88rem; color: var(--text-primary); border: 1px solid color-mix(in srgb, var(--rk) 35%, transparent); }
+.bh-reden svg, .bh-reden strong { color: var(--rk); }
+.bh-kaart { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 14px; padding: 18px 20px; }
+.bh-rij { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 14px; align-items: flex-start; }
+.bh-wie { min-width: 0; }
+.bh-naamrij { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.bh-naam { margin: 0; font-family: var(--font-display, Manrope, sans-serif); font-weight: 800; font-size: 1.75rem; letter-spacing: -0.01em; color: var(--text-primary); line-height: 1.15; overflow-wrap: anywhere; }
+.bh-chip { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border-radius: 999px; font-size: 0.78rem; font-weight: 700; background: var(--success-bg); color: var(--success); }
+.bh-sub { margin-top: 4px; color: var(--text-secondary); font-size: 0.95rem; }
+.bh-nummer { display: flex; align-items: center; gap: 6px; }
+.bh-tel { font-family: var(--font-mono, 'IBM Plex Mono', monospace); font-variant-numeric: tabular-nums; font-size: 1.5rem; font-weight: 600; color: var(--text-primary); letter-spacing: 0.02em; }
+.bh-verborgen { font-weight: 700; color: var(--danger); }
+.bh-knoppen { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+.bh-spacer { flex: 1 1 0; }
+.bh-bel { display: inline-flex; align-items: center; gap: 9px; height: 48px; padding: 0 24px; border-radius: 12px; background: var(--accent); color: #07130D !important; font-family: var(--font-display, Manrope, sans-serif); font-weight: 800; font-size: 1.05rem; text-decoration: none; }
+[data-theme="light"] .bh-bel { color: #fff !important; }
+.bh-bel:hover { filter: brightness(1.07); }
+.bh-knop { display: inline-flex; align-items: center; gap: 7px; height: 38px; padding: 0 13px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--bg-surface); color: var(--text-primary) !important; font-size: 0.88rem; font-weight: 500; text-decoration: none; }
+.bh-knop:hover { background: var(--bg-elevated); }
+.bh-knoppen .btn { height: 38px; border-radius: 10px; }
+@media (max-width: 1023px) {
+  .bh { padding: 10px 12px 0; }
+  .bh-kaart { padding: 14px; }
+  .bh-naam { font-size: 1.3rem; }
+  .bh-tel { font-size: 1.2rem; }
+}
+
+.wi-dgroep { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wi-dgroep-label { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text-secondary); margin-right: 2px; }
+.wi-dgroep + .wi-dgroep { padding-left: 14px; border-left: 1px solid var(--border-subtle); }
+/* v149: de snelle knoppen staan nu groot in de belscherm-kop, niet nog eens in de contactkaart */
+[data-design="v2"] .wi-card-head .wi-quick { display: none; }

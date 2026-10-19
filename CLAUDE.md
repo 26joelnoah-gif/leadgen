@@ -1168,3 +1168,16 @@ Twee-zijdig platform:
   nog 'v1' (ALTER op profiles loopt via MCP vast), maar dat maakt niet uit: alleen
   een admin kan v1 zien. Nog te doen uit fase 3: de nieuwe schermindelingen
   (design-canvas "ReachConnect design-upgrade") scherm voor scherm bouwen.
+
+- **NIEUW BELSCHERM, STAP 1 (v149, 2026-10-19, geen migratie):** in design v2
+  vervangt src/components/belscherm/BelHero.jsx de oude subkop van
+  WorkInterface: regel "waarom bel je" (terugbelafspraak / later bellen / na
+  mail / eerder niet opgenomen / nieuwe lead, met relativeDue), naam groot +
+  rechtsvorm-chip, nummer groot (mono) met kopieerknop, grote Bellen-knop en
+  Mail/Route/Website/KvK. Offerte-knoppen, Compliance-melding en lijstnaam staan
+  in renderSubActies() (gedeeld met de oude v1-subkop). De afboekknoppen staan
+  op desktop in twee groepen: "Gesprek gehad" en "Niet gesproken"
+  (NIET_GESPROKEN bovenin WorkInterface). Alleen opmaak: geen handler, hook of
+  status veranderd. CSS: .bh-* en .wi-dgroep in design-v2.css. Volgende
+  stappen uit het canvas: afboekpaneel rechts, terugbellen met snelle tijden,
+  Ongedaan maken + automatisch volgende lead.
