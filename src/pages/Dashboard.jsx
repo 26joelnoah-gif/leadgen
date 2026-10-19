@@ -19,6 +19,7 @@ import EmployeeModal from '../components/EmployeeModal' // v107
 import { maakAccount, magAccountsAanmaken, rollenVoorMaker } from '../lib/accounts' // v107, v125
 import MyMailStats from '../components/MyMailStats' // v82
 import MyAppointmentStats from '../components/MyAppointmentStats' // v110
+import OpvolgBlok from '../components/OpvolgBlok' // v144
 import NieuwsBlok from '../components/NieuwsBlok' // v108
 import { useToast } from '../components/Toast'
 import PersonSelect from '../components/PersonSelect' // v102
@@ -419,6 +420,9 @@ export default function Dashboard() {
             </motion.div>
           ))}
         </div>
+
+        {/* v144: wat moet er vandaag opgevolgd worden (admin/manager: per persoon) */}
+        <OpvolgBlok />
 
         {/* v82: mailteller voor bellers die via de Mailingservice mailen
             (MarketingKiezer); toont zichzelf pas na de eerste mail */}

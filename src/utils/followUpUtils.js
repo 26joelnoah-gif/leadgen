@@ -15,6 +15,8 @@ export function nextContactOnOtherDaypart(daysAhead) {
 // Staat de opvolgdatum van deze lead in het verleden? Dan vraagt hij om actie.
 export function isFollowUpDue(lead, now = Date.now()) {
   if (!lead?.next_contact_date) return false
+  // v144: geen gehoor = weer nieuw in de lijst, geen opvolging
+  if (lead.status === 'geen_gehoor' || lead.status === 'voicemail') return false
   const t = new Date(lead.next_contact_date).getTime()
   return !isNaN(t) && t <= now
 }

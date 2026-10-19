@@ -458,10 +458,9 @@ export function useLeads() {
       else if (rule.auto_assign_to === 'none') updates.assigned_to = null
       if (rule.append_agent_note) updates.notes = `${updates.notes}\n— Afgeboekt door ${agentName}`
     }
-    // v131b: geen gehoor verandert NOOIT de eigenaar. Een vrije lead blijft
-    // vrij (de DB-trigger maakt je er geen eigenaar meer van), een lead die
-    // al van jou is (eerder contact gehad) blijft van jou.
-    if (geenGehoorBord && 'assigned_to' in updates) updates.assigned_to = currentLead.assigned_to ?? null
+    // v144: geen gehoor = terug in de leadlijst als nieuw, van niemand. De
+    // DB-trigger leads_owner_on_status doet hetzelfde, dit houdt het scherm gelijk.
+    if (geenGehoorBord) updates.assigned_to = null
 
     // v27: onjuiste timing krijgt een instelbare cooldown; daarna komt de
     // lead automatisch terug in de belwachtrij

@@ -1084,3 +1084,34 @@ Twee-zijdig platform:
      in de RPC al). Aanleiding: Lily (manager) zag hem niet; haar vinkje
      can_create_users stond in de database nog uit.
 
+
+- **OPVOLGING: GEEN GEHOOR = NIEUW, WACHTRIJ, AUTOMATISCH VRIJGEVEN,
+  BLOK VANDAAG OPVOLGEN (v144, 2026-10-19, migratie toegepast):**
+  Aanleiding: analyse 19-10. 276 opvolgingen te laat, 132x geen gehoor in
+  PROSELL gemiddeld 13 dagen blijven liggen, terugbelafspraken die alleen de
+  eigenaar mocht bellen (ook als die gestopt was).
+  1. Geen gehoor (en voicemail) is GEEN opvolging meer. In bordprojecten wordt
+     de lead weer van niemand (trigger leads_owner_on_status + useLeads +
+     LeadBoard.moveLead) en staat hij in kolom Nieuw (leadBoard.js). Geen
+     "Opvolgen"-datum of rode te-laat meer (followUps.planningDate,
+     followUpUtils.isFollowUpDue), niet in het Te doen-paneel
+     (REMINDER_STATUSES). 5x op een rij blijft "Niet bereikbaar".
+  2. claim_next_lead volgorde: eigen terugbelafspraak > eigen slot > opvolging
+     waarvan de tijd om is (oudste eerst) > rechtsvorm bekend > score > nieuw en
+     geen gehoor. Geen gehoor sluit ACHTERAAN aan (sorteert op updated_at = moment
+     van de poging, nieuw op created_at). Een vrije terugbelafspraak
+     (assigned_to leeg) mag nu iedereen pakken, ook in bordprojecten.
+  3. public.opvolgingen_vrijgeven() via pg_cron reachconnect-opvolgingen-vrijgeven
+     (elk uur :12): in bordprojecten gaan terugbelafspraak / later_bellen /
+     mail_verstuurd / onjuiste_timing terug naar de lijst (assigned_to leeg) als
+     ze 2 werkdagen te laat zijn (public.plus_werkdagen) of de eigenaar
+     inactief/verwijderd is. Ook geen-gehoor-leads die nog een eigenaar hadden.
+     offerte_verzonden en afspraken NIET. Melding (type opvolging_vrijgegeven)
+     aan de eigenaar en aan de managers van het project. Ruimt ook sloten op van
+     gestopte medewerkers en sloten >12 uur op vrije nieuw/geen-gehoor-leads.
+  4. RPC public.opvolg_overzicht() + src/components/OpvolgBlok.jsx op het
+     Dashboard: eigen "vandaag" en "te laat"; admin/manager ook per persoon en
+     "Vrij in de leadlijst".
+  Eenmalig: 15 open leads van Wiam, Mehmet en Sened op new gezet; eerste run
+  van de vrijgeef-functie zette 109 leads terug in de lijst.
+  Migratie: supabase/migrations/migration_v144_opvolging.sql.

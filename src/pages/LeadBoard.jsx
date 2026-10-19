@@ -467,7 +467,8 @@ export default function LeadBoard() {
     if (boardEnabled && user?.id) updates.assigned_to = user.id // v79: wie een status geeft is eigenaar
     // v131: terug naar Nieuw = van niemand. Niet bereikbaar houdt de eigenaar.
     if (boardEnabled && status === 'new') updates.assigned_to = null
-    if (boardEnabled && GEEN_GEHOOR_STATUSES.includes(status)) updates.assigned_to = lead.assigned_to ?? null
+    // v144: geen gehoor = terug in de leadlijst, van niemand
+    if (boardEnabled && GEEN_GEHOOR_STATUSES.includes(status)) updates.assigned_to = null
     if (status === 'later_bellen' && !('next_contact_date' in extra)) {
       updates.next_contact_date = nextContactOnOtherDaypart(1)
     }
@@ -873,7 +874,7 @@ export default function LeadBoard() {
           <div className="lc-meta" style={{ color: 'var(--secondary)' }} title="Afspraakmoment">
             <CalendarDays size={11} />{appointmentLabel(lead)} {dateShort(lead.appointment_at)}
           </div>
-        ) : lead.next_contact_date && !DONE_STATUSES.includes(lead.status) ? (
+        ) : lead.next_contact_date && !DONE_STATUSES.includes(lead.status) && !GEEN_GEHOOR_STATUSES.includes(lead.status) ? (
           <div className="lc-meta" title="Opvolgdatum: dan komt de lead terug in de wachtrij"
             style={planningGroup(lead, DONE_STATUSES) === 'overdue' ? { color: 'var(--danger)' } : planningGroup(lead, DONE_STATUSES) === 'today' ? { color: 'var(--warning)' } : undefined}>
             <Clock size={11} />{lead.status === 'terugbelafspraak' ? 'Terugbellen' : 'Opvolgen'} {dateShort(lead.next_contact_date)}
@@ -1215,7 +1216,7 @@ export default function LeadBoard() {
                           {/* v130: wanneer moet er iets gebeuren */}
                           {lead.status === 'afspraak_gemaakt' && lead.appointment_at ? (
                             <span style={{ color: 'var(--secondary)', fontWeight: 700 }}><CalendarDays size={12} style={{ verticalAlign: -2 }} /> {appointmentLabel(lead)} {dateShort(lead.appointment_at)}</span>
-                          ) : lead.next_contact_date && !done ? (
+                          ) : lead.next_contact_date && !done && !GEEN_GEHOOR_STATUSES.includes(lead.status) ? (
                             <span style={{ fontWeight: 700, color: planningGroup(lead, DONE_STATUSES) === 'overdue' ? 'var(--danger)' : planningGroup(lead, DONE_STATUSES) === 'today' ? 'var(--warning)' : undefined }}>
                               <Clock size={12} style={{ verticalAlign: -2 }} /> {lead.status === 'terugbelafspraak' ? 'Terugbellen' : 'Opvolgen'} {dateShort(lead.next_contact_date)}
                             </span>

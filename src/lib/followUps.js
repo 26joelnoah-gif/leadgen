@@ -5,7 +5,8 @@
 // Statussen waarvoor een beller een melding krijgt als de opvolgdatum bereikt
 // is. v131b: geen gehoor/voicemail alleen als de lead van JOU is (eerder
 // contact gehad); vrije geen-gehoor-leads zijn van niemand en komen hier niet.
-export const REMINDER_STATUSES = ['terugbelafspraak', 'later_bellen', 'onjuiste_timing', 'mail_verstuurd', 'geen_gehoor', 'voicemail']
+// v144: geen gehoor is geen opvolging meer; de lead gaat terug in de leadlijst als nieuw.
+export const REMINDER_STATUSES = ['terugbelafspraak', 'later_bellen', 'onjuiste_timing', 'mail_verstuurd']
 
 export function reminderLabel(status) {
   if (status === 'terugbelafspraak') return 'Terugbelafspraak'
@@ -32,6 +33,8 @@ export function planningDate(lead, doneStatuses = []) {
   if (!lead) return null
   if (lead.status === 'afspraak_gemaakt') return lead.appointment_at || null
   if (doneStatuses.includes(lead.status)) return null
+  // v144: geen gehoor heeft geen opvolgmoment, hij staat gewoon weer bij Nieuw
+  if (lead.status === 'geen_gehoor' || lead.status === 'voicemail') return null
   return lead.next_contact_date || null
 }
 
