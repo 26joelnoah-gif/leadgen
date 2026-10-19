@@ -51,8 +51,8 @@
         document.documentElement.setAttribute('data-theme', (t === 'light' || t === 'dark') ? t : 'dark');
         // v105: oud/nieuw design (zie src/lib/design.js)
         var d = localStorage.getItem('reachconnect-design');
-        document.documentElement.setAttribute('data-design', d === 'v2' ? 'v2' : 'v1');
-      } catch (e) { document.documentElement.setAttribute('data-theme', 'dark'); document.documentElement.setAttribute('data-design', 'v1'); }
+        document.documentElement.setAttribute('data-design', d === 'v1' ? 'v1' : 'v2'); // v148: standaard v2
+      } catch (e) { document.documentElement.setAttribute('data-theme', 'dark'); document.documentElement.setAttribute('data-design', 'v2'); }
     })();
   </script>
 </head>

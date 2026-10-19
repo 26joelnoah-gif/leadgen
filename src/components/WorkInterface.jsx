@@ -15,6 +15,7 @@ import { getStatusDetails, RECRUITMENT_LABELS } from '../utils/statusUtils'
 import { OfferteBriefing } from './OfferteStatus'
 import { MailStatusBriefing } from './MailStatus'
 import OvergenomenBanner from './OvergenomenBanner' // v145
+import { designVoor } from '../lib/design' // v148
 import { useProjectTools, offerteHrefForLead, verduurzamingHrefForLead, vrijeOfferteHrefForLead } from '../hooks/useProjectTools'
 import { useProjectMailService } from '../hooks/useProjectMailService'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
@@ -672,7 +673,7 @@ export default function WorkInterface() {
 
   // v105: nieuw design toont max 8 knoppen (telefoon 5), de rest onder "Meer ...".
   // Oud design (v1): alles zoals het was, geen "Meer".
-  const isV2 = profile?.ui_design === 'v2'
+  const isV2 = designVoor(profile) === 'v2' // v148: v2 voor iedereen
   const maxDirect = isMobile ? 5 : 8
   const directDispositions = isV2 && visibleDispositions.length > maxDirect + 1 ? visibleDispositions.slice(0, maxDirect) : visibleDispositions
   const meerDispositions = isV2 && visibleDispositions.length > maxDirect + 1 ? visibleDispositions.slice(maxDirect) : []

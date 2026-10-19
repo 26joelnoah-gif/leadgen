@@ -344,15 +344,15 @@ export default function Header({ onOpenSettings }) {
           {isRealAdmin && (
             <button
               onClick={async () => {
-                const nieuw = profile?.ui_design === 'v2' ? 'v1' : 'v2'
+                const nieuw = profile?.ui_design === 'v1' ? 'v2' : 'v1'
                 const { error } = await supabase.from('profiles').update({ ui_design: nieuw }).eq('id', profile.id)
                 if (error) { designToast(error.message || 'Wisselen mislukt', 'error'); return }
                 updateProfileLocal({ ui_design: nieuw })
-                designToast(nieuw === 'v2' ? 'Nieuw design staat aan (alleen voor jou)' : 'Terug naar het huidige design', 'success')
+                designToast(nieuw === 'v2' ? 'Nieuw design staat weer aan' : 'Oud design (alleen voor jou, als noodknop)', 'success')
               }}
               className="btn btn-sm btn-outline"
-              style={{ padding: '8px', minWidth: 'auto', ...(profile?.ui_design === 'v2' ? { color: 'var(--accent)', borderColor: 'var(--accent)' } : {}) }}
-              title={profile?.ui_design === 'v2' ? 'Nieuw design staat aan. Klik voor het huidige design.' : 'Nieuw design proberen (alleen voor jou)'}
+              style={{ padding: '8px', minWidth: 'auto', ...(profile?.ui_design !== 'v1' ? { color: 'var(--accent)', borderColor: 'var(--accent)' } : {}) }}
+              title={profile?.ui_design !== 'v1' ? 'Nieuw design staat aan voor iedereen. Klik om alleen voor jezelf het oude design te zien.' : 'Je ziet het oude design. Klik voor het nieuwe.'}
             >
               <Palette size={16} />
             </button>

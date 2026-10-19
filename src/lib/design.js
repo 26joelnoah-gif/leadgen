@@ -8,7 +8,13 @@ const FONT_ID = 'reachconnect-v2-fonts'
 const FONT_HREF = 'https://fonts.googleapis.com/css2?family=Manrope:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap'
 
 export function normalizeDesign(v) {
-  return v === 'v2' ? 'v2' : 'v1'
+  return v === 'v1' ? 'v1' : 'v2'
+}
+
+// v148: het nieuwe design (v2) staat voor IEDEREEN aan. Alleen een admin kan
+// voor zichzelf nog terug naar v1 (noodknop in de kopbalk), verder niemand.
+export function designVoor(profile) {
+  return profile?.role === 'admin' && profile?.ui_design === 'v1' ? 'v1' : 'v2'
 }
 
 export function applyDesign(value) {

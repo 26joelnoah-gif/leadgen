@@ -1158,3 +1158,13 @@ Twee-zijdig platform:
   REGEL: een nieuwe pagina in App.jsx = laadPagina(() => import('./pages/X')),
   en importeer nooit een pagina vanuit een component (dan zit hij weer in het
   hoofdbestand).
+
+- **NIEUW DESIGN (v2) VOOR IEDEREEN (v148, 2026-10-19, geen migratie):** op
+  verzoek van Noah staat v2 nu voor alle gebruikers aan (DESIGN_UITROL_PLAN fase
+  4, start). src/lib/design.js designVoor(profile): altijd 'v2', behalve een
+  admin met profiles.ui_design = 'v1' (noodknop: palet-icoon in de kopbalk, alleen
+  voor jezelf). normalizeDesign() en index.html vallen nu terug op v2. Alle
+  profielen eenmalig op ui_design='v2' gezet. De kolom-default in de database is
+  nog 'v1' (ALTER op profiles loopt via MCP vast), maar dat maakt niet uit: alleen
+  een admin kan v1 zien. Nog te doen uit fase 3: de nieuwe schermindelingen
+  (design-canvas "ReachConnect design-upgrade") scherm voor scherm bouwen.
