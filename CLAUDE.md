@@ -1181,3 +1181,24 @@ Twee-zijdig platform:
   status veranderd. CSS: .bh-* en .wi-dgroep in design-v2.css. Volgende
   stappen uit het canvas: afboekpaneel rechts, terugbellen met snelle tijden,
   Ongedaan maken + automatisch volgende lead.
+
+- **DAGDOEL + BEREIK (v150, 2026-10-19, migratie v150a toegepast):**
+  1. Elke beller zet zelf zijn doel voor vandaag: tabel public.dagdoelen
+     (user_id, dag, doel; RLS: eigen rijen schrijven, admin/manager lezen; GEEN FK
+     naar profiles, die liep via MCP vast). Hook src/hooks/useDagdoel.js (doel van
+     vandaag, voorstel = laatste doel, bewaar(), event 'reachconnect-dagdoel' houdt
+     dashboard en belscherm gelijk). Valt terug op payout_rules.min_calls_per_day.
+  2. Belscherm-kopbalk: DoelChip (38 / 80 met balkje, klik = doel zetten) en
+     BereikChip ("Goed bereik 83%"). Stoppen onder je doel vraagt een tweede klik
+     (klikStoppen in WorkInterface); doel gehaald = toast.
+  3. Dashboard (bellers): src/components/MijnDag.jsx met doel, voortgang,
+     "op dit tempo ben je om 16:30 klaar" en een balkje per uur (9-17) met de
+     beste uren groen.
+  4. Bereik: RPC public.bereik_per_uur(p_dagen) -> uur/pogingen/opgenomen
+     (werkdagen, geen bord-acties, sales). src/hooks/useBereik.js cachet 30 min,
+     telt een uur pas mee vanaf 15 gesprekken; goed = 3 punten boven gemiddeld,
+     minder = 5 punten onder.
+  5. "Ongedaan maken" na afboeken: RPC afboeking_terugdraaien staat klaar in
+     supabase/migrations/migration_v150b_afboeking_terugdraaien.sql maar is NOG
+     NIET toegepast (bevat een delete; MCP vroeg bevestiging en brak af). De
+     knop in de app wordt pas gebouwd als de functie bestaat.

@@ -1,0 +1,6 @@
+-- v150 (2026-10-19): eigen dagdoel per beller + bereik per uur. TOEGEPAST.
+-- (zelfde inhoud als migratie v150a_dagdoel_bereik in Supabase)
+-- Tabel public.dagdoelen (user_id, dag, doel) zonder FK naar profiles: een FK
+-- maken liep via de MCP-tool vast op de drukbezette profiles-tabel.
+-- RPC public.bereik_per_uur(p_dagen) -> uur, pogingen, opgenomen (werkdagen,
+-- geen bord-acties, alleen sales-projecten van de eigen organisatie).

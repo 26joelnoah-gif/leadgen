@@ -615,3 +615,28 @@
   .rc-pagina { animation: none; }
   .rc-laden { animation-duration: 1.6s; }
 }
+
+/* v150: dagdoel en bereik (belscherm-kopbalk + dashboard) */
+.doel-chip, .bereik-chip { display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px; border-radius: 999px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; }
+.doel-chip { border: 1px solid var(--border-strong, var(--border)); background: var(--bg-elevated); color: var(--text-primary); cursor: pointer; }
+.doel-chip.is-leeg { border-style: dashed; color: var(--text-secondary); }
+.doel-chip.is-gehaald { border-color: var(--success); color: var(--success); }
+.doel-getal { font-variant-numeric: tabular-nums; }
+.doel-balk { width: 56px; height: 6px; border-radius: 999px; background: var(--border-subtle, rgba(255,255,255,.12)); overflow: hidden; display: inline-block; }
+.doel-balk > span { display: block; height: 100%; background: var(--success); border-radius: 999px; transition: width .3s ease; }
+.bereik-pct { opacity: .8; font-variant-numeric: tabular-nums; }
+.doel-pop { position: absolute; top: calc(100% + 8px); left: 0; z-index: 61; width: 280px; padding: 14px; border-radius: 14px; background: var(--bg-card); border: 1px solid var(--border-strong, var(--border)); box-shadow: var(--shadow-lg, 0 10px 28px rgba(0,0,0,.35)); color: var(--text-primary); }
+.doel-pop-titel { font-weight: 700; font-size: 0.9rem; margin-bottom: 10px; }
+.doel-invoer { display: flex; flex-direction: column; gap: 10px; }
+.doel-snel { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.doel-snelknop { height: 38px; border-radius: 10px; border: 1px solid var(--border-strong, var(--border)); background: var(--bg-surface, var(--bg-card)); color: var(--text-primary); font-weight: 700; cursor: pointer; }
+.doel-snelknop.is-actief, .doel-snelknop:hover { border-color: var(--accent); background: var(--accent-soft, rgba(34,197,94,.14)); }
+.doel-eigen { display: flex; align-items: center; gap: 6px; }
+.doel-label { font-size: 0.78rem; color: var(--text-secondary); margin-right: auto; }
+.doel-eigen input { width: 80px; height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--border-strong, var(--border)); background: var(--bg-surface, var(--bg-card)); color: var(--text-primary); font-weight: 700; }
+.doel-ok { width: 36px; height: 36px; border-radius: 10px; border: none; background: var(--accent); color: #07130D; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+.uur-balken { display: grid; gap: 6px; align-items: end; height: 110px; }
+.uur-balk { border-radius: 6px 6px 2px 2px; background: var(--border-strong, #3A4152); position: relative; }
+.uur-balk.is-goed { background: var(--success); }
+.uur-balk.is-nu { outline: 2px solid var(--text-primary); outline-offset: 2px; }
+.uur-labels { display: grid; gap: 6px; margin-top: 6px; font-size: 0.7rem; color: var(--text-secondary); text-align: center; font-variant-numeric: tabular-nums; }

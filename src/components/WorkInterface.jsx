@@ -17,6 +17,9 @@ import { MailStatusBriefing } from './MailStatus'
 import OvergenomenBanner from './OvergenomenBanner' // v145
 import { designVoor } from '../lib/design' // v148
 import BelHero from './belscherm/BelHero' // v149
+import DoelChip from './belscherm/DoelChip' // v150
+import BereikChip from './belscherm/BereikChip' // v150
+import { useDagdoel } from '../hooks/useDagdoel' // v150
 
 // v149: afboekingen zonder gesprek (eigen groep in het nieuwe belscherm)
 const NIET_GESPROKEN = ['geen_gehoor', 'voicemail', 'verkeerd_nummer', 'later_bellen']
@@ -291,6 +294,28 @@ export default function WorkInterface() {
   const leadStartRef = useRef(new Date().toISOString())
   const [todayCalls, setTodayCalls] = useState(0)
   const [dailyTarget, setDailyTarget] = useState(0)
+  // v150: eigen dagdoel van de beller; stoppen onder je doel vraagt een tweede klik
+  const { doel: eigenDoel } = useDagdoel()
+  const doelVandaag = eigenDoel || dailyTarget
+  const [stopVraag, setStopVraag] = useState(false)
+  const doelGemeldRef = useRef(false)
+  useEffect(() => {
+    if (!doelVandaag || doelGemeldRef.current) return
+    if (todayCalls >= doelVandaag && todayCalls > 0) {
+      doelGemeldRef.current = true
+      toast(`Dagdoel gehaald: ${todayCalls} gesprekken. Sterk werk!`, 'success', 6000)
+    }
+  }, [todayCalls, doelVandaag]) // eslint-disable-line react-hooks/exhaustive-deps
+  function klikStoppen() {
+    if (doelVandaag && todayCalls < doelVandaag && !stopVraag) {
+      setStopVraag(true)
+      setTimeout(() => setStopVraag(false), 6000)
+      toast(`Nog ${doelVandaag - todayCalls} gesprekken tot je doel van ${doelVandaag}. Klik nog een keer op Stoppen om toch te stoppen.`, 'info', 6000)
+      return
+    }
+    setStopVraag(false)
+    toggleWorkingMode()
+  }
 
   useEffect(() => {
     const handleResize = () => setIsMobile(window.innerWidth < 1024)
@@ -1070,22 +1095,16 @@ export default function WorkInterface() {
                  {isBackofficeMode ? 'Backoffice - Monteur inplannen' : 'Belmodus'}
                </h2>
                <span className="wi-top-chip" style={{ background: 'var(--secondary)', color: 'var(--primary-dark)', padding: '2px 8px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>Vandaag: {todayCalls}</span>
-               {dailyTarget > 0 && (
-                 <span style={{
-                   background: todayCalls >= dailyTarget ? 'var(--success)' : 'rgba(255,255,255,0.15)',
-                   color: 'var(--text-on-accent)', padding: '2px 10px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold',
-                   display: 'flex', alignItems: 'center', gap: '4px'
-                 }}>
-                   <Target size={12} /> {todayCalls}/{dailyTarget}{todayCalls >= dailyTarget ? ' ✅' : ''}
-                 </span>
-               )}
+               {/* v150: eigen dagdoel (klik om te zetten) en live bereik */}
+               <DoelChip gedaan={todayCalls} standaard={dailyTarget} />
+               <BereikChip />
                {progress && (
                  <span className="wi-top-chip" style={{ background: 'var(--bg-elevated)', color: 'var(--text-primary)', padding: '2px 10px', borderRadius: '4px', fontSize: '0.8rem', fontWeight: 'bold' }}>
                    Nog {progress.remaining} in wachtrij
                  </span>
                )}
             </div>
-            <button className="wi-top-close" onClick={toggleWorkingMode} style={{ background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--text-primary)', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><X size={16} /> Sluiten</button>
+            <button className="wi-top-close" onClick={klikStoppen} style={{ background: 'transparent', border: '1px solid var(--border-strong)', color: 'var(--text-primary)', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}><X size={16} /> Sluiten</button>
           </header>
 
           {/* Sub Header */}

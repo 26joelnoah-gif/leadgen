@@ -20,6 +20,7 @@ import { maakAccount, magAccountsAanmaken, rollenVoorMaker } from '../lib/accoun
 import MyMailStats from '../components/MyMailStats' // v82
 import MyAppointmentStats from '../components/MyAppointmentStats' // v110
 import OpvolgBlok from '../components/OpvolgBlok' // v144
+import MijnDag from '../components/MijnDag' // v150
 import NieuwsBlok from '../components/NieuwsBlok' // v108
 import { useToast } from '../components/Toast'
 import PersonSelect from '../components/PersonSelect' // v102
@@ -422,6 +423,8 @@ export default function Dashboard() {
         </div>
 
         {/* v144: wat moet er vandaag opgevolgd worden (admin/manager: per persoon) */}
+        {/* v150: eigen dagdoel + bereik per uur */}
+        {isBeller && <MijnDag />}
         <OpvolgBlok />
 
         {/* v82: mailteller voor bellers die via de Mailingservice mailen
