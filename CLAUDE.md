@@ -1142,3 +1142,19 @@ Twee-zijdig platform:
   uit afspraken + agenda_blocks (ook Google-blokkades, v114). Een gekozen moment
   onthoudt zijn eigen week (pickedSlot.weekKey). Andere werktijden = alleen
   WERKTIJDEN aanpassen.
+
+- **VLOEIENDER: PAGINA'S APART LADEN + ZACHTE OVERGANG (v147, 2026-10-19, geen
+  migratie):** de app was 1 bestand van ~2 MB (alle 31 pagina's). Nu laadt
+  App.jsx alleen Login, Home en Dashboard meteen; de rest via laadPagina()
+  (React.lazy). Mislukt het laden van een paginabestand (oud bestand weg na een
+  deploy), dan herlaadt de app 1 keer (sessionStorage 'reachconnect-chunk-herladen').
+  Na inloggen laadt laadAlvast() de vaste pagina's stil op de achtergrond
+  (requestIdleCallback), zodat doorklikken direct gaat. Suspense-fallback
+  PaginaLaden toont pas na 250 ms een draaiertje (.rc-laden). Pagina's staan in
+  <div key={pathname} className="rc-pagina"> met een fade van 0,18 s (alleen
+  opacity, nooit transform: dat breekt position: fixed in een pagina).
+  useOnderhoud pollt nog elke 5 min (was elke minuut, 5.000+ verzoeken/dag);
+  realtime doet het snelle werk.
+  REGEL: een nieuwe pagina in App.jsx = laadPagina(() => import('./pages/X')),
+  en importeer nooit een pagina vanuit een component (dan zit hij weer in het
+  hoofdbestand).

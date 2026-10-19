@@ -599,3 +599,19 @@
 .todo-sub-box .todo-actions:first-child { margin-top: 0; }
 .todo-actions .lc-btn.is-active { color: var(--text-primary); border-color: var(--accent); }
 .todo-actions + .todo-actions { margin-top: 6px; }
+
+/* v147: zachte overgang tussen pagina's (alleen opacity: geen transform, anders
+   gedragen position: fixed elementen in een pagina zich anders) */
+.rc-pagina { animation: rcPaginaIn 0.18s ease-out; }
+@keyframes rcPaginaIn { from { opacity: 0; } to { opacity: 1; } }
+.rc-laden {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 3px solid var(--border-subtle, rgba(255,255,255,0.12));
+  border-top-color: var(--accent, #22C55E);
+  animation: rcDraai 0.7s linear infinite;
+}
+@keyframes rcDraai { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .rc-pagina { animation: none; }
+  .rc-laden { animation-duration: 1.6s; }
+}

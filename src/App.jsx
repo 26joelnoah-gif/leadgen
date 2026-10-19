@@ -1,40 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { ToastProvider } from './components/Toast'
 import Login from './pages/Login'
-import Setup from './pages/Setup'
 import Dashboard from './pages/Dashboard'
-import TBAs from './pages/TBAs'
-import Earnings from './pages/Earnings'
-import Admin from './pages/Admin'
-import Reports from './pages/Reports'
-import Kanban from './pages/Kanban'
-import Telemetry from './pages/Telemetry'
-import Foutlogboek from './pages/Foutlogboek'
-import Payouts from './pages/Payouts'
-import LeadManagement from './pages/LeadManagement'
-import Manager from './pages/Manager'
-import Recruitment from './pages/Recruitment'
-import Roosters from './pages/Roosters'
-import Tools from './pages/Tools'
-import LeadBoard from './pages/LeadBoard'
-import Outside from './pages/Outside'
-import Tekenen from './pages/Tekenen'
-import Agenda from './pages/Agenda'
-import MijnAfspraken from './pages/MijnAfspraken' // v110
-import Offertes from './pages/Offertes' // v112
-import Overeenkomsten from './pages/Overeenkomsten' // v136
 import OvereenkomstGate from './components/OvereenkomstGate' // v136
-import VerklaringLink from './pages/VerklaringLink' // v137
-import Aanbrengen from './pages/Aanbrengen' // v127
 import Home from './pages/Home'
-import Aanmelden from './pages/Aanmelden'
-import AanmeldenBedankt from './pages/AanmeldenBedankt'
 import { Privacy, Voorwaarden } from './pages/Juridisch'
-import AccountManagement from './pages/AccountManagement'
-import BriefingScript from './pages/BriefingScript'
 import { useToolAccess } from './hooks/useToolAccess'
 import WorkInterface from './components/WorkInterface'
 import FollowUpReminders from './components/FollowUpReminders' // v130
@@ -44,6 +17,82 @@ import { OnderhoudScherm, OnderhoudBanner } from './components/Onderhoud' // v11
 import { useOnderhoud } from './hooks/useOnderhoud' // v117
 import FeatureAwareness from './components/FeatureAwareness'
 import Chat from './components/Chat'
+
+// v147: pagina's laden pas als je ze opent (was: alles in 1 bestand van 2 MB).
+// Na een nieuwe deploy bestaat een oud paginabestand niet meer; dan herladen
+// we de app 1 keer, zodat je de nieuwe versie krijgt in plaats van een fout.
+const CHUNK_VLAG = 'reachconnect-chunk-herladen'
+function laadPagina(importer) {
+  return lazy(() => importer()
+    .then(m => { try { sessionStorage.removeItem(CHUNK_VLAG) } catch { /* privemodus */ } return m })
+    .catch(err => {
+      let al = false
+      try { al = sessionStorage.getItem(CHUNK_VLAG) === '1' } catch { /* privemodus */ }
+      if (!al) {
+        try { sessionStorage.setItem(CHUNK_VLAG, '1') } catch { /* privemodus */ }
+        window.location.reload()
+        return new Promise(() => {})
+      }
+      throw err
+    }))
+}
+const Setup = laadPagina(() => import('./pages/Setup'))
+const TBAs = laadPagina(() => import('./pages/TBAs'))
+const Earnings = laadPagina(() => import('./pages/Earnings'))
+const Admin = laadPagina(() => import('./pages/Admin'))
+const Reports = laadPagina(() => import('./pages/Reports'))
+const Kanban = laadPagina(() => import('./pages/Kanban'))
+const Telemetry = laadPagina(() => import('./pages/Telemetry'))
+const Foutlogboek = laadPagina(() => import('./pages/Foutlogboek'))
+const Payouts = laadPagina(() => import('./pages/Payouts'))
+const LeadManagement = laadPagina(() => import('./pages/LeadManagement'))
+const Manager = laadPagina(() => import('./pages/Manager'))
+const Recruitment = laadPagina(() => import('./pages/Recruitment'))
+const Roosters = laadPagina(() => import('./pages/Roosters'))
+const Tools = laadPagina(() => import('./pages/Tools'))
+const LeadBoard = laadPagina(() => import('./pages/LeadBoard'))
+const Outside = laadPagina(() => import('./pages/Outside'))
+const Tekenen = laadPagina(() => import('./pages/Tekenen'))
+const Agenda = laadPagina(() => import('./pages/Agenda'))
+const MijnAfspraken = laadPagina(() => import('./pages/MijnAfspraken')) // v110
+const Offertes = laadPagina(() => import('./pages/Offertes')) // v112
+const Overeenkomsten = laadPagina(() => import('./pages/Overeenkomsten')) // v136
+const VerklaringLink = laadPagina(() => import('./pages/VerklaringLink')) // v137
+const Aanbrengen = laadPagina(() => import('./pages/Aanbrengen')) // v127
+const Aanmelden = laadPagina(() => import('./pages/Aanmelden'))
+const AanmeldenBedankt = laadPagina(() => import('./pages/AanmeldenBedankt'))
+const AccountManagement = laadPagina(() => import('./pages/AccountManagement'))
+const BriefingScript = laadPagina(() => import('./pages/BriefingScript'))
+
+// v147: de meest gebruikte pagina's alvast stil inladen zodra de browser niets
+// te doen heeft, zodat doorklikken direct gaat.
+function laadAlvast() {
+  const lijst = [
+    () => import('./pages/LeadBoard'), () => import('./pages/Agenda'),
+    () => import('./pages/MijnAfspraken'), () => import('./pages/Admin'),
+    () => import('./pages/Recruitment'), () => import('./pages/Roosters'),
+    () => import('./pages/Tools'), () => import('./pages/Reports'),
+  ]
+  const stap = () => {
+    const volgende = lijst.shift()
+    if (!volgende) return
+    volgende().catch(() => {}).finally(() => plan(stap))
+  }
+  const plan = (fn) => (window.requestIdleCallback ? window.requestIdleCallback(fn, { timeout: 4000 }) : setTimeout(fn, 600))
+  plan(stap)
+}
+
+// v147: korte laadmelding tussen pagina's; pas na 250 ms zichtbaar, anders flitst hij
+function PaginaLaden() {
+  const [zichtbaar, setZichtbaar] = useState(false)
+  useEffect(() => { const t = setTimeout(() => setZichtbaar(true), 250); return () => clearTimeout(t) }, [])
+  if (!zichtbaar) return null
+  return (
+    <div style={{ minHeight: '50vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="rc-laden" aria-label="Pagina laden" />
+    </div>
+  )
+}
 
 // v33: waarschuw open tabbladen zodra er een nieuwe versie live staat.
 // Zonder dit draaien gebruikers dagenlang oude code omdat een webapp
@@ -197,6 +246,9 @@ function AppRoutes() {
   const location = useLocation()
   const { actief: onderhoud, loading: onderhoudLaadt } = useOnderhoud() // v117
 
+  // v147: na inloggen de vaste pagina's alvast op de achtergrond laden
+  useEffect(() => { if (user?.id) laadAlvast() }, [user?.id])
+
   // v117: onderhoudsmodus. Alleen een echte admin komt er dan nog in.
   // Bewust buiten de grens gehouden: de tekenpagina (klanten moeten hun
   // offerte kunnen blijven ondertekenen), de juridische pagina's en /login
@@ -249,6 +301,9 @@ function AppRoutes() {
       {/* Per pagina een grens: crasht er een, dan blijft de rest bruikbaar en
           reset hij vanzelf zodra je naar een andere pagina navigeert. */}
       <ErrorBoundary naam={`pagina${location.pathname}`} resetKey={location.pathname}>
+      <Suspense fallback={<PaginaLaden />}>
+      {/* v147: zachte overgang tussen pagina's (alleen opacity, zie polish.css) */}
+      <div key={location.pathname} className="rc-pagina">
       <Routes>
       {/* v65: publieke tekenpagina voor klanten, bewust buiten ProtectedRoute */}
       <Route path="/tekenen/:token" element={<Tekenen />} />
@@ -481,6 +536,8 @@ function AppRoutes() {
       />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+      </div>
+      </Suspense>
       </ErrorBoundary>
     </>
   )

@@ -32,8 +32,9 @@ export function useOnderhoud() {
 
     haal()
 
-    // Vangnet naast realtime: elke minuut en zodra je terugkomt in het tabblad.
-    const interval = setInterval(haal, 60 * 1000)
+    // Vangnet naast realtime: elke 5 minuten en zodra je terugkomt in het tabblad.
+    // v147: was elke minuut (5.000+ verzoeken per dag); realtime doet het snelle werk.
+    const interval = setInterval(() => { if (!document.hidden) haal() }, 5 * 60 * 1000)
     const onFocus = () => haal()
     window.addEventListener('focus', onFocus)
 
