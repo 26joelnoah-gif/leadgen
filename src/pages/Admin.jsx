@@ -43,6 +43,7 @@ import LeadManagement from './LeadManagement' // IMPORT THE MANAGEMENT COMPONENT
 import PersonSelect, { ROLE_LABELS } from '../components/PersonSelect' // v102
 import { fmtGeleden, fmtVolledig, aanwezigheidsStand, aanwezigheidsTitel } from '../lib/aanwezigheid' // v111
 import { OnderhoudSchakelaar } from '../components/Onderhoud' // v117
+import { werkwijzeVoor, werkwijzeLabel } from '../lib/werkwijze' // v152
 function fmtBeltijd(totalSeconds) {
   const s = Math.max(0, Math.round(totalSeconds || 0))
   const h = Math.floor(s / 3600)
@@ -117,6 +118,7 @@ export default function Admin() {
   const [teamSearch, setTeamSearch] = useState('')
   const [teamRole, setTeamRole] = useState('all')
   const [teamStatus, setTeamStatus] = useState('all')
+  const [teamWerkwijze, setTeamWerkwijze] = useState('all') // v152
   const [teamTeam, setTeamTeam] = useState('all')
   const [teamProject, setTeamProject] = useState('all')
   const [expandedTeamUser, setExpandedTeamUser] = useState(null)
@@ -325,6 +327,21 @@ export default function Admin() {
     return { projects: userProjects, lists: userLists }
   }
 
+  // v152: werkt deze persoon lead voor lead (LVL) of met het bord? Kijkt naar
+  // alle projecten van de persoon (zonder recruitment) plus zijn eigen instelling.
+  function werkwijzeVan(u) {
+    if (u.role === 'admin' || u.role === 'manager') return { tekst: 'Bord', titel: 'Admin en managers werken altijd met het bord', lvl: false }
+    const projecten = getUserAssignments(u).projects.filter(p => p.type !== 'recruitment')
+    if (u.werkwijze) {
+      return { tekst: werkwijzeLabel(u.werkwijze, true), titel: `Per medewerker ingesteld: altijd ${werkwijzeLabel(u.werkwijze)}`, lvl: u.werkwijze === 'lvl', eigen: true }
+    }
+    if (!projecten.length) return { tekst: '-', titel: 'Geen project', lvl: false }
+    const soorten = [...new Set(projecten.map(p => werkwijzeVoor(u, p)))]
+    const titel = projecten.map(p => `${p.name}: ${werkwijzeLabel(werkwijzeVoor(u, p))}`).join('\n')
+    if (soorten.length > 1) return { tekst: 'LVL + Bord', titel, lvl: true }
+    return { tekst: werkwijzeLabel(soorten[0], true), titel, lvl: soorten[0] === 'lvl' }
+  }
+
   const isOwner = user?.email === 'noah.ando1@icloud.com' || profile?.email === 'noah.ando1@icloud.com'
   if (profile && profile.role !== 'admin' && !isOwner) return <Navigate to="/dashboard" />
 
@@ -360,7 +377,7 @@ export default function Admin() {
       // dezelfde route als my_list_ids() in de database - team -> campaign_teams.
       const { data: atRows } = await supabase.from('teams').select('id, name, team_members(profile_id)')
       const { data: actRows } = await supabase.from('campaign_teams').select('campaign_id, team_id')
-      const { data: apRows } = await supabase.from('campaigns').select('id, name, organization_id, is_active').is('deleted_at', null).order('name')
+      const { data: apRows } = await supabase.from('campaigns').select('id, name, organization_id, is_active, type, werkwijze').is('deleted_at', null).order('name')
       setAssignTeams(atRows || [])
       setAssignCampaignTeams(actRows || [])
       setAssignProjects(apRows || [])
@@ -1064,6 +1081,22 @@ export default function Admin() {
                           <span className="text-muted font-bold uppercase tracking-widest text-[10px]">Agenda + Mijn afspraken tonen</span>
                        </label>
                      )}
+                     {u.role !== 'admin' && u.role !== 'manager' && (
+                       // v152: werkwijze per medewerker (null = volg het project)
+                       <label className="mt-2 flex items-center gap-2 select-none" style={{ fontSize: '0.72rem', flexWrap: 'wrap' }}>
+                          <span className="text-muted font-bold uppercase tracking-widest text-[10px]">Werkwijze</span>
+                          <select
+                             className="form-dark text-xs"
+                             style={{ padding: '3px 6px' }}
+                             value={u.werkwijze || ''}
+                             onChange={e => handleUpdateFlow(u.id, { werkwijze: e.target.value || null })}
+                          >
+                             <option value="">Volg het project ({werkwijzeVan({ ...u, werkwijze: null }).tekst})</option>
+                             <option value="lvl">Altijd lead voor lead (LVL)</option>
+                             <option value="bord">Altijd bord</option>
+                          </select>
+                       </label>
+                     )}
                      {u.id !== user.id && (
                        // v55: teamoverzicht in Roosters ook zichtbaar maken voor dit
                        // account (profiles.can_view_schedules, standaard uit) - bijv.
@@ -1131,6 +1164,11 @@ export default function Admin() {
                   if (teamRole !== 'all' && u.role !== teamRole) return false
                   if (teamStatus === 'actief' && u.is_active === false) return false
                   if (teamStatus === 'inactief' && u.is_active !== false) return false
+                  if (teamWerkwijze !== 'all') { // v152
+                    const w = werkwijzeVan(u)
+                    if (teamWerkwijze === 'lvl' && !w.lvl) return false
+                    if (teamWerkwijze === 'bord' && w.tekst !== 'Bord' && w.tekst !== 'LVL + Bord') return false
+                  }
                   if (teamTeam !== 'all') {
                     if (teamTeam === 'none' ? (teamOf[u.id] || []).length > 0 : !(teamOf[u.id] || []).some(t => t.id === teamTeam)) return false
                   }
@@ -1155,7 +1193,7 @@ export default function Admin() {
                       ...orgs.map(o => ({ key: o.id, label: o.name, users: sortedUsers.filter(u => u.organization_id === o.id) }))
                     ].filter(g => g.users.length > 0)
                   : [{ key: 'all', label: null, users: sortedUsers }]
-                const hasFilter = q || teamRole !== 'all' || teamStatus !== 'all' || teamTeam !== 'all' || teamProject !== 'all'
+                const hasFilter = q || teamRole !== 'all' || teamStatus !== 'all' || teamWerkwijze !== 'all' || teamTeam !== 'all' || teamProject !== 'all'
                 const selStyle = { padding: '8px 10px', fontSize: '0.8rem', flex: '0 1 170px', minWidth: 130 }
                 return (
                   <>
@@ -1189,6 +1227,11 @@ export default function Admin() {
                           <option value="inactief">Alleen inactief</option>
                        </select>
                        {/* v111: sorteren op wie het langst niets gedaan heeft */}
+                       <select value={teamWerkwijze} onChange={e => setTeamWerkwijze(e.target.value)} className="form-dark" style={{ ...selStyle, flex: '0 1 150px' }} title="Lead voor lead (LVL) of bord">
+                          <option value="all">LVL + bord</option>
+                          <option value="lvl">Alleen LVL</option>
+                          <option value="bord">Alleen bord</option>
+                       </select>
                        <select value={teamSort} onChange={e => setTeamSort(e.target.value)} className="form-dark" style={{ ...selStyle, flex: '0 1 165px' }} title="Waarop wil je de lijst sorteren?">
                           <option value="naam">Sorteer: naam</option>
                           <option value="actief">Sorteer: laatst actief</option>
@@ -1206,7 +1249,7 @@ export default function Admin() {
                           {filtered.length} van {users.length} medewerkers
                           {hasFilter && (
                             <button type="button" className="text-primary ml-2 hover:underline"
-                              onClick={() => { setTeamSearch(''); setTeamRole('all'); setTeamStatus('all'); setTeamTeam('all'); setTeamProject('all') }}>
+                              onClick={() => { setTeamSearch(''); setTeamRole('all'); setTeamStatus('all'); setTeamWerkwijze('all'); setTeamTeam('all'); setTeamProject('all') }}>
                               Filters wissen
                             </button>
                           )}
@@ -1259,6 +1302,17 @@ export default function Admin() {
                                        {uTeams.length ? uTeams.map(t => t.name).join(', ') : 'Geen team'}
                                     </div>
                                     <div className="text-[11px] text-muted whitespace-nowrap" style={{ width: 80 }}>{nProj == null ? 'Alles' : `${nProj} project${nProj === 1 ? '' : 'en'}`}</div>
+                                    {(() => {
+                                      // v152: LVL of bord
+                                      const w = werkwijzeVan(u)
+                                      return (
+                                        <div className="whitespace-nowrap" style={{ width: 78 }} title={w.titel}>
+                                          <span className={`px-2 py-1 rounded text-[9px] font-black uppercase tracking-widest ${w.lvl ? 'bg-primary/15 text-primary' : 'bg-elevated text-muted'}`}>
+                                            {w.tekst}{w.eigen ? '*' : ''}
+                                          </span>
+                                        </div>
+                                      )
+                                    })()}
                                     <div className="text-[11px] text-muted whitespace-nowrap" style={{ width: 70 }} title="Leads op naam">{leadCount[u.id] || 0} leads</div>
                                     <div className="text-[11px] whitespace-nowrap font-bold" style={{ width: 110 }} title="Vandaag">{today?.calls || 0} gespr. · {fmtBeltijd(today?.seconds || 0)}</div>
                                     {/* v111: laatst actief (bolletje) en laatste login */}

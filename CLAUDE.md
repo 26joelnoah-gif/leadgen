@@ -1202,3 +1202,34 @@ Twee-zijdig platform:
      supabase/migrations/migration_v150b_afboeking_terugdraaien.sql maar is NOG
      NIET toegepast (bevat een delete; MCP vroeg bevestiging en brak af). De
      knop in de app wordt pas gebouwd als de functie bestaat.
+
+- **LEAD VOOR LEAD (LVL) + VIDEOCALL 30 MIN + KEUREN + MEET-LINK (v152,
+  2026-10-21, migratie toegepast, google-agenda-push v10 live):**
+  1. Werkwijze bellers: `campaigns.werkwijze` ('bord' standaard | 'lvl'), in
+     ProjectSettingsModal "Hoe werken de bellers?". Per medewerker te overrulen:
+     `profiles.werkwijze` (null = volg project), select "Werkwijze" op de
+     medewerkerskaart in Admin > Team. Regel in src/lib/werkwijze.js
+     (werkwijzeVoor): admin/manager altijd bord. LVL = LeadBoard toont een beller
+     geen bord/lijst maar src/components/LvlStart.jsx met "Start bellen" per lijst
+     (startWorkingWithList, wachtrij via claim_next_lead). Admin in werkmodus
+     Beller ziet het ook. Staat LOS van board_view_enabled: die vlag blijft de
+     eigenaar-regels (v79/v144) sturen. Zichtbaar: chip LVL/Bord op de
+     projectkaart (Projecten & Leads) en kolom + filter in Admin > Team
+     (LVL* = per medewerker ingesteld, "LVL + Bord" = gemengd over projecten).
+  2. Afspraaksoort `videocall` (30 min): appointmentConfig.js, CHECK
+     leads_appointment_type_check, afspraak_minuten(), google.ts (3x). Bij een
+     videocall zijn straat en plaats niet verplicht (WorkInterface en bord).
+  3. Pagina /videocalls (src/pages/Videocalls.jsx, VideocallsGate: admin,
+     manager, accountmanager of can_view_agenda): per dag, filters Te keuren /
+     Komend / Vandaag / Week / Geweest / Alles + accountmanager, live via realtime.
+     Goedkeuren/afkeuren = bestaande `leads.appointment_approved` (+_at/_by);
+     trigger leads_commissie_guard laat alleen admin of manager van DAT project
+     toe. Manager ziet de knoppen alleen bij zijn eigen projecten
+     (campaign_managers).
+  4. Meeting-link: `leads.appointment_meet_link` (alleen https, max 500). Zetten
+     door admin, manager of de accountmanager, op /videocalls en in
+     AppointmentModal (ook knop "Nieuwe Meet maken" = meet.google.com/new).
+     Gaat mee naar Google Agenda (omschrijving + locatie). De update stuurt
+     appointment_at mee zodat tr_leads_google_agenda vuurt.
+  Migratie: supabase/migrations/migration_v152_lvl_videocall.sql.
+

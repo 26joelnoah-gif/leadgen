@@ -55,6 +55,7 @@ const Outside = laadPagina(() => import('./pages/Outside'))
 const Tekenen = laadPagina(() => import('./pages/Tekenen'))
 const Agenda = laadPagina(() => import('./pages/Agenda'))
 const MijnAfspraken = laadPagina(() => import('./pages/MijnAfspraken')) // v110
+const Videocalls = laadPagina(() => import('./pages/Videocalls')) // v152
 const Offertes = laadPagina(() => import('./pages/Offertes')) // v112
 const Overeenkomsten = laadPagina(() => import('./pages/Overeenkomsten')) // v136
 const VerklaringLink = laadPagina(() => import('./pages/VerklaringLink')) // v137
@@ -163,6 +164,14 @@ function AgendaGate({ children }) {
   const { profile } = useAuth()
   if (!profile) return children
   const mag = profile.role === 'admin' || profile.role === 'accountmanager' || profile.can_view_agenda === true
+  return mag ? children : <Navigate to="/" replace />
+}
+
+// v152: videocalls (keuren + meeting-link) - zelfde als de agenda, plus managers
+function VideocallsGate({ children }) {
+  const { profile } = useAuth()
+  if (!profile) return children
+  const mag = ['admin', 'manager', 'accountmanager'].includes(profile.role) || profile.can_view_agenda === true
   return mag ? children : <Navigate to="/" replace />
 }
 
@@ -514,6 +523,15 @@ function AppRoutes() {
           // alleen leads door van projecten met planning_can_view_leads)
           <ProtectedRoute allowPlanning>
             <LeadBoard />
+          </ProtectedRoute>
+        }
+      />
+      {/* v152: overzicht van alle ingeplande videocalls */}
+      <Route
+        path="/videocalls"
+        element={
+          <ProtectedRoute>
+            <VideocallsGate><Videocalls /></VideocallsGate>
           </ProtectedRoute>
         }
       />

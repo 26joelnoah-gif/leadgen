@@ -10,6 +10,8 @@ import { getStatusDetails } from '../utils/statusUtils'
 import { distanceM, formatDistance, distanceBand } from '../utils/geoUtils'
 import { nextContactOnOtherDaypart, isFollowUpDue, daysSince } from '../utils/followUpUtils'
 import { SALES_BOARD_COLUMNS, BOARD_CLOSED_STATUSES, boardColumnFor, isNietBereikbaar, GEEN_GEHOOR_STATUSES } from '../lib/leadBoard'
+import { werkwijzeVoor } from '../lib/werkwijze' // v152
+import LvlStart from '../components/LvlStart' // v152
 import { APPOINTMENT_TYPES, DEFAULT_APPOINTMENT_TYPE, appointmentMinutes, appointmentLabel, duurTekst } from '../lib/appointmentConfig'
 import { SENTIMENTS } from '../lib/appointments'
 import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
@@ -90,12 +92,14 @@ function Chip({ label, color, bg, title, quiet = false }) {
 }
 
 // v97: bij een afspraak zijn contactpersoon, adres, plaats en sentiment verplicht
+// v152: bij een videocall zijn straat en plaats niet nodig
 function afspraakPromptCompleet(p) {
-  return !!(p && (p.contact_person || '').trim() && (p.address || '').trim() && (p.city || '').trim() && p.sentiment)
+  const video = p?.type === 'videocall'
+  return !!(p && (p.contact_person || '').trim() && (video || (p.address || '').trim()) && (video || (p.city || '').trim()) && p.sentiment)
 }
 
 export default function LeadBoard() {
-  const { user, profile, isWorking, toggleWorkingMode } = useAuth()
+  const { user, profile, isWorking, toggleWorkingMode, startWorkingWithList, effectiveRole } = useAuth()
   const { leadLists, loading: listsLoading } = useLeadLists()
   const toast = useToast()
   const geo = useGeolocation()
@@ -149,6 +153,9 @@ export default function LeadBoard() {
 
   const currentList = useMemo(() => lists.find(l => l.id === listId) || null, [lists, listId])
   const boardEnabled = currentList?.campaigns?.board_view_enabled === true
+  // v152: lead voor lead (LVL). Dan krijgt een beller geen bord of lijst, maar
+  // alleen "Start bellen". Admin die via de rol-pill als beller werkt ziet het ook.
+  const lvlActief = !!currentList && werkwijzeVoor({ ...profile, role: effectiveRole || profile?.role }, currentList.campaigns) === 'lvl'
   // v91: projecten met appointment_scheduling_enabled vragen bij de kolom
   // "Afspraak / offerte" ook een datum/tijd (leads.appointment_at), net als
   // de terugbel-kolom dat al doet voor next_contact_date. Zo heeft de
@@ -212,7 +219,7 @@ export default function LeadBoard() {
   useEffect(() => { if (view === 'board' && listId && !boardEnabled) setView('list') }, [view, listId, boardEnabled])
 
   const load = useCallback(async (silent = false) => {
-    if (listIds.length === 0) return
+    if (listIds.length === 0 || lvlActief) return
     if (!silent) setLoading(true)
     // v103: in blokken van 1000 ophalen. Supabase geeft er max 1000 per
     // keer, dus bij een groot project (PROSELL) vielen leads stil weg.
@@ -264,7 +271,7 @@ export default function LeadBoard() {
       setAssignedNames({})
     }
     setLoading(false)
-  }, [listIds])
+  }, [listIds, lvlActief])
 
   // Eerste keer + elke 8s verversen, en direct opnieuw zodra het belscherm sluit
   useEffect(() => { load() }, [load])
@@ -523,7 +530,7 @@ export default function LeadBoard() {
     const { lead, column, value } = datePrompt
     const isAfspraak = column.dateField === 'appointment_at'
     if (isAfspraak && !afspraakPromptCompleet(datePrompt)) {
-      toast('Vul contactpersoon, adres, plaats en hoe de klant erin staat in', 'error', 6000)
+      toast(datePrompt.type === 'videocall' ? 'Vul contactpersoon en hoe de klant erin staat in' : 'Vul contactpersoon, adres, plaats en hoe de klant erin staat in', 'error', 6000)
       return
     }
 
@@ -588,10 +595,10 @@ export default function LeadBoard() {
     if (isAfspraak) {
       Object.assign(extra, {
         contact_person: datePrompt.contact_person.trim(),
-        address: datePrompt.address.trim(),
+        address: datePrompt.address.trim() || null,
         house_number: datePrompt.house_number.trim() || null,
         postal_code: datePrompt.postal_code.trim() || null,
-        city: datePrompt.city.trim(),
+        city: datePrompt.city.trim() || null,
         appointment_sentiment: datePrompt.sentiment,
         appointment_type: datePrompt.type || DEFAULT_APPOINTMENT_TYPE, // v124
         appointment_outcome: null, appointment_outcome_at: null, appointment_outcome_by: null,
@@ -959,6 +966,26 @@ export default function LeadBoard() {
             </div>
           </>
         )}
+      </>
+    )
+  }
+
+  // v152: lead voor lead - geen bord, alleen Start bellen
+  if (lvlActief && !listsLoading) {
+    return (
+      <>
+        <Header />
+        <main className="container" style={{ paddingTop: 24, paddingBottom: 96 }}>
+          <h1>Leads</h1>
+          <LvlStart
+            projects={projects}
+            projectId={projectId}
+            onProject={(id) => { setProjectId(id); setListChoice('all') }}
+            lists={projectLists}
+            isWorking={isWorking}
+            onStart={(id) => startWorkingWithList(id)}
+          />
+        </main>
       </>
     )
   }
@@ -1411,12 +1438,12 @@ export default function LeadBoard() {
                     <label style={lbl}>Contactpersoon (verplicht)</label>
                     <input className="form-control" style={{ width: '100%', fontSize: 16 }} value={datePrompt.contact_person} onChange={upd('contact_person')} placeholder="Met wie is de afspraak?" />
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 80px', gap: 8 }}>
-                      <div><label style={lbl}>Straat (verplicht)</label><input className="form-control" style={{ width: '100%', fontSize: 16 }} value={datePrompt.address} onChange={upd('address')} /></div>
+                      <div><label style={lbl}>Straat{datePrompt.type === 'videocall' ? '' : ' (verplicht)'}</label><input className="form-control" style={{ width: '100%', fontSize: 16 }} value={datePrompt.address} onChange={upd('address')} /></div>
                       <div><label style={lbl}>Nr.</label><input className="form-control" style={{ width: '100%', fontSize: 16 }} value={datePrompt.house_number} onChange={upd('house_number')} /></div>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: 8 }}>
                       <div><label style={lbl}>Postcode</label><input className="form-control" style={{ width: '100%', fontSize: 16 }} value={datePrompt.postal_code} onChange={upd('postal_code')} /></div>
-                      <div><label style={lbl}>Plaats (verplicht)</label><input className="form-control" style={{ width: '100%', fontSize: 16 }} value={datePrompt.city} onChange={upd('city')} /></div>
+                      <div><label style={lbl}>Plaats{datePrompt.type === 'videocall' ? '' : ' (verplicht)'}</label><input className="form-control" style={{ width: '100%', fontSize: 16 }} value={datePrompt.city} onChange={upd('city')} /></div>
                     </div>
                     <label style={lbl}>Hoe staat de klant erin? (verplicht)</label>
                     <div style={{ display: 'flex', gap: 6 }}>

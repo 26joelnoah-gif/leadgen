@@ -24,7 +24,7 @@ export function useLeadLists() {
     try {
       let query = supabase
         .from('lead_lists')
-        .select('*, campaigns(name, type, board_view_enabled, appointment_scheduling_enabled)')
+        .select('*, campaigns(name, type, board_view_enabled, appointment_scheduling_enabled, werkwijze)')
       
       if (!includeDeleted) {
         query = query.is('deleted_at', null)

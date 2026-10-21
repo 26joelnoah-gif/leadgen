@@ -9,6 +9,8 @@
 export const APPOINTMENT_TYPES = [
   { id: 'shoot', label: 'Shoot', minutes: 150, uitleg: 'Video-opname bij de klant' },
   { id: 'bezoek', label: 'Bezoek', minutes: 60, uitleg: 'Bezoek bij de klant' },
+  // v152 (21-10-2026): videocall van 30 minuten, met een eigen overzicht op /videocalls
+  { id: 'videocall', label: 'Videocall', minutes: 30, uitleg: 'Online gesprek met de klant' },
 ]
 export const DEFAULT_APPOINTMENT_TYPE = 'shoot'
 

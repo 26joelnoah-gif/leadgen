@@ -117,7 +117,7 @@ export default function Aanbrengen() {
     ;(data || []).forEach((r, i) => {
       if (r.soort === 'afspraak') {
         const min = Math.round((new Date(r.end_at) - new Date(r.start_at)) / 60000)
-        appointments.push({ id: `x${i}`, name: 'Bezet', appointment_at: r.start_at, appointment_type: min <= 60 ? 'bezoek' : 'shoot' })
+        appointments.push({ id: `x${i}`, name: 'Bezet', appointment_at: r.start_at, appointment_type: min <= 30 ? 'videocall' : min <= 60 ? 'bezoek' : 'shoot' })
       } else {
         blocks.push({ id: `x${i}`, start_at: r.start_at, end_at: r.end_at, title: 'Niet beschikbaar' })
       }

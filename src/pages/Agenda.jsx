@@ -184,7 +184,7 @@ export default function Agenda() {
           assigned_to, lead_list_id, sale_date,
           address, house_number, postal_code, city,
           appointment_sentiment, appointment_outcome, appointment_outcome_at,
-          appointment_by, appointment_commission, appointment_type,
+          appointment_by, appointment_commission, appointment_type, appointment_meet_link, appointment_approved,
           lead_lists!inner(id, name, campaign_id, campaigns!inner(id, name, appointment_scheduling_enabled))
         `)
         .in('status', ['afspraak_gemaakt', 'deal'])

@@ -891,10 +891,12 @@ export default function WorkInterface() {
   // en automatisch in de lead zelf (niet alleen in de notities), zodat de
   // volgende beller ze meteen ziet - en apart van de afboeking zelf
   // opgeslagen, zodat die niet vastloopt als dit misgaat.
+  // v152: bij een videocall is er geen bezoek, dus straat en plaats zijn niet nodig
+  const isVideocall = appointmentType === 'videocall'
   const afspraakDetailsCompleet = !!(
     (editableLead.contact_person || '').trim() &&
-    (editableLead.address || '').trim() &&
-    (editableLead.city || '').trim() &&
+    (isVideocall || (editableLead.address || '').trim()) &&
+    (isVideocall || (editableLead.city || '').trim()) &&
     appointmentSentiment
   )
 
@@ -941,15 +943,15 @@ export default function WorkInterface() {
       // v97: contactpersoon, adres en sentiment zijn verplicht en gaan direct
       // in de lead zelf, zodat de accountmanager ze in de agenda ziet.
       if (!afspraakDetailsCompleet) {
-        toast('Vul contactpersoon, adres, plaats en hoe de klant erin staat in', 'error', 6000)
+        toast(isVideocall ? 'Vul contactpersoon en hoe de klant erin staat in' : 'Vul contactpersoon, adres, plaats en hoe de klant erin staat in', 'error', 6000)
         return
       }
       const changes = {
         contact_person: (editableLead.contact_person || '').trim(),
-        address: (editableLead.address || '').trim(),
+        address: (editableLead.address || '').trim() || null,
         house_number: (editableLead.house_number || '').trim() || null,
         postal_code: (editableLead.postal_code || '').trim() || null,
-        city: (editableLead.city || '').trim(),
+        city: (editableLead.city || '').trim() || null,
         appointment_sentiment: appointmentSentiment,
         appointment_type: appointmentType, // v124
         appointment_outcome: null,
@@ -1700,7 +1702,7 @@ export default function WorkInterface() {
                           </div>
                           <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: '8px' }}>
                             <div>
-                              <label style={labelStyle}>Straat (verplicht)</label>
+                              <label style={labelStyle}>Straat{isVideocall ? '' : ' (verplicht)'}</label>
                               <input type="text" value={editableLead.address || ''} onChange={set('address')} placeholder="Straatnaam" style={inputStyle} />
                             </div>
                             <div>
@@ -1714,7 +1716,7 @@ export default function WorkInterface() {
                               <input type="text" value={editableLead.postal_code || ''} onChange={set('postal_code')} placeholder="1234 AB" style={inputStyle} />
                             </div>
                             <div>
-                              <label style={labelStyle}>Plaats (verplicht)</label>
+                              <label style={labelStyle}>Plaats{isVideocall ? '' : ' (verplicht)'}</label>
                               <input type="text" value={editableLead.city || ''} onChange={set('city')} placeholder="Plaats" style={inputStyle} />
                             </div>
                           </div>

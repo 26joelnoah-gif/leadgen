@@ -31,6 +31,7 @@ function adres(lead: Record<string, any>): string {
 function omschrijving(lead: Record<string, any>, appUrl: string): string {
   const regels: string[] = [];
   if (lead.contact_person) regels.push(`Contactpersoon: ${lead.contact_person}`);
+  if (lead.appointment_meet_link) regels.push(`Meeting-link: ${lead.appointment_meet_link}`); // v152
   if (lead.phone) regels.push(`Telefoon: ${lead.phone}`);
   if (lead.email) regels.push(`E-mail: ${lead.email}`);
   if (lead.appointment_outcome) regels.push(`Uitkomst: ${UITKOMSTEN[lead.appointment_outcome] || lead.appointment_outcome}`);
@@ -61,7 +62,7 @@ Deno.serve(async (req: Request) => {
 
   const { data: lead } = await admin
     .from("leads")
-    .select("id, name, contact_person, phone, email, notes, status, appointment_at, appointment_type, assigned_to, deleted_at, address, house_number, postal_code, city, appointment_outcome")
+    .select("id, name, contact_person, phone, email, notes, status, appointment_at, appointment_type, appointment_meet_link, assigned_to, deleted_at, address, house_number, postal_code, city, appointment_outcome")
     .eq("id", leadId)
     .maybeSingle();
 
@@ -105,7 +106,7 @@ Deno.serve(async (req: Request) => {
   const event = {
     summary: `${soort.label}: ${lead!.name || "Afspraak"}`,
     description: omschrijving(lead!, appUrl),
-    location: adres(lead!) || undefined,
+    location: (lead!.appointment_type === "videocall" && lead!.appointment_meet_link) || adres(lead!) || undefined, // v152
     start: { dateTime: start.toISOString(), timeZone: TIJDZONE },
     end: { dateTime: eind.toISOString(), timeZone: TIJDZONE },
     extendedProperties: { private: { reachconnect_lead: leadId } },

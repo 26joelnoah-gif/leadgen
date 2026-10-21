@@ -1,3 +1,4 @@
+import { WERKWIJZEN } from '../lib/werkwijze' // v152
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import { X, Settings, Check, Trash2, Pause, Play, Layers } from 'lucide-react'
@@ -98,6 +99,8 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
   // v72: bordweergave (kanban) als extra manier om de leads van dit project te
   // bekijken op /leads. Geen aparte data: dezelfde leads, andere weergave.
   const [boardView, setBoardView] = useState(false)
+  // v152: werkwijze bellers - bord (zelf kiezen) of lead voor lead (LVL)
+  const [werkwijze, setWerkwijze] = useState('bord')
   const [autoEnrich, setAutoEnrich] = useState(false) // v82
   // v91: afspraken met een echt datum/tijd-moment (accountmanager-agenda),
   // niet alleen bij recruitment. Beller vult bij "Afspraak gemaakt" een
@@ -133,6 +136,7 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
     setProjectType(campaign.type || 'sales')
     setPlanningLeads(campaign.planning_can_view_leads === true)
     setBoardView(campaign.board_view_enabled === true)
+    setWerkwijze(campaign.werkwijze === 'lvl' ? 'lvl' : 'bord')
     setAutoEnrich(campaign.auto_enrich === true)
     setAppointmentScheduling(campaign.appointment_scheduling_enabled === true)
     setKwartaalBellen(campaign.kwartaal_bellen_enabled === true)
@@ -264,6 +268,10 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
       }
       if (boardView !== (campaign.board_view_enabled === true)) {
         const { error } = await supabase.from('campaigns').update({ board_view_enabled: boardView }).eq('id', campaign.id)
+        if (error) throw error
+      }
+      if (werkwijze !== (campaign.werkwijze === 'lvl' ? 'lvl' : 'bord')) {
+        const { error } = await supabase.from('campaigns').update({ werkwijze }).eq('id', campaign.id)
         if (error) throw error
       }
       if (autoEnrich !== (campaign.auto_enrich === true)) {
@@ -554,6 +562,30 @@ export default function ProjectSettingsModal({ isOpen, onClose, campaign, agents
               </label>
               <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>Standaard uit: planning-accounts zien alleen hun rooster. Aan = iedereen in het project ziet alle leads op de pagina Leads; wie een lead opent, vergrendelt hem tijdelijk voor de rest.</p>
             </div>
+
+            {projectType !== 'recruitment' && (
+              <div>
+                <label className={labelStyle}>Hoe werken de bellers?</label>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {WERKWIJZEN.map(w => (
+                    <button
+                      key={w.id}
+                      type="button"
+                      onClick={() => setWerkwijze(w.id)}
+                      className={werkwijze === w.id ? 'btn btn-primary btn-sm' : 'btn btn-outline btn-sm'}
+                      title={w.uitleg}
+                    >
+                      {w.label}{w.id === 'lvl' ? ' (LVL)' : ''}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-muted" style={{ fontSize: '0.72rem', margin: '6px 0 0' }}>
+                  {werkwijze === 'lvl'
+                    ? 'Lead voor lead: bellers zien op de pagina Leads geen bord of lijst, maar een knop "Start bellen". Ze krijgen steeds de volgende lead (eigen terugbelafspraken eerst). Jij en de managers houden het bord. Per medewerker kun je dit overrulen in Admin > Team.'
+                    : 'Bord: bellers kiezen zelf welke lead ze pakken op het bord, in de lijst of op de kaart.'}
+                </p>
+              </div>
+            )}
 
             <div>
               <label className={labelStyle}>Bordweergave voor de leads</label>

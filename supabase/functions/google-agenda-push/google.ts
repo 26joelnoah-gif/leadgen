@@ -18,6 +18,7 @@ export const AFSPRAAK_MINUTEN = 150; // standaard (shoot), gelijk aan APPOINTMEN
 export const AFSPRAAK_SOORTEN: Record<string, { label: string; minuten: number }> = {
   shoot: { label: "Shoot", minuten: 150 },
   bezoek: { label: "Bezoek", minuten: 60 },
+  videocall: { label: "Videocall", minuten: 30 },
 };
 export function afspraakSoort(type: unknown): { label: string; minuten: number } {
   return AFSPRAAK_SOORTEN[String(type || "")] || AFSPRAAK_SOORTEN.shoot;

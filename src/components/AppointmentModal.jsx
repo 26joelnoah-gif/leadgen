@@ -9,7 +9,7 @@
 // v129: admin/manager kan "Ingepland door" op een andere medewerker zetten
 //   (bijv. een afspraak die op Noah staat maar door een beller is gemaakt).
 import { useState, useEffect } from 'react'
-import { X, MapPin, Phone, Mail, User, Navigation, Trash2, CalendarClock, FileText, Euro } from 'lucide-react'
+import { X, MapPin, Phone, Mail, User, Navigation, Trash2, CalendarClock, FileText, Euro, Video } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from './Toast'
@@ -44,6 +44,8 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
   // v129: ingepland door een andere medewerker zetten
   const [mensen, setMensen] = useState([])
   const [nieuweBeller, setNieuweBeller] = useState('')
+  // v152: meeting-link bij een videocall
+  const [meetLink, setMeetLink] = useState('')
 
   useEffect(() => {
     if (!lead) return
@@ -54,7 +56,19 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
     setCommissie(lead.appointment_commission != null ? String(lead.appointment_commission) : '')
     setCommissieOpgeslagen(false)
     setNieuweBeller(lead.appointment_by || '')
+    setMeetLink(lead.appointment_meet_link || '')
   }, [lead])
+
+  async function bewaarMeetLink() {
+    const t = meetLink.trim()
+    if (t && !(/^https:\/\/\S+$/i.test(t) && t.length <= 500)) { toast('Plak een volledige link die begint met https://', 'error'); return }
+    setBusy(true)
+    const { error } = await supabase.from('leads').update({ appointment_meet_link: t || null, appointment_at: lead.appointment_at }).eq('id', lead.id) // appointment_at mee = Google Agenda werkt bij
+    setBusy(false)
+    if (error) { toast(`Link niet opgeslagen: ${error.message}`, 'error'); return }
+    toast(t ? 'Meeting-link opgeslagen' : 'Meeting-link verwijderd', 'success')
+    onChanged?.(lead.id, { appointment_meet_link: t || null })
+  }
 
   // v129: medewerkers om "Ingepland door" mee te wijzigen (alleen admin/manager)
   useEffect(() => {
@@ -246,6 +260,33 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
             </a>
           )}
           {lead.email && <a href={`mailto:${lead.email}`} style={{ ...row, color: 'var(--primary)', textDecoration: 'none' }}><Mail size={16} style={{ flexShrink: 0, marginTop: 2 }} /> {lead.email}</a>}
+          {lead.appointment_type === 'videocall' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 800, fontSize: '0.85rem' }}>
+                <Video size={16} style={{ color: 'var(--primary)' }} /> Videocall
+                {lead.appointment_meet_link && (
+                  <a href={lead.appointment_meet_link} target="_blank" rel="noopener noreferrer" className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }}>
+                    Meeting openen
+                  </a>
+                )}
+              </div>
+              {(canManage || lead.assigned_to === user?.id) ? (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <input
+                    className="form-dark text-xs"
+                    style={{ flex: '1 1 200px', minWidth: 0, padding: '6px 8px' }}
+                    placeholder="Plak hier de Google Meet-link (https://meet.google.com/...)"
+                    value={meetLink}
+                    onChange={e => setMeetLink(e.target.value)}
+                  />
+                  <button type="button" className="btn btn-outline btn-sm" disabled={busy || meetLink.trim() === (lead.appointment_meet_link || '')} onClick={bewaarMeetLink}>Opslaan</button>
+                  <a href="https://meet.google.com/new" target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm">Nieuwe Meet maken</a>
+                </div>
+              ) : !lead.appointment_meet_link && (
+                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Nog geen meeting-link.</div>
+              )}
+            </div>
+          )}
           {navUrl ? (
             <a
               href={navUrl}

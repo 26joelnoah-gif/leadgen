@@ -544,6 +544,14 @@ export default function LeadManagement({ standalone = true }) {
                                 {/* v103: naam + acties op een regel, daaronder teams/managers en wachtrij */}
                                 <div className="pm-project-head">
                                   <span className="pm-project-name">{c.name}</span>
+                                  {c.type !== 'recruitment' && (
+                                    // v152: werkwijze van de bellers in dit project
+                                    <span
+                                      title={c.werkwijze === 'lvl' ? 'Bellers werken lead voor lead (LVL)' : 'Bellers kiezen zelf leads op het bord'}
+                                      className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${c.werkwijze === 'lvl' ? 'bg-primary/15 text-primary' : 'bg-elevated text-muted'}`}
+                                      style={{ flexShrink: 0 }}
+                                    >{c.werkwijze === 'lvl' ? 'LVL' : 'Bord'}</span>
+                                  )}
                                   {c.is_active === false && (
                                     <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-warning/15 text-warning" style={{ flexShrink: 0 }}>gepauzeerd</span>
                                   )}

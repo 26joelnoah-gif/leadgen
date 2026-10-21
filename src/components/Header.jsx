@@ -112,6 +112,7 @@ export default function Header({ onOpenSettings }) {
     ? [
         { path: '/leads', label: 'Leads' },
         { path: '/agenda', label: 'Agenda' },
+        { path: '/videocalls', label: 'Videocalls' }, // v152
         { path: '/tba', label: 'TBA\'s' },
         ...(isRealAdmin ? [{ path: '/recruitment', label: 'Sollicitanten' }] : []),
         { path: '/roosters', label: 'Roosters' },
@@ -124,6 +125,7 @@ export default function Header({ onOpenSettings }) {
         ...(hasAccountManagement ? [{ path: '/accountmanagement', label: 'Klanten' }] : []),
         ...(hasLeadBoard ? [{ path: '/leads', label: 'Leads' }] : []),
         ...(canViewAgenda ? [{ path: '/agenda', label: 'Agenda' }] : []),
+        ...(canViewAgenda || isManager ? [{ path: '/videocalls', label: 'Videocalls' }] : []), // v152
         { path: '/tba', label: 'TBA\'s' },
         ...(isRealAdmin ? [{ path: '/recruitment', label: 'Sollicitanten' }] : []),
         // v110: wat is er gebeurd met de afspraken die ik heb ingepland
