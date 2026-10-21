@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X, ListChecks, Flame, Info, Trash2, CalendarDays, EyeOff, Eye } from 'lucide-react'
+import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X, ListChecks, Flame, Info, Trash2, CalendarDays, EyeOff, Eye, PhoneCall } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
@@ -191,7 +191,7 @@ export default function LeadBoard() {
   const [view, setView] = useState(() => {
     try {
       const saved = localStorage.getItem('reachconnect-leads-view')
-      return ['map', 'board', 'list', 'mail'].includes(saved) ? saved : 'list'
+      return ['map', 'board', 'list', 'mail', 'lvl'].includes(saved) ? saved : 'list'
     } catch { return 'list' }
   })
   const [sortBy, setSortBy] = useState('distance') // 'distance' | 'order'
@@ -1107,6 +1107,10 @@ export default function LeadBoard() {
                     <button type="button" onClick={() => setView('list')} className={view === 'list' ? 'is-active' : ''} title="Lijst">
                       <List size={14} /> Lijst
                     </button>
+                    {/* v152b: LVL als weergave - zelf kiezen om lead voor lead te bellen */}
+                    <button type="button" onClick={() => setView('lvl')} className={view === 'lvl' ? 'is-active' : ''} title="Lead voor lead: Start bellen en krijg steeds de volgende lead">
+                      <PhoneCall size={14} /> LVL
+                    </button>
                     {boardEnabled && (
                       <button type="button" onClick={() => setView('board')} className={view === 'board' ? 'is-active' : ''} title="Bord">
                         <LayoutGrid size={14} /> Bord
@@ -1190,7 +1194,16 @@ export default function LeadBoard() {
               )}
             </div>
 
-            {view === 'mail' ? (
+            {view === 'lvl' ? (
+              <LvlStart
+                projects={[]}
+                projectId={projectId}
+                onProject={() => {}}
+                lists={allLists ? projectLists : projectLists.filter(l => l.id === listChoice)}
+                isWorking={isWorking}
+                onStart={(id) => startWorkingWithList(id)}
+              />
+            ) : view === 'mail' ? (
               <MailQueueView listId={listId} listIds={listIds} mailService={mailService} onChanged={() => load(true)} />
             ) : loading && leads.length === 0 ? (
               <LoadingSpinner />
