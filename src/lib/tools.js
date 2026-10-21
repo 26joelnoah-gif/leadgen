@@ -109,6 +109,21 @@ export const TOOLS = [
     primary: false,
     newTab: true,
   },
+  {
+    // v151: webscan. Basis-beveiligingscheck van een website van buitenaf
+    // (SSL, headers, PHP, SPF, DMARC, open bestanden). De scan zelf draait in de
+    // Edge Function 'webscan' (alleen voor wie deze tool heeft, of admin).
+    key: 'webscan',
+    label: 'Webscan (site checken)',
+    description: 'Typ het domein van de klant en zie in een halve minuut hoe veilig de site is: SSL, security-headers, PHP-versie, SPF en DMARC, en of er gevoelige bestanden open staan. Groen, oranje of rood, met per punt wat er moet gebeuren. Rapport kun je printen of als PDF bewaren.',
+    href: '/tools/webscan.html',
+    cta: 'Scan een site',
+    icon: 'ShieldCheck',
+    color: '#2f5bea',
+    bg: 'rgba(47,91,234,0.14)',
+    primary: true,
+    newTab: false,
+  },
 ]
 
 export const ALL_TOOL_KEYS = TOOLS.map(t => t.key)

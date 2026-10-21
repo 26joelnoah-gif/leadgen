@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Webscan</title>
+<style>
+:root{--bg:#f6f7f9;--kaart:#fff;--tekst:#1b1f24;--zacht:#5b6470;--lijn:#e3e6ea;
+--groen:#1f8a4c;--groen-bg:#e6f5ec;--oranje:#b26a00;--oranje-bg:#fff3e0;
+--rood:#c62828;--rood-bg:#fdecea;--grijs:#6b7280;--grijs-bg:#f0f1f3;--accent:#2f5bea}
+@media (prefers-color-scheme:dark){:root{--bg:#121417;--kaart:#1b1e23;--tekst:#e8eaed;--zacht:#9aa3ae;
+--lijn:#2c3138;--groen:#5fd08e;--groen-bg:#16301f;--oranje:#f0a64a;--oranje-bg:#33260f;
+--rood:#ff7a70;--rood-bg:#3a1a18;--grijs:#a0a7b1;--grijs-bg:#262a30;--accent:#7c9bff}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tekst);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:860px;margin:0 auto;padding:20px 16px 60px}
+.terug{display:inline-block;color:var(--zacht);text-decoration:none;font-size:14px;margin-bottom:14px}
+.terug:hover{color:var(--tekst)}
+h1{font-size:26px;margin:0 0 4px}
+.sub{color:var(--zacht);margin:0 0 20px}
+form{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+input{flex:1;min-width:220px;padding:12px 14px;font-size:16px;border:1px solid var(--lijn);border-radius:10px;background:var(--kaart);color:var(--tekst)}
+button{padding:12px 18px;font-size:15px;border:0;border-radius:10px;background:var(--accent);color:#fff;cursor:pointer;font-weight:600}
+button:disabled{opacity:.6;cursor:wait}
+button.licht{background:var(--kaart);color:var(--tekst);border:1px solid var(--lijn)}
+.hint{color:var(--zacht);font-size:13px;margin:0 0 24px}
+.bezig{display:none;color:var(--zacht);margin:0 0 20px}
+.knoppen{display:none;gap:8px;margin:0 0 16px;flex-wrap:wrap}
+.melding{display:none;background:var(--rood-bg);color:var(--rood);padding:10px 14px;border-radius:10px;margin-bottom:16px}
+.kaart{background:var(--kaart);border:1px solid var(--lijn);border-radius:14px;padding:18px 20px;margin-bottom:18px}
+.kaart header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.kaart h2{margin:0;font-size:20px;word-break:break-all}
+.telling{color:var(--zacht);margin:4px 0 6px}
+.oordeel{font-weight:700;padding:4px 12px;border-radius:999px;font-size:14px}
+.oordeel.groen{background:var(--groen-bg);color:var(--groen)}
+.oordeel.oranje{background:var(--oranje-bg);color:var(--oranje)}
+.oordeel.rood{background:var(--rood-bg);color:var(--rood)}
+h3{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--zacht);margin:18px 0 6px}
+.rij{display:flex;gap:12px;padding:8px 0;border-top:1px solid var(--lijn)}
+.pil{flex:none;width:64px;text-align:center;font-size:12px;font-weight:700;padding:3px 0;border-radius:6px;height:fit-content}
+.pil.ok{background:var(--groen-bg);color:var(--groen)}
+.pil.letop{background:var(--oranje-bg);color:var(--oranje)}
+.pil.fout{background:var(--rood-bg);color:var(--rood)}
+.pil.info{background:var(--grijs-bg);color:var(--grijs)}
+.titel{font-weight:600}
+.bewijs{color:var(--zacht);font-size:14px;word-break:break-word}
+.advies{font-size:14px;margin-top:4px;padding-left:10px;border-left:3px solid var(--accent)}
+footer{color:var(--zacht);font-size:13px;margin-top:24px}
+@media print{form,.hint,.knoppen,.bezig,.terug,.melding{display:none!important}body{background:#fff;color:#000}.kaart{break-inside:avoid}}
+</style>
+</head>
+<body>
+<main>
+  <a class="terug" href="/tools">&larr; Terug naar Tools</a>
+  <h1>Webscan</h1>
+  <p class="sub" id="sub">Basis-beveiligingscheck van een website, van buitenaf</p>
+
+  <form id="form">
+    <input id="invoer" placeholder="bijv. voorbeeld.nl, ander.nl" autocomplete="off" autofocus required>
+    <button type="submit" id="knop">Scan</button>
+  </form>
+  <p class="hint">Een of meer domeinen, gescheiden door een spatie of komma (max 5).</p>
+  <p class="bezig" id="bezig">Bezig met scannen, dit duurt meestal 10 tot 30 seconden...</p>
+  <div class="melding" id="melding"></div>
+  <div class="knoppen" id="knoppen">
+    <button class="licht" type="button" onclick="window.print()">Print of bewaar als PDF</button>
+    <button class="licht" type="button" id="bewaar">Download als HTML</button>
+  </div>
+  <div id="uitslag"></div>
+
+  <footer>Meet van buiten, zonder login. Zegt niets over 2FA, back-ups of updates binnen de admin.
+  Gebruik dit als eerste zeef, niet als volledige audit.</footer>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script>
+const LG = { url:"https://zboyxwwrbtpjnlgquhzs.supabase.co", anon:"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpib3l4d3dyYnRwam5sZ3F1aHpzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYwMjUxMzMsImV4cCI6MjA5MTYwMTEzM30.1YWu29OCZlHQrijnVFFAU1T2W_lqDw0A9ImoaLbyM9U" };
+const el = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const PIL = { 'OK':['ok','OK'], 'LET OP':['letop','LET OP'], 'FOUT':['fout','FOUT'], 'INFO':['info','INFO'] };
+let sb = null;
+
+function melding(t){ const m = el('melding'); m.textContent = t || ''; m.style.display = t ? 'block' : 'none'; }
+
+function kaart(res){
+  const n = res.telling;
+  const regels = res.rijen.map(r => {
+    if(!r.u) return `<h3>${esc(r.titel)}</h3>`;
+    const [cls, lab] = PIL[r.u] || PIL.INFO;
+    const adv = r.advies ? `<div class="advies">${esc(r.advies)}</div>` : '';
+    return `<div class="rij"><span class="pil ${cls}">${lab}</span><div><div class="titel">${esc(r.titel)}</div><div class="bewijs">${esc(r.bewijs)}</div>${adv}</div></div>`;
+  }).join('');
+  return `<section class="kaart"><header><h2>${esc(res.host)}</h2><span class="oordeel ${res.oordeel.toLowerCase()}">${res.oordeel}</span></header>`
+    + `<p class="telling">${n.fout} rood, ${n.letop} oranje, ${n.ok} groen</p>${regels}</section>`;
+}
+
+async function scan(e){
+  e.preventDefault();
+  melding('');
+  const domeinen = el('invoer').value.split(/[\s,;]+/).filter(Boolean).slice(0, 5);
+  if(!domeinen.length) return;
+  if(!sb){ melding('Supabase laadt niet. Ververs de pagina.'); return; }
+  const { data:{ session } } = await sb.auth.getSession();
+  if(!session){ melding('Je bent niet ingelogd. Log eerst in op de app.'); return; }
+  el('knop').disabled = true; el('bezig').style.display = 'block';
+  el('uitslag').innerHTML = ''; el('knoppen').style.display = 'none';
+  try{
+    const r = await fetch(LG.url + '/functions/v1/webscan', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', apikey:LG.anon, Authorization:'Bearer ' + session.access_token },
+      body: JSON.stringify({ domeinen }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if(!r.ok){
+      melding((data.error || 'Scan mislukt') + (data.ongeldig?.length ? ': ' + data.ongeldig.join(', ') : ''));
+      return;
+    }
+    if(data.ongeldig?.length) melding('Geen geldig domein: ' + data.ongeldig.join(', '));
+    el('uitslag').innerHTML = data.resultaten.map(kaart).join('');
+    el('sub').textContent = 'Basis-beveiligingscheck van buitenaf | gescand op ' + new Date(data.gescand_op).toLocaleString('nl-NL', { dateStyle:'short', timeStyle:'short' });
+    el('knoppen').style.display = 'flex';
+  }catch(err){
+    melding('Scan mislukt: ' + (err?.message || err));
+  }finally{
+    el('knop').disabled = false; el('bezig').style.display = 'none';
+  }
+}
+
+function bewaar(){
+  const d = document.documentElement.cloneNode(true);
+  d.querySelectorAll('form,.hint,.knoppen,.bezig,.terug,.melding,script').forEach(x => x.remove());
+  const b = new Blob(['<!doctype html>' + d.outerHTML], { type:'text/html' });
+  const a = document.createElement('a');
+  const host = (document.querySelector('.kaart h2')?.textContent || 'rapport').replace(/[^a-z0-9.-]/gi, '');
+  a.href = URL.createObjectURL(b); a.download = 'webscan-' + host + '.html'; a.click();
+}
+
+el('form').addEventListener('submit', scan);
+el('bewaar').addEventListener('click', bewaar);
+try{ sb = window.supabase.createClient(LG.url, LG.anon); }catch(e){}
+const q = new URLSearchParams(location.search).get('d');
+if(q){ el('invoer').value = q; }
+</script>
+</body>
+</html>
