@@ -1233,3 +1233,19 @@ Twee-zijdig platform:
      appointment_at mee zodat tr_leads_google_agenda vuurt.
   Migratie: supabase/migrations/migration_v152_lvl_videocall.sql.
 
+
+- **PLAATSINGEN: WIE WERKT WAAR (v153, 2026-10-30, migratie NOG DRAAIEN in
+  de SQL-editor):** weergave "Plaatsingen" op /recruitment (?view=plaatsingen,
+  ook in het recruiter-menu). Bord met kolom "Nog niet geplaatst" + een kolom
+  per locatie in `public.plaatsing_locaties` (naam, soort callcenter |
+  opdrachtgever | buitendienst | anders, plaats; verwijderen = actief false,
+  alleen als er niemand meer werkt). `public.plaatsingen`: profile_id OF
+  lead_id (aangenomen sollicitant zonder account), naam, functie, start_op,
+  eind_op. Max 1 lopende plaatsing per persoon (unique index waar eind_op
+  null). Slepen of de popup = verplaatsen: oude rij krijgt eind_op vandaag en
+  er komt een nieuwe rij (geschiedenis in de popup); was de plaatsing van
+  vandaag, dan wordt hij gewoon aangepast. RLS: `mag_plaatsingen()` (actieve
+  admin/manager/recruiter) + zelfde org. Accounts met rol admin/aanbrenger/
+  extern staan er niet in. Component: src/components/Plaatsingen.jsx.
+  Migratie: supabase/migrations/migration_v153_plaatsingen.sql (maakt ook
+  "Callcenter Arnhem" en "Rocher" aan).

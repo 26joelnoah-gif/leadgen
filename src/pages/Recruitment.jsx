@@ -4,7 +4,7 @@ import { Navigate, Link, useSearchParams } from 'react-router-dom'
 import {
   Plus, Phone, Search, X, UserPlus, Users, Clock, RefreshCw, ExternalLink,
   LayoutGrid, List as ListIcon, Download, Upload, AlertTriangle, Filter, Tag,
-  CalendarDays, ChevronLeft, ChevronRight, Gift, UserCog
+  CalendarDays, ChevronLeft, ChevronRight, Gift, UserCog, MapPin
 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useLeads } from '../hooks/useLeads'
@@ -26,6 +26,7 @@ import { logBoardAction } from '../lib/boardLog' // v103
 import EmployeeModal from '../components/EmployeeModal' // v107
 import { maakAccount, magAccountsAanmaken, rollenVoorMaker, magFunctiesWijzigen } from '../lib/accounts' // v107, v125
 import AccountFuncties from '../components/AccountFuncties' // v125
+import Plaatsingen from '../components/Plaatsingen' // v153
 
 // v36: recruiter-thuisbasis. Een sollicitant is gewoon een lead in het
 // (automatisch aangemaakte) recruitment-project van deze recruiter -
@@ -101,7 +102,8 @@ export default function Recruitment() {
   // v58: 'referrals' is de vierde weergave (?view=referrals, nav-link "Referrals").
   // v125: 'accounts' is de vijfde weergave (?view=accounts): planning-accounts
   // een functie geven. Alleen voor wie accounts mag aanmaken.
-  const VIEW_PARAMS = ['agenda', 'referrals', 'accounts']
+  // v153: 'plaatsingen' (?view=plaatsingen): wie werkt waar.
+  const VIEW_PARAMS = ['agenda', 'referrals', 'accounts', 'plaatsingen']
   const initialView = VIEW_PARAMS.includes(searchParams.get('view')) ? searchParams.get('view') : 'board'
   const [view, setView] = useState(initialView) // 'board' | 'list' | 'agenda' | 'referrals' | 'accounts'
   useEffect(() => {
@@ -720,6 +722,14 @@ export default function Recruitment() {
                 >
                   <Gift size={15} /> Referrals{referralCount > 0 ? ` (${referralCount})` : ''}
                 </button>
+                <button
+                  onClick={() => setView('plaatsingen')}
+                  className="btn btn-sm"
+                  style={{ background: view === 'plaatsingen' ? 'var(--primary)' : 'transparent', color: view === 'plaatsingen' ? 'var(--text-on-accent)' : 'var(--text-muted)' }}
+                  title="Plaatsingen: waar werkt iedereen (callcenter, opdrachtgever, buitendienst)"
+                >
+                  <MapPin size={15} /> Plaatsingen
+                </button>
                 {kanAccounts && (
                   <button
                     onClick={() => setView('accounts')}
@@ -739,6 +749,8 @@ export default function Recruitment() {
 
             {loading ? (
               <LoadingSpinner size="large" />
+            ) : view === 'plaatsingen' ? (
+              <Plaatsingen profiles={orgProfiles} applicants={baseApplicants} onOpenLead={openEdit} />
             ) : view === 'accounts' && kanAccounts ? (
               <AccountFuncties profiles={orgProfiles} me={profile} onChanged={laadOrgProfiles} />
             ) : view === 'referrals' ? (

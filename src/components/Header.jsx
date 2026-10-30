@@ -99,6 +99,8 @@ export default function Header({ onOpenSettings }) {
         { path: '/recruitment?view=agenda', label: 'Agenda' },
         // v58: referral-overzicht (zelfde pagina, ?view=referrals)
         { path: '/recruitment?view=referrals', label: 'Referrals' },
+        // v153: wie werkt waar (callcenter, opdrachtgever, buitendienst)
+        { path: '/recruitment?view=plaatsingen', label: 'Plaatsingen' },
         // v125: planning-accounts een functie geven (alleen met het recht "Accounts aanmaken")
         ...(profile?.can_create_users === true ? [{ path: '/recruitment?view=accounts', label: 'Accounts' }] : []),
         // v136: verklaringen versturen (alleen met het vinkje "Overeenkomsten versturen")
