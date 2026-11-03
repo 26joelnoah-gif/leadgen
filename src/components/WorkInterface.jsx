@@ -25,7 +25,9 @@ import { useDagdoel } from '../hooks/useDagdoel' // v150
 const NIET_GESPROKEN = ['geen_gehoor', 'voicemail', 'verkeerd_nummer', 'later_bellen']
 import { useProjectTools, offerteHrefForLead, verduurzamingHrefForLead, vrijeOfferteHrefForLead } from '../hooks/useProjectTools'
 import { useProjectMailService } from '../hooks/useProjectMailService'
-import { mailSourceLabel, mailTypeLabel } from '../lib/mailSources'
+import { mailSourceLabel, mailTypeLabel, bronKentAfspraken } from '../lib/mailSources'
+import BronAfspraakModal from './BronAfspraakModal' // v154
+import { CalendarCheck as CalendarCheckIcon } from 'lucide-react' // v154
 import MailingserviceModal from './MailingserviceModal'
 import AgendaPickerModal from './AgendaPickerModal'
 import { ComplianceLeadBlok, ComplianceMeldingModal } from './Compliance'
@@ -190,6 +192,9 @@ export default function WorkInterface() {
   // af op 'mail_verstuurd' met opvolgdatum (standaard +5 dagen).
   const { mailService } = useProjectMailService(workingListId || workingLead?.lead_list_id)
   const [showMailModal, setShowMailModal] = useState(false)
+  // v154: kennismakingsgesprek bij de closer van de bron (BeautyInfo / cal.com)
+  const [showBronAfspraak, setShowBronAfspraak] = useState(false)
+  const bronAfspraken = !!mailService && bronKentAfspraken(mailService.source)
   // v105: nieuw design - afboekknoppen boven het maximum onder "Meer ..."
   const [meerOpen, setMeerOpen] = useState(false)
 
@@ -857,6 +862,41 @@ export default function WorkInterface() {
     await submitDisposition('mail_verstuurd', notes, next.toISOString())
   }
 
+  // v154: kennismakingsgesprek ingepland bij de bron. De database heeft de lead
+  // al op 'afspraak_gemaakt' gezet op naam van deze beller (met call_log), dus
+  // hier NIET nog eens afboeken: alleen melden en door naar de volgende lead.
+  const openBronAfspraak = async () => {
+    try { await saveLeadEdits() } catch { /* opslaan van notities mag inplannen niet blokkeren */ }
+    setShowBronAfspraak(true)
+  }
+  const handleBronGeboekt = async (data) => {
+    const wanneer = data?.start ? new Date(data.start).toLocaleString('nl-NL', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : ''
+    if (!data?.lead_bijgewerkt) {
+      setShowBronAfspraak(false)
+      toast(`Gesprek staat bij ${mailSourceLabel(mailService?.source)} (${wanneer}), maar de lead is niet bijgewerkt. Boek hem zelf af als Afspraak gemaakt.`, 'error', 12000)
+      return
+    }
+    setShowBronAfspraak(false)
+    setShowDispositionModal(false)
+    setDispositionNotes('')
+    setNextContactDate('')
+    setSelectedDisposition(null)
+    setTodayCalls(prev => prev + 1)
+    toast(`Gesprek ingepland: ${wanneer}${data?.closer ? ` met ${data.closer}` : ''}`, 'success', 7000)
+    if (workingLead) { toggleWorkingMode(); return }
+    setClaimedLead(null)
+    setClaiming(true)
+    const claimFn = isBackofficeMode ? claimNextBackofficeLead : claimNextLead
+    try {
+      setClaimedLead(await claimFn(workingListId))
+    } catch (err) {
+      logAppError('belscherm.volgendeLead', err, { listId: workingListId })
+      toast('De volgende lead kon niet geladen worden. Probeer het zo nog eens.', 'error', 7000)
+    } finally {
+      setClaiming(false)
+    }
+  }
+
   // v78: mail bewaard in de Mailinglijst, nog niet weg. Lead op 'mail_gepland'
   // zonder opvolgdatum; die komt pas als de mail echt verstuurd is.
   // v93: zelfde regel als bij handleMailSent - staat de lead al op een TBA,
@@ -1521,6 +1561,23 @@ export default function WorkInterface() {
                 )}
               </div>
             )}
+            {bronAfspraken && !isBackofficeMode && !isRecruitmentCampaign && (
+              <button
+                disabled={isSubmitting}
+                onClick={openBronAfspraak}
+                title={`Kennismakingsgesprek inplannen bij de closer van ${mailSourceLabel(mailService.source)} en afboeken op Afspraak gemaakt`}
+                className="glow-hover"
+                style={{
+                  background: 'var(--bg-elevated)', border: '1px solid var(--accent)', color: 'var(--accent)',
+                  padding: isMobile ? '8px 10px' : '8px 14px', borderRadius: '8px', fontWeight: 700, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '8px', minWidth: isMobile ? '110px' : '118px',
+                  fontSize: isMobile ? '0.75rem' : '0.78rem', flex: isMobile ? '1 1 120px' : '0 1 auto',
+                  justifyContent: 'center', transition: 'all 0.2s'
+                }}
+              >
+                <CalendarCheckIcon size={18} /> GESPREK INPLANNEN
+              </button>
+            )}
             {mailService && !isBackofficeMode && !isRecruitmentCampaign && (
               <button
                 disabled={isSubmitting}
@@ -1555,6 +1612,17 @@ export default function WorkInterface() {
               onClose={() => setShowMailModal(false)}
               onSent={handleMailSent}
               onQueued={handleMailQueued}
+            />
+          )}
+
+          {showBronAfspraak && bronAfspraken && (
+            <BronAfspraakModal
+              key={`bron-${currentLead.id}`}
+              lead={currentLead}
+              bron={mailService.source}
+              notitie={dispositionNotes.trim()}
+              onClose={() => setShowBronAfspraak(false)}
+              onGeboekt={handleBronGeboekt}
             />
           )}
 

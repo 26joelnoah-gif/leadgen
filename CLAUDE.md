@@ -1234,8 +1234,8 @@ Twee-zijdig platform:
   Migratie: supabase/migrations/migration_v152_lvl_videocall.sql.
 
 
-- **PLAATSINGEN: WIE WERKT WAAR (v153, 2026-10-30, migratie NOG DRAAIEN in
-  de SQL-editor):** weergave "Plaatsingen" op /recruitment (?view=plaatsingen,
+- **PLAATSINGEN: WIE WERKT WAAR (v153, 2026-10-30, migratie toegepast;
+  ):** weergave "Plaatsingen" op /recruitment (?view=plaatsingen,
   ook in het recruiter-menu). Bord met kolom "Nog niet geplaatst" + een kolom
   per locatie in `public.plaatsing_locaties` (naam, soort callcenter |
   opdrachtgever | buitendienst | anders, plaats; verwijderen = actief false,
@@ -1249,3 +1249,32 @@ Twee-zijdig platform:
   extern staan er niet in. Component: src/components/Plaatsingen.jsx.
   Migratie: supabase/migrations/migration_v153_plaatsingen.sql (maakt ook
   "Callcenter Arnhem" en "Rocher" aan).
+
+- **KENNISMAKINGSGESPREK VIA DE MAILBRON (v154, 2026-11-02, migratie
+  toegepast, mailstatus v18 + bron-afspraken v1 live):** BeautyInfo (closer
+  Collin, agenda via cal.com) kent nu /api/reachconnect/afspraken.
+  1. Belscherm: knop "GESPREK INPLANNEN" naast Mailingservice als de bron
+     `afspraken: true` heeft in src/lib/mailSources.js (bronKentAfspraken).
+     Popup src/components/BronAfspraakModal.jsx haalt vrije tijden op en boekt
+     via Edge Function `bron-afspraken` (verify_jwt aan, toegang via RLS op de
+     lead, 60/uur per beller). URL = webhook-URL met /mail -> /afspraken,
+     sleutel = die van de Mailingservice (campaign_mail_secrets). Lukt het
+     niet: boekingslink van de bron om te kopieren.
+  2. Na een geboekte tijd zet `public.bron_afspraak_verwerken()` (alleen
+     service_role) de lead op afspraak_gemaakt, appointment_type videocall,
+     appointment_at, appointment_meet_link, appointment_by = de beller, plus
+     een call_logs-rij (source 'bron_afspraak', duur 0). Het belscherm boekt
+     daarna NIET nog eens af, het gaat alleen door naar de volgende lead.
+  3. Callback (mailstatus): afspraak_gepland / _verzet / _geannuleerd / _gehad
+     gaan via dezelfde functie. Plant de klant zelf (na de mail), dan telt de
+     afspraak voor de beller die de mail stuurde (laatste ok-regel in
+     mailservice_logs) + melding. Verzet = tijd bijwerken + melding.
+     Geannuleerd = later_bellen (nu), appointment_at leeg + melding. Gehad =
+     alleen vastleggen. Stond de lead al op afspraak_gemaakt, dan geen tweede
+     call_log. Volgorde via lead_mail_status.afspraak_op (occurred_at); een
+     boeking door een beller zelf schuift die niet op.
+     BEWUSTE UITZONDERING op v70 ("mailstatus verandert leads.status niet"):
+     Noah wil dat een gesprek bij de bron telt als afspraak van de beller.
+  4. lead_mail_status heeft afspraak_status/_start/_eind/_closer/_meet_url/
+     _door/_op; MailStatus.jsx toont MailAfspraakChip (klik = videogesprek).
+  Migratie: supabase/migrations/migration_v154_bron_afspraken.sql.

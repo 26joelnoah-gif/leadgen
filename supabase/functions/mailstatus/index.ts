@@ -80,7 +80,10 @@ const STAPPEN: Record<string, { rang: number; kolom: string }> = {
 //   actie  = true: terugbellen aan te raden (komt in lead_mail_status.actie_nodig)
 //   live   = 'aan' | 'uit': klant is nu wel/niet op de aanmeldpagina
 //   bel    = true: dit is een belmoment -> melding voor de beller (1x per stap)
-type EventInfo = { stap: string | null; fase: string; actie?: boolean; live?: "aan" | "uit"; bel?: boolean };
+//   afspraak = true: kennismakingsgesprek (v154). Verandert de fase-balk niet
+//            (die is Mail > Bezoek > Betaling > Klant), maar gaat via
+//            public.bron_afspraak_verwerken naar de lead.
+type EventInfo = { stap: string | null; fase: string; actie?: boolean; live?: "aan" | "uit"; bel?: boolean; afspraak?: boolean };
 const EVENTS: Record<string, EventInfo> = {
   // Mail
   gemaild:               { stap: "gemaild", fase: "mail" },
@@ -107,6 +110,11 @@ const EVENTS: Record<string, EventInfo> = {
   abonnement_opgezegd:   { stap: null, fase: "klant", actie: true },
   // Einde (echo van onze /stop, zie boven)
   afgemeld:              { stap: null, fase: "einde" },
+  // v154: kennismakingsgesprek met de closer van de bron (cal.com)
+  afspraak_gepland:      { stap: null, fase: "afspraak", afspraak: true },
+  afspraak_verzet:       { stap: null, fase: "afspraak", afspraak: true },
+  afspraak_geannuleerd:  { stap: null, fase: "afspraak", afspraak: true },
+  afspraak_gehad:        { stap: null, fase: "afspraak", afspraak: true },
   // Oude MK-stappen, zodat beide formaten dezelfde tabel gebruiken
   offerte_open:          { stap: "offerte_open", fase: "betaling", bel: true },
   getekend:              { stap: "getekend", fase: "betaling" },
@@ -503,7 +511,7 @@ Deno.serve(async (req: Request) => {
       rij.laatste_event = status;
       rij.laatste_event_op = statusOp;
       const faseVanBron = FASES.includes(stageRuw) ? stageRuw : null;
-      rij.fase = faseVanBron || ev?.fase || (oud?.fase as string | null) || null;
+      rij.fase = faseVanBron || (ev?.afspraak ? null : ev?.fase) || (oud?.fase as string | null) || null;
     } else {
       rij.laatste_event = oud?.laatste_event ?? null;
       rij.laatste_event_op = oud?.laatste_event_op ?? null;
@@ -528,7 +536,7 @@ Deno.serve(async (req: Request) => {
       nieuweActie = oud?.actie_nodig !== status;
       rij.actie_nodig = status;
       rij.actie_nodig_op = statusOp;
-    } else if (ev && !ev.actie && ev.live !== "uit" && oud?.actie_nodig && statusOp > oudActieOp) {
+    } else if (ev && !ev.actie && !ev.afspraak && ev.live !== "uit" && oud?.actie_nodig && statusOp > oudActieOp) {
       rij.actie_nodig = null;
       rij.actie_nodig_op = null;
     }
@@ -537,6 +545,28 @@ Deno.serve(async (req: Request) => {
     if (error) {
       console.error("[mailstatus] opslaan mislukt", error.message);
       return json({ error: "Opslaan mislukt" }, 500);
+    }
+
+    // v154: kennismakingsgesprek -> lead bijwerken (status afspraak_gemaakt,
+    // tijd, meet-link, telt voor de beller die mailde of boekte). Meldingen
+    // doet de databasefunctie zelf. Een fout hier geeft toch 200, want de
+    // gebeurtenis zelf staat al in lead_mail_events.
+    if (ev?.afspraak) {
+      const tijd = (v: unknown) => {
+        const t = typeof v === "string" ? Date.parse(v) : NaN;
+        return Number.isFinite(t) ? new Date(t).toISOString() : null;
+      };
+      const meet = kort(details?.meeting_url, 500);
+      const door = (kort(details?.source, 20) || "").toLowerCase();
+      const { data: afsp, error: afspFout } = await admin.rpc("bron_afspraak_verwerken", {
+        p_lead: lead.id, p_source: source, p_status: status, p_op: statusOp,
+        p_start: tijd(details?.starts_at), p_eind: tijd(details?.ends_at),
+        p_closer: kort(details?.closer, 80), p_meet: meet && meet.startsWith("https://") ? meet : null,
+        p_door: door === "klant" || door === "setter" ? door : null,
+        p_beller: null, p_notitie: null,
+      });
+      if (afspFout) console.error("[mailstatus] afspraak verwerken mislukt", afspFout.message);
+      return json({ received: true, ok: true, lead_id: lead.id, afspraak: afsp ?? null });
     }
 
     // Wie krijgt een melding: de eigenaar van de lead, anders de managers.

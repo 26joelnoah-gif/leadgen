@@ -23,8 +23,14 @@ export const MAIL_SOURCES = [
     types: ['aanmelding', 'opvolging'],
     // v123: BeautyInfo weigert een mail zonder plaats ("stad is required").
     verplicht: ['stad'],
+    // v154: kent /api/reachconnect/afspraken (kennismakingsgesprek met de
+    // closer, agenda via cal.com). Dan staat er een knop in het belscherm.
+    afspraken: true,
   },
 ]
+
+// v154: kan deze bron een kennismakingsgesprek inplannen? (Edge Function bron-afspraken)
+export const bronKentAfspraken = (key) => !!MAIL_SOURCES.find(s => s.key === key)?.afspraken
 
 // v123: welke extra leadvelden een bron eist voordat hij mailt. De popup vraagt
 // ze dan vooraf aan de beller en slaat ze op bij de lead, zodat de Edge Function

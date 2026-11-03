@@ -13,7 +13,7 @@
 // contactkaart). Nieuw in beeld: voortgangsbalk Mail > Bezoek > Betaling >
 // Klant, label "Nu op de pagina" en een rode terugbel-vlag.
 import { useEffect, useState } from 'react'
-import { MailCheck, ExternalLink, Radio, PhoneCall } from 'lucide-react'
+import { MailCheck, ExternalLink, Radio, PhoneCall, CalendarCheck } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { mailTypeLabel, mailSourceLabel } from '../lib/mailSources'
 
@@ -49,6 +49,11 @@ export const MAIL_EVENT_LABELS = {
   afgemeld: 'Gestopt',
   offerte_open: 'Offerte geopend',
   getekend: 'Getekend',
+  // v154: kennismakingsgesprek met de closer van de bron
+  afspraak_gepland: 'Gesprek ingepland',
+  afspraak_verzet: 'Gesprek verzet',
+  afspraak_geannuleerd: 'Gesprek geannuleerd',
+  afspraak_gehad: 'Gesprek gehad',
 }
 export const mailEventLabel = (s) => MAIL_EVENT_LABELS[s] || (s ? s.replace(/_/g, ' ') : 'Onbekend')
 
@@ -97,7 +102,7 @@ const statusInfo = (s) => MAIL_STATUS[s] || { label: mailEventLabel(s), color: '
 const dt = (iso) => iso ? new Date(iso).toLocaleString('nl-NL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : null
 const d = (iso) => iso ? new Date(iso).toLocaleDateString('nl-NL', { day: 'numeric', month: 'short' }) : null
 
-const SELECT = 'id, source, mail_soort, email, bureau, offerte_url, status, status_rank, status_op, gemaild_op, geklikt_op, offerte_open_op, getekend_op, betaald_op, updated_at, laatste_event, laatste_event_op, fase, pagina_actief_op, pagina_verlaten_op, actie_nodig, actie_nodig_op'
+const SELECT = 'id, source, mail_soort, email, bureau, offerte_url, status, status_rank, status_op, gemaild_op, geklikt_op, offerte_open_op, getekend_op, betaald_op, updated_at, laatste_event, laatste_event_op, fase, pagina_actief_op, pagina_verlaten_op, actie_nodig, actie_nodig_op, afspraak_status, afspraak_start, afspraak_closer, afspraak_meet_url, afspraak_door'
 
 export function MailStatusChip({ status }) {
   const s = statusInfo(status)
@@ -133,6 +138,31 @@ export function MailActieChip({ actie }) {
       <PhoneCall size={11} /> Terugbellen: {mailActieLabel(actie)}
     </span>
   )
+}
+
+// v154: kennismakingsgesprek dat de bron meldde (gepland / verzet / geannuleerd / gehad).
+const AFSPRAAK_STAND = {
+  gepland: { label: 'Gesprek', color: 'var(--success)', bg: 'var(--success-bg)' },
+  verzet: { label: 'Gesprek verzet', color: 'var(--success)', bg: 'var(--success-bg)' },
+  geannuleerd: { label: 'Gesprek geannuleerd', color: 'var(--danger)', bg: 'var(--danger-bg)' },
+  gehad: { label: 'Gesprek gehad', color: 'var(--text-secondary)', bg: 'var(--bg-elevated)' },
+}
+export function MailAfspraakChip({ r }) {
+  const st = AFSPRAAK_STAND[r?.afspraak_status]
+  if (!st) return null
+  const tekst = `${st.label}${r.afspraak_start ? ' ' + dt(r.afspraak_start) : ''}${r.afspraak_closer ? ' met ' + r.afspraak_closer : ''}`
+  const chip = (
+    <span title={r.afspraak_door === 'klant' ? 'Klant plande zelf' : r.afspraak_door === 'setter' ? 'Ingepland door beller' : ''} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.72rem', fontWeight: 700,
+      padding: '2px 9px', borderRadius: 999, color: st.color, background: st.bg, whiteSpace: 'nowrap',
+    }}>
+      <CalendarCheck size={11} /> {tekst}
+    </span>
+  )
+  if (r.afspraak_meet_url && (r.afspraak_status === 'gepland' || r.afspraak_status === 'verzet')) {
+    return <a href={r.afspraak_meet_url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'none' }} title="Videogesprek openen">{chip}</a>
+  }
+  return chip
 }
 
 // v122: voortgangsbalk Mail > Bezoek > Betaling > Klant.
@@ -230,6 +260,7 @@ function RijChips({ r }) {
       <MailStatusChip status={r.source === 'BEAUTYINFO' && r.status === 'offerte_open' ? 'checkout_gestart' : r.status} />
       {isLiveOpPagina(r) && <MailLiveChip />}
       <MailActieChip actie={r.actie_nodig} />
+      <MailAfspraakChip r={r} />
     </>
   )
 }
