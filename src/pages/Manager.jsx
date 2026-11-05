@@ -5,7 +5,7 @@ import { motion } from 'framer-motion'
 import {
   Users, PhoneCall, CheckCircle, Download, Clock, Filter, Calendar,
   TrendingUp, Phone, UserPlus, Layers, Upload, Zap, Euro, BarChart3, FastForward,
-  BookOpen, Sparkles, KeyRound, Trash2
+  BookOpen, Sparkles, KeyRound, Trash2, UserCheck
 } from 'lucide-react'
 import EnrichResultsModal from '../components/EnrichResultsModal'
 import { getStatusDetails } from '../utils/statusUtils'
@@ -23,6 +23,7 @@ import FlowSettingsEditor from '../components/FlowSettingsEditor'
 import { useToast } from '../components/Toast'
 import { maakAccount } from '../lib/accounts' // v107
 import PersonSelect, { roleLabel } from '../components/PersonSelect' // v102
+import PersoneelOverzicht from '../components/PersoneelOverzicht' // v155
 
 // Seconden -> "1u 11m 22s"
 function fmtDuration(totalSeconds) {
@@ -638,7 +639,8 @@ export default function Manager() {
             ...(!kpiOnly ? [
               { id: 'gesprekken', label: 'Alle gesprekken', icon: <Phone size={15} /> },
               { id: 'resultaten', label: 'Resultaten', icon: <CheckCircle size={15} /> },
-              { id: 'team', label: 'Team & projecten', icon: <Layers size={15} /> }
+              { id: 'team', label: 'Team & projecten', icon: <Layers size={15} /> },
+              { id: 'personeel', label: 'Personeel', icon: <UserCheck size={15} /> }
             ] : []),
             ...(canEditFlows && !kpiOnly ? [{ id: 'flows', label: 'Flows', icon: <FastForward size={15} /> }] : [])
           ].map(t => (
@@ -953,6 +955,8 @@ export default function Manager() {
               </p>
             )}
           </div>
+        ) : activeTab === 'personeel' ? (
+          <PersoneelOverzicht canEarnings={isAdmin} isManager={!isAdmin} />
         ) : activeTab === 'flows' ? (
           <FlowSettingsEditor />
         ) : (

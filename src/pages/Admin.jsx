@@ -36,6 +36,7 @@ import UserToolsModal from '../components/UserToolsModal' // v77
 import NewProjectWizard from '../components/NewProjectWizard'
 import PayoutSettings from '../components/PayoutSettings'
 import { ComplianceOverzicht } from '../components/Compliance'
+import PersoneelOverzicht from '../components/PersoneelOverzicht' // v155
 import ImportLeadsModal from '../components/ImportLeadsModal'
 import LeadManagement from './LeadManagement' // IMPORT THE MANAGEMENT COMPONENT
 
@@ -672,6 +673,7 @@ export default function Admin() {
            {[
              { id: 'data', label: 'Projecten & Leads', Icon: Layers },
              { id: 'medewerkers', label: 'Team', Icon: Users },
+             { id: 'personeel', label: 'Personeel', Icon: UserCheck },
              { id: 'verdiensten', label: 'Uitbetaling', Icon: DollarSign },
              { id: 'nieuws', label: 'Nieuws', Icon: Newspaper },
              { id: 'compliance', label: 'Compliance', Icon: Shield },
@@ -1349,6 +1351,13 @@ export default function Admin() {
         {activeTab === 'compliance' && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             <ComplianceOverzicht />
+          </motion.div>
+        )}
+
+        {/* v155: wie werkt waar + recruiter-verdiensten per geplaatste persoon */}
+        {activeTab === 'personeel' && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <PersoneelOverzicht canEarnings />
           </motion.div>
         )}
 

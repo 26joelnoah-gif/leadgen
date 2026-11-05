@@ -1278,3 +1278,32 @@ Twee-zijdig platform:
   4. lead_mail_status heeft afspraak_status/_start/_eind/_closer/_meet_url/
      _door/_op; MailStatus.jsx toont MailAfspraakChip (klik = videogesprek).
   Migratie: supabase/migrations/migration_v154_bron_afspraken.sql.
+
+- **PERSONEEL + RECRUITER-VERDIENSTEN (v155, 2026-11-05):** tabblad
+  "Personeel" in Admin (?tab=personeel), component
+  src/components/PersoneelOverzicht.jsx. Twee weergaven:
+  1. Wie werkt waar: per persoon functie, projecten (zelfde regel als
+     getUserAssignments in Admin: via team -> campaign_teams, of als
+     campaign_manager; recruitment-projecten tellen niet mee), plek (lopende
+     plaatsing v153) en "Geplaatst door". Ook aangenomen sollicitanten zonder
+     account die een plaatsing hebben. Filters project/plek/zoeken, CSV.
+  2. Recruiter-verdiensten: keuze Noah = bedrag per sale PER GEPLAATSTE PERSOON
+     en het aantal sales vult de admin ZELF per maand in (ook mensen bij Rocher
+     of buitendienst; er wordt niets uit call_logs geteld).
+     `plaatsingen.recruiter_id` + `plaatsingen.bedrag_per_sale`: alleen admin
+     mag ze zetten (trigger plaatsingen_recruiter_guard). Plaatst een recruiter
+     iemand, dan wordt hij automatisch recruiter_id; bij verplaatsen (nieuwe
+     rij) gaan recruiter en bedrag mee van de vorige rij.
+     `public.plaatsing_sales` (plaatsing_id + maand uniek, aantal,
+     bedrag_per_sale en recruiter_id van dat moment, uitbetaald_op). Alleen
+     admin (RLS). Bedrag wijzigen geldt vanaf nu; een uitbetaalde maand
+     verandert niet mee. FK naar plaatsingen is on delete restrict.
+  3. Ook op /manager (tab "Personeel"). De component haalt zelf profielen,
+     teams, campaign_teams, campaign_managers en campaigns op. Een manager
+     ziet via RLS alleen zijn eigen projecten (filter "Mijn projecten"
+     standaard aan, "Iedereen" kan ook) en GEEN verdiensten (prop
+     canEarnings, alleen admin). Weergave "Per persoon" (tabel, alle
+     projecten als chips) of "Per project" (kaart per project; iemand in 2
+     projecten staat in 2 kaarten), onthouden in localStorage
+     'reachconnect-personeel-indeling'.
+  Migratie: supabase/migrations/migration_v155_recruiter_verdiensten.sql.
