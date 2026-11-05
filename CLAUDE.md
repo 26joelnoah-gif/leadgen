@@ -1279,7 +1279,7 @@ Twee-zijdig platform:
      _door/_op; MailStatus.jsx toont MailAfspraakChip (klik = videogesprek).
   Migratie: supabase/migrations/migration_v154_bron_afspraken.sql.
 
-- **PERSONEEL + RECRUITER-VERDIENSTEN (v155, 2026-11-05):** tabblad
+- **PERSONEEL + RECRUITER-VERDIENSTEN (v155, 2026-11-05, migratie toegepast):** tabblad
   "Personeel" in Admin (?tab=personeel), component
   src/components/PersoneelOverzicht.jsx. Twee weergaven:
   1. Wie werkt waar: per persoon functie, projecten (zelfde regel als
