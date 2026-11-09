@@ -29,6 +29,11 @@
 // v70: 'mail' is de mailsoort die de beller koos (infomail/aanmeldmail). Die
 // moet in campaign_mail_services.mail_types van het project staan; zonder
 // keuze pakken we campaign_mail_services.mail_type als standaard.
+//
+// v156 (2026-11-09): lead_id naar de bron = leads.bron_lead_id als die er is
+// (BeautyInfo "bi-..." uit hun export), anders onze uuid. 409-codes van de bron
+// (already_processed, lead_closed, clinic_has_lead) gaan als `code` + uitleg
+// terug; bij clinic_has_lead nemen we het ID van de bron over.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -91,6 +96,34 @@ function vulTemplate(tpl: unknown, velden: Record<string, string | undefined>): 
     return uit;
   }
   return tpl;
+}
+
+// v156: het ID dat we aan de bron geven. BeautyInfo levert een vast ID per
+// kliniek ("bi-..."), dat staat in leads.bron_lead_id. Leeg = onze eigen uuid.
+const BRON_ID_RE = /^[A-Za-z0-9._:-]{1,100}$/;
+function bronLeadId(lead: { id: string; bron_lead_id?: string | null }): string {
+  const b = (lead.bron_lead_id || "").trim();
+  return BRON_ID_RE.test(b) ? b : lead.id;
+}
+
+// v156: 409-codes van BeautyInfo (spec 09-11) in gewone taal voor de beller.
+function bronCode(resBody: Record<string, unknown>): string {
+  const c = String(resBody?.code || resBody?.error || "").trim().toLowerCase();
+  return /^[a-z_]{3,40}$/.test(c) ? c : "";
+}
+function uitlegBronCode(code: string, resBody: Record<string, unknown>): string | null {
+  if (code === "already_processed") {
+    return "De aanmeldmail is al eerder verstuurd. Wil de klant nog een mail? Kies dan Herinnering.";
+  }
+  if (code === "lead_closed") {
+    return "Deze klant heeft al betaald of is afgemeld. Er gaat geen mail meer naartoe.";
+  }
+  if (code === "clinic_has_lead") {
+    const stand = kort(resBody?.status, 40);
+    return `Deze kliniek was al aangemeld onder een ander ID${stand ? ` (stand: ${stand})` : ""}. ` +
+      "Dat ID staat nu bij de lead. Moet er nog een mail heen, probeer het dan opnieuw.";
+  }
+  return null;
 }
 
 Deno.serve(async (req: Request) => {
@@ -158,7 +191,7 @@ Deno.serve(async (req: Request) => {
     // Toegang tot de lead = de beller kan hem zien via RLS (zelfde regels als het belscherm).
     const { data: lead } = await userClient
       .from("leads")
-      .select("id, name, phone, city, website, status, lead_list_id, organization_id, deleted_at")
+      .select("id, name, phone, city, website, status, lead_list_id, organization_id, deleted_at, bron_lead_id")
       .eq("id", leadId)
       .maybeSingle();
     if (!lead || lead.deleted_at) return json({ error: "Lead niet gevonden" }, 404);
@@ -217,7 +250,7 @@ Deno.serve(async (req: Request) => {
 
     const velden: Record<string, string | undefined> = {
       mail: mailSoort,
-      lead_id: lead.id,
+      lead_id: bronLeadId(lead),
       email,
       bedrijfsnaam: String(lead.name || "").trim().slice(0, 120) || email,
       contactpersoon,
@@ -248,6 +281,7 @@ Deno.serve(async (req: Request) => {
     let status = 502;
     let foutmelding = "";
     let logFout = "";            // v120: volledige reden, gaat altijd in mailservice_logs
+    let foutCode = "";           // v156: code van de bron (already_processed, lead_closed, ...)
     const magDetail = caller.role === "admin" || caller.role === "manager";
     // v121: wat ging er precies de deur uit? Alleen voor admin en manager, en
     // altijd met een gemaskeerde token.
@@ -296,6 +330,19 @@ Deno.serve(async (req: Request) => {
         } else {
           foutmelding = bronMelding || "Versturen mislukt";
         }
+        // v156: bekende codes van de bron netjes uitleggen. Bij clinic_has_lead
+        // het ID van de bron overnemen, zodat alle volgende aanroepen kloppen.
+        const code = bronCode(resBody);
+        const uitleg = uitlegBronCode(code, resBody);
+        if (uitleg) foutmelding = uitleg;
+        if (code === "clinic_has_lead") {
+          const nieuwId = String(resBody?.lead_id || "").trim();
+          if (BRON_ID_RE.test(nieuwId) && nieuwId !== lead.bron_lead_id) {
+            const { error: idFout } = await admin.from("leads").update({ bron_lead_id: nieuwId }).eq("id", lead.id);
+            if (idFout) console.error("[mailingservice] bron_lead_id bijwerken mislukt", idFout.message);
+          }
+        }
+        if (code) foutCode = code;
       }
     } catch (e) {
       foutmelding = e instanceof Error && e.name === "AbortError"
@@ -319,7 +366,8 @@ Deno.serve(async (req: Request) => {
     if (!ok) {
       return json({
         error: foutmelding,
-        ...(magDetail ? { debug: { verzoek, antwoord, reden: logFout } } : {}),
+        ...(foutCode ? { code: foutCode } : {}),
+        ...(magDetail ?{ debug: { verzoek, antwoord, reden: logFout } } : {}),
       }, status);
     }
 

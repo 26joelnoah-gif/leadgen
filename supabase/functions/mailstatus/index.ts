@@ -55,6 +55,9 @@
 // - "afgemeld" in dit formaat is de echo van ONZE /stop-aanroep (beller zette
 //   geen interesse). Dat is geen opt-out, dus GEEN blokkeer_lead; we leggen het
 //   alleen vast. In het oude formaat blijft afgemeld = echte afmelding (v98).
+//
+// v156 (2026-11-09): lead_id mag ook het vaste ID van de bron zijn
+// (BeautyInfo "bi-..."). Dat zoeken we op in leads.bron_lead_id.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -137,6 +140,7 @@ const SYNONIEMEN: Record<string, string> = {
 const SLUG = /^[a-z][a-z0-9_]{1,39}$/;
 const BRON = /^[A-Z][A-Z0-9_]{1,39}$/;
 const UUID = /^[0-9a-f-]{36}$/i;
+const BRON_ID_RE = /^[A-Za-z0-9._:-]{1,100}$/;   // v156: ID van de bron, bv. "bi-<uuid>"
 
 function kort(v: unknown, max: number): string | null {
   const s = typeof v === "string" ? v.trim() : "";
@@ -195,8 +199,10 @@ Deno.serve(async (req: Request) => {
     // Testbericht uit het beheerpaneel van de bron: niets opslaan, wel 200.
     if (status === "test") return ok200({ test: true, source });
 
-    const leadId = String(body?.lead_id || "");
-    if (!UUID.test(leadId)) {
+    // v156: lead_id is onze uuid OF het ID van de bron zelf (BeautyInfo "bi-...",
+    // staat in leads.bron_lead_id). Dat tweede zoeken we hieronder op.
+    const leadIdRuw = String(body?.lead_id || "").trim();
+    if (!UUID.test(leadIdRuw) && !BRON_ID_RE.test(leadIdRuw)) {
       return nieuwFormaat ? ok200({ genegeerd: "lead_id is geen ReachConnect-lead" }) : json({ error: "lead_id ontbreekt of klopt niet" }, 400);
     }
 
@@ -225,9 +231,28 @@ Deno.serve(async (req: Request) => {
 
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    const { data: lead } = await admin
-      .from("leads").select("id, name, phone, email, organization_id, lead_list_id, deleted_at, assigned_to, locked_by")
-      .eq("id", leadId).maybeSingle();
+    const LEAD_KOLOMMEN = "id, name, phone, email, organization_id, lead_list_id, deleted_at, assigned_to, locked_by";
+    // deno-lint-ignore no-explicit-any
+    let lead: any = null;
+    if (UUID.test(leadIdRuw)) {
+      const { data } = await admin.from("leads").select(LEAD_KOLOMMEN).eq("id", leadIdRuw).maybeSingle();
+      lead = data;
+    }
+    if (!lead && BRON_ID_RE.test(leadIdRuw)) {
+      // Zelfde kliniek kan in meer lijsten staan: liefst de lead die deze bron
+      // al eerder mailde, anders de laatst bijgewerkte.
+      const { data: kandidaten } = await admin.from("leads").select(LEAD_KOLOMMEN)
+        .eq("bron_lead_id", leadIdRuw).is("deleted_at", null)
+        .order("updated_at", { ascending: false }).limit(10);
+      if (kandidaten && kandidaten.length > 1) {
+        const { data: gemaild } = await admin.from("lead_mail_status").select("lead_id")
+          .eq("source", source).in("lead_id", kandidaten.map((k: { id: string }) => k.id))
+          .order("updated_at", { ascending: false }).limit(1);
+        lead = kandidaten.find((k: { id: string }) => k.id === gemaild?.[0]?.lead_id) || kandidaten[0];
+      } else {
+        lead = kandidaten?.[0] ?? null;
+      }
+    }
     if (!lead || lead.deleted_at) {
       return nieuwFormaat ? ok200({ genegeerd: "lead onbekend of verwijderd" }) : json({ error: "Lead niet gevonden" }, 404);
     }

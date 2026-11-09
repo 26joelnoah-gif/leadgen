@@ -89,6 +89,23 @@ function vulTemplate(tpl: unknown, velden: Record<string, string | undefined>): 
   return tpl;
 }
 
+// v156: zelfde regels als mailingservice. ID van de bron (BeautyInfo "bi-...")
+// uit leads.bron_lead_id, anders onze eigen uuid; 409-codes in gewone taal.
+const BRON_ID_RE = /^[A-Za-z0-9._:-]{1,100}$/;
+function bronLeadId(lead: { id: string; bron_lead_id?: string | null }): string {
+  const b = (lead.bron_lead_id || "").trim();
+  return BRON_ID_RE.test(b) ? b : lead.id;
+}
+function bronCode(resBody: Record<string, unknown>): string {
+  const c = String(resBody?.code || resBody?.error || "").trim().toLowerCase();
+  return /^[a-z_]{3,40}$/.test(c) ? c : "";
+}
+const BRON_CODE_UITLEG: Record<string, string> = {
+  already_processed: "De aanmeldmail was al verstuurd. Kies Herinnering als de klant nog een mail wil.",
+  lead_closed: "Klant heeft al betaald of is afgemeld. Geen mail gestuurd.",
+  clinic_has_lead: "Kliniek was al aangemeld onder een ander ID. Dat ID staat nu bij de lead; probeer opnieuw.",
+};
+
 Deno.serve(async (req: Request) => {
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -138,7 +155,7 @@ Deno.serve(async (req: Request) => {
       if (!EMAIL_RE.test(email)) { await faal("Geen geldig e-mailadres"); continue; }
 
       const { data: lead } = await admin.from("leads")
-        .select("id, name, phone, city, website, status, lead_list_id, organization_id, deleted_at")
+        .select("id, name, phone, city, website, status, lead_list_id, organization_id, deleted_at, bron_lead_id")
         .eq("id", rij.lead_id).maybeSingle();
       if (!lead || lead.deleted_at) { await faal("Lead bestaat niet meer"); continue; }
       if (lead.status === "blacklist") { await faal("Lead staat op de blacklist"); continue; }
@@ -192,7 +209,7 @@ Deno.serve(async (req: Request) => {
 
       const velden: Record<string, string | undefined> = {
         mail: mailSoort,
-        lead_id: lead.id,
+        lead_id: bronLeadId(lead),
         email,
         bedrijfsnaam: String(lead.name || "").trim().slice(0, 120) || email,
         contactpersoon: kort(rij.contactpersoon, 100),
@@ -238,6 +255,14 @@ Deno.serve(async (req: Request) => {
           foutmelding = [400, 409, 429].includes(res.status)
             ? String(resBody?.error || "Versturen mislukt").slice(0, 200)
             : `Versturen via ${svc.source} mislukt (${res.status})`;
+          const code = bronCode(resBody);
+          if (BRON_CODE_UITLEG[code]) foutmelding = BRON_CODE_UITLEG[code];
+          if (code === "clinic_has_lead") {
+            const nieuwId = String(resBody?.lead_id || "").trim();
+            if (BRON_ID_RE.test(nieuwId) && nieuwId !== lead.bron_lead_id) {
+              await admin.from("leads").update({ bron_lead_id: nieuwId }).eq("id", lead.id);
+            }
+          }
         }
       } catch (e) {
         foutmelding = e instanceof Error && e.name === "AbortError" ? "De mailserver reageert niet" : "Versturen mislukt";

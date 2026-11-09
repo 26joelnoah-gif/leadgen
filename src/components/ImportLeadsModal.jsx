@@ -40,10 +40,26 @@ const FIELDS = [
   { id: 'extra_info1', label: 'Extra info 1' },
   { id: 'extra_info2', label: 'Extra info 2' },
   { id: 'extra_info3', label: 'Extra info 3' },
+  // v156: vast ID en profiel-link van de bron (BeautyInfo-export: kolommen
+  // "lead_id" en "Profiel op BeautyInfo"). Gaat mee naar /mail, /stop, /afspraken.
+  { id: 'bron_lead_id', label: 'Lead-ID van de bron (bv. BeautyInfo)' },
+  { id: 'bron_profiel', label: 'Profiel bij de bron (link)' },
 ]
 
 // Velden die bij verrijken aangevuld mogen worden (alleen als ze nu leeg zijn)
-const ENRICHABLE = ['contact_person', 'function', 'email', 'website', 'address', 'house_number', 'postal_code', 'city', 'notes', 'extra_info1', 'extra_info2', 'extra_info3']
+const ENRICHABLE = ['contact_person', 'function', 'email', 'website', 'address', 'house_number', 'postal_code', 'city', 'notes', 'extra_info1', 'extra_info2', 'extra_info3', 'bron_profiel']
+
+// v156: zelfde regels als de CHECK-constraints op leads.bron_lead_id / bron_profiel
+const BRON_ID_RE = /^[A-Za-z0-9._:-]{1,100}$/
+const parseBronId = (v) => { const s = String(v || '').trim(); return BRON_ID_RE.test(s) ? s : null }
+const parseProfiel = (v) => {
+  let s = String(v || '').trim()
+  if (!s) return null
+  if (/^http:\/\//i.test(s)) s = s.replace(/^http:/i, 'https:')
+  else if (!/^https:\/\//i.test(s)) s = `https://${s}`
+  return /^https:\/\/[^\s]+$/i.test(s) && s.length <= 500 ? s : null
+}
+const profielSleutel = (v) => (parseProfiel(v) || '').toLowerCase().replace(/^https:\/\/(www\.)?/, '').replace(/\/+$/, '')
 
 const parseDecisionMaker = (v) => /^(ja|j|yes|y|x|true|1|beslisser|dmu?)$/i.test(String(v || '').trim())
 
@@ -202,6 +218,10 @@ function parseRechtsvorm(raw) {
 
 function guessFieldForHeader(header) {
   const h = header.toLowerCase().trim()
+  // v156: ID en profiel van de bron eerst, anders wordt "Profiel op BeautyInfo"
+  // een notitie (info) en "bron_id" de leadbron.
+  if (/^(lead[\s_-]?id|bron[\s_-]?id|extern[\s_-]?id|external[\s_-]?id)$/.test(h)) return 'bron_lead_id'
+  if (/profiel|profile/.test(h)) return 'bron_profiel'
   // Specifieke velden eerst, anders pakt "nummer" ook "huisnummer" of "kvk-nummer"
   if (/huisnr|huisnummer|house/.test(h)) return 'house_number'
   if (/postcode|zip|postal/.test(h)) return 'postal_code'
@@ -369,7 +389,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
       for (let from = 0; from < 20000; from += PAGE) {
         const { data, error } = await supabase
           .from('leads')
-          .select('id, name, phone, website, email, contact_person, function, address, house_number, postal_code, city, notes, extra_info1, extra_info2, extra_info3, decision_maker, rechtsvorm, rechtsvorm_bron')
+          .select('id, name, phone, website, email, contact_person, function, address, house_number, postal_code, city, notes, extra_info1, extra_info2, extra_info3, decision_maker, rechtsvorm, rechtsvorm_bron, bron_lead_id, bron_profiel')
           .is('deleted_at', null)
           .order('created_at', { ascending: true })
           .range(from, from + PAGE - 1)
@@ -513,6 +533,8 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         else if (field === 'phone') lead.phone = cleanPhone(value)
         else if (field === 'decision_maker') lead.decision_maker = parseDecisionMaker(value)
         else if (field === 'sale_date') { const d = parseSaleDate(value); if (d) lead.sale_date = d }
+        else if (field === 'bron_lead_id') { const b = parseBronId(value); if (b) lead.bron_lead_id = b }
+        else if (field === 'bron_profiel') { const p = parseProfiel(value); if (p) lead.bron_profiel = p }
         else if (field === 'contact_person') {
           // v32.3: ook bij import de contactpersoon-cel netjes uit elkaar halen
           const parsed = parseContactCell(value)
@@ -556,8 +578,12 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
 
     // Lookup-tabellen over de bestaande leads
     const byPhone = new Map(), byWeb = new Map(), byName = new Map()
+    const byBronId = new Map(), byProfiel = new Map() // v156
     const nameCount = {}
     existingLeads.forEach(l => {
+      if (l.bron_lead_id && !byBronId.has(l.bron_lead_id)) byBronId.set(l.bron_lead_id, l)
+      const pk = profielSleutel(l.bron_profiel)
+      if (pk && !byProfiel.has(pk)) byProfiel.set(pk, l)
       const p = cleanPhone(l.phone)
       if (p && !byPhone.has(p)) byPhone.set(p, l)
       const w = (normalizeWebsite(l.website || '') || '').toLowerCase()
@@ -586,6 +612,8 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         else if (field === 'rechtsvorm') { const rv = parseRechtsvorm(value); if (rv) row.rechtsvorm = rv }
         else if (field === 'phone') row.phone = cleanPhone(value)
         else if (field === 'decision_maker') row.decision_maker = parseDecisionMaker(value)
+        else if (field === 'bron_lead_id') { const b = parseBronId(value); if (b) row.bron_lead_id = b }
+        else if (field === 'bron_profiel') { const p = parseProfiel(value); if (p) row.bron_profiel = p }
         else if (field === 'contact_person') {
           // v32.3: "Naam (Functie) / Naam (Functie) bronkruimel" netjes uit
           // elkaar halen; e-mailadressen in de cel gaan naar het e-mailveld
@@ -611,9 +639,11 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
       if (Object.keys(row).length === 0) return // lege rij
       const rowNr = idx + (hasHeader ? 2 : 1)
 
-      // Matchen: telefoonnummer > website > bedrijfsnaam
+      // Matchen: ID van de bron > profiel bij de bron > telefoonnummer > website > bedrijfsnaam
       let lead = null, via = null
-      if (row.phone && byPhone.has(row.phone)) { lead = byPhone.get(row.phone); via = 'telefoon' }
+      if (row.bron_lead_id && byBronId.has(row.bron_lead_id)) { lead = byBronId.get(row.bron_lead_id); via = 'bron-ID' }
+      if (!lead && row.bron_profiel && byProfiel.has(profielSleutel(row.bron_profiel))) { lead = byProfiel.get(profielSleutel(row.bron_profiel)); via = 'profiel' }
+      if (!lead && row.phone && byPhone.has(row.phone)) { lead = byPhone.get(row.phone); via = 'telefoon' }
       if (!lead && row.website) {
         const w = String(row.website).toLowerCase()
         if (byWeb.has(w)) { lead = byWeb.get(w); via = 'website' }
@@ -635,6 +665,8 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
         if (row[f] && !(lead[f] || '').toString().trim()) additions[f] = row[f]
       })
       if (row.decision_maker === true && lead.decision_maker !== true) additions.decision_maker = true
+      // v156: het ID uit de export van de bron is leidend, dus ook overschrijven
+      if (row.bron_lead_id && row.bron_lead_id !== lead.bron_lead_id) additions.bron_lead_id = row.bron_lead_id
       // v98: rechtsvorm uit de KvK-export aanvullen als hij leeg/onbekend is of alleen uit de naam kwam
       if (row.rechtsvorm && row.rechtsvorm !== lead.rechtsvorm && (!lead.rechtsvorm || lead.rechtsvorm === 'onbekend' || lead.rechtsvorm_bron === 'naam')) {
         additions.rechtsvorm = row.rechtsvorm
@@ -667,7 +699,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
     return { matches, unmatched, noNews }
   }, [mode, existingLeads, dataRows, mapping, hasHeader, rows])
 
-  const enrichHasKeyColumn = mappingHasPhone || mappingHasName || mapping.includes('website')
+  const enrichHasKeyColumn = mappingHasPhone || mappingHasName || mapping.includes('website') || mapping.includes('bron_lead_id') || mapping.includes('bron_profiel')
   const activeEnrichCount = enrichPlan.matches.filter(m => !excludedRows.has(m.rowNr)).length
 
   async function runEnrich() {
@@ -764,15 +796,43 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
       }
 
       // 2. Bestaande nummers checken zodat je geen dubbelen importeert
+      // v156: ook op ID van de bron. Een bestaande lead krijgt dan het ID en de
+      // profiel-link van de bron erbij (zo werk je een oude lijst bij met de
+      // nieuwe export zonder dubbele records).
       const phones = parsedLeads.leads.map(l => l.phone)
       const existing = new Set()
+      const bestaandOpNummer = new Map()
       for (let i = 0; i < phones.length; i += 200) {
-        const { data } = await supabase.from('leads').select('phone').in('phone', phones.slice(i, i + 200)).is('deleted_at', null)
-        data?.forEach(d => existing.add(d.phone))
+        const { data } = await supabase.from('leads').select('id, phone, bron_lead_id, bron_profiel').in('phone', phones.slice(i, i + 200)).is('deleted_at', null)
+        data?.forEach(d => { existing.add(d.phone); if (!bestaandOpNummer.has(d.phone)) bestaandOpNummer.set(d.phone, d) })
+      }
+      const bronIds = parsedLeads.leads.map(l => l.bron_lead_id).filter(Boolean)
+      const bestaandOpBronId = new Map()
+      for (let i = 0; i < bronIds.length; i += 200) {
+        const { data } = await supabase.from('leads').select('id, phone, bron_lead_id, bron_profiel').in('bron_lead_id', bronIds.slice(i, i + 200)).is('deleted_at', null)
+        data?.forEach(d => { if (!bestaandOpBronId.has(d.bron_lead_id)) bestaandOpBronId.set(d.bron_lead_id, d) })
+      }
+      const isBestaand = (l) => existing.has(l.phone) || (l.bron_lead_id && bestaandOpBronId.has(l.bron_lead_id))
+
+      let bijgewerkt = 0
+      const bijwerken = []
+      parsedLeads.leads.forEach(l => {
+        if (!l.bron_lead_id && !l.bron_profiel) return
+        const oud = (l.bron_lead_id && bestaandOpBronId.get(l.bron_lead_id)) || bestaandOpNummer.get(l.phone)
+        if (!oud) return
+        const upd = {}
+        if (l.bron_lead_id && l.bron_lead_id !== oud.bron_lead_id) upd.bron_lead_id = l.bron_lead_id
+        if (l.bron_profiel && !oud.bron_profiel) upd.bron_profiel = l.bron_profiel
+        if (Object.keys(upd).length) bijwerken.push({ id: oud.id, upd })
+      })
+      for (let i = 0; i < bijwerken.length; i += 10) {
+        const chunk = bijwerken.slice(i, i + 10)
+        const res = await Promise.all(chunk.map(b => supabase.from('leads').update(b.upd).eq('id', b.id).select('id')))
+        res.forEach(r => { if (!r.error && r.data?.length) bijgewerkt++ })
       }
 
       const toInsert = parsedLeads.leads
-        .filter(l => !existing.has(l.phone))
+        .filter(l => !isBestaand(l))
         .map(l => ({
           ...l,
           status: isBackofficeProject ? 'bruto_deal' : 'new',
@@ -810,6 +870,7 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
       setResult({
         inserted,
         duplicates: parsedLeads.leads.length - toInsert.length,
+        bijgewerkt,
         skipped: parsedLeads.errors.length,
         listName: targetListId ? (leadLists.find(l => l.id === targetListId)?.name || 'lijst') : newListName.trim()
       })
@@ -1270,7 +1331,8 @@ export default function ImportLeadsModal({ isOpen, onClose, onImported, initialM
                   <h3 style={{ color: 'var(--text-primary)', marginBottom: '8px', fontSize: '1.4rem' }}>Import gelukt!</h3>
                   <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
                     <strong style={{ color: 'var(--success)' }}>{result.inserted} leads</strong> toegevoegd aan lijst <strong style={{ color: 'var(--text-primary)' }}>"{result.listName}"</strong>.
-                    {result.duplicates > 0 && <><br />{result.duplicates} overgeslagen (telefoonnummer bestond al in het systeem).</>}
+                    {result.duplicates > 0 && <><br />{result.duplicates} overgeslagen (telefoonnummer of bron-ID bestond al in het systeem).</>}
+                    {result.bijgewerkt > 0 && <><br />{result.bijgewerkt} bestaande leads kregen het ID of profiel van de bron erbij.</>}
                     {result.skipped > 0 && <><br />{result.skipped} rijen overgeslagen wegens ontbrekende naam/nummer.</>}
                   </p>
                   {autoEnrich && (

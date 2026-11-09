@@ -29,6 +29,11 @@ function kort(v: unknown, max: number): string | undefined {
   return s ? s.slice(0, max) : undefined;
 }
 
+// v156: ID van de bron (BeautyInfo "bi-...") uit leads.bron_lead_id.
+const BRON_ID_RE = /^[A-Za-z0-9._:-]{1,100}$/;
+// Afboekingen waarbij een lopend gesprek bij de bron eerst geannuleerd wordt.
+const NEE_REDENEN = ["geen_interesse", "afgewezen", "verkeerd_nummer", "blacklist", "cold", "wil_annuleren"];
+
 /** .../api/leadgen/mail -> .../api/leadgen/stop */
 function stopUrlVan(mailUrl: string): string {
   return mailUrl.replace(/\/mail\/?$/, "/stop");
@@ -56,7 +61,7 @@ Deno.serve(async (req: Request) => {
     // Toegang tot de lead via RLS, net als bij de Mailingservice.
     const { data: lead } = await userClient
       .from("leads")
-      .select("id, email, lead_list_id, deleted_at")
+      .select("id, email, lead_list_id, deleted_at, bron_lead_id")
       .eq("id", leadId)
       .maybeSingle();
     if (!lead || lead.deleted_at) return json({ error: "Lead niet gevonden" }, 404);
@@ -65,11 +70,15 @@ Deno.serve(async (req: Request) => {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
     // Alleen zin als deze lead ooit gemaild is; anders is er niets te stoppen.
-    const { data: mailRij } = await admin
+    // v156: een lead kan meerdere rijen hebben (aanmelding + opvolging). Met
+    // maybeSingle() gaf dat een fout en dus "nooit gemaild"; nu de nieuwste.
+    const { data: mailRijen } = await admin
       .from("lead_mail_status")
-      .select("lead_id, email")
+      .select("lead_id, email, source, afspraak_status, afspraak_start")
       .eq("lead_id", leadId)
-      .maybeSingle();
+      .order("updated_at", { ascending: false })
+      .limit(5);
+    const mailRij = mailRijen?.[0];
     if (!mailRij) return json({ ok: true, gestopt: 0, reden: "nooit gemaild" });
 
     const { data: list } = await admin.from("lead_lists").select("campaign_id").eq("id", lead.lead_list_id).maybeSingle();
@@ -95,10 +104,48 @@ Deno.serve(async (req: Request) => {
       return json({ ok: false, error: `Bron ${svc.source} is nog niet ingesteld (stop-URL of token ontbreekt)` }, 503);
     }
 
+    const bronId = BRON_ID_RE.test(String(lead.bron_lead_id || "").trim()) ? String(lead.bron_lead_id).trim() : leadId;
+    const reden = kort(body?.reden, 200) || "afgeboekt in ReachConnect";
+
+    // v156: /stop annuleert een gesprek bij de bron NIET. Loopt er nog een
+    // kennismakingsgesprek en zei de klant nee, dan eerst DELETE /afspraken.
+    // Bij "klant geworden" laten we het gesprek staan.
+    const lopend = (mailRijen || []).find((r) =>
+      r.source === svc.source && (r.afspraak_status === "gepland" || r.afspraak_status === "verzet") &&
+      r.afspraak_start && Date.parse(r.afspraak_start) > Date.now());
+    let afspraakGeannuleerd = false;
+    if (lopend && NEE_REDENEN.includes(String(body?.reden || "")) && /\/mail\/?$/.test(mailUrl)) {
+      const afsprakenUrl = mailUrl.replace(/\/mail\/?$/, "/afspraken");
+      try {
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+        const res = await fetch(afsprakenUrl, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${bronKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ lead_id: bronId, reden }),
+          signal: ctrl.signal,
+          redirect: "error",
+        });
+        clearTimeout(timer);
+        await res.text().catch(() => "");
+        afspraakGeannuleerd = res.ok;
+        if (!res.ok && res.status !== 404) console.error(`[mailstop] afspraak annuleren gaf ${res.status}`);
+        if (res.ok) {
+          await admin.rpc("bron_afspraak_verwerken", {
+            p_lead: leadId, p_source: svc.source, p_status: "afspraak_geannuleerd", p_op: new Date().toISOString(),
+            p_start: lopend.afspraak_start, p_eind: null, p_closer: null, p_meet: null,
+            p_door: "setter", p_beller: userData.user.id, p_notitie: `afgeboekt als ${reden}`,
+          });
+        }
+      } catch (e) {
+        console.error("[mailstop] afspraak annuleren mislukt", e);
+      }
+    }
+
     const payload = {
-      lead_id: leadId,
+      lead_id: bronId,
       ...(mailRij.email || lead.email ? { email: String(mailRij.email || lead.email).toLowerCase() } : {}),
-      reden: kort(body?.reden, 200) || "afgeboekt in ReachConnect",
+      reden,
     };
 
     try {
@@ -117,7 +164,7 @@ Deno.serve(async (req: Request) => {
         console.error(`[mailstop] bron ${svc.source} gaf ${res.status}`);
         return json({ ok: false, error: `Stoppen bij ${svc.source} mislukt (${res.status})` }, 502);
       }
-      return json({ ok: true, gestopt: resBody?.gestopt ?? 0 });
+      return json({ ok: true, gestopt: resBody?.gestopt ?? 0, afspraak_geannuleerd: afspraakGeannuleerd });
     } catch (e) {
       console.error("[mailstop] doorgeven mislukt", e);
       return json({ ok: false, error: "De bron reageert niet" }, 502);
