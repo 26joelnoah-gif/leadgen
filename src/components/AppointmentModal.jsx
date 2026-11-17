@@ -16,6 +16,7 @@ import { useToast } from './Toast'
 import { APPOINTMENT_TYPES, appointmentMinutes, appointmentLabel, duurTekst } from '../lib/appointmentConfig'
 import { OUTCOMES, sentimentInfo, outcomeInfo, leadAddressText, navigationUrl, findAppointmentConflict } from '../lib/appointments'
 import PersonSelect from './PersonSelect' // v102
+import { mailSourceLabel } from '../lib/mailSources' // v157
 
 function pad(n) { return String(n).padStart(2, '0') }
 function toLocalInput(iso) {
@@ -41,6 +42,8 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
   const [commissie, setCommissie] = useState('')
   const [tariefTip, setTariefTip] = useState(null)
   const [commissieOpgeslagen, setCommissieOpgeslagen] = useState(false)
+  // v157: commissievoorstel van de mailbron (BeautyInfo) voor deze afspraak
+  const [bronVoorstel, setBronVoorstel] = useState(null)
   // v129: ingepland door een andere medewerker zetten
   const [mensen, setMensen] = useState([])
   const [nieuweBeller, setNieuweBeller] = useState('')
@@ -96,6 +99,12 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
         const { data } = await supabase.from('lead_lists').select('rate_per_appointment').eq('id', lead.lead_list_id).maybeSingle()
         if (!weg) setTariefTip(data?.rate_per_appointment ?? null)
       }
+      // v157: heeft de bron een commissie voor de setter gemeld? Nieuwste wint.
+      const { data: comm } = await supabase.from('lead_mail_status')
+        .select('source, commissie_setter, commissie_setter_stand, commissie_setter_op, commissie_setter_naam')
+        .eq('lead_id', lead.id).not('commissie_setter_stand', 'is', null)
+        .order('commissie_setter_op', { ascending: false }).limit(1)
+      if (!weg) setBronVoorstel(comm?.[0] || null)
     }
     laden()
     return () => { weg = true }
@@ -363,6 +372,20 @@ export default function AppointmentModal({ lead, accountmanagers = [], canManage
                       <Euro size={15} /> {commissieOpgeslagen ? 'Opgeslagen' : 'Opslaan'}
                     </button>
                   </div>
+                  {bronVoorstel && (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: '0.8rem', padding: '6px 10px', borderRadius: 8, background: bronVoorstel.commissie_setter_stand === 'vervallen' ? 'var(--danger-bg)' : 'var(--bg-elevated)', color: bronVoorstel.commissie_setter_stand === 'vervallen' ? 'var(--danger)' : 'var(--text-secondary)' }}>
+                      <span style={{ flex: 1, minWidth: 180 }}>
+                        {bronVoorstel.commissie_setter_stand === 'vervallen'
+                          ? `${mailSourceLabel(bronVoorstel.source)} meldt: commissie vervallen${bronVoorstel.commissie_setter != null ? ` (was EUR ${bronVoorstel.commissie_setter})` : ''}. Zet de uitbetaling op 0 of maak hem leeg.`
+                          : `Voorstel van ${mailSourceLabel(bronVoorstel.source)}: EUR ${bronVoorstel.commissie_setter ?? '?'}${bronVoorstel.commissie_setter_naam ? ` voor ${bronVoorstel.commissie_setter_naam}` : ''}.`}
+                      </span>
+                      {bronVoorstel.commissie_setter_stand === 'aangemaakt' && bronVoorstel.commissie_setter != null && (
+                        <button type="button" className="btn btn-outline btn-sm" onClick={() => { setCommissie(String(bronVoorstel.commissie_setter)); setCommissieOpgeslagen(false) }}>
+                          Overnemen
+                        </button>
+                      )}
+                    </div>
+                  )}
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                     Wat {bellerNaam || 'de beller'} voor deze afspraak krijgt. Hij ziet dit direct terug bij "Mijn afspraken" en krijgt er een melding van.
                     {tariefTip != null ? ` Tarief van deze lijst: EUR ${tariefTip}.` : ''}

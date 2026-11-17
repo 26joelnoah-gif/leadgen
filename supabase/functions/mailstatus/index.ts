@@ -58,6 +58,15 @@
 //
 // v156 (2026-11-09): lead_id mag ook het vaste ID van de bron zijn
 // (BeautyInfo "bi-..."). Dat zoeken we op in leads.bron_lead_id.
+//
+// v157 (2026-11-17): drie statussen erbij (spec 17-11).
+// - afspraak_no_show: zelfde route als afspraak_geannuleerd (lead terug naar
+//   bellen), via public.bron_afspraak_verwerken.
+// - commissie_aangemaakt / commissie_vervallen: het bedrag voor de SETTER komt
+//   als voorstel op lead_mail_status (commissie_setter*). De uitbetaling zelf
+//   (leads.appointment_commission) zet admin/manager met de hand; die krijgen
+//   een melding. Commissie voor de closer leggen we alleen vast (tijdlijn).
+//   Een commissie-update verandert de fase-balk en de laatste status NIET.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -86,7 +95,7 @@ const STAPPEN: Record<string, { rang: number; kolom: string }> = {
 //   afspraak = true: kennismakingsgesprek (v154). Verandert de fase-balk niet
 //            (die is Mail > Bezoek > Betaling > Klant), maar gaat via
 //            public.bron_afspraak_verwerken naar de lead.
-type EventInfo = { stap: string | null; fase: string; actie?: boolean; live?: "aan" | "uit"; bel?: boolean; afspraak?: boolean };
+type EventInfo = { stap: string | null; fase: string; actie?: boolean; live?: "aan" | "uit"; bel?: boolean; afspraak?: boolean; commissie?: "aangemaakt" | "vervallen" };
 const EVENTS: Record<string, EventInfo> = {
   // Mail
   gemaild:               { stap: "gemaild", fase: "mail" },
@@ -118,6 +127,10 @@ const EVENTS: Record<string, EventInfo> = {
   afspraak_verzet:       { stap: null, fase: "afspraak", afspraak: true },
   afspraak_geannuleerd:  { stap: null, fase: "afspraak", afspraak: true },
   afspraak_gehad:        { stap: null, fase: "afspraak", afspraak: true },
+  afspraak_no_show:      { stap: null, fase: "afspraak", afspraak: true },   // v157
+  // v157: commissie die de bron toekent of intrekt (voorstel, zie boven)
+  commissie_aangemaakt:  { stap: null, fase: "commissie", commissie: "aangemaakt" },
+  commissie_vervallen:   { stap: null, fase: "commissie", commissie: "vervallen" },
   // Oude MK-stappen, zodat beide formaten dezelfde tabel gebruiken
   offerte_open:          { stap: "offerte_open", fase: "betaling", bel: true },
   getekend:              { stap: "getekend", fase: "betaling" },
@@ -482,7 +495,7 @@ Deno.serve(async (req: Request) => {
 
     const { data: bestaand } = await admin
       .from("lead_mail_status")
-      .select("id, status, status_rank, status_op, gemaild_op, geklikt_op, offerte_open_op, getekend_op, betaald_op, email, bureau, offerte_url, laatste_event, laatste_event_op, fase, pagina_actief_op, pagina_verlaten_op, actie_nodig, actie_nodig_op")
+      .select("id, status, status_rank, status_op, gemaild_op, geklikt_op, offerte_open_op, getekend_op, betaald_op, email, bureau, offerte_url, laatste_event, laatste_event_op, fase, pagina_actief_op, pagina_verlaten_op, actie_nodig, actie_nodig_op, commissie_setter, commissie_setter_stand, commissie_setter_op")
       .eq("lead_id", lead.id).eq("source", source).eq("mail_soort", mailSoort)
       .maybeSingle();
     const oud = (bestaand ?? null) as Record<string, string | number | null> | null;
@@ -531,12 +544,12 @@ Deno.serve(async (req: Request) => {
 
     // v122: de nieuwste gebeurtenis (op occurred_at, niet op ontvangst) + fase.
     const oudLaatsteOp = (oud?.laatste_event_op as string | null) || "";
-    const isNieuwste = statusOp >= oudLaatsteOp;
+    const isNieuwste = !ev?.commissie && statusOp >= oudLaatsteOp;
     if (isNieuwste) {
       rij.laatste_event = status;
       rij.laatste_event_op = statusOp;
       const faseVanBron = FASES.includes(stageRuw) ? stageRuw : null;
-      rij.fase = faseVanBron || (ev?.afspraak ? null : ev?.fase) || (oud?.fase as string | null) || null;
+      rij.fase = faseVanBron || (ev?.afspraak || ev?.commissie ? null : ev?.fase) || (oud?.fase as string | null) || null;
     } else {
       rij.laatste_event = oud?.laatste_event ?? null;
       rij.laatste_event_op = oud?.laatste_event_op ?? null;
@@ -561,9 +574,24 @@ Deno.serve(async (req: Request) => {
       nieuweActie = oud?.actie_nodig !== status;
       rij.actie_nodig = status;
       rij.actie_nodig_op = statusOp;
-    } else if (ev && !ev.actie && !ev.afspraak && ev.live !== "uit" && oud?.actie_nodig && statusOp > oudActieOp) {
+    } else if (ev && !ev.actie && !ev.afspraak && !ev.commissie && ev.live !== "uit" && oud?.actie_nodig && statusOp > oudActieOp) {
       rij.actie_nodig = null;
       rij.actie_nodig_op = null;
+    }
+
+    // v157: commissievoorstel van de bron voor de setter (nieuwste wint).
+    const commSoort = (kort(details?.soort, 20) || "").toLowerCase();
+    const commBedragRuw = Number(details?.bedrag);
+    const commBedrag = Number.isFinite(commBedragRuw) && commBedragRuw >= 0 && commBedragRuw < 100000
+      ? Math.round(commBedragRuw * 100) / 100 : null;
+    const commNaam = kort(details?.medewerker, 80);
+    let commNieuw = false;
+    if (ev?.commissie && commSoort === "setter" && statusOp >= ((oud?.commissie_setter_op as string | null) || "")) {
+      commNieuw = oud?.commissie_setter_stand !== ev.commissie || Number(oud?.commissie_setter ?? -1) !== (commBedrag ?? -1);
+      rij.commissie_setter = commBedrag ?? (oud?.commissie_setter ?? null);
+      rij.commissie_setter_stand = ev.commissie;
+      rij.commissie_setter_op = statusOp;
+      rij.commissie_setter_naam = commNaam;
     }
 
     const { error } = await admin.from("lead_mail_status").upsert(rij, { onConflict: "lead_id,source,mail_soort" });
@@ -614,6 +642,42 @@ Deno.serve(async (req: Request) => {
       }
     };
     const naam = (rij.bureau as string | null) || lead.name || "Lead";
+
+    // v157: commissie -> melding aan wie de uitbetaling zet (managers van het
+    // project, anders de admins van de organisatie). Niet aan de beller: het
+    // bedrag is een voorstel tot admin/manager het overneemt.
+    if (ev?.commissie) {
+      if (commSoort === "setter" && commNieuw) {
+        try {
+          let wie: string[] = [];
+          if (campaignId) {
+            const { data: mgrs } = await admin.from("campaign_managers").select("manager_id").eq("campaign_id", campaignId);
+            wie = (mgrs || []).map((m: { manager_id: string }) => m.manager_id).filter(Boolean);
+          }
+          if (!wie.length && lead.organization_id) {
+            const { data: admins } = await admin.from("profiles").select("id")
+              .eq("organization_id", lead.organization_id).eq("role", "admin").eq("is_active", true).is("deleted_at", null);
+            wie = (admins || []).map((a: { id: string }) => a.id);
+          }
+          const euro = commBedrag != null ? `EUR ${commBedrag}` : "een bedrag";
+          const titel = ev.commissie === "aangemaakt"
+            ? `Commissie van ${source === "BEAUTYINFO" ? "BeautyInfo" : source} voor ${naam}: ${euro}`
+            : `Commissie voor ${naam} is vervallen`;
+          const reden = (kort(details?.reden, 40) || "").toLowerCase();
+          const tekst = ev.commissie === "aangemaakt"
+            ? `${commNaam ? "Setter: " + commNaam + ". " : ""}Zet de uitbetaling bij de afspraak (Agenda of Videocalls).`
+            : `${reden === "no_show" ? "Reden: no-show. " : reden === "terugbetaald" ? "Reden: terugbetaald. " : ""}Check of er al een uitbetaling bij deze afspraak staat en pas die aan.`;
+          if (wie.length) {
+            await admin.from("notifications").insert(wie.map((pid) => ({
+              profile_id: pid, actor_id: null, lead_id: lead.id, type: "bron_commissie", title: titel, body: tekst,
+            })));
+          }
+        } catch (e) {
+          console.error("[mailstatus] commissiemelding mislukt", e);
+        }
+      }
+      return json({ received: true, ok: true, lead_id: lead.id, commissie: ev.commissie, soort: commSoort || null });
+    }
 
     // v92: een status die nergens bekend is -> melding, zodat een nieuwe
     // stapnaam van de bron nooit onopgemerkt blijft. v122: maar maximaal 1x

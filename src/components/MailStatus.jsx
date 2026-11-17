@@ -54,6 +54,10 @@ export const MAIL_EVENT_LABELS = {
   afspraak_verzet: 'Gesprek verzet',
   afspraak_geannuleerd: 'Gesprek geannuleerd',
   afspraak_gehad: 'Gesprek gehad',
+  // v157
+  afspraak_no_show: 'No-show: klant kwam niet',
+  commissie_aangemaakt: 'Commissie toegekend',
+  commissie_vervallen: 'Commissie vervallen',
 }
 export const mailEventLabel = (s) => MAIL_EVENT_LABELS[s] || (s ? s.replace(/_/g, ' ') : 'Onbekend')
 
@@ -146,6 +150,7 @@ const AFSPRAAK_STAND = {
   verzet: { label: 'Gesprek verzet', color: 'var(--success)', bg: 'var(--success-bg)' },
   geannuleerd: { label: 'Gesprek geannuleerd', color: 'var(--danger)', bg: 'var(--danger-bg)' },
   gehad: { label: 'Gesprek gehad', color: 'var(--text-secondary)', bg: 'var(--bg-elevated)' },
+  no_show: { label: 'No-show', color: 'var(--danger)', bg: 'var(--danger-bg)' }, // v157
 }
 export function MailAfspraakChip({ r }) {
   const st = AFSPRAAK_STAND[r?.afspraak_status]

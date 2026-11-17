@@ -1307,3 +1307,31 @@ Twee-zijdig platform:
      projecten staat in 2 kaarten), onthouden in localStorage
      'reachconnect-personeel-indeling'.
   Migratie: supabase/migrations/migration_v155_recruiter_verdiensten.sql.
+
+- **NO-SHOW + COMMISSIE VAN DE MAILBRON (v157, 2026-11-17, migratie toegepast,
+  mailstatus v19 live):** BeautyInfo-spec van 17-11 kent drie nieuwe statussen.
+  De rest van die spec (vast lead-ID "bi-...", annuleren, 409-codes) zat al in
+  v156 (commit 62fc396).
+  1. `afspraak_no_show` (closer meldt: klant kwam niet): zelfde route als
+     afspraak_geannuleerd. `bron_afspraak_verwerken()` zet een lead die nog op
+     afspraak_gemaakt staat terug op later_bellen (nu), appointment_at leeg,
+     notitie "No-show: ..." en een melding aan appointment_by.
+     `lead_mail_status.afspraak_status` kent nu ook 'no_show' (rode chip
+     "No-show" in MailStatus.jsx).
+  2. `commissie_aangemaakt` / `commissie_vervallen` (details: soort setter |
+     closer, bedrag, medewerker, kenmerk, reden). Keuze Noah: TONEN, NIET
+     automatisch uitbetalen. Voor soort 'setter' komt het bedrag als voorstel
+     op `lead_mail_status.commissie_setter` (+ `_stand` aangemaakt | vervallen,
+     `_op`, `_naam`); nieuwste occurred_at wint. AppointmentModal (blok
+     "Uitbetaling beller", alleen admin/manager) toont "Voorstel van
+     BeautyInfo: EUR x" met knop "Overnemen" (vult het veld, Opslaan blijft een
+     eigen klik) of een rode regel bij vervallen. Melding type `bron_commissie`
+     gaat naar de managers van het project, anders de admins van de org; NIET
+     naar de beller. Commissie voor de closer staat alleen in de tijdlijn
+     (lead_mail_events). Een commissie-update verandert laatste_event, fase en
+     actie_nodig niet.
+     REGEL: een bedrag van een bron zet nooit zelf leads.appointment_commission;
+     dat blijft een handeling van admin/manager (trigger leads_commissie_guard).
+  Getest met de echte sleutel op lead "NOAH TEST" (alles 200); de no-show-route
+  op een lead met afspraak is in de database getest en teruggedraaid.
+  Migratie: supabase/migrations/migration_v157_no_show_commissie.sql.
