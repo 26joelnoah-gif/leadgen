@@ -12,9 +12,11 @@
 //   (RPC overeenkomst_tarieven_wijzigen), zonder opnieuw te versturen.
 // - Versturen "via link" naar iemand zonder account: je krijgt een link
 //   (/verklaring/<token>) om te kopieren en zelf te sturen.
+// v158: vier standaard verklaringen als kaarten (overeenkomst_sjablonen.snelkeuze),
+//   tegels met de stand, en versturen in drie stappen op een scherm.
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { FileSignature, Send, Plus, Trash2, Eye, RefreshCw, Printer, ArrowLeft, X, Save, Ban, Link2, Copy, Pencil, Star, CopyPlus, User } from 'lucide-react'
+import { FileSignature, Send, Plus, Trash2, Eye, RefreshCw, Printer, ArrowLeft, X, Save, Ban, Link2, Copy, Pencil, Star, CopyPlus, User, Handshake, Megaphone, Sparkles, Users, Search, Clock, CheckCircle2, UserX } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { supabase } from '../lib/supabase'
 import Header from '../components/Header'
@@ -25,7 +27,7 @@ import { useToast } from '../components/Toast'
 import OvereenkomstTekst from '../components/OvereenkomstTekst'
 import {
   VERKLARING_STATUS, VERKLARING_ROLLEN, datumTijd, verklaringLink, kopieerTekst,
-  tarievenVoorOpslaan, tarievenVoorScherm,
+  tarievenVoorOpslaan, tarievenVoorScherm, euro, procentTekst,
 } from '../lib/overeenkomsten'
 
 const knopTekst = { textTransform: 'none', letterSpacing: 0, fontWeight: 600 }
@@ -57,6 +59,59 @@ async function laadSjablonen() {
   return data || []
 }
 
+// v158: standaard verklaringen (snelkeuze-kaarten) + rustiger overzicht.
+const ROL_LABEL = { employee: 'Beller', backoffice: 'Backoffice', accountmanager: 'Accountmanager' }
+
+function icoonVoor(sj) {
+  const n = `${sj?.naam || ''} ${sj?.ontvanger_rol || ''}`.toLowerCase()
+  if (n.includes('closer') || n.includes('accountmanager')) return Handshake
+  if (n.includes('recruit')) return Users
+  if (n.includes('beauty')) return Sparkles
+  if (n.includes('marketing') || n.includes('prosell')) return Megaphone
+  return FileSignature
+}
+
+const heeft = (v) => v !== null && v !== undefined && v !== ''
+
+// Korte regels per project: "BEAUTYINFO: € 75 per sale"
+function tariefRegels(tarieven) {
+  return (Array.isArray(tarieven) ? tarieven : []).filter(t => t?.project).map(t => {
+    const delen = []
+    if (heeft(t.afspraak)) delen.push(`${euro(t.afspraak)} per afspraak`)
+    if (heeft(t.sale)) delen.push(`${euro(t.sale)} per sale`)
+    if (heeft(t.sale_procent)) delen.push(`${procentTekst(t.sale_procent)} van de order`)
+    return { project: t.project, tekst: delen.join(' + '), leeg: delen.length === 0 }
+  })
+}
+
+function TariefRegels({ tarieven, klein }) {
+  const regels = tariefRegels(tarieven)
+  if (!regels.length) return <span className="text-muted" style={{ fontSize: '0.78rem' }}>Bedragen vul je in bij versturen</span>
+  return (
+    <div style={{ display: 'grid', gap: 3 }}>
+      {regels.map((r, i) => (
+        <div key={i} style={{ fontSize: klein ? '0.76rem' : '0.82rem', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 700 }}>{r.project}</span>
+          {r.leeg ? <span style={{ color: 'var(--warning)' }}>bedrag invullen</span> : <span className="text-muted">{r.tekst}</span>}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function Tegel({ label, aantal, kleur, actief, onClick, icon: Icon }) {
+  return (
+    <button type="button" onClick={onClick} className="bg-elevated border border-border rounded-lg"
+      style={{ padding: '12px 14px', textAlign: 'left', cursor: 'pointer', outline: actief ? `2px solid ${kleur}` : 'none', outlineOffset: -1, display: 'flex', alignItems: 'center', gap: 12, color: 'var(--text-primary)' }}>
+      <span style={{ width: 34, height: 34, borderRadius: 10, display: 'grid', placeItems: 'center', background: 'var(--bg-dark)', color: kleur, flexShrink: 0 }}><Icon size={17} /></span>
+      <span>
+        <span style={{ display: 'block', fontSize: '1.35rem', fontWeight: 800, lineHeight: 1.1 }}>{aantal}</span>
+        <span className="text-muted" style={{ fontSize: '0.75rem' }}>{label}</span>
+      </span>
+    </button>
+  )
+}
+
 function Overzicht() {
   const { profile } = useAuth()
   const toast = useToast()
@@ -69,14 +124,15 @@ function Overzicht() {
   const [sjablonen, setSjablonen] = useState([])
   const [laden, setLaden] = useState(true)
   const [filter, setFilter] = useState('alles')
-  const [versturen, setVersturen] = useState(null) // null | { profileId, tarieven, via }
-  const [wijzigen, setWijzigen] = useState(null) // verklaring waarvan de bedragen aangepast worden
+  const [zoek, setZoek] = useState('')
+  const [versturen, setVersturen] = useState(null) // null | { profileId, tarieven, via, sjabloonId }
+  const [wijzigen, setWijzigen] = useState(null)
   const [intrekBevestig, setIntrekBevestig] = useState(null)
 
   async function laad() {
     const [{ data: o, error }, { data: p }] = await Promise.all([
       supabase.from('overeenkomsten')
-        .select('id, profile_id, ontvanger_naam, ontvanger_email, token, titel, status, verstuurd_op, verstuurd_door, geopend_op, getekend_op, ingetrokken_op, ondertekening_id, tarieven')
+        .select('id, profile_id, ontvanger_naam, ontvanger_email, token, titel, opdrachtgever, sjabloon_id, status, verstuurd_op, verstuurd_door, geopend_op, getekend_op, ingetrokken_op, ondertekening_id, tarieven')
         .order('verstuurd_op', { ascending: false }),
       supabase.from('profiles').select('id, full_name, email, role, is_active, deleted_at').is('deleted_at', null).order('full_name'),
     ])
@@ -97,10 +153,10 @@ function Overzicht() {
   }, [magVersturen])
 
   const naamVan = useMemo(() => Object.fromEntries(mensen.map(m => [m.id, m.full_name || m.email])), [mensen])
+  const sjabloonVan = useMemo(() => Object.fromEntries(sjablonen.map(s => [s.id, s])), [sjablonen])
+  const standaarden = useMemo(() => sjablonen.filter(s => s.snelkeuze !== null && s.snelkeuze !== undefined).sort((a, b) => a.snelkeuze - b.snelkeuze), [sjablonen])
   const bellers = useMemo(() => mensen.filter(m => VERKLARING_ROLLEN.includes(m.role) && m.is_active !== false), [mensen])
 
-  // Wie heeft er al een (niet ingetrokken) verklaring? Een link-verklaring aan
-  // hetzelfde e-mailadres telt ook mee, dan hoeft hij niet nog een keer.
   const gedekt = useMemo(() => {
     const ids = new Set()
     const mails = new Set()
@@ -119,7 +175,24 @@ function Overzicht() {
     getekend: rows.filter(r => r.status === 'getekend').length,
     ingetrokken: rows.filter(r => r.status === 'ingetrokken').length,
   }
-  const zichtbaar = filter === 'alles' ? rows : rows.filter(r => r.status === filter)
+  const getekendPerSjabloon = useMemo(() => {
+    const m = {}
+    for (const r of rows) if (r.status === 'getekend' && r.sjabloon_id) m[r.sjabloon_id] = (m[r.sjabloon_id] || 0) + 1
+    return m
+  }, [rows])
+
+  const naamVanRij = (r) => r.profile_id ? (naamVan[r.profile_id] || 'Onbekend') : (r.ontvanger_naam || 'Onbekend')
+  const soortVanRij = (r) => sjabloonVan[r.sjabloon_id]?.naam || r.opdrachtgever?.ontvanger_rol || r.titel || '-'
+  const q = zoek.trim().toLowerCase()
+  const zichtbaar = rows
+    .filter(r => filter === 'alles' || r.status === filter)
+    .filter(r => !q || `${naamVanRij(r)} ${r.ontvanger_email || ''} ${soortVanRij(r)}`.toLowerCase().includes(q))
+
+  // Voorstel bij iemand zonder verklaring: accountmanager = closer-sjabloon.
+  function voorstelVoor(persoon) {
+    if (persoon?.role === 'accountmanager') return standaarden.find(s => icoonVoor(s) === Handshake)?.id || ''
+    return ''
+  }
 
   async function intrekken(r) {
     if (intrekBevestig !== r.id) { setIntrekBevestig(r.id); setTimeout(() => setIntrekBevestig(null), 4000); return }
@@ -140,89 +213,132 @@ function Overzicht() {
   }
   if (laden) return (<><Header /><main className="container pb-12"><LoadingSpinner /></main></>)
 
+  const sectieKop = { fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', margin: '22px 0 10px' }
+
   return (
     <>
       <Header />
       <main className="container pb-12" style={{ maxWidth: 1200 }}>
-        <div className="flex justify-between items-center mb-4 pt-4" style={{ flexWrap: 'wrap', gap: 12 }}>
+        <div className="flex justify-between items-center mb-2 pt-4" style={{ flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h1 className="page-title flex items-center gap-2" style={{ margin: 0 }}>
               <FileSignature size={26} className="text-primary" /> Verklaringen
             </h1>
             <p className="page-subtitle text-xs" style={{ margin: '4px 0 0' }}>
-              Verklaringen voor zelfstandige setters en accountmanagers. Wie een open verklaring heeft, kan pas verder werken als hij getekend heeft.
+              Iedereen die voor ons belt of sluit, tekent een korte verklaring. Kies een standaard, kies de persoon en verstuur.
             </p>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {isAdmin && (
               <div style={{ display: 'flex', gap: 4 }}>
-                <button className={`btn btn-sm ${tab === 'lijst' ? '' : 'btn-outline'}`} style={knopTekst} onClick={() => setTab('lijst')}>Verklaringen</button>
-                <button className={`btn btn-sm ${tab === 'sjabloon' ? '' : 'btn-outline'}`} style={knopTekst} onClick={() => setTab('sjabloon')}>Sjablonen ({sjablonen.length})</button>
+                <button className={`btn btn-sm ${tab === 'lijst' ? '' : 'btn-outline'}`} style={knopTekst} onClick={() => setTab('lijst')}>Overzicht</button>
+                <button className={`btn btn-sm ${tab === 'sjabloon' ? '' : 'btn-outline'}`} style={knopTekst} onClick={() => setTab('sjabloon')}>Teksten aanpassen</button>
               </div>
             )}
             {tab === 'lijst' && (
-              <>
-                <button className="btn btn-outline btn-sm" style={knopTekst} onClick={() => setVersturen({ profileId: '', tarieven: null, via: 'link' })}>
-                  <Link2 size={14} /> Link maken
-                </button>
-                <button className="btn btn-primary btn-sm" style={knopTekst} onClick={() => setVersturen({ profileId: '', tarieven: null, via: 'account' })}>
-                  <Send size={14} /> Verklaring versturen
-                </button>
-              </>
+              <button className="btn btn-primary btn-sm" style={knopTekst} onClick={() => setVersturen({ profileId: '', tarieven: null, via: 'account', sjabloonId: '' })}>
+                <Plus size={14} /> Nieuwe verklaring
+              </button>
             )}
           </div>
         </div>
 
         {tab === 'sjabloon' && isAdmin ? <SjablonenBeheer sjablonen={sjablonen} onGewijzigd={setSjablonen} /> : (
           <>
-            {isAdmin && zonder.length > 0 && (
-              <div className="bg-elevated border border-border rounded-lg" style={{ padding: 12, marginBottom: 14 }}>
-                <div style={{ fontWeight: 700, fontSize: '0.88rem', marginBottom: 8 }}>Nog geen verklaring ({zonder.length})</div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {zonder.slice(0, 40).map(b => (
-                    <button key={b.id} className="btn btn-outline btn-sm" style={knopTekst} onClick={() => setVersturen({ profileId: b.id, tarieven: null, via: 'account' })} title="Verklaring versturen">
-                      <Plus size={12} /> {b.full_name || b.email}
-                    </button>
-                  ))}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10, marginTop: 14 }}>
+              <Tegel icon={Clock} label="Wacht op tekenen" aantal={telling.verstuurd} kleur="var(--warning)" actief={filter === 'verstuurd'} onClick={() => setFilter(f => f === 'verstuurd' ? 'alles' : 'verstuurd')} />
+              <Tegel icon={CheckCircle2} label="Getekend" aantal={telling.getekend} kleur="var(--success)" actief={filter === 'getekend'} onClick={() => setFilter(f => f === 'getekend' ? 'alles' : 'getekend')} />
+              <Tegel icon={UserX} label="Nog geen verklaring" aantal={zonder.length} kleur="var(--info)" actief={false} onClick={() => document.getElementById('verklaring-zonder')?.scrollIntoView({ behavior: 'smooth', block: 'center' })} />
+              <Tegel icon={Ban} label="Ingetrokken" aantal={telling.ingetrokken} kleur="var(--text-muted)" actief={filter === 'ingetrokken'} onClick={() => setFilter(f => f === 'ingetrokken' ? 'alles' : 'ingetrokken')} />
+            </div>
+
+            {standaarden.length > 0 && (
+              <>
+                <div style={sectieKop}>Standaard verklaringen</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
+                  {standaarden.map(s => {
+                    const Icon = icoonVoor(s)
+                    return (
+                      <div key={s.id} className="bg-elevated border border-border rounded-lg" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <span style={{ width: 36, height: 36, borderRadius: 10, display: 'grid', placeItems: 'center', background: 'var(--bg-dark)', color: 'var(--primary)', flexShrink: 0 }}><Icon size={18} /></span>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 800 }}>{s.naam}</div>
+                            <div className="text-muted" style={{ fontSize: '0.72rem' }}>{s.ontvanger_rol || 'Appointment setter'}{getekendPerSjabloon[s.id] ? `, ${getekendPerSjabloon[s.id]} getekend` : ''}</div>
+                          </div>
+                        </div>
+                        {s.omschrijving && <div className="text-muted" style={{ fontSize: '0.8rem', lineHeight: 1.45 }}>{s.omschrijving}</div>}
+                        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 8, flex: 1 }}><TariefRegels tarieven={s.tarieven} klein /></div>
+                        <button className="btn btn-outline btn-sm" style={{ ...knopTekst, width: '100%' }} onClick={() => setVersturen({ profileId: '', tarieven: null, via: 'account', sjabloonId: s.id })}>
+                          <Send size={13} /> Versturen
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
+            )}
+
+            {zonder.length > 0 && (
+              <div id="verklaring-zonder">
+                <div style={sectieKop}>Nog geen verklaring ({zonder.length})</div>
+                <div className="bg-elevated border border-border rounded-lg" style={{ padding: 12 }}>
+                  <p className="text-muted" style={{ fontSize: '0.78rem', margin: '0 0 8px' }}>Klik op een naam. Je kiest daarna welke verklaring hij krijgt.</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {zonder.slice(0, 60).map(b => (
+                      <button key={b.id} className="btn btn-outline btn-sm" style={knopTekst} onClick={() => setVersturen({ profileId: b.id, tarieven: null, via: 'account', sjabloonId: voorstelVoor(b) })} title="Verklaring versturen">
+                        <Plus size={12} /> {b.full_name || b.email}
+                        {b.role !== 'employee' && <span className="text-muted" style={{ fontWeight: 500, fontSize: '0.72rem' }}>{ROL_LABEL[b.role]}</span>}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
 
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
-              {[['alles', 'Alles'], ['verstuurd', 'Wacht op tekenen'], ['getekend', 'Getekend'], ['ingetrokken', 'Ingetrokken']].map(([k, l]) => (
-                <button key={k} className={`btn btn-sm ${filter === k ? '' : 'btn-outline'}`} style={knopTekst} onClick={() => setFilter(k)}>{l} ({telling[k]})</button>
-              ))}
-              <button className="btn btn-outline btn-sm" style={{ ...knopTekst, marginLeft: 'auto' }} onClick={laad}><RefreshCw size={14} /> Verversen</button>
+            <div style={{ ...sectieKop, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span>Verstuurd {filter !== 'alles' ? `(${VERKLARING_STATUS[filter]?.label.toLowerCase()})` : ''}</span>
+              {filter !== 'alles' && <button className="btn btn-outline btn-sm" style={{ ...knopTekst, padding: '2px 8px', fontSize: '0.72rem' }} onClick={() => setFilter('alles')}><X size={11} /> Alles tonen</button>}
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, textTransform: 'none', letterSpacing: 0 }}>
+                <div style={{ position: 'relative' }}>
+                  <Search size={14} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <input className="form-dark" value={zoek} onChange={e => setZoek(e.target.value)} placeholder="Zoek op naam" style={{ paddingLeft: 28, width: 200, fontSize: '0.82rem' }} />
+                </div>
+                <button className="btn btn-outline btn-sm" style={knopTekst} onClick={laad} title="Verversen"><RefreshCw size={14} /></button>
+              </div>
             </div>
 
             {zichtbaar.length === 0 ? (
-              <EmptyState icon={FileSignature} title="Nog geen verklaringen" message="Klik op Verklaring versturen, of op Link maken voor iemand die nog geen account heeft." />
+              <EmptyState icon={FileSignature} title={rows.length ? 'Niets gevonden' : 'Nog geen verklaringen'} message={rows.length ? 'Pas het filter of de zoekterm aan.' : 'Kies hierboven een standaard verklaring en klik op Versturen.'} />
             ) : (
               <div className="bg-elevated border border-border rounded-lg" style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                   <thead>
                     <tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                      <th style={cel}>Beller</th><th style={cel}>Stand</th><th style={cel}>Verstuurd</th><th style={cel}>Geopend</th><th style={cel}>Getekend</th><th style={cel}></th>
+                      <th style={cel}>Naam</th><th style={cel}>Verklaring</th><th style={cel}>Stand</th><th style={cel}>Verstuurd</th><th style={cel}>Getekend</th><th style={cel}></th>
                     </tr>
                   </thead>
                   <tbody>
                     {zichtbaar.map(r => (
                       <tr key={r.id} style={{ borderTop: '1px solid var(--border)' }}>
                         <td style={cel}>
-                          <strong>{r.profile_id ? (naamVan[r.profile_id] || 'Onbekend') : (r.ontvanger_naam || 'Onbekend')}</strong>
+                          <strong>{naamVanRij(r)}</strong>
                           {r.token && (
                             <div className="text-muted" style={{ fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: 4 }}>
                               <Link2 size={11} /> via link{r.ontvanger_email ? `, ${r.ontvanger_email}` : ''}
                             </div>
                           )}
                         </td>
-                        <td style={cel}><StatusChip status={r.status} /></td>
-                        <td style={cel}>{datumTijd(r.verstuurd_op)}<div className="text-muted" style={{ fontSize: '0.75rem' }}>door {naamVan[r.verstuurd_door] || 'onbekend'}</div></td>
-                        <td style={cel}>{datumTijd(r.geopend_op) || <span className="text-muted">Nog niet</span>}</td>
-                        <td style={cel}>{r.getekend_op ? <>{datumTijd(r.getekend_op)}<div className="text-muted" style={{ fontSize: '0.75rem' }}>{r.ondertekening_id}</div></> : <span className="text-muted">-</span>}</td>
+                        <td style={cel}>{soortVanRij(r)}</td>
+                        <td style={cel}>
+                          <StatusChip status={r.status} />
+                          {r.status === 'verstuurd' && <div className="text-muted" style={{ fontSize: '0.72rem', marginTop: 3 }}>{r.geopend_op ? `geopend ${datumTijd(r.geopend_op)}` : 'nog niet geopend'}</div>}
+                        </td>
+                        <td style={cel}>{datumTijd(r.verstuurd_op)}<div className="text-muted" style={{ fontSize: '0.72rem' }}>door {naamVan[r.verstuurd_door] || 'onbekend'}</div></td>
+                        <td style={cel}>{r.getekend_op ? <>{datumTijd(r.getekend_op)}<div className="text-muted" style={{ fontSize: '0.72rem' }}>{r.ondertekening_id}</div></> : <span className="text-muted">-</span>}</td>
                         <td style={{ ...cel, textAlign: 'right' }}>
                           <div style={{ display: 'flex', gap: 4, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                            <a className="btn btn-outline btn-sm" style={knopTekst} href={`/overeenkomsten/${r.id}`} target="_blank" rel="noopener noreferrer"><Eye size={13} /> Bekijk</a>
+                            <a className="btn btn-outline btn-sm" style={knopTekst} href={`/overeenkomsten/${r.id}`} target="_blank" rel="noopener noreferrer" title="Bekijken of als pdf bewaren"><Eye size={13} /></a>
                             {r.token && r.status !== 'ingetrokken' && (
                               <button className="btn btn-outline btn-sm" style={knopTekst} onClick={() => kopieerLink(r)} title="Link kopieren om zelf te sturen"><Copy size={13} /> Link</button>
                             )}
@@ -230,11 +346,11 @@ function Overzicht() {
                               <button className="btn btn-outline btn-sm" style={knopTekst} onClick={() => setWijzigen(r)} title="Bedragen aanpassen, de link blijft hetzelfde"><Pencil size={13} /> Bedragen</button>
                             )}
                             {r.status !== 'verstuurd' && r.profile_id && (
-                              <button className="btn btn-outline btn-sm" style={knopTekst} title="Nieuwe verklaring met dezelfde bedragen" onClick={() => setVersturen({ profileId: r.profile_id, tarieven: r.tarieven || [], via: 'account' })}><Send size={13} /> Opnieuw</button>
+                              <button className="btn btn-outline btn-sm" style={knopTekst} title="Nieuwe verklaring met dezelfde bedragen" onClick={() => setVersturen({ profileId: r.profile_id, tarieven: r.tarieven || [], via: 'account', sjabloonId: r.sjabloon_id || '' })}><Send size={13} /> Opnieuw</button>
                             )}
                             {r.status === 'verstuurd' && (
-                              <button className="btn btn-outline btn-sm" style={{ ...knopTekst, color: intrekBevestig === r.id ? 'var(--danger)' : undefined }} onClick={() => intrekken(r)}>
-                                <Ban size={13} /> {intrekBevestig === r.id ? 'Nog een keer klikken' : 'Intrekken'}
+                              <button className="btn btn-outline btn-sm" style={{ ...knopTekst, color: intrekBevestig === r.id ? 'var(--danger)' : undefined }} onClick={() => intrekken(r)} title="Intrekken">
+                                <Ban size={13} /> {intrekBevestig === r.id ? 'Nog een keer klikken' : ''}
                               </button>
                             )}
                           </div>
@@ -254,6 +370,7 @@ function Overzicht() {
           start={versturen}
           bellers={bellers}
           sjablonen={sjablonen}
+          standaarden={standaarden}
           isAdmin={isAdmin}
           heeftOpen={(pid) => rows.some(r => r.profile_id === pid && r.status === 'verstuurd')}
           onSjablonen={setSjablonen}
@@ -313,30 +430,37 @@ function TarievenEditor({ rijen, setRijen, projecten }) {
   )
 }
 
-function VersturenModal({ start, bellers, sjablonen, isAdmin, heeftOpen, onSjablonen, onClose, onVerstuurd }) {
+// v158: versturen in drie stappen op een scherm: welke verklaring, voor wie, bedragen.
+function VersturenModal({ start, bellers, sjablonen, standaarden, isAdmin, heeftOpen, onSjablonen, onClose, onVerstuurd }) {
   const toast = useToast()
   const projecten = useProjecten()
-  const standaard = sjablonen.find(s => s.is_standaard) || sjablonen[0] || null
+  const eersteKeuze = sjablonen.find(s => s.id === start.sjabloonId) || null
   const [via, setVia] = useState(start.via || 'account')
   const [profileId, setProfileId] = useState(start.profileId || '')
   const [naam, setNaam] = useState('')
   const [email, setEmail] = useState('')
-  const [sjabloonId, setSjabloonId] = useState(standaard?.id || '')
-  const [tarieven, setTarieven] = useState(tarievenVoorScherm(start.tarieven?.length ? start.tarieven : standaard?.tarieven))
+  const [sjabloonId, setSjabloonId] = useState(eersteKeuze?.id || '')
+  const [tarieven, setTarieven] = useState(tarievenVoorScherm(start.tarieven?.length ? start.tarieven : eersteKeuze?.tarieven))
+  const [aanpassen, setAanpassen] = useState(false)
+  const [anderOpen, setAnderOpen] = useState(!!eersteKeuze && !standaarden.some(s => s.id === eersteKeuze.id))
   const [voorbeeld, setVoorbeeld] = useState(false)
   const [bezig, setBezig] = useState(false)
-  const [nieuwNaam, setNieuwNaam] = useState(null) // null = dicht, string = naam nieuw sjabloon
-  const [link, setLink] = useState(null) // na aanmaken via link
+  const [nieuwNaam, setNieuwNaam] = useState(null)
+  const [link, setLink] = useState(null)
 
-  const sjabloon = sjablonen.find(s => s.id === sjabloonId) || standaard
+  const sjabloon = sjablonen.find(s => s.id === sjabloonId) || null
+  const overige = sjablonen.filter(s => !standaarden.some(x => x.id === s.id))
 
   function kiesSjabloon(id) {
     setSjabloonId(id)
     const sj = sjablonen.find(s => s.id === id)
-    if (sj?.tarieven?.length) setTarieven(tarievenVoorScherm(sj.tarieven))
+    setTarieven(tarievenVoorScherm(sj?.tarieven))
+    setNieuwNaam(null)
   }
 
   const geldig = tarievenVoorOpslaan(tarieven)
+  const nogInvullen = tarieven.filter(t => String(t.project || '').trim() && ![t.afspraak, t.sale, t.sale_procent].some(heeft)).map(t => t.project)
+  const editorOpen = aanpassen || (sjabloon && (nogInvullen.length > 0 || geldig.length === 0))
   const ontvangerOk = via === 'account' ? !!profileId : naam.trim().length >= 2
   const kan = ontvangerOk && geldig.length > 0 && !!sjabloon && !bezig
   const beller = bellers.find(b => b.id === profileId)
@@ -361,7 +485,7 @@ function VersturenModal({ start, bellers, sjablonen, isAdmin, heeftOpen, onSjabl
       if (ok) toast('Link gemaakt en gekopieerd', 'success')
       return
     }
-    toast(`Verklaring verstuurd naar ${beller?.full_name || 'de beller'}. Bij de volgende keer inloggen of meteen als hij al ingelogd is, moet hij tekenen.`, 'success', 7000)
+    toast(`Verklaring verstuurd naar ${beller?.full_name || 'de beller'}. Hij moet tekenen voordat hij verder kan werken.`, 'success', 7000)
     onClose()
   }
 
@@ -370,7 +494,7 @@ function VersturenModal({ start, bellers, sjablonen, isAdmin, heeftOpen, onSjabl
     const { error } = await supabase.from('overeenkomst_sjablonen').update({ tarieven: geldig }).eq('id', sjabloon.id)
     if (error) { toast(error.message, 'error'); return }
     onSjablonen(await laadSjablonen())
-    toast(`Bedragen bewaard in sjabloon "${sjabloon.naam}"`, 'success')
+    toast(`Bedragen bewaard in "${sjabloon.naam}"`, 'success')
   }
 
   async function bewaarAlsNieuw() {
@@ -384,6 +508,7 @@ function VersturenModal({ start, bellers, sjablonen, isAdmin, heeftOpen, onSjabl
     if (error) { toast(error.message, 'error'); return }
     onSjablonen(await laadSjablonen())
     setSjabloonId(data.id)
+    setAnderOpen(true)
     setNieuwNaam(null)
     toast(`Sjabloon "${n}" bewaard`, 'success')
   }
@@ -415,7 +540,7 @@ function VersturenModal({ start, bellers, sjablonen, isAdmin, heeftOpen, onSjabl
             </button>
           </div>
           <div className="flex gap-2 mt-4">
-            <a className="btn btn-outline" style={{ flex: 1, ...knopTekst }} href={link} target="_blank" rel="noopener noreferrer"><Eye size={14} /> Bekijk zoals hij het ziet</a>
+            <a className="btn btn-outline" style={{ flex: 1, ...knopTekst }} href={`https://wa.me/?text=${encodeURIComponent(`Hoi ${naam.trim()}, hier is je verklaring om te tekenen: ${link}`)}`} target="_blank" rel="noopener noreferrer">Via WhatsApp sturen</a>
             <button className="btn btn-primary" style={{ flex: 1 }} onClick={onClose}>Klaar</button>
           </div>
         </div>
@@ -423,76 +548,102 @@ function VersturenModal({ start, bellers, sjablonen, isAdmin, heeftOpen, onSjabl
     )
   }
 
+  const stap = { fontSize: '0.78rem', fontWeight: 800, margin: '16px 0 8px', display: 'flex', alignItems: 'center', gap: 8 }
+  const nr = { width: 20, height: 20, borderRadius: 999, background: 'var(--primary)', color: '#fff', display: 'grid', placeItems: 'center', fontSize: '0.7rem' }
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal glass-panel" onClick={e => e.stopPropagation()} style={{ maxWidth: voorbeeld ? 820 : 640, maxHeight: '92vh', overflowY: 'auto' }}>
         <div className="modal-header">
-          <h2>{via === 'link' ? <><Link2 size={18} /> Verklaring via link</> : <><Send size={18} /> Verklaring versturen</>}</h2>
+          <h2><FileSignature size={18} /> Nieuwe verklaring</h2>
           <button className="modal-close" onClick={onClose}><X size={18} /></button>
         </div>
 
-        <div style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
+        <div style={{ ...stap, marginTop: 0 }}><span style={nr}>1</span> Welke verklaring?</div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
+          {standaarden.map(s => {
+            const Icon = icoonVoor(s)
+            const actief = s.id === sjabloonId
+            return (
+              <button key={s.id} type="button" onClick={() => kiesSjabloon(s.id)} className="border rounded-lg"
+                style={{ padding: '10px 12px', textAlign: 'left', cursor: 'pointer', background: actief ? 'var(--bg-elevated)' : 'transparent', borderColor: actief ? 'var(--primary)' : 'var(--border)', boxShadow: actief ? '0 0 0 1px var(--primary)' : 'none', color: 'var(--text-primary)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                <Icon size={17} style={{ color: actief ? 'var(--primary)' : 'var(--text-muted)', marginTop: 2, flexShrink: 0 }} />
+                <span>
+                  <span style={{ display: 'block', fontWeight: 700, fontSize: '0.88rem' }}>{s.naam}</span>
+                  <span className="text-muted" style={{ fontSize: '0.74rem', lineHeight: 1.35 }}>{s.omschrijving || s.ontvanger_rol}</span>
+                </span>
+              </button>
+            )
+          })}
+        </div>
+        {overige.length > 0 && (
+          anderOpen || !standaarden.length ? (
+            <select className="form-dark mt-2" style={{ width: '100%' }} value={standaarden.some(s => s.id === sjabloonId) ? '' : sjabloonId} onChange={e => e.target.value && kiesSjabloon(e.target.value)}>
+              <option value="">Ander sjabloon kiezen...</option>
+              {overige.map(s => <option key={s.id} value={s.id}>{s.naam}</option>)}
+            </select>
+          ) : (
+            <button type="button" className="btn btn-outline btn-sm mt-2" style={{ ...knopTekst, fontSize: '0.75rem' }} onClick={() => setAnderOpen(true)}>Ander sjabloon</button>
+          )
+        )}
+
+        <div style={stap}><span style={nr}>2</span> Voor wie?</div>
+        <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
           <button type="button" className={`btn btn-sm ${via === 'account' ? '' : 'btn-outline'}`} style={{ ...knopTekst, flex: 1 }} onClick={() => setVia('account')}><User size={13} /> Heeft een account</button>
           <button type="button" className={`btn btn-sm ${via === 'link' ? '' : 'btn-outline'}`} style={{ ...knopTekst, flex: 1 }} onClick={() => setVia('link')}><Link2 size={13} /> Nog geen account (link)</button>
         </div>
-
         {via === 'account' ? (
-          <div className="form-group">
-            <label>Beller</label>
-            <PersonSelect people={bellers} value={profileId} onChange={setProfileId} placeholder="Kies een beller" showRole />
+          <>
+            <PersonSelect people={bellers} value={profileId} onChange={setProfileId} placeholder="Kies een persoon" showRole />
             {profileId && heeftOpen(profileId) && (
-              <p style={{ fontSize: '0.78rem', color: 'var(--warning)', margin: '6px 0 0' }}>Deze beller heeft al een verklaring die nog niet getekend is. Die wordt vervangen door deze nieuwe. Wil je alleen de bedragen aanpassen? Gebruik dan de knop Bedragen in het overzicht.</p>
+              <p style={{ fontSize: '0.78rem', color: 'var(--warning)', margin: '6px 0 0' }}>Deze persoon heeft al een verklaring die nog niet getekend is. Die wordt vervangen door deze nieuwe.</p>
             )}
-          </div>
+          </>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
-            <div className="form-group">
-              <label>Naam</label>
-              <input className="form-dark" style={{ width: '100%' }} value={naam} onChange={e => setNaam(e.target.value)} placeholder="Voor- en achternaam" maxLength={120} />
-            </div>
-            <div className="form-group">
-              <label>E-mail (mag leeg)</label>
-              <input className="form-dark" style={{ width: '100%' }} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="naam@voorbeeld.nl" />
-            </div>
-            <p className="text-muted" style={{ fontSize: '0.75rem', margin: '-4px 0 8px', gridColumn: '1 / -1' }}>
-              Je krijgt een link die je zelf kopieert en doorstuurt. Er gaat niets automatisch naar deze persoon.
-            </p>
+            <input className="form-dark" value={naam} onChange={e => setNaam(e.target.value)} placeholder="Voor- en achternaam" maxLength={120} />
+            <input className="form-dark" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="E-mail (mag leeg)" />
+            <p className="text-muted" style={{ fontSize: '0.74rem', margin: 0, gridColumn: '1 / -1' }}>Je krijgt een link die je zelf doorstuurt. Er gaat niets automatisch naar deze persoon.</p>
           </div>
         )}
 
-        <div className="form-group">
-          <label>Sjabloon</label>
-          <select className="form-dark" style={{ width: '100%' }} value={sjabloon?.id || ''} onChange={e => kiesSjabloon(e.target.value)}>
-            {sjablonen.map(s => <option key={s.id} value={s.id}>{s.naam}{s.is_standaard ? ' (standaard)' : ''}</option>)}
-          </select>
-        </div>
-
-        <label style={{ fontSize: '0.8rem', fontWeight: 700 }}>Bedragen per project</label>
-        <p className="text-muted" style={{ fontSize: '0.75rem', margin: '2px 0 8px' }}>Pas de bedragen gerust aan. Kies je een project, dan worden lege vakken gevuld met de tarieven van dat project. Laat een vak leeg als het niet geldt.</p>
-        <TarievenEditor rijen={tarieven} setRijen={setTarieven} projecten={projecten} />
-
-        {isAdmin && sjabloon && (
-          <div style={{ marginTop: 10, padding: 10, border: '1px dashed var(--border)', borderRadius: 10 }}>
-            <div style={{ fontSize: '0.78rem', fontWeight: 700, marginBottom: 6 }}>Deze bedragen bewaren als sjabloon</div>
-            {nieuwNaam === null ? (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <button type="button" className="btn btn-outline btn-sm" style={knopTekst} disabled={!geldig.length} onClick={bedragenInSjabloon}><Save size={13} /> Opslaan in "{sjabloon.naam}"</button>
-                <button type="button" className="btn btn-outline btn-sm" style={knopTekst} disabled={!geldig.length} onClick={() => setNieuwNaam('')}><CopyPlus size={13} /> Als nieuw sjabloon</button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', gap: 6 }}>
-                <input className="form-dark" autoFocus value={nieuwNaam} onChange={e => setNieuwNaam(e.target.value)} placeholder="Naam, bijv. BeautyInfo setters" style={{ flex: 1, minWidth: 0 }}
-                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); bewaarAlsNieuw() } }} />
-                <button type="button" className="btn btn-primary btn-sm" style={knopTekst} disabled={nieuwNaam.trim().length < 2} onClick={bewaarAlsNieuw}>Bewaar</button>
-                <button type="button" className="btn btn-outline btn-sm" style={knopTekst} onClick={() => setNieuwNaam(null)}>Annuleer</button>
+        <div style={stap}><span style={nr}>3</span> Bedragen</div>
+        {!sjabloon ? (
+          <p className="text-muted" style={{ fontSize: '0.8rem', margin: 0 }}>Kies eerst een verklaring.</p>
+        ) : !editorOpen ? (
+          <div className="border border-border rounded-lg" style={{ padding: 10, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <div style={{ flex: 1 }}><TariefRegels tarieven={geldig} /></div>
+            <button type="button" className="btn btn-outline btn-sm" style={knopTekst} onClick={() => setAanpassen(true)}><Pencil size={13} /> Aanpassen</button>
+          </div>
+        ) : (
+          <>
+            {nogInvullen.length > 0 && <p style={{ fontSize: '0.78rem', color: 'var(--warning)', margin: '0 0 8px' }}>Vul een bedrag in voor {nogInvullen.join(', ')}, of haal die regel weg.</p>}
+            <p className="text-muted" style={{ fontSize: '0.74rem', margin: '0 0 8px' }}>Laat een vak leeg als het niet geldt. Kies je een project, dan worden lege vakken gevuld met de tarieven van dat project.</p>
+            <TarievenEditor rijen={tarieven} setRijen={setTarieven} projecten={projecten} />
+            {isAdmin && (
+              <div style={{ marginTop: 10, padding: 10, border: '1px dashed var(--border)', borderRadius: 10 }}>
+                <div style={{ fontSize: '0.76rem', fontWeight: 700, marginBottom: 6 }}>Deze bedragen ook voor de volgende keer bewaren?</div>
+                {nieuwNaam === null ? (
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <button type="button" className="btn btn-outline btn-sm" style={knopTekst} disabled={!geldig.length} onClick={bedragenInSjabloon}><Save size={13} /> Opslaan in "{sjabloon.naam}"</button>
+                    <button type="button" className="btn btn-outline btn-sm" style={knopTekst} disabled={!geldig.length} onClick={() => setNieuwNaam('')}><CopyPlus size={13} /> Als nieuw sjabloon</button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input className="form-dark" autoFocus value={nieuwNaam} onChange={e => setNieuwNaam(e.target.value)} placeholder="Naam, bijv. Setter Marketing 15%" style={{ flex: 1, minWidth: 0 }}
+                      onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); bewaarAlsNieuw() } }} />
+                    <button type="button" className="btn btn-primary btn-sm" style={knopTekst} disabled={nieuwNaam.trim().length < 2} onClick={bewaarAlsNieuw}>Bewaar</button>
+                    <button type="button" className="btn btn-outline btn-sm" style={knopTekst} onClick={() => setNieuwNaam(null)}>Annuleer</button>
+                  </div>
+                )}
               </div>
             )}
-          </div>
+          </>
         )}
 
         <div style={{ marginTop: 14 }}>
           <button type="button" className="btn btn-outline btn-sm" style={knopTekst} onClick={() => setVoorbeeld(v => !v)} disabled={!sjabloon}>
-            <Eye size={13} /> {voorbeeld ? 'Voorbeeld verbergen' : 'Voorbeeld bekijken'}
+            <Eye size={13} /> {voorbeeld ? 'Verklaring verbergen' : 'Verklaring lezen'}
           </button>
           {voorbeeld && voorbeeldRij && (
             <div style={{ marginTop: 10, padding: 16, border: '1px solid var(--border)', borderRadius: 12 }}>
@@ -504,7 +655,7 @@ function VersturenModal({ start, bellers, sjablonen, isAdmin, heeftOpen, onSjabl
         <div className="flex gap-2 mt-4">
           <button type="button" className="btn btn-outline" onClick={onClose} style={{ flex: 1 }}>Annuleren</button>
           <button type="button" className="btn btn-primary" onClick={verstuur} disabled={!kan} style={{ flex: 1 }}>
-            {bezig ? 'Bezig...' : via === 'link' ? 'Link maken' : 'Versturen'}
+            {bezig ? 'Bezig...' : via === 'link' ? 'Link maken' : beller ? `Versturen naar ${beller.full_name?.split(' ')[0] || 'beller'}` : 'Versturen'}
           </button>
         </div>
       </div>
@@ -585,7 +736,7 @@ function SjablonenBeheer({ sjablonen, onGewijzigd }) {
     if (!sj?.naam?.trim()) { toast('Geef het sjabloon een naam', 'error'); return }
     setBezig(true)
     const { data, error } = await supabase.from('overeenkomst_sjablonen')
-      .update({ naam: sj.naam.trim(), titel: sj.titel, opdrachtgever_naam: sj.opdrachtgever_naam, opdrachtgever_plaats: sj.opdrachtgever_plaats || null, opdrachtgever_kvk: sj.opdrachtgever_kvk || null, ontvanger_rol: (sj.ontvanger_rol || '').trim() || 'Appointment setter', tekst: sj.tekst, tarieven: tarievenVoorOpslaan(tarieven) })
+      .update({ naam: sj.naam.trim(), titel: sj.titel, opdrachtgever_naam: sj.opdrachtgever_naam, opdrachtgever_plaats: sj.opdrachtgever_plaats || null, opdrachtgever_kvk: sj.opdrachtgever_kvk || null, ontvanger_rol: (sj.ontvanger_rol || '').trim() || 'Appointment setter', tekst: sj.tekst, tarieven: tarievenVoorOpslaan(tarieven), omschrijving: (sj.omschrijving || '').trim() || null, snelkeuze: sj.snelkeuze === '' || sj.snelkeuze === null || sj.snelkeuze === undefined ? null : Number(sj.snelkeuze) })
       .eq('id', sj.id).select().single()
     setBezig(false)
     if (error) { toast(error.message, 'error'); return }
@@ -666,6 +817,17 @@ function SjablonenBeheer({ sjablonen, onGewijzigd }) {
             Versie {sj.versie}{sj.is_standaard ? ', standaardsjabloon' : ''}. Een wijziging geldt voor verklaringen die je hierna verstuurt. Wat al verstuurd of getekend is, blijft zoals het was.
           </p>
           <div className="form-group"><label>Naam van het sjabloon</label><input className="form-dark" style={{ width: '100%' }} value={sj.naam || ''} onChange={e => zet('naam', e.target.value)} placeholder="Alleen voor jezelf, bijv. BeautyInfo setters" /></div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 8, alignItems: 'end' }}>
+            <div className="form-group">
+              <label>Als kaart tonen</label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '0.82rem', fontWeight: 500, height: 38 }}>
+                <input type="checkbox" checked={sj.snelkeuze !== null && sj.snelkeuze !== undefined && sj.snelkeuze !== ''}
+                  onChange={e => zet('snelkeuze', e.target.checked ? (Math.max(0, ...sjablonen.map(x => Number(x.snelkeuze) || 0)) + 1) : null)} />
+                Standaard
+              </label>
+            </div>
+            <div className="form-group"><label>Korte uitleg op de kaart</label><input className="form-dark" style={{ width: '100%' }} value={sj.omschrijving || ''} onChange={e => zet('omschrijving', e.target.value)} placeholder="Bijv. Belt klinieken voor BeautyInfo" maxLength={160} /></div>
+          </div>
           <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 8 }}>
             <div className="form-group"><label>Titel boven de verklaring</label><input className="form-dark" style={{ width: '100%' }} value={sj.titel || ''} onChange={e => zet('titel', e.target.value)} /></div>
             <div className="form-group"><label>Ontvanger heet</label><input className="form-dark" style={{ width: '100%' }} value={sj.ontvanger_rol || ''} onChange={e => zet('ontvanger_rol', e.target.value)} placeholder="Appointment setter" /></div>

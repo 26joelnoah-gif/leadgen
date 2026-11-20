@@ -1335,3 +1335,27 @@ Twee-zijdig platform:
   Getest met de echte sleutel op lead "NOAH TEST" (alles 200); de no-show-route
   op een lead met afspraak is in de database getest en teruggedraaid.
   Migratie: supabase/migrations/migration_v157_no_show_commissie.sql.
+
+- **STANDAARD VERKLARINGEN + NIEUW VERKLARINGEN-SCHERM (v158, 2026-11-20,
+  migratie toegepast):** wens Noah: makkelijker verklaringen maken, met vaste
+  standaarden, zodat mensen iets op papier hebben zonder veel verplichtingen
+  voor ons.
+  1. `overeenkomst_sjablonen.snelkeuze` (int, volgorde van de kaart; null =
+     geen kaart) en `.omschrijving` (korte uitleg op de kaart). Vier nieuwe
+     sjablonen: Setter Recruitment, Setter Marketing, Setter BeautyInfo,
+     Closer. Zelfde artikelen 3-11 voor alle vier: alleen betaald op netto
+     resultaat, geen garantie op werk of uren, per direct stoppen, onze
+     aansprakelijkheid max wat we in de laatste 3 maanden betaalden, nieuwe
+     bedragen alleen via een nieuwe verklaring. Bedragen die nog niet
+     vaststaan (Recruitment, Closer BEAUTYINFO) staan leeg in het sjabloon;
+     de popup dwingt dan invullen af.
+  2. /overeenkomsten (Overeenkomsten.jsx): tegels (wacht / getekend / nog geen
+     / ingetrokken, klik = filter), kaarten met de standaarden en "Versturen",
+     chips "Nog geen verklaring" (accountmanager krijgt Closer als voorstel),
+     tabel met kolom Verklaring (sjabloonnaam) en zoekveld. "Link maken" en
+     "Verklaring versturen" zijn een knop "Nieuwe verklaring"; de popup heeft
+     drie stappen (welke, voor wie, bedragen) en bedragen staan dicht tot je
+     op Aanpassen klikt. Link-scherm heeft "Via WhatsApp sturen".
+  3. Tab "Teksten aanpassen" (was Sjablonen): vinkje "Als kaart tonen" en
+     veld "Korte uitleg op de kaart".
+  Migratie: supabase/migrations/migration_v158_standaard_verklaringen.sql.
