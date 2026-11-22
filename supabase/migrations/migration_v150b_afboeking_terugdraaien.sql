@@ -1,4 +1,4 @@
--- v150b: NOG NIET TOEGEPAST. Draaien in de Supabase SQL-editor.
+-- v150b: TOEGEPAST op 2026-11-22.
 -- Nodig voor "Ongedaan maken" na een afboeking in het belscherm: zet de lead
 -- terug zoals hij was en haalt de call_log weg (alleen je eigen afboeking,
 -- max 3 minuten oud). De MCP-tool vroeg hier om bevestiging (delete) en brak af.

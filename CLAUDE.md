@@ -857,10 +857,8 @@ Twee-zijdig platform:
      Agenda-trigger hem oppikt.
   4. Google Agenda: google-agenda-push gebruikt label en duur per soort.
      Functie leads_google_agenda_kick kijkt nu ook naar appointment_type. De
-     TRIGGER-kolomlijst is nog NIET bijgewerkt (drop trigger op leads bleef via
-     MCP hangen); het statement staat in migration_v124_afspraaksoort.sql en
-     moet nog in de SQL-editor gedraaid worden. Tot dan: wie appointment_type
-     schrijft, schrijft appointment_at mee (gebeurt al overal).
+     TRIGGER-kolomlijst is op 2026-11-22 bijgewerkt (v160, met lock_timeout),
+     inclusief appointment_meet_link.
 
 
 - **lead_score IS GEEN KOLOM (v125, 2026-10-05, geen migratie):** melding
@@ -1016,8 +1014,8 @@ Twee-zijdig platform:
   busy slaat die accounts over, push doet niets, oauth zet hem weer op false.
   Andere tokenfouten zijn tijdelijk en worden de volgende ronde opnieuw
   geprobeerd. Frontend leest de stand via NIEUWE RPC
-  `google_agenda_status_v2()` (de oude google_agenda_status() bestaat nog,
-  want een DROP liep vast via de MCP-tool) en toont dan een knop
+  `google_agenda_status_v2()` (de oude google_agenda_status() is op
+  2026-11-22 verwijderd, v160) en toont dan een knop
   "Opnieuw koppelen". Migratie: supabase/migrations/migration_v134_google_opnieuw_koppelen.sql.
 
 - **VERKLARINGEN: SJABLONEN, BEDRAGEN AANPASSEN, LINK ZONDER ACCOUNT (v137,
@@ -1164,9 +1162,8 @@ Twee-zijdig platform:
   4, start). src/lib/design.js designVoor(profile): altijd 'v2', behalve een
   admin met profiles.ui_design = 'v1' (noodknop: palet-icoon in de kopbalk, alleen
   voor jezelf). normalizeDesign() en index.html vallen nu terug op v2. Alle
-  profielen eenmalig op ui_design='v2' gezet. De kolom-default in de database is
-  nog 'v1' (ALTER op profiles loopt via MCP vast), maar dat maakt niet uit: alleen
-  een admin kan v1 zien. Nog te doen uit fase 3: de nieuwe schermindelingen
+  profielen eenmalig op ui_design='v2' gezet. De kolom-default in de database staat
+  sinds 2026-11-22 ook op 'v2' (v160). Nog te doen uit fase 3: de nieuwe schermindelingen
   (design-canvas "ReachConnect design-upgrade") scherm voor scherm bouwen.
 
 - **NIEUW BELSCHERM, STAP 1 (v149, 2026-10-19, geen migratie):** in design v2
@@ -1199,9 +1196,8 @@ Twee-zijdig platform:
      telt een uur pas mee vanaf 15 gesprekken; goed = 3 punten boven gemiddeld,
      minder = 5 punten onder.
   5. "Ongedaan maken" na afboeken: RPC afboeking_terugdraaien staat klaar in
-     supabase/migrations/migration_v150b_afboeking_terugdraaien.sql maar is NOG
-     NIET toegepast (bevat een delete; MCP vroeg bevestiging en brak af). De
-     knop in de app wordt pas gebouwd als de functie bestaat.
+     supabase/migrations/migration_v150b_afboeking_terugdraaien.sql en is
+     toegepast op 2026-11-22. De knop in de app moet nog gebouwd worden.
 
 - **LEAD VOOR LEAD (LVL) + VIDEOCALL 30 MIN + KEUREN + MEET-LINK (v152,
   2026-10-21, migratie toegepast, google-agenda-push v10 live):**
@@ -1360,8 +1356,8 @@ Twee-zijdig platform:
      veld "Korte uitleg op de kaart".
   Migratie: supabase/migrations/migration_v158_standaard_verklaringen.sql.
 
-- **SETTERTOOL PROSELL (v159, 2026-11-22, migratie NOG NIET toegepast, niet
-  live):** brief 22-11. Setter leert, belt met het script en legt het gesprek
+- **SETTERTOOL PROSELL (v159, 2026-11-22, migratie toegepast en RLS getest,
+  frontend nog NIET live - staat op branch claude/affectionate-planck-ihwjx4):** brief 22-11. Setter leert, belt met het script en legt het gesprek
   vast, alles in het gewone belscherm.
   1. Teksten (script 6 stappen, 5 haken, 8 bezwaren, 4 eisen, onboarding,
      weekchecklist) staan ALLEEN in src/content/settertool.js. Aanpassen = daar.
@@ -1389,7 +1385,9 @@ Twee-zijdig platform:
   6. Meldingen: pg_cron reachconnect-settertool-meldingen (elk uur :07) draait
      settertool_meldingen(): 24 uur na een afspraak zonder WhatsApp-
      bevestiging, en de dag voor de afspraak. Elk 1 keer.
-  7. RLS: setter schrijft alleen op eigen naam voor een lead die hij mag zien
+  7. RLS (organisatie null-veilig: `is not distinct from`, want veel
+     profielen/leads hebben organization_id leeg - REGEL voor nieuwe policies):
+     setter schrijft alleen op eigen naam voor een lead die hij mag zien
      in een project met de tool; lezen eigen rijen, admin of manager van het
      project. Update alleen de kolommen whatsapp_bevestigd(_op).
   Open: fysiek = bezoek duurt in de agenda 60 min (brief zegt 30); closers =

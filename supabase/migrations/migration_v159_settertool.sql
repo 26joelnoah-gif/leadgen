@@ -6,7 +6,9 @@
 -- Teksten (script, haken, bezwaren, onboarding) staan in
 -- src/content/settertool.js, niet in de database.
 --
--- NOG NIET TOEGEPAST. Pas toepassen na akkoord van Noah.
+-- TOEGEPAST op 2026-11-22 (in stappen v159a-g via de MCP-tool). Dit bestand
+-- is de eindstand. Organisatie wordt null-veilig vergeleken (is not distinct
+-- from), want veel profielen en leads hebben organization_id leeg.
 
 -- 1. Welke projecten gebruiken de settertool (sleutel uit src/content/settertool.js)
 alter table public.campaigns add column if not exists setter_tool text
@@ -17,7 +19,7 @@ create table if not exists public.setter_gesprekken (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid default public.my_org_id() references public.organizations(id) on delete cascade,
   campaign_id uuid not null references public.campaigns(id) on delete cascade,
-  lead_id uuid not null references public.leads(id) on delete cascade,
+  lead_id uuid not null, -- FK hieronder apart (NOT VALID + validate), anders lock op leads
   setter_id uuid not null default auth.uid() references public.profiles(id) on delete cascade,
   tool text not null check (length(tool) between 1 and 40),
   uitkomst text not null check (uitkomst in ('afspraak', 'terugbellen', 'niet_eigenaar', 'geen_interesse', 'niet_bereikt', 'anders')),
@@ -49,6 +51,13 @@ create table if not exists public.setter_gesprekken (
   )
 );
 
+set lock_timeout = '5s';
+alter table public.setter_gesprekken drop constraint if exists setter_gesprekken_lead_id_fkey;
+alter table public.setter_gesprekken add constraint setter_gesprekken_lead_id_fkey
+  foreign key (lead_id) references public.leads(id) on delete cascade not valid;
+alter table public.setter_gesprekken validate constraint setter_gesprekken_lead_id_fkey;
+reset lock_timeout;
+
 create index if not exists setter_gesprekken_campaign_idx on public.setter_gesprekken (campaign_id, created_at desc);
 create index if not exists setter_gesprekken_setter_idx on public.setter_gesprekken (setter_id, created_at desc);
 create index if not exists setter_gesprekken_lead_idx on public.setter_gesprekken (lead_id, created_at desc);
@@ -60,7 +69,7 @@ alter table public.setter_gesprekken enable row level security;
 -- Lezen: eigen gesprekken, admin, of manager van het project. Altijd binnen de org.
 drop policy if exists setter_gesprekken_select on public.setter_gesprekken;
 create policy setter_gesprekken_select on public.setter_gesprekken for select to authenticated using (
-  organization_id = (select public.my_org_id()) and (
+  organization_id is not distinct from (select public.my_org_id()) and (
     setter_id = (select auth.uid())
     or (select public.is_admin())
     or exists (select 1 from public.campaign_managers cm
@@ -73,7 +82,7 @@ create policy setter_gesprekken_select on public.setter_gesprekken for select to
 drop policy if exists setter_gesprekken_insert on public.setter_gesprekken;
 create policy setter_gesprekken_insert on public.setter_gesprekken for insert to authenticated with check (
   setter_id = (select auth.uid())
-  and organization_id = (select public.my_org_id())
+  and organization_id is not distinct from (select public.my_org_id())
   and exists (
     select 1 from public.leads l
     join public.lead_lists ll on ll.id = l.lead_list_id
@@ -88,15 +97,16 @@ create policy setter_gesprekken_insert on public.setter_gesprekken for insert to
 -- Kolomrechten beperken wat er aangepast mag worden.
 drop policy if exists setter_gesprekken_update on public.setter_gesprekken;
 create policy setter_gesprekken_update on public.setter_gesprekken for update to authenticated using (
-  organization_id = (select public.my_org_id()) and (
+  organization_id is not distinct from (select public.my_org_id()) and (
     setter_id = (select auth.uid())
     or (select public.is_admin())
     or exists (select 1 from public.campaign_managers cm
                where cm.campaign_id = setter_gesprekken.campaign_id and cm.manager_id = (select auth.uid()))
   )
-) with check (organization_id = (select public.my_org_id()));
+) with check (organization_id is not distinct from (select public.my_org_id()));
 
 revoke update on public.setter_gesprekken from authenticated;
+revoke all on public.setter_gesprekken from anon;
 grant update (whatsapp_bevestigd, whatsapp_bevestigd_op) on public.setter_gesprekken to authenticated;
 -- Geen delete-policy: gesprekken blijven staan (verdwijnen mee met de lead).
 
@@ -119,7 +129,7 @@ drop policy if exists setter_onboarding_beheer on public.setter_onboarding;
 create policy setter_onboarding_beheer on public.setter_onboarding for select to authenticated using (
   (select public.is_admin())
   or exists (select 1 from public.profiles p where p.id = setter_onboarding.user_id
-             and p.organization_id = (select public.my_org_id())
+             and p.organization_id is not distinct from (select public.my_org_id())
              and exists (select 1 from public.profiles me where me.id = (select auth.uid()) and me.role = 'manager'))
 );
 
@@ -135,7 +145,7 @@ declare
 begin
   select exists (
     select 1 from public.campaigns c
-    where c.id = p_campaign and c.organization_id = public.my_org_id()
+    where c.id = p_campaign and c.organization_id is not distinct from public.my_org_id()
       and (public.is_admin() or exists (select 1 from public.campaign_managers cm
                                         where cm.campaign_id = c.id and cm.manager_id = auth.uid()))
   ) into v_mag;
@@ -166,7 +176,8 @@ begin
       'bevestigd', (select count(*) from g where setter_id = i.id and uitkomst = 'afspraak' and whatsapp_bevestigd)
     ) order by coalesce(p.full_name, p.email)), '[]'::jsonb)
   into v_setters
-  from ids i left join public.profiles p on p.id = i.id;
+  from ids i left join public.profiles p on p.id = i.id
+  where i.id is not null;
 
   select coalesce(jsonb_agg(jsonb_build_object(
       'haak', haak, 'gebruikt', gebruikt, 'afspraken', afspraken) order by gebruikt desc), '[]'::jsonb)
