@@ -39,6 +39,10 @@ import { logAppError } from '../lib/errorLog'
 import { APPOINTMENT_TYPES, DEFAULT_APPOINTMENT_TYPE, appointmentMinutes, appointmentLabel, duurTekst } from '../lib/appointmentConfig'
 import PersonSelect from './PersonSelect' // v102
 import { dispositionKey } from '../lib/dispositions' // v104
+import { useSetterTool, legeKaart } from '../hooks/useSetterTool' // v159
+import SetterScript from './settertool/SetterScript' // v159
+import SetterAfspraakVelden, { setterAfspraakCompleet } from './settertool/SetterAfspraakVelden' // v159
+import { bewaarSetterGesprek, setterNotitie } from '../lib/setterGesprekken' // v159
 
 // v125: velden die de app zelf aan een lead toevoegt en die NIET in public.leads staan
 const CLIENT_ONLY_LEAD_FIELDS = ['lead_score', 'lead_lists']
@@ -330,6 +334,22 @@ export default function WorkInterface() {
 
   // v97: sentiment hoort bij één afspraak - bij een nieuwe lead weer leeg
   useEffect(() => { setAppointmentSentiment(null); setAppointmentType(currentLead?.appointment_type || DEFAULT_APPOINTMENT_TYPE) }, [currentLead?.id])
+
+  // v159: settertool (campaigns.setter_tool). Script, haak, bezwaren en de
+  // gesprekskaart; bij afboeken gaat de kaart naar setter_gesprekken.
+  const { key: setterToolKey, tool: setterToolDef } = useSetterTool(briefingCampaignId)
+  const setterActief = !!setterToolDef && !isRecruitmentCampaign && !isBackofficeMode
+  const [setterKaart, setSetterKaart] = useState(legeKaart)
+  useEffect(() => { setSetterKaart(legeKaart()) }, [currentLead?.id])
+  // Bij de settertool is een afspraak fysiek (bezoek) of online (videocall)
+  const SETTER_VORMEN = [
+    { id: 'bezoek', label: 'Fysiek', uitleg: 'De adviseur komt langs' },
+    { id: 'videocall', label: 'Online', uitleg: 'Via video' },
+  ]
+  useEffect(() => {
+    if (setterActief && selectedDisposition === 'afspraak_gemaakt' && !SETTER_VORMEN.some(v => v.id === appointmentType)) setAppointmentType('videocall')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setterActief, selectedDisposition, appointmentType])
 
   // v94: Haal accountmanagers op zodra 'afspraak_gemaakt' wordt gekozen
   useEffect(() => {
@@ -741,11 +761,14 @@ export default function WorkInterface() {
       // ging zo'n notitie stilletjes verloren. Eerst de openstaande
       // wijzigingen opslaan, dan pas afboeken.
       await saveLeadEdits()
+      // v159: settertool - haak/interesse/bezwaar ook als regel in de notitie
+      const setterRegel = setterActief ? setterNotitie(setterToolDef, setterKaart) : ''
+      const notesMetSetter = setterRegel ? (notes ? `${notes} | ${setterRegel}` : setterRegel) : notes
       const resultaat = await handleLeadDisposition(
         currentLead.id,
         listName,
         dispositionType,
-        notes,
+        notesMetSetter,
         nextDate || null,
         { startedAt: leadStartRef.current },
         customDispositionId
@@ -761,6 +784,17 @@ export default function WorkInterface() {
       }
       setAfboekFout(null)
       if (resultaat?.waarschuwing) toast(resultaat.waarschuwing, 'info', 7000)
+
+      // v159: gesprek van de settertool vastleggen. De afboeking staat al;
+      // lukt dit niet, dan alleen een melding (en een regel in het foutlogboek).
+      if (setterActief) {
+        const g = await bewaarSetterGesprek({
+          toolKey: setterToolKey, campaignId: briefingCampaignId, lead: currentLead,
+          status: dispositionType, kaart: setterKaart, closerId: selectedAmId,
+          afspraakOp: nextDate, afspraakType: appointmentType, notitie: notes,
+        })
+        if (!g.ok) toast('Afgeboekt, maar de gesprekskaart (haak, interesse) is niet bewaard.', 'info', 6000)
+      }
 
       setTodayCalls(prev => prev + 1)
 
@@ -973,6 +1007,12 @@ export default function WorkInterface() {
         }
         baselineRef.current = { ...(baselineRef.current || {}), ...changes }
         setLiveLead(prev => (prev && prev.id === currentLead.id) ? { ...prev, ...changes } : prev)
+      }
+    }
+    if (selectedDisposition === 'afspraak_gemaakt' && setterActief) {
+      if (!nextContactDate || !selectedAmId || !setterAfspraakCompleet(setterKaart)) {
+        toast(`Vul datum en tijd, ${setterToolDef.rolCloser}, interesse en beslisser in`, 'error', 6000)
+        return
       }
     }
     if (selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled) {
@@ -1268,6 +1308,11 @@ export default function WorkInterface() {
                 </div>
               )}
             </div>
+          )}
+
+          {setterActief && (
+            <SetterScript tool={setterToolDef} kaart={setterKaart} setKaart={setSetterKaart}
+              lead={currentLead} setterNaam={profile?.full_name} isMobile={isMobile} />
           )}
 
           <main style={{ flex: 1, minHeight: 0, padding: isMobile ? '12px' : '14px 24px', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
@@ -1660,7 +1705,7 @@ export default function WorkInterface() {
                         {selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled && accountmanagers.length > 0 && (
                           <div style={{ marginBottom: '10px' }}>
                             <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '4px', fontSize: '0.85rem' }}>
-                              Met welke accountmanager is de afspraak?
+                              {setterActief ? `Met welke ${setterToolDef.rolCloser}? (verplicht)` : 'Met welke accountmanager is de afspraak?'}
                             </label>
                             <PersonSelect
                               people={accountmanagers}
@@ -1678,10 +1723,10 @@ export default function WorkInterface() {
                         {selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled && !isRecruitmentCampaign && (
                           <div style={{ marginBottom: '10px' }}>
                             <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '4px', fontSize: '0.85rem' }}>
-                              Wat voor afspraak is het?
+                              {setterActief ? 'Fysiek of online?' : 'Wat voor afspraak is het?'}
                             </label>
                             <div style={{ display: 'flex', gap: '8px' }}>
-                              {APPOINTMENT_TYPES.map(t => {
+                              {(setterActief ? SETTER_VORMEN.map(v => ({ ...APPOINTMENT_TYPES.find(t => t.id === v.id), ...v })) : APPOINTMENT_TYPES).map(t => {
                                 const actief = appointmentType === t.id
                                 return (
                                   <button
@@ -1815,10 +1860,14 @@ export default function WorkInterface() {
                       )
                     })()}
 
+                    {selectedDisposition === 'afspraak_gemaakt' && setterActief && (
+                      <SetterAfspraakVelden tool={setterToolDef} kaart={setterKaart} setKaart={setSetterKaart} />
+                    )}
+
                     {selectedDisposition === 'terugbelafspraak' && (
                       <div>
                         <label style={{ display: 'block', color: 'var(--text-muted)', marginBottom: '8px', fontSize: '0.9rem' }}>
-                          Naam contactpersoon (verplicht)
+                          {setterActief && setterKaart.nietEigenaar ? 'Naam eigenaar (verplicht)' : 'Naam contactpersoon (verplicht)'}
                         </label>
                         <input
                           type="text"
@@ -1889,7 +1938,8 @@ export default function WorkInterface() {
                         (selectedDisposition === 'wil_annuleren' && !dispositionNotes.trim()) ||
                         (selectedDisposition === 'nieuw_kwartaal' && !gekozenKwartaal) ||
                         (selectedDisposition === 'terugbelafspraak' && !(editableLead.contact_person || '').trim()) ||
-                        (selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled && (!!conflictWarning || checkingConflict || !nextContactDate || !afspraakDetailsCompleet))
+                        (selectedDisposition === 'afspraak_gemaakt' && appointmentSchedulingEnabled && (!!conflictWarning || checkingConflict || !nextContactDate || !afspraakDetailsCompleet)) ||
+                        (selectedDisposition === 'afspraak_gemaakt' && setterActief && (!nextContactDate || !selectedAmId || !setterAfspraakCompleet(setterKaart)))
                       }
                       style={{
                         background: dispositions.find(d => d.id === selectedDisposition)?.color,

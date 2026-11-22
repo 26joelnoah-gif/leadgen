@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useHeeftSetterTool } from '../hooks/useSetterTool' // v159
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
@@ -80,6 +81,8 @@ export default function Header({ onOpenSettings }) {
   // v140: Agenda en Mijn afspraken alleen met het vinkje "Agenda tonen"
   // (profiles.can_view_agenda, Admin > Team). Admin altijd.
   const canViewAgenda = isRealAdmin || profile?.can_view_agenda === true
+  // v159: settertool (onboarding, bevestigen, overzicht) als een project hem heeft
+  const heeftSetterTool = useHeeftSetterTool(profile?.id)
   // v61: planning en recruiter krijgen ook de tab Tools als een project van
   // hen tools heeft (campaign_tools via hun team) - verder blijft hun nav klein.
   const navLinks = isAanbrenger
@@ -129,6 +132,7 @@ export default function Header({ onOpenSettings }) {
         ...(canViewAgenda ? [{ path: '/agenda', label: 'Agenda' }] : []),
         ...(canViewAgenda || isManager ? [{ path: '/videocalls', label: 'Videocalls' }] : []), // v152
         { path: '/tba', label: 'TBA\'s' },
+        ...(heeftSetterTool ? [{ path: '/settertool', label: 'Settertool' }] : []), // v159
         ...(isRealAdmin ? [{ path: '/recruitment', label: 'Sollicitanten' }] : []),
         // v110: wat is er gebeurd met de afspraken die ik heb ingepland
         // v140: alleen met het vinkje "Agenda tonen"
