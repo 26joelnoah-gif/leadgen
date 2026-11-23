@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X, ListChecks, Flame, Info, Trash2, CalendarDays, EyeOff, Eye, PhoneCall } from 'lucide-react'
+import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X, ListChecks, Flame, Info, Trash2, CalendarDays, EyeOff, Eye, PhoneCall, Download } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
@@ -30,6 +30,7 @@ import { leadBelstatus, BELSTATUS, useProjectCompliance, urenTotWissen, rechtsvo
 import PersonSelect from '../components/PersonSelect' // v102
 import { planningGroup, planningDate, byPlanningDate, endOfToday, tomorrowAt } from '../lib/followUps' // v130
 import { useLeadUserState } from '../hooks/useLeadUserState' // v130
+import { leadsVoorExcel, downloadVoorExcel } from '../lib/leadExport' // v159
 
 // v62: gedeelde Leadlijst. Iedereen die in een project zit (team, manager,
 // planning-account met projectvlag) ziet ALLE leads van de gekozen lijst en
@@ -835,6 +836,26 @@ export default function LeadBoard() {
   }, [pool, filter, q, pos, sortBy, wie, vanPersoon, user?.id, isWarm, mailRows, view, belstatusVan, isHidden, isTodayTask, userState])
   const openCount = pool.filter(l => !DONE_STATUSES.includes(l.status) && !isNietBereikbaar(l)).length
   const warmCount = useMemo(() => pool.filter(isWarm).length, [pool, isWarm])
+
+  // v159: alle leads die je in dit project/deze lijst mag zien downloaden voor
+  // Excel of een eigen CRM (met notities en gespreksgeschiedenis).
+  const magExporteren = isStaff || profile?.can_export_data !== false
+  const [exporteren, setExporteren] = useState(false)
+  const downloadExcel = useCallback(async () => {
+    if (exporteren || pool.length === 0) return
+    setExporteren(true)
+    try {
+      const rows = await leadsVoorExcel(pool.map(l => l.id), listNames)
+      const naam = (allLists ? currentProject?.name : currentList?.name) || 'leads'
+      const stamp = new Date().toISOString().slice(0, 10)
+      if (downloadVoorExcel(rows, `${naam.replace(/[^\w-]+/g, '_')}_${stamp}`)) toast(`${rows.length} leads gedownload`, 'success')
+      else toast('Geen leads om te downloaden', 'info')
+    } catch (err) {
+      toast(err.message || 'Downloaden mislukt', 'error')
+    } finally {
+      setExporteren(false)
+    }
+  }, [exporteren, pool, listNames, allLists, currentProject, currentList, toast])
   const afgemeldeLeads = useMemo(() => pool.filter(l => belstatusVan(l) === 'afgemeld'), [pool, belstatusVan])
   const laterMailenCount = useMemo(() => pool.filter(isMailPauze).length, [pool])
   const overgenomenCount = useMemo(() => pool.filter(l => !!l.overgenomen_van).length, [pool]) // v145
@@ -1101,6 +1122,11 @@ export default function LeadBoard() {
                   {pos && view !== 'board' && (
                     <button type="button" onClick={() => setSortBy(s => s === 'distance' ? 'order' : 'distance')} className="lb-pill" title="Sortering wisselen">
                       <Compass size={13} /> {sortBy === 'distance' ? 'Dichtbij eerst' : 'Op planning'}
+                    </button>
+                  )}
+                  {magExporteren && (
+                    <button type="button" onClick={downloadExcel} disabled={exporteren || pool.length === 0} className="lb-pill" title="Download alle leads van deze lijst met status, notities en gesprekken. Opent in Excel en is in elk CRM te importeren.">
+                      <Download size={13} /> {exporteren ? 'Bezig...' : 'Download voor Excel'}
                     </button>
                   )}
                   <div className="lb-seg" role="tablist" aria-label="Weergave">
