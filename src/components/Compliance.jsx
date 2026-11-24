@@ -86,7 +86,7 @@ export function ComplianceLeadBlok({ lead, project, onChanged, compact = false, 
     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
       {KVK_KEUZES.map(r => (
         <button key={r.key} type="button" disabled={bezig} onClick={() => zetRechtsvorm(r.key)}
-          className="btn btn-sm btn-outline" title={`${r.label}: ${r.uitleg}`} aria-label={r.label}
+          className="btn btn-sm btn-outline" title={r.label} aria-label={r.label}
           style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 36, padding: 0, borderColor: r.mag ? 'var(--success)' : 'var(--danger)', color: r.mag ? 'var(--success)' : 'var(--danger)' }}>
           {r.mag ? <Check size={20} strokeWidth={3} /> : <X size={20} strokeWidth={3} />}
         </button>
@@ -122,6 +122,11 @@ export function ComplianceLeadBlok({ lead, project, onChanged, compact = false, 
       </div>
       </>
     )
+  }
+
+  // v141: KvK-check = alleen vinkje of kruisje, zonder kop, uitleg of link.
+  if (status === 'kvk_check') {
+    return <>{pauze}{rvKnoppen}{losseKnop && <div style={{ marginTop: 8 }}>{meldingKnop}</div>}{modal}</>
   }
 
   return (

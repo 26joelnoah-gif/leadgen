@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
 /* v130: onboarding voor setters op het project BEAUTYINFO.
+   v158: setter plant altijd een kennismakingsgesprek bij de closer.
    Huisstijl van beautyinfo.nl: Inter, wit + stone-tinten, rose als accent. */
 :root{
   --rose-50:#fff1f2;--rose-100:#ffe4e6;--rose-300:#ffa2ae;--rose-400:#ff667f;--rose-500:#ff2357;--rose-600:#e70044;--rose-700:#c20039;
@@ -104,6 +105,45 @@ footer{text-align:center;font-size:13px;color:var(--stone-400);padding:16px}
 }
 @media (max-width:480px){.prijs{grid-template-columns:1fr}}
 @media print{header,nav.inhoud{display:none}.wrap{display:block}section{break-inside:avoid}}
+.vb{margin:20px 0 8px;background:var(--stone-100);border-radius:20px;padding:16px}
+.vb-kop{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--stone-500);margin:0 0 10px}
+.vb-zoek{display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--stone-200);border-radius:12px;padding:10px 14px;color:var(--stone-600);font-size:15px;margin-bottom:12px}
+.vb-kaart{background:#fff;border:1px solid var(--rose-300);border-radius:18px;overflow:hidden;box-shadow:0 4px 18px rgba(255,35,87,.08)}
+.vb-kaart img{display:block;width:100%;height:auto}
+.vb-body{padding:14px 16px 16px}
+.vb-body b{font-size:18px;display:block}
+.vb-plaats{font-size:14px;color:var(--stone-500);margin:2px 0 10px}
+.vb-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.vb-tags span{font-size:13px;background:var(--stone-100);color:var(--stone-600);padding:4px 10px;border-radius:999px}
+.vb-knoppen{display:flex;gap:8px}
+.vb-knoppen span{flex:1;text-align:center;font-size:14px;font-weight:600;padding:9px;border-radius:10px;background:var(--rose-500);color:#fff}
+.vb-knoppen span.bel{flex:none;background:var(--stone-100);color:var(--stone-800);padding:9px 16px}
+.vb-gratis{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#fff;border:1px solid var(--stone-200);border-radius:14px;padding:10px 14px;margin-top:8px;opacity:.6}
+.vb-gratis b{font-size:15px;font-weight:600;display:block}
+.vb-gratis small{font-size:12px;color:var(--stone-500)}
+.vb-gratis em{font-style:normal;font-size:11px;color:var(--stone-500);background:var(--stone-100);padding:3px 8px;border-radius:999px;white-space:nowrap}
+.vb-uitleg{font-size:14px;color:var(--stone-600);margin:10px 0 0}
+.bs{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--stone-200);border-radius:18px;overflow:hidden;margin:14px 0 8px;font-size:14px}
+.bs-l{background:#fdf0f1;padding:20px}
+.bs-r{background:#fff;padding:20px;display:flex;flex-direction:column;gap:10px}
+.bs-merk{display:flex;align-items:center;gap:8px;font-weight:600;margin-bottom:14px}
+.bs-merk i{width:24px;height:24px;border-radius:999px;background:var(--rose-500);color:#fff;font-style:normal;font-weight:800;font-size:13px;display:grid;place-items:center}
+.bs-l small{color:var(--stone-600);display:block}
+.bs-l .groot{font-size:30px;font-weight:700;letter-spacing:-.02em;margin:2px 0}
+.bs-rij{display:flex;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid #f1dfe1}
+.bs-rij:last-child{border-bottom:0;font-weight:700}
+.bs-rij .min{color:var(--stone-500)}
+.bs-veld{border:1px solid var(--stone-200);border-radius:10px;padding:9px 12px;color:var(--stone-400)}
+.bs-veld b{display:block;font-size:12px;color:var(--stone-700);font-weight:600;margin-bottom:2px}
+.bs-vink{display:flex;gap:8px;align-items:center;color:var(--stone-700)}
+.bs-vink span{width:16px;height:16px;border:1px solid var(--stone-300);border-radius:4px;flex:none}
+.bs-knop{background:#d0344a;color:#fff;text-align:center;font-weight:700;border-radius:10px;padding:11px;margin-top:4px}
+.bs-mini{font-size:12px;color:var(--stone-500);margin:0}
+.bedragen{width:100%;border-collapse:collapse;margin:10px 0;font-size:15px}
+.bedragen th,.bedragen td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--stone-200)}
+.bedragen th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--stone-500)}
+.bedragen td:not(:first-child),.bedragen th:not(:first-child){text-align:right;white-space:nowrap}
+@media (max-width:640px){.bs{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -120,8 +160,8 @@ footer{text-align:center;font-size:13px;color:var(--stone-400);padding:16px}
     <a href="#wat"><span>1</span>Wat is BeautyInfo</a>
     <a href="#aanbod"><span>2</span>Het aanbod</a>
     <a href="#gesprek"><span>3</span>Het gesprek</a>
-    <a href="#mail"><span>4</span>De mail live sturen</a>
-    <a href="#balk"><span>5</span>De statusbalk</a>
+    <a href="#inplannen"><span>4</span>Het gesprek inplannen</a>
+    <a href="#balk"><span>5</span>Wat er daarna gebeurt</a>
     <a href="#nietnu"><span>6</span>Lukt het niet nu?</a>
     <a href="#bezwaren"><span>7</span>Bezwaren</a>
     <a href="#regels"><span>8</span>Regels</a>
@@ -130,11 +170,11 @@ footer{text-align:center;font-size:13px;color:var(--stone-400);padding:16px}
   <main>
     <div class="hero">
       <span class="label">Lees dit voordat je gaat bellen</span>
-      <h1>Klinieken aanmelden als Premium Partner</h1>
-      <p>Je belt huidklinieken en schoonheidssalons. Je stuurt de aanmeldmail live tijdens het gesprek en je rondt het samen af aan de telefoon.</p>
+      <h1>Kennismakingsgesprekken inplannen voor BeautyInfo</h1>
+      <p>Je belt huidklinieken en schoonheidssalons. Je maakt ze nieuwsgierig en je plant een kort videogesprek met een closer. De closer laat het profiel zien en rondt de aanmelding af.</p>
       <div class="doel">
-        <div><b>Aan de lijn</b><span>Het doel: de kliniek betaalt terwijl jij nog belt.</span></div>
-        <div><b>Terugbellen</b><span>Lukt het niet? Dan plan je een vaste terugbelafspraak.</span></div>
+        <div><b>Jouw doel</b><span>Een vast gesprek van 30 minuten in de agenda van de closer.</span></div>
+        <div><b>Niet verkopen</b><span>Jij sluit niet af. De closer doet dat in het gesprek.</span></div>
         <div><b>10 minuten</b><span>Zo lang duurt het lezen. Doe het rustig.</span></div>
       </div>
     </div>
@@ -155,17 +195,50 @@ footer{text-align:center;font-size:13px;color:var(--stone-400);padding:16px}
       <h2><span class="nr">2</span>Het aanbod</h2>
       <p class="intro">Ken dit uit je hoofd. Dit is wat je verkoopt.</p>
       <div class="prijs">
-        <div class="nu"><small>Eerste jaar</small><b>&euro;200</b><span>Actieprijs: &euro;150 korting</span></div>
-        <div><small>Daarna</small><b>&euro;350 per jaar</b><span>Nog geen &euro;30 per maand</span></div>
+        <div class="nu"><small>1 jaar</small><b>&euro;350</b><span>Introductieprijs, was &euro;450. Plus &euro;50 advertentietegoed.</span></div>
+        <div><small>2 jaar</small><b>&euro;600</b><span>Voordeligst. Plus &euro;100 advertentietegoed.</span></div>
       </div>
+      <ul>
+        <li>Alle prijzen zijn <b>zonder btw</b>.</li>
+        <li>De kliniek betaalt <b>vooraf</b>: in een keer, of in 3 delen via Klarna. Betalen kan met iDEAL, creditcard of Klarna.</li>
+        <li><b>Er is geen maandabonnement.</b></li>
+        <li>Niets wordt automatisch verlengd. Voor het einde krijgt de kliniek een betaallink. Verlengen na 1 jaar kost &euro;450.</li>
+        <li>Het profiel staat direct na betalen live. Foto's en tekst zijn binnen een paar werkdagen klaar.</li>
+      </ul>
       <h3>Dit krijgt de kliniek</h3>
       <ul>
-        <li>Een geverifieerd profiel op BeautyInfo</li>
-        <li>Een link waarmee bezoekers direct bij de kliniek boeken: de eigen website of bijvoorbeeld een Treatwell-link</li>
-        <li>Onbeperkt boekingen, zonder commissie per boeking</li>
-        <li>Ruim voordat jaar 2 begint een herinnering. Er wordt niets afgeschreven zonder akkoord vooraf.</li>
+        <li>Bovenaan in hun stad en behandelcategorie</li>
+        <li>Als eerste in artikelen en op de kaart</li>
+        <li>Een profiel met foto's, video en knoppen: bellen, WhatsApp en afspraak aanvragen</li>
+        <li>Links naar hun Instagram en TikTok</li>
+        <li>Een dashboard met bezoeken en klikken op bellen, boeken en website</li>
+        <li>Geen andere klinieken op hun profiel, en het label Geverifieerd</li>
+        <li>Geen commissie: wat klanten betalen, blijft van de kliniek</li>
       </ul>
-      <div class="let"><b>Zeg het precies zo.</b> Zeg niet "29 euro per maand", want de kliniek betaalt per jaar. Zeg ook niet "per dag opzegbaar" en beloof geen aantal boekingen.</div>
+      <h3>Zo staat de kliniek straks in de zoekresultaten</h3>
+      <p>Dit is het voorbeeld dat de kliniek ook ziet op de aanmeldpagina. Gebruik het in je gesprek: "U staat straks bovenaan, met foto's en een knop om direct te boeken. De andere klinieken staan eronder zonder foto."</p>
+      <div class="vb">
+        <p class="vb-kop">Voorbeeld</p>
+        <div class="vb-zoek">&#128269;&nbsp;Huidtherapie in Arnhem</div>
+        <div class="vb-kaart">
+          <img src="beautyinfo-kliniek-voorbeeld.jpg" alt="Voorbeeld van een Premium-profiel met foto, label Premium partner en Geverifieerd" loading="lazy">
+          <div class="vb-body">
+            <b>Uw kliniek</b>
+            <div class="vb-plaats">Arnhem</div>
+            <div class="vb-tags"><span>Laserontharing</span><span>Huidverjonging</span><span>Acnebehandeling</span></div>
+            <div class="vb-knoppen"><span>Afspraak aanvragen</span><span class="bel">Bellen</span></div>
+          </div>
+        </div>
+        <div class="vb-gratis"><div><b>Praktijk voor huidverzorging</b><small>Arnhem &middot; geen foto's of contactknoppen</small></div><em>Gratis vermelding</em></div>
+        <div class="vb-gratis"><div><b>Beautysalon in de buurt</b><small>Arnhem &middot; geen foto's of contactknoppen</small></div><em>Gratis vermelding</em></div>
+      </div>
+      <p class="vb-uitleg"><b>Het verschil in een zin:</b> Premium staat bovenaan met foto's, behandelingen, het label Geverifieerd en knoppen om te boeken of te bellen. Een gratis vermelding heeft dat allemaal niet.</p>
+      <ul>
+        <li>Bovenaan in hun categorie en stad</li>
+        <li>Een dashboard: ze zien zelf hoeveel mensen kijken en klikken</li>
+        <li>Geen commissie: wat ze verdienen, blijft van hen</li>
+      </ul>
+      <div class="let"><b>Zeg het precies zo.</b> Noem nooit een prijs per maand: er is geen maandabonnement. Beloof geen aantal boekingen. BeautyInfo belooft de eerste plek, geen aantal bezoekers.</div>
     </section>
 
     <section id="gesprek" data-hoofdstuk>
@@ -192,92 +265,102 @@ footer{text-align:center;font-size:13px;color:var(--stone-400);padding:16px}
       </div>
 
       <div class="stap">
-        <h3>Aanbod <small>stap 4</small></h3>
-        <div class="zeg">"Bezoekers sturen we door naar je eigen website of je boekingslink, wat jij wilt. Wij vragen geen commissie per boeking.<br>Het eerste jaar betaal je nu 200 euro. Daarna is het 350 euro per jaar, dat is nog geen 30 euro per maand."</div>
+        <h3>Aanbod in het kort <small>stap 4</small></h3>
+        <div class="zeg">"Je staat bovenaan in [plaats], met foto's en knoppen om te bellen of een afspraak te maken. Wij vragen geen commissie. Een jaar kost nu 350 euro in plaats van 450, en je krijgt 50 euro advertentietegoed."</div>
+        <p class="tip">Hou het kort. De closer legt het aanbod in het gesprek uit.</p>
       </div>
 
       <div class="stap">
-        <h3>Naar de mail <small>stap 5</small></h3>
-        <div class="zeg">"Zal ik je laten zien hoe jouw profiel eruit komt te zien? Dan stuur ik je nu de aanmeldmail."</div>
+        <h3>Naar het gesprek <small>stap 5</small></h3>
+        <div class="zeg">"Het makkelijkst is als mijn collega je laat zien hoe jouw profiel eruit komt te zien. Dat is een kort videogesprek van een half uur. Dan zie je precies wat je krijgt."</div>
+        <div class="zeg">"Wat komt je beter uit: [dag] om [tijd] of [dag] om [tijd]?"</div>
+        <p class="tip">Geef altijd twee keuzes. Kijk eerst in de agenda welke tijden vrij zijn (hoofdstuk 4).</p>
+      </div>
+
+      <div class="stap">
+        <h3>Gegevens checken <small>stap 6</small></h3>
         <ul>
-          <li>"Wat is je e-mailadres?" <span class="tip">Spel het terug, letter voor letter.</span></li>
+          <li>"Op welk e-mailadres wil je de uitnodiging?" <span class="tip">Spel het terug, letter voor letter. Daar komt de videolink.</span></li>
           <li>"Wat is je voor- en achternaam?"</li>
-          <li>"Jullie zitten op [adres] in [plaats], toch?" <span class="tip">De plaats is verplicht, anders gaat de mail niet weg.</span></li>
+          <li>"Jullie zitten in [plaats], toch?"</li>
         </ul>
-        <div class="actie"><b>Doe nu:</b> stuur de aanmeldmail. Zie hoofdstuk 4.</div>
+        <div class="actie"><b>Doe nu:</b> plan het gesprek in. Zie hoofdstuk 4.</div>
       </div>
 
       <div class="stap">
-        <h3>Samenvatten en akkoord <small>stap 6</small></h3>
-        <div class="zeg">"Je krijgt van ons een geverifieerd profiel met een link voor je boekingen. Onbeperkt boekingen, zonder commissie. En 150 euro korting op het eerste jaar.<br>Het eerste jaar is dus 200 euro, daarna 350 euro per jaar. Je krijgt ruim op tijd een herinnering voordat jaar 2 begint. Er wordt niets afgeschreven zonder dat je vooraf akkoord geeft.<br><b>Is dat duidelijk, en ga je akkoord?"</b></div>
-      </div>
-
-      <div class="stap">
-        <h3>Afsluiten aan de telefoon <small>stap 7</small></h3>
-        <div class="zeg">"Gefeliciteerd! De mail staat nu in je inbox. Pak hem er even bij, dan lopen we er samen kort doorheen."</div>
-        <div class="zeg">"Lees hem rustig door. Onderaan staat de knop om te betalen. Na het betalen krijg je een betaalbewijs en de factuur, en kun je meteen in je account."</div>
-        <ul>
-          <li><b>Blijf aan de lijn</b> tot de betaling rond is.</li>
-          <li><b>Geen mail?</b> Laat ze in de spam kijken. Check of het e-mailadres goed gespeld is.</li>
-        </ul>
+        <h3>Bevestigen en afsluiten <small>stap 7</small></h3>
+        <div class="zeg">"Staat erin. [Dag] om [tijd] heb je een videogesprek van een half uur. Je krijgt de uitnodiging met de link op [e-mailadres]. Zet hem meteen in je agenda."</div>
+        <div class="zeg">"Kun je toch niet? Laat het ons weten, dan zoeken we een ander moment. Fijne dag!"</div>
+        <p class="tip">Zet in de notitie wat de klant vertelde, bijvoorbeeld "wil meer klanten voor laserontharing, heeft al Treatwell". Dat leest de closer voor het gesprek.</p>
       </div>
     </section>
 
-    <section id="mail" data-hoofdstuk>
-      <h2><span class="nr">4</span>De aanmeldmail live sturen</h2>
-      <p class="intro">Zo stuur je de mail in ReachConnect, terwijl je nog aan de lijn bent.</p>
+    <section id="inplannen" data-hoofdstuk>
+      <h2><span class="nr">4</span>Het gesprek inplannen</h2>
+      <p class="intro">Er zijn twee soorten closers. Je manager zegt welke route je gebruikt. Weet je het niet? Vraag het voor je eerste belronde.</p>
+
+      <h3>Route A: closer van BeautyInfo</h3>
       <ol>
-        <li>Klik in het belscherm op <span class="knop">MAILINGSERVICE</span>.</li>
-        <li>Kies <b>Aanmeldmail</b>.</li>
-        <li>Vul het e-mailadres en de contactpersoon in. Check de <b>plaats</b>: die moet ingevuld zijn.</li>
-        <li>Laat "Wanneer versturen?" op <b>Nu versturen</b> staan en klik op de knop.</li>
+        <li>Klik in het belscherm op <span class="knop">GESPREK INPLANNEN</span>.</li>
+        <li>Kies een dag en een vrije tijd.</li>
+        <li>Klik op inplannen. BeautyInfo kiest de closer en stuurt de klant de uitnodiging met de videolink.</li>
       </ol>
-      <div class="let"><b>Let op:</b> na het versturen gaat het belscherm meteen door naar de volgende lead. <b>Bel die nog niet.</b> Blijf bij je klant aan de lijn. Wil je de voortgang zien? Open dan <b>Leads</b> in het menu, kies het project BEAUTYINFO en zoek de kliniek op.</div>
-      <p class="tip">Fout gemaakt in het e-mailadres? Stuur de mail opnieuw met het goede adres. De Herinnering gebruik je alleen als de kliniek na een paar dagen nog niets met de mail gedaan heeft.</p>
+      <p class="tip">De lead staat daarna vanzelf op <b>Afspraak gemaakt</b>, op jouw naam. Je hoeft niet meer af te boeken. Het belscherm gaat door naar de volgende lead.</p>
+      <p class="tip">Zie je geen tijden? Plan een terugbelafspraak en meld het aan je manager.</p>
+
+      <h3>Route B: een eigen accountmanager</h3>
+      <ol>
+        <li>Klik in het belscherm op <span class="knop">AFSPRAAK GEMAAKT</span>.</li>
+        <li>Kies bij soort afspraak <b>Videocall</b> (30 minuten).</li>
+        <li>Klik op <b>Zet in agenda</b> en kies de accountmanager.</li>
+        <li>Kies een vrij moment (grijs = bezet) en klik op <b>Bevestig dit moment</b>.</li>
+        <li>Vul contactpersoon en sentiment in en boek af.</li>
+      </ol>
+      <p class="tip">De accountmanager ziet het gesprek meteen in zijn agenda en zet de videolink klaar.</p>
+
+      <div class="let"><b>Let op:</b> plan alleen een moment dat de klant echt heeft gekozen. Een gesprek waar de klant niet van weet, wordt een no-show.</div>
     </section>
 
     <section id="balk" data-hoofdstuk>
-      <h2><span class="nr">5</span>De statusbalk lezen</h2>
-      <p class="intro">BeautyInfo laat ons live weten wat de kliniek met de mail doet. Dat zie je bij de lead.</p>
-      <div class="balk"><div class="aan">Mail</div><div class="aan">Bezoek</div><div>Betaling</div><div>Klant</div></div>
+      <h2><span class="nr">5</span>Wat er daarna gebeurt</h2>
+      <p class="intro">Bij de lead zie je hoe het gesprek loopt. Kijk bij <b>Leads</b>, project BEAUTYINFO.</p>
       <div class="kaarten">
-        <div class="kaart"><b>Mail</b><p>De mail is bezorgd of geopend.</p></div>
-        <div class="kaart"><b>Bezoek</b><p>De kliniek heeft op de link geklikt en kijkt naar de pagina.</p></div>
-        <div class="kaart"><b>Betaling</b><p>De kliniek is begonnen met betalen.</p></div>
-        <div class="kaart"><b>Klant</b><p>Betaald. De kliniek is Premium Partner.</p></div>
+        <div class="kaart"><b>Gesprek gepland</b><p>Het gesprek staat in de agenda. Je ziet datum, tijd en de closer.</p></div>
+        <div class="kaart"><b>Verzet</b><p>De klant of closer heeft een nieuwe tijd gekozen. Het telt nog steeds voor jou.</p></div>
+        <div class="kaart"><b>No-show</b><p>De klant kwam niet. De lead komt terug om te bellen. Bel en plan een nieuw moment.</p></div>
+        <div class="kaart"><b>Geannuleerd</b><p>Het gesprek gaat niet door. De lead komt terug om te bellen.</p></div>
       </div>
       <h3>Signalen</h3>
       <ul>
-        <li><span class="chip live">Nu op de pagina</span> De kliniek kijkt nu. Dit is het beste moment om te bellen.</li>
-        <li><b>"Bel nu: bij het betalen"</b> op het bord: de kliniek is begonnen met betalen maar nog niet klaar. Bel en help even.</li>
-        <li><span class="chip rood">Terugbellen: ...</span> Er ging iets mis, bijvoorbeeld een mail die niet aankwam of een betaling die mislukte. Bel de kliniek.</li>
+        <li><span class="chip rood">No-show</span> Bel de klant dezelfde dag nog. Vraag wat er gebeurde en plan een nieuw gesprek.</li>
+        <li><span class="chip live">Nu op de pagina</span> De klant kijkt nu op BeautyInfo. Goed moment om te bellen.</li>
       </ul>
+      <p class="tip">Plant de klant zelf een gesprek via een mail van jou? Dan telt het ook als jouw afspraak.</p>
     </section>
 
     <section id="nietnu" data-hoofdstuk>
       <h2><span class="nr">6</span>Lukt het niet nu?</h2>
-      <p class="intro">Geen tijd, of moet nog overleggen? Dan plan je een vast moment.</p>
-      <div class="zeg">"Wanneer heb je vijf minuten om het samen af te ronden? Morgen om 10 uur of om 14 uur?"</div>
+      <p class="intro">Geen tijd, of moet eerst overleggen? Dan plan je een vast moment om terug te bellen.</p>
+      <div class="zeg">"Wanneer kan ik je twee minuten bellen om een moment te prikken? Morgen om 10 uur of om 14 uur?"</div>
       <p class="tip">Geef twee keuzes. Dan kiest de klant een moment in plaats van "ik bel je wel".</p>
       <ul>
-        <li>Stuur de aanmeldmail toch alvast, dan heeft de kliniek hem al klaarstaan.</li>
         <li>Boek af op <span class="knop">TBA (TERUGBEL)</span> met de afgesproken datum en tijd.</li>
-        <li>Zet in de notitie wat de klant zei, bijvoorbeeld "overlegt met partner, akkoord op prijs".</li>
+        <li>Zet in de notitie wat de klant zei, bijvoorbeeld "overlegt met partner, interesse in profiel".</li>
       </ul>
-      <p class="tip">Heb je eerst de mail gestuurd, dan staat de lead op "Mail verstuurd". Plan de terugbelafspraak dan via het bord bij Leads.</p>
     </section>
 
     <section id="bezwaren" data-hoofdstuk>
       <h2><span class="nr">7</span>Bezwaren</h2>
       <p class="intro">Een bezwaar is meestal een vraag. Klik er een open voor het antwoord.</p>
-      <details><summary>"Ik heb geen tijd."</summary><div class="antw"><div class="zeg">"Snap ik. Het duurt drie minuten. Of zal ik je morgen om [tijd] terugbellen?"</div></div></details>
-      <details><summary>"Stuur maar wat informatie."</summary><div class="antw"><div class="zeg">"Doe ik meteen. Dan kijken we er nu samen even naar. Je zit nergens aan vast tot je zelf betaalt."</div><p class="tip">Stuur de aanmeldmail en loop hem samen door.</p></div></details>
-      <details><summary>"Te duur."</summary><div class="antw"><div class="zeg">"Wat kost een behandeling bij jou gemiddeld? ... Dan heb je het met een of twee nieuwe klanten al terugverdiend. Het hele eerste jaar kost 200 euro, zo'n 17 euro per maand."</div></div></details>
+      <details><summary>"Ik heb geen tijd."</summary><div class="antw"><div class="zeg">"Snap ik. Daarom plannen we het in op een moment dat jou past. Wat is beter, ochtend of middag?"</div></div></details>
+      <details><summary>"Stuur maar wat informatie."</summary><div class="antw"><div class="zeg">"Kan, maar in een half uur zie je je eigen profiel. Dat zegt meer dan een folder. Je zit nergens aan vast. Zal ik [dag] om [tijd] noteren?"</div></div></details>
+      <details><summary>"Ik wil geen verkoopgesprek."</summary><div class="antw"><div class="zeg">"Snap ik. Het is kort: je ziet hoe je profiel eruitziet en je beslist zelf. Zegt het je niks, dan is dat ook goed."</div></div></details>
+      <details><summary>"Te duur."</summary><div class="antw"><div class="zeg">"Wat kost een behandeling bij jou gemiddeld? ... Dan heb je het met een of twee nieuwe klanten al terugverdiend. Een heel jaar kost 350 euro."</div></div></details>
+      <details><summary>"Kan ik per maand betalen?"</summary><div class="antw"><div class="zeg">"Nee, het is een pakket voor 1 of 2 jaar. Je kunt het wel in 3 delen betalen via Klarna."</div></div></details>
       <details><summary>"Ik heb al Treatwell" of "Ik heb genoeg klanten."</summary><div class="antw"><div class="zeg">"Dat blijft gewoon zo. Wij sturen extra bezoekers naar die link toe. Het is een extra kanaal erbij."</div><p class="tip">Zeg niets over wat Treatwell kost. Dat weet de klant zelf beter.</p></div></details>
-      <details><summary>"Nooit van BeautyInfo gehoord."</summary><div class="antw"><div class="zeg">"Klopt, wij zijn een vergelijkingssite voor huidklinieken. Kijk even mee op beautyinfo.nl, dan zie je hoe het werkt."</div></div></details>
-      <details><summary>"Ik moet overleggen met mijn partner."</summary><div class="antw"><div class="zeg">"Logisch. Wanneer spreek je hem of haar? Dan bel ik daarna even terug."</div><p class="tip">Plan een terugbelafspraak (hoofdstuk 6).</p></div></details>
-      <details><summary>"Ik wil niet vastzitten aan een abonnement."</summary><div class="antw"><div class="zeg">"Je zit niet vast. Je krijgt ruim op tijd een herinnering voor jaar 2, en er gaat niets van je rekening zonder je akkoord."</div></div></details>
-      <details><summary>"Ik betaal niet via de telefoon."</summary><div class="antw"><div class="zeg">"Hoeft ook niet. Je betaalt zelf, via de knop in de mail. Ik loop alleen even met je mee."</div></div></details>
+      <details><summary>"Nooit van BeautyInfo gehoord."</summary><div class="antw"><div class="zeg">"Klopt, wij zijn een vergelijkingssite voor huidklinieken. Kijk even mee op beautyinfo.nl. In het gesprek laten we zien hoe het werkt."</div></div></details>
+      <details><summary>"Ik moet overleggen met mijn partner."</summary><div class="antw"><div class="zeg">"Logisch. Doe het gesprek dan samen. Wanneer kunnen jullie allebei?"</div><p class="tip">Lukt dat niet, plan een terugbelafspraak (hoofdstuk 6).</p></div></details>
+      <details><summary>"Ik wil niet vastzitten aan een abonnement."</summary><div class="antw"><div class="zeg">"Je zit niet vast. Het gesprek is vrijblijvend. Alles over het abonnement legt mijn collega je uit."</div></div></details>
       <details><summary>"Bel me niet meer."</summary><div class="antw"><p>Zeg sorry, rond het gesprek netjes af en boek af op <span class="knop">BLACKLIST</span>. Dan wordt de kliniek niet meer gebeld en stoppen ook de mails. Niet overhalen.</p></div></details>
     </section>
 
@@ -286,20 +369,20 @@ footer{text-align:center;font-size:13px;color:var(--stone-400);padding:16px}
       <p class="intro">Hier houd je je altijd aan. Ook als het gesprek goed loopt.</p>
       <div class="regels">
         <div class="regel"><span class="ic ja">&#10003;</span><p><b>Check eerst even het bedrijf.</b> Zoek het kort op internet: rechtsvorm, website en of het klopt.</p></div>
-        <div class="regel"><span class="ic ja">&#10003;</span><p><b>Altijd de echte prijs noemen:</b> 200 euro het eerste jaar, daarna 350 euro per jaar.</p></div>
-        <div class="regel"><span class="ic ja">&#10003;</span><p><b>Pas mailen als de klant ja zegt</b> tegen "zal ik je de mail sturen?".</p></div>
+        <div class="regel"><span class="ic ja">&#10003;</span><p><b>Altijd de echte prijs noemen:</b> 350 euro voor 1 jaar (was 450) of 600 euro voor 2 jaar, zonder btw.</p></div>
+        <div class="regel"><span class="ic ja">&#10003;</span><p><b>Pas inplannen als de klant ja zegt</b> tegen een dag en tijd.</p></div>
         <div class="regel"><span class="ic nee">&#10005;</span><p><b>Geen aantal boekingen beloven.</b> Laat de klant zelf rekenen.</p></div>
-        <div class="regel"><span class="ic nee">&#10005;</span><p><b>Niet zeggen "per dag opzegbaar"</b> of "29 euro per maand".</p></div>
+        <div class="regel"><span class="ic nee">&#10005;</span><p><b>Geen prijs per maand noemen.</b> Er is geen maandabonnement.</p></div>
         <div class="regel"><span class="ic nee">&#10005;</span><p><b>Niet doordrukken</b> als iemand nee zegt of vraagt om niet meer te bellen.</p></div>
       </div>
 
       <h3>Klaar om te bellen?</h3>
       <div class="check" id="check">
         <label><input type="checkbox"> Ik weet wat BeautyInfo is en wie ik bel.</label>
-        <label><input type="checkbox"> Ik ken het aanbod uit mijn hoofd: 200 euro, daarna 350 per jaar.</label>
-        <label><input type="checkbox"> Ik weet hoe ik de aanmeldmail live verstuur.</label>
-        <label><input type="checkbox"> Ik weet dat ik na het versturen aan de lijn blijf.</label>
-        <label><input type="checkbox"> Ik plan een terugbelafspraak als het niet meteen lukt.</label>
+        <label><input type="checkbox"> Ik weet dat mijn doel een gesprek bij de closer is, geen verkoop.</label>
+        <label><input type="checkbox"> Ik weet welke route ik gebruik: A (BeautyInfo) of B (eigen accountmanager).</label>
+        <label><input type="checkbox"> Ik spel het e-mailadres altijd terug.</label>
+        <label><input type="checkbox"> Ik bel een no-show dezelfde dag terug.</label>
         <label><input type="checkbox"> Ik check altijd eerst de rechtsvorm.</label>
       </div>
       <div class="klaarblok" id="klaar">Top, je bent klaar. Succes met bellen!</div>
@@ -312,7 +395,7 @@ footer{text-align:center;font-size:13px;color:var(--stone-400);padding:16px}
 <script>
 // Gelezen hoofdstukken + checklist onthouden in deze browser (best effort).
 (function(){
-  var SLEUTEL='reachconnect-onboarding-beautyinfo';
+  var SLEUTEL='reachconnect-onboarding-beautyinfo-v2';
   var staat={gelezen:[],check:[]};
   try{var s=JSON.parse(localStorage.getItem(SLEUTEL)||'null');if(s&&s.gelezen)staat=s;}catch(e){}
   function bewaar(){try{localStorage.setItem(SLEUTEL,JSON.stringify(staat));}catch(e){}}
