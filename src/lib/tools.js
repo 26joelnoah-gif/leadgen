@@ -124,6 +124,21 @@ export const TOOLS = [
     newTab: true,
   },
   {
+    // v160: settertool ProSell (v159-tak). Pagina /settertool met onboarding,
+    // afvinklijst, te bevestigen afspraken en overzicht. Het belscript zelf staat
+    // in het belscherm zodra campaigns.setter_tool gezet is.
+    key: 'settertool',
+    label: 'Settertool ProSell',
+    description: 'Inwerken als setter voor ProSell: wie we zijn, het belscript, haken, bezwaren, veelgestelde vragen en je checklist voor week 1. Ook je afspraken die nog bevestigd moeten worden.',
+    href: '/settertool',
+    cta: 'Open settertool',
+    icon: 'GraduationCap',
+    color: '#22C55E',
+    bg: 'rgba(34,197,94,0.14)',
+    primary: false,
+    newTab: false,
+  },
+  {
     // v151: webscan. Basis-beveiligingscheck van een website van buitenaf
     // (SSL, headers, PHP, SPF, DMARC, open bestanden). De scan zelf draait in de
     // Edge Function 'webscan' (alleen voor wie deze tool heeft, of admin).

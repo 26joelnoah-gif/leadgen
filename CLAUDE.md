@@ -1359,3 +1359,46 @@ Twee-zijdig platform:
   3. Tab "Teksten aanpassen" (was Sjablonen): vinkje "Als kaart tonen" en
      veld "Korte uitleg op de kaart".
   Migratie: supabase/migrations/migration_v158_standaard_verklaringen.sql.
+
+- **SETTERTOOL PROSELL (v160, 2026-11-24 live; gebouwd 22-11 op tak
+  claude/affectionate-planck-ihwjx4 als "v159", migratie stond al in Supabase):**
+  brief 22-11, teksten bijgewerkt met de kennisbank van 23-11. Setter leert, belt met het script en legt het gesprek
+  vast, alles in het gewone belscherm.
+  1. Teksten (script 6 stappen, 5 haken, 8 bezwaren, 4 eisen, onboarding,
+     weekchecklist) staan ALLEEN in src/content/settertool.js. Aanpassen = daar.
+     Placeholders [naam] [naam setter] [bedrijf] [branche] [wat viel op]
+     [kanaal] [moment 1] [moment 2] vult vulScript() in; onbekend blijft [..].
+  2. Aan per project: campaigns.setter_tool = 'prosell' (sleutel uit dat
+     bestand). Hook src/hooks/useSetterTool.js leest hem in een losse query,
+     zodat een fout het belscherm niet raakt.
+  3. Belscherm (WorkInterface): paneel components/settertool/SetterScript.jsx
+     (stappen, haak kiezen, bezwaren met 1 klik, "Wat viel op", branche,
+     "Niet de eigenaar"). Bij AFSPRAAK: alleen Fysiek (= bezoek) of Online
+     (= videocall), closer = accountmanager verplicht, plus
+     SetterAfspraakVelden (interesse, beslisser, WhatsApp bevestigd).
+  4. GEEN tweede statussysteem: de status loopt via de gewone afboeking.
+     Na een gelukte afboeking schrijft bewaarSetterGesprek()
+     (src/lib/setterGesprekken.js) een rij in public.setter_gesprekken
+     (uitkomst afgeleid via uitkomstVoorStatus: afspraak / terugbellen /
+     niet_eigenaar / geen_interesse / niet_bereikt). Haak, interesse en
+     bezwaar gaan ook als regel in de notitie van de call_log.
+  5. Pagina /settertool, te openen via de kaart "Settertool ProSell" onder
+     Tools (tool_key 'settertool' in campaign_tools; geen eigen menu-item):
+     onboarding + afvinklijst (public.setter_onboarding), "Te bevestigen"
+     (WhatsApp achteraf aanvinken) en voor admin/projectmanager "Overzicht"
+     via RPC settertool_overzicht (per setter: gebeld/bereikt uit call_logs,
+     afspraken/bevestigd uit setter_gesprekken; per haak).
+  6. Meldingen: pg_cron reachconnect-settertool-meldingen (elk uur :07) draait
+     settertool_meldingen(): 24 uur na een afspraak zonder WhatsApp-
+     bevestiging, en de dag voor de afspraak. Elk 1 keer.
+  7. RLS: setter schrijft alleen op eigen naam voor een lead die hij mag zien
+     in een project met de tool; lezen eigen rijen, admin of manager van het
+     project. Update alleen de kolommen whatsapp_bevestigd(_op).
+  8. Prijsanker (wens Noah 24-11): setter noemt NOOIT onze prijs, maar vraagt
+     bij stap 4: "Ik hoor van de meeste [branche] dat ze nu ongeveer tussen de
+     1.500 en 3.500 euro per maand betalen voor marketing. Komt dat bekend voor?
+     Hoeveel is dat nu ongeveer bij jullie?" (wat ze NU uitgeven).
+  Open: fysiek = bezoek duurt in de agenda 60 min (brief zegt 30); closers =
+  de accountmanagers van het project. Open vragen staan in het redactiedoc
+  "Settertool ProSell: teksten ter redactie". Migratie:
+  supabase/migrations/migration_v160_settertool.sql (was v159, al toegepast).

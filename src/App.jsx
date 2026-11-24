@@ -56,6 +56,7 @@ const Tekenen = laadPagina(() => import('./pages/Tekenen'))
 const Agenda = laadPagina(() => import('./pages/Agenda'))
 const MijnAfspraken = laadPagina(() => import('./pages/MijnAfspraken')) // v110
 const Videocalls = laadPagina(() => import('./pages/Videocalls')) // v152
+const Settertool = laadPagina(() => import('./pages/Settertool')) // v159
 const Offertes = laadPagina(() => import('./pages/Offertes')) // v112
 const Overeenkomsten = laadPagina(() => import('./pages/Overeenkomsten')) // v136
 const VerklaringLink = laadPagina(() => import('./pages/VerklaringLink')) // v137
@@ -523,6 +524,15 @@ function AppRoutes() {
           // alleen leads door van projecten met planning_can_view_leads)
           <ProtectedRoute allowPlanning>
             <LeadBoard />
+          </ProtectedRoute>
+        }
+      />
+      {/* v159: settertool - onboarding, bevestigen, overzicht */}
+      <Route
+        path="/settertool"
+        element={
+          <ProtectedRoute>
+            <Settertool />
           </ProtectedRoute>
         }
       />
