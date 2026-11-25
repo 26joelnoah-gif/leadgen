@@ -8,6 +8,7 @@ import { useLeadSources } from '../hooks/useLeadSources'
 import { SourceSelect } from './LeadSources'
 import { normalizeWebsite, displayWebsite } from '../utils/urlUtils'
 import { useToast } from './Toast'
+import { cleanPhone } from '../utils/importUtils' // v161
 
 // ============================================================
 // Import-wizard: plak uit Google Sheets/Excel, of upload een
@@ -188,16 +189,7 @@ function parseDelimited(text) {
   return rows.map(r => r.map(v => v.trim()))
 }
 
-// Telefoonnummer opschonen (Excel sloopt vaak de voorloopnul)
-function cleanPhone(raw) {
-  if (!raw) return ''
-  let p = String(raw).trim().replace(/[^\d+]/g, '')
-  if (p.startsWith('00')) p = `+${p.slice(2)}`
-  if (/^316\d{8}$/.test(p) || /^31\d{9}$/.test(p)) p = `+${p}`
-  if (/^6\d{8}$/.test(p)) p = `0${p}`          // 612345678 -> 0612345678
-  if (/^[1-9]\d{8}$/.test(p) && !p.startsWith('6')) p = `0${p}` // vaste nummers zonder 0
-  return p
-}
+// v161: cleanPhone staat nu in utils/importUtils.js (ook gebruikt door NieuweLeadModal)
 
 // v98: rechtsvorm uit een KvK-export (bv. "Besloten Vennootschap", "BV",
 // "Eenmanszaak", "Vennootschap onder firma"). Onbekend = leeg laten.

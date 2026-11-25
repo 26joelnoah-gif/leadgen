@@ -99,3 +99,14 @@ export function validateLeads(leads) {
 
   return { valid, errors }
 }
+
+// Telefoonnummer opschonen (Excel sloopt vaak de voorloopnul)
+export function cleanPhone(raw) {
+  if (!raw) return ''
+  let p = String(raw).trim().replace(/[^\d+]/g, '')
+  if (p.startsWith('00')) p = `+${p.slice(2)}`
+  if (/^316\d{8}$/.test(p) || /^31\d{9}$/.test(p)) p = `+${p}`
+  if (/^6\d{8}$/.test(p)) p = `0${p}`          // 612345678 -> 0612345678
+  if (/^[1-9]\d{8}$/.test(p) && !p.startsWith('6')) p = `0${p}` // vaste nummers zonder 0
+  return p
+}

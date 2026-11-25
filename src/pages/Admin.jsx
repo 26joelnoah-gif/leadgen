@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
 import { useLeadSources } from '../hooks/useLeadSources'
-import { SourceSelect, ManageSourcesModal } from '../components/LeadSources'
+import { ManageSourcesModal } from '../components/LeadSources'
 import Header from '../components/Header'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -38,6 +38,7 @@ import PayoutSettings from '../components/PayoutSettings'
 import { ComplianceOverzicht } from '../components/Compliance'
 import PersoneelOverzicht from '../components/PersoneelOverzicht' // v155
 import ImportLeadsModal from '../components/ImportLeadsModal'
+import NieuweLeadModal from '../components/NieuweLeadModal' // v161
 import LeadManagement from './LeadManagement' // IMPORT THE MANAGEMENT COMPONENT
 
 // Seconden -> "1u 11m" / "11m"
@@ -71,10 +72,6 @@ export default function Admin() {
   const [confirmPurgeUser, setConfirmPurgeUser] = useState(null) // v86: definitief verwijderen, 2x klikken
   const [loading, setLoading] = useState(true)
   const [showAddLead, setShowAddLead] = useState(false)
-  const [newLead, setNewLead] = useState({
-    name: '', phone: '', email: '', notes: '', 
-    assigned_to: '', lead_list_id: '', lead_source: 'cold', decision_maker: false
-  })
   
   const [showCampaign, setShowCampaign] = useState(false)
   const [showBriefing, setShowBriefing] = useState(false)
@@ -575,35 +572,6 @@ export default function Admin() {
       if (error) throw error
       setUsers(prev => prev.map(x => x.id === u.id ? { ...x, organization_id: orgId || null } : x))
       toast(orgId ? `${u.full_name} ingedeeld bij ${orgs.find(o => o.id === orgId)?.name || 'organisatie'}` : `${u.full_name} staat weer in jouw eigen omgeving`, 'success')
-    } catch (err) {
-      toast(err.message, 'error')
-    }
-  }
-
-  async function addLead(e) {
-    e.preventDefault()
-    if (!newLead.lead_list_id) {
-       toast('Selecteer eerst een lijst', 'error')
-       return
-    }
-    try {
-      const { error } = await supabase.from('leads').insert({
-        name: newLead.name,
-        phone: newLead.phone,
-        email: newLead.email || null,
-        notes: newLead.notes || '',
-        lead_list_id: newLead.lead_list_id,
-        assigned_to: newLead.assigned_to || null,
-        created_by: user.id,
-        status: 'new',
-        lead_source: newLead.lead_source,
-        decision_maker: newLead.decision_maker,
-        organization_id: profile?.organization_id
-      })
-      if (error) throw error
-      setShowAddLead(false)
-      fetchData()
-      toast('Lead toegevoegd!', 'success')
     } catch (err) {
       toast(err.message, 'error')
     }
@@ -1437,76 +1405,8 @@ export default function Admin() {
           </motion.div>
         )}
 
-        {/* MODAL: ADD LEAD */}
-        <AnimatePresence>
-          {showAddLead && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="modal-overlay" onClick={() => setShowAddLead(false)}>
-              <motion.div initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} className="modal glass-panel p-8 max-w-xl w-full" onClick={e => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-8">
-                  <h2 className="text-2xl font-black tracking-tight">Lead toevoegen</h2>
-                  <button onClick={() => setShowAddLead(false)} className="text-muted hover:text-body"><X size={24}/></button>
-                </div>
-                <form onSubmit={addLead} className="grid grid-cols-1 gap-6">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="form-group">
-                      <label className="text-[10px] font-black uppercase text-muted tracking-widest mb-2 block">Bedrijfsnaam *</label>
-                      <input className="form-dark w-full" value={newLead.name} onChange={e => setNewLead({...newLead, name: e.target.value})} required placeholder="Bijv. Jansen BV" />
-                    </div>
-                    <div className="form-group">
-                      <label className="text-[10px] font-black uppercase text-muted tracking-widest mb-2 block">Telefoonnummer *</label>
-                      <input className="form-dark w-full" value={newLead.phone} onChange={e => setNewLead({...newLead, phone: e.target.value})} required placeholder="06..." />
-                    </div>
-                  </div>
-
-                  <div className="form-group p-4 bg-primary/10 rounded-2xl border border-primary/20">
-                    <label className="text-[10px] font-black uppercase text-primary tracking-widest mb-2 block">Project (leadlijst) *</label>
-                    <div className="flex gap-2">
-                       <select 
-                         className="form-dark w-full border-primary/30 text-secondary font-bold"
-                         value={newLead.lead_list_id} 
-                         onChange={e => setNewLead({...newLead, lead_list_id: e.target.value})}
-                         required
-                       >
-                          <option value="">-- SELECTEER EEN PROJECT --</option>
-                          {leadLists.map(list => <option key={list.id} value={list.id}>{list.name}</option>)}
-                       </select>
-                       <button type="button" onClick={() => setShowLeadList(true)} className="p-3 bg-primary text-white rounded-xl hover:bg-primary-dark transition-all"><Plus size={18}/></button>
-                    </div>
-                  </div>
-
-                  <div className="form-group">
-                    <label className="text-[10px] font-black uppercase text-muted tracking-widest mb-2 block">E-mailadres</label>
-                    <input className="form-dark w-full" type="email" value={newLead.email} onChange={e => setNewLead({...newLead, email: e.target.value})} placeholder="info@..." />
-                  </div>
-
-                  <div className="form-group">
-                    <label className="text-[10px] font-black uppercase text-muted tracking-widest mb-2 block">Notities / Briefing</label>
-                    <textarea className="form-dark w-full" value={newLead.notes} onChange={e => setNewLead({...newLead, notes: e.target.value})} rows={3} placeholder="Extra info voor de beller..." />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="form-group">
-                       <label className="text-[10px] font-black uppercase text-muted tracking-widest mb-2 block">Bron</label>
-                       <SourceSelect
-                          className="form-dark w-full"
-                          value={newLead.lead_source}
-                          onChange={v => setNewLead({...newLead, lead_source: v})}
-                          sources={managedSources}
-                          onAdd={addSource}
-                       />
-                    </div>
-                    <div className="form-group">
-                       <label className="text-[10px] font-black uppercase text-muted tracking-widest mb-2 block">Beller (Optioneel)</label>
-                       <PersonSelect people={users.filter(u => u.is_active !== false)} value={newLead.assigned_to} onChange={id => setNewLead({...newLead, assigned_to: id})} emptyLabel="Niet toewijzen (Pool)" showRole className="form-dark w-full" />
-                    </div>
-                  </div>
-
-                  <button type="submit" className="btn btn-primary btn-block py-4 text-lg font-black mt-4">Lead opslaan</button>
-                </form>
-              </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {/* v161: losse lead via de gedeelde popup (ook op /leads en Projecten & Leads) */}
+        <NieuweLeadModal isOpen={showAddLead} onClose={() => setShowAddLead(false)} onCreated={fetchData} />
 
       </main>
 

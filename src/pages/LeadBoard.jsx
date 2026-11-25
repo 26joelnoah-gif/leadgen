@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
-import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X, ListChecks, Flame, Info, Trash2, CalendarDays, EyeOff, Eye, PhoneCall, Download } from 'lucide-react'
+import { Phone, MapPin, Lock, Search, RefreshCw, User, Inbox, Navigation, List, Map as MapIcon, Compass, LayoutGrid, Mail, Clock, X, ListChecks, Flame, Info, Trash2, CalendarDays, EyeOff, Eye, PhoneCall, Download, Plus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useLeadLists } from '../hooks/useLeadLists'
@@ -27,6 +27,7 @@ import MailingserviceModal from '../components/MailingserviceModal'
 import MailQueueView from '../components/MailQueueView'
 import LeadDetailModal from '../components/LeadDetailModal'
 import { leadBelstatus, BELSTATUS, useProjectCompliance, urenTotWissen, rechtsvormLabel } from '../lib/compliance'
+import NieuweLeadModal from '../components/NieuweLeadModal' // v161
 import PersonSelect from '../components/PersonSelect' // v102
 import { planningGroup, planningDate, byPlanningDate, endOfToday, tomorrowAt } from '../lib/followUps' // v130
 import { useLeadUserState } from '../hooks/useLeadUserState' // v130
@@ -105,6 +106,9 @@ export default function LeadBoard() {
   const toast = useToast()
   const geo = useGeolocation()
   const isStaff = profile?.role === 'admin' || profile?.role === 'manager'
+  // v161: los 1 lead aanmaken mag alleen admin of manager
+  const magLeadMaken = isStaff
+  const [nieuweLead, setNieuweLead] = useState(false)
   // v93: verwijderknop (afvalbak) op de kaart alleen voor admin/manager, niet voor
   // bellers met can_manage_leads (dat recht geldt alleen voor importeren, niet verwijderen)
 
@@ -1035,6 +1039,11 @@ export default function LeadBoard() {
                 <Navigation size={14} /> {geo.enabled ? (geo.locating ? 'Locatie zoeken...' : 'Locatie aan') : 'Locatie aan'}
               </button>
             )}
+            {magLeadMaken && (
+              <button type="button" className="btn btn-sm btn-primary" onClick={() => setNieuweLead(true)} title="Los 1 lead aanmaken in dit project">
+                <Plus size={14} /> Nieuwe lead
+              </button>
+            )}
             <button type="button" className="btn btn-sm btn-outline" onClick={() => load()} disabled={loading}>
               <RefreshCw size={14} /> Verversen
             </button>
@@ -1509,6 +1518,13 @@ export default function LeadBoard() {
           </div>
         )}
       </main>
+      <NieuweLeadModal
+        isOpen={nieuweLead}
+        onClose={() => setNieuweLead(false)}
+        campaignId={projectId && projectId !== 'geen' ? projectId : null}
+        listId={allLists ? null : listChoice}
+        onCreated={() => load(true)}
+      />
     </>
   )
 }

@@ -24,6 +24,7 @@ import LeadDetailModal from '../components/LeadDetailModal'
 import MoveCopyLeadsModal from '../components/MoveCopyLeadsModal'
 import ProjectSettingsModal from '../components/ProjectSettingsModal'
 import PersonSelect from '../components/PersonSelect' // v102
+import NieuweLeadModal from '../components/NieuweLeadModal' // v161
 
 function StatusBadge({ status }) {
   const configs = {
@@ -100,6 +101,7 @@ export default function LeadManagement({ standalone = true }) {
 
   // Import wizard
   const [showImport, setShowImport] = useState(false)
+  const [nieuweLead, setNieuweLead] = useState(null) // v161: { campaignId, listId } of null
   const [importMode, setImportMode] = useState('import') // v32.1: 'import' of 'enrich'
   const [showNewProject, setShowNewProject] = useState(false)
 
@@ -470,6 +472,14 @@ export default function LeadManagement({ standalone = true }) {
                 <Sparkles size={16} /> Leads verrijken
              </button>
              <button
+               onClick={() => setNieuweLead({ campaignId: selectedList?.campaign_id || null, listId: selectedList?.id || null })}
+               className="btn btn-outline"
+               title="Los 1 lead aanmaken in een project"
+               style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
+             >
+                <Plus size={16} /> Nieuwe lead
+             </button>
+             <button
                onClick={() => { setImportMode('import'); setShowImport(true) }}
                className="btn btn-outline"
                style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
@@ -554,6 +564,13 @@ export default function LeadManagement({ standalone = true }) {
                                   )}
                                   {c.is_active === false && (
                                     <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-warning/15 text-warning" style={{ flexShrink: 0 }}>gepauzeerd</span>
+                                  )}
+                                  {c.type !== 'recruitment' && (
+                                    <button
+                                      onClick={() => setNieuweLead({ campaignId: c.id, listId: null })}
+                                      title="Nieuwe lead in dit project"
+                                      className="pm-icon-btn"
+                                    ><Plus size={14} /></button>
                                   )}
                                   <button
                                     onClick={() => setSettingsCampaign(c)}
@@ -717,6 +734,14 @@ export default function LeadManagement({ standalone = true }) {
                                style={{ padding: '8px 14px 8px 34px', maxWidth: '100%' }}
                              />
                           </div>
+                          {selectedList.campaigns?.type !== 'recruitment' && (
+                            <button
+                              className="btn btn-sm btn-outline"
+                              onClick={() => setNieuweLead({ campaignId: selectedList.campaign_id || null, listId: selectedList.id })}
+                              title="Los 1 lead aanmaken in deze lijst"
+                              style={{ whiteSpace: 'nowrap' }}
+                            ><Plus size={14} /> Lead toevoegen</button>
+                          )}
                           <button
                             className={`btn btn-sm ${aiConfirm || aiRunning ? 'btn-primary' : 'btn-outline'}`}
                             disabled={!aiRunning && aiCandidates.length === 0}
@@ -1080,6 +1105,13 @@ export default function LeadManagement({ standalone = true }) {
         </div>
       </main>
 
+      <NieuweLeadModal
+        isOpen={!!nieuweLead}
+        onClose={() => setNieuweLead(null)}
+        campaignId={nieuweLead?.campaignId || null}
+        listId={nieuweLead?.listId || null}
+        onCreated={() => { fetchData(); fetchLeadLists(); if (selectedList) fetchLeads(selectedList.id) }}
+      />
       <ImportLeadsModal
         isOpen={showImport}
         initialMode={importMode}

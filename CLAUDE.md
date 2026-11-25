@@ -1402,3 +1402,19 @@ Twee-zijdig platform:
   de accountmanagers van het project. Open vragen staan in het redactiedoc
   "Settertool ProSell: teksten ter redactie". Migratie:
   supabase/migrations/migration_v160_settertool.sql (was v159, al toegepast).
+
+- **LOSSE LEAD AANMAKEN PER PROJECT (v161, 2026-11-25, geen migratie):**
+  Gedeelde popup src/components/NieuweLeadModal.jsx (props isOpen, onClose,
+  campaignId, listId, onCreated). Te openen via "Nieuwe lead" op /leads
+  (LeadBoard, project en lijst al ingevuld), het plus-icoon op elke
+  projectkaart en "Lead toevoegen" bij een open lijst in Projecten & Leads, en
+  de bestaande knop in Admin (oude formulier weg). ALLEEN voor admin en
+  manager (knop en popup). Velden: naam (label per projectsoort),
+  telefoon verplicht, contactpersoon, e-mail, website, plaats, notitie, bron
+  (standaard "Handmatig"), toewijzen (alleen admin/manager). Dubbel nummer
+  (laatste 9 cijfers, alleen zichtbare leads) = waarschuwing, tweede klik =
+  toch opslaan. Backoffice = bruto_deal + sale_date, anders new. Project zonder
+  lijst = lijst "Losse leads" wordt aangemaakt. Recruitment doet niet mee.
+  Knop "Opslaan + nog een" houdt bron en toewijzing vast. cleanPhone() staat nu
+  in src/utils/importUtils.js (gedeeld met ImportLeadsModal).
+  REGEL: een nieuwe plek waar je 1 lead aanmaakt = NieuweLeadModal gebruiken.
